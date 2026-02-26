@@ -1,6 +1,4 @@
-----------------------------------------------------------------
-                        HISTORY STAGES
-----------------------------------------------------------------
+**History Stages**
 
 History Stages is a progression and gatekeeping mod for 
 Minecraft 1.20.1 (Forge). It allows modpack creators to 
