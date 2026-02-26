@@ -58,6 +58,13 @@ repositories {
     flatDir {
         dir 'libs'
     }
+
+    maven {
+        url = 'https://maven.blamejared.com'
+        content {
+            includeGroup 'noobanidus.mods.lootr:lootr-1.20.1:0.7.28.65.1'
+        }
+    }
     mavenCentral()
 }
 

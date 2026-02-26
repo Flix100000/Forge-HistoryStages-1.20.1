@@ -112,4 +112,14 @@ public class StageManager {
         }
         return null;
     }
+
+    public static String getStageForDimension(String dimensionId) {
+        for (var entry : STAGES.entrySet()) {
+            StageEntry data = entry.getValue();
+            if (data.getDimensions() != null && data.getDimensions().contains(dimensionId)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
 }

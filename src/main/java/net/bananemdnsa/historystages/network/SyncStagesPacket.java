@@ -33,18 +33,30 @@ public class SyncStagesPacket {
         return new SyncStagesPacket(stages);
     }
 
-    // Was passiert, wenn das Paket ankommt?
     public static void handle(SyncStagesPacket msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
-            // 1. Wir speichern die Info im Client-Speicher
+            // 1. Client-Speicher aktualisieren
             ClientStageCache.setUnlockedStages(msg.unlockedStages);
 
-            // 2. Wir sagen JEI, dass es die Items neu prüfen soll
-            try {
-                // Wir rufen die statische Methode in deinem JEIPlugin auf
-                JEIPlugin.refreshJei();
-            } catch (NoClassDefFoundError | Exception e) {
-                // Falls JEI nicht installiert ist, ignorieren wir den Fehler einfach
+            // 2. JEI & Client-Reload-Trigger
+            if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                mc.execute(() -> {
+                    try {
+                        // Das hier triggert den JEI-Neuaufbau (wie bei /history reload)
+                        if (mc.getConnection() != null) {
+                            // Simuliert den Empfang neuer Rezepte, was JEI zum kompletten Neustart zwingt
+                            mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
+                        }
+
+                        // Der eigentliche JEI Refresh
+                        JEIPlugin.refreshJei();
+
+                        System.out.println("[HistoryStages] Client Sync & JEI Hard-Refresh triggered.");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                });
             }
         });
         ctx.get().setPacketHandled(true);

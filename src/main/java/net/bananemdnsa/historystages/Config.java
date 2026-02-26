@@ -61,7 +61,6 @@ public class Config {
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
     public static class Common {
         public final ForgeConfigSpec.BooleanValue lockMobLoot;
-        public final ForgeConfigSpec.BooleanValue lockMobEquipment;
         public final ForgeConfigSpec.BooleanValue showDebugErrors;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
@@ -85,9 +84,6 @@ public class Config {
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
 
-            lockMobEquipment = builder
-                    .comment("Remove equipment from mobs if the required stage is not unlocked? [Default: true]")
-                    .define("lockMobEquipment", true);
 
             showDebugErrors = builder
                     .comment("If true, players will see debug messages in chat if a JSON stage has errors or missing items. [Default: true]")

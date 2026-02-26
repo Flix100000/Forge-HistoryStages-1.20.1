@@ -5,6 +5,10 @@ import net.bananemdnsa.historystages.block.ResearchStationBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchStationMenu;
+import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -28,6 +32,8 @@ import net.minecraftforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+
 public class ResearchStationBlockEntity extends BlockEntity implements MenuProvider {
 
     private final ItemStackHandler itemHandler = new ItemStackHandler(1) {
@@ -50,6 +56,7 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
     protected final ContainerData data;
     private int progress = 0;
     private int finishDelay = 0;
+    private int syncTickDelay = -1; // Neu: Delay-Timer
 
     public ResearchStationBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.RESEARCH_STATION_BE.get(), pPos, pBlockState);
@@ -101,6 +108,14 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
     public static void tick(Level level, BlockPos pos, BlockState state, ResearchStationBlockEntity entity) {
         if (level.isClientSide) return;
 
+        // Neu: Warte kurz, bevor das Sync-Paket gesendet wird (Timing-Fix)
+        if (entity.syncTickDelay > 0) {
+            entity.syncTickDelay--;
+        } else if (entity.syncTickDelay == 0) {
+            entity.performGlobalSync();
+            entity.syncTickDelay = -1;
+        }
+
         ItemStack stack = entity.itemHandler.getStackInSlot(0);
         int maxProgress = Config.COMMON.researchTimeInSeconds.get() * 20;
 
@@ -109,13 +124,11 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
 
         if (hasValidBook) {
             String stageId = stack.getTag().getString("StageResearch");
-            net.bananemdnsa.historystages.util.StageData data = net.bananemdnsa.historystages.util.StageData.get(level);
+            StageData data = StageData.get(level);
             boolean alreadyUnlocked = data.getUnlockedStages().contains(stageId);
 
             if (!alreadyUnlocked) {
-                // Hier läuft die Forschung -> LIT soll true sein
                 isResearching = true;
-
                 if (entity.progress < maxProgress) {
                     entity.progress++;
                     if (entity.progress % 10 == 0) {
@@ -137,11 +150,9 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
             entity.finishDelay = 0;
         }
 
-        // State Update: WORKING wenn Buch da, LIT wenn Forschung läuft
         if (state.getValue(ResearchStationBlock.WORKING) != hasValidBook || state.getValue(ResearchStationBlock.LIT) != isResearching) {
             level.setBlock(pos, state.setValue(ResearchStationBlock.WORKING, hasValidBook).setValue(ResearchStationBlock.LIT, isResearching), 3);
         }
-
         setChanged(level, pos, state);
     }
 
@@ -152,27 +163,48 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
             net.bananemdnsa.historystages.util.StageData data = net.bananemdnsa.historystages.util.StageData.get(level);
 
             if (!data.getUnlockedStages().contains(stageId)) {
+                // 1. In der Welt-Datei speichern
                 data.addStage(stageId);
-                net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.clear();
-                net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
-                net.bananemdnsa.historystages.network.PacketHandler.sendToAll(
-                        new net.bananemdnsa.historystages.network.SyncStagesPacket(new java.util.ArrayList<>(data.getUnlockedStages()))
-                );
+                data.setDirty();
 
+                // 2. DEN BEFEHL LEISE AUSFÜHREN (Erzwingt JEI Hard-Reload auf allen Clients)
+                if (level.getServer() != null) {
+                    level.getServer().getCommands().performPrefixedCommand(
+                            level.getServer().createCommandSourceStack().withSuppressedOutput(),
+                            "history reload"
+                    );
+                }
+
+                // 3. Deine individuellen Nachrichten & Sounds (Old Logic)
                 String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
                 String configChat = Config.COMMON.unlockMessageFormat.get();
                 String finalChat = configChat.replace("{stage}", stagename).replace("&", "§");
 
                 level.getServer().getPlayerList().getPlayers().forEach(player -> {
-                    if (Config.COMMON.broadcastChat.get()) player.sendSystemMessage(Component.literal(finalChat));
-                    if (Config.COMMON.useSounds.get()) player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                    // Chat Nachricht senden
+                    if (Config.COMMON.broadcastChat.get()) {
+                        player.sendSystemMessage(Component.literal(finalChat));
+                    }
+                    // Sound abspielen
+                    if (Config.COMMON.useSounds.get()) {
+                        player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                    }
                 });
             }
         }
+
+        // 4. Station zurücksetzen und Buch verbrauchen
         this.progress = 0;
         this.finishDelay = 0;
         stack.shrink(1);
         setChanged();
+    }
+
+    private void performGlobalSync() {
+        StageData data = StageData.get(this.level);
+        StageData.SERVER_CACHE.clear();
+        StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+        PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(StageData.SERVER_CACHE)));
     }
 
     @Override
