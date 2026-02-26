@@ -1,0 +1,45 @@
+# mandatory
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="MIT"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+description='''${mod_description}'''
+
+[mixin.config]
+config="historystages.mixins.json"
+
+[[dependencies.historystages]]
+modId="forge"
+mandatory=true
+versionRange="${forge_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.historystages]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+
+# Abhängigkeit zu Lootr
+[[dependencies.historystages]]
+modId="lootr"
+mandatory=true
+versionRange="[0.4,)" # Version für 1.20.1
+ordering="AFTER"      # Deine Mod soll nach Lootr laden
+side="BOTH"
+
+# Abhängigkeit zu JEI
+[[dependencies.historystages]]
+modId="jei"
+mandatory=true
+versionRange="[15,)"  # Version für 1.20.1
+ordering="AFTER"      # Deine Mod soll nach JEI laden
+side="BOTH"

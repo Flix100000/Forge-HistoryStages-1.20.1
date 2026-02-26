@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.felix.historystages.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "historystages.refmap.json",
+  "mixins": [
+    "RecipeManagerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

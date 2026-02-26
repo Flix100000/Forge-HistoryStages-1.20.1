@@ -1,0 +1,10 @@
+{
+  "block.historystages.research_station": "Research Station",
+  "item.historystages.research_book": "Research Book",
+  "container.historystages.research_station": "Research Station",
+  "tooltip.historystages.locked": "§cLocked! Requires: §7%s",
+  "command.historystages.unlocked_all": "All stages have been unlocked.",
+  "command.historystages.not_found": "Stage '%s' not found!",
+  "screen.historystages.already_learned": "§cAlready learned!",
+  "creativetab.history_tab": "History Stages"
+}
