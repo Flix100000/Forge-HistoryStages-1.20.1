@@ -59,7 +59,7 @@ KubeJS, CraftTweaker, or a Datapack.
 /history reload          - Reloads JSONs and syncs players.
 
 ----------------------------------------------------------------
-4. OBTAINING scrollS VIA COMMAND
+4. OBTAINING scroll VIA COMMAND
 ----------------------------------------------------------------
 
 /give @s historystages:research_scroll{StageResearch:"stage_id"}
