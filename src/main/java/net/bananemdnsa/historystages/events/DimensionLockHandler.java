@@ -7,10 +7,9 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraftforge.event.entity.EntityTravelToDimensionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -37,29 +36,27 @@ public class DimensionLockHandler {
                 StageEntry stageEntry = StageManager.getStages().get(requiredStageId);
                 String stageDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : requiredStageId;
 
-                // --- Berücksichtigung der Client-Configs ---
-
-                // 1. Nachricht im Chat (Falls dimShowChat aktiv ist)
+                // 1. Nachricht im Chat
                 if (Config.CLIENT.dimShowChat.get()) {
-                    String message = "§cYou haven't reached the required era to enter this dimension!";
+                    // Basis-Nachricht laden
+                    MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
 
-                    // Ergänzung des Stage-Namens im Chat (Falls dimShowStagesInChat aktiv ist)
+                    // Ergänzung des Stage-Namens (Falls aktiv)
                     if (Config.CLIENT.dimShowStagesInChat.get()) {
-                        message += " §8(Required: §e" + stageDisplayName + "§8)";
+                        chatMsg.append(Component.translatable("message.historystages.dimension_locked_stage", stageDisplayName));
                     }
 
-                    player.sendSystemMessage(Component.literal(message));
+                    player.sendSystemMessage(chatMsg);
                 }
 
-                // 2. Nachricht in der Actionbar (NEU: Mysteriöser Text statt Stage-Name)
+                // 2. Nachricht in der Actionbar (Mysteriöser Text)
                 if (Config.CLIENT.dimUseActionbar.get()) {
                     player.displayClientMessage(
-                            Component.literal("??? This dimension is still unknown to you ???")
+                            Component.translatable("message.historystages.dimension_unknown")
                                     .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                             true // true = Actionbar
                     );
                 }
-
             }
         }
     }

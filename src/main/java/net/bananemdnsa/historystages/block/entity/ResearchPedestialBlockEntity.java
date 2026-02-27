@@ -1,14 +1,13 @@
 package net.bananemdnsa.historystages.block.entity;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.block.ResearchStationBlock;
+import net.bananemdnsa.historystages.block.ResearchPedestialBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
-import net.bananemdnsa.historystages.screen.ResearchStationMenu;
+import net.bananemdnsa.historystages.screen.ResearchPedestialMenu;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -34,7 +33,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 
-public class ResearchStationBlockEntity extends BlockEntity implements MenuProvider {
+public class ResearchPedestialBlockEntity extends BlockEntity implements MenuProvider {
 
     private final ItemStackHandler itemHandler = new ItemStackHandler(1) {
         @Override
@@ -48,7 +47,7 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
 
         @Override
         public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return stack.is(ModItems.RESEARCH_BOOK.get());
+            return stack.is(ModItems.RESEARCH_SCROLL.get());
         }
     };
 
@@ -58,15 +57,15 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
     private int finishDelay = 0;
     private int syncTickDelay = -1; // Neu: Delay-Timer
 
-    public ResearchStationBlockEntity(BlockPos pPos, BlockState pBlockState) {
-        super(ModBlockEntities.RESEARCH_STATION_BE.get(), pPos, pBlockState);
+    public ResearchPedestialBlockEntity(BlockPos pPos, BlockState pBlockState) {
+        super(ModBlockEntities.RESEARCH_PEDESTIAL_BE.get(), pPos, pBlockState);
         this.data = new ContainerData() {
             @Override
             public int get(int pIndex) {
                 return switch (pIndex) {
-                    case 0 -> ResearchStationBlockEntity.this.progress;
+                    case 0 -> ResearchPedestialBlockEntity.this.progress;
                     case 1 -> Config.COMMON.researchTimeInSeconds.get() * 20;
-                    case 2 -> ResearchStationBlockEntity.this.finishDelay;
+                    case 2 -> ResearchPedestialBlockEntity.this.finishDelay;
                     default -> 0;
                 };
             }
@@ -74,8 +73,8 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
             @Override
             public void set(int pIndex, int pValue) {
                 switch (pIndex) {
-                    case 0 -> ResearchStationBlockEntity.this.progress = pValue;
-                    case 2 -> ResearchStationBlockEntity.this.finishDelay = pValue;
+                    case 0 -> ResearchPedestialBlockEntity.this.progress = pValue;
+                    case 2 -> ResearchPedestialBlockEntity.this.finishDelay = pValue;
                 }
             }
 
@@ -96,16 +95,16 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
 
     @Override
     public Component getDisplayName() {
-        return Component.translatable("block.historystages.research_station");
+        return Component.translatable("block.historystages.research_pedestial");
     }
 
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int pContainerId, Inventory pPlayerInventory, Player pPlayer) {
-        return new ResearchStationMenu(pContainerId, pPlayerInventory, this, this.data);
+        return new ResearchPedestialMenu(pContainerId, pPlayerInventory, this, this.data);
     }
 
-    public static void tick(Level level, BlockPos pos, BlockState state, ResearchStationBlockEntity entity) {
+    public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestialBlockEntity entity) {
         if (level.isClientSide) return;
 
         // Neu: Warte kurz, bevor das Sync-Paket gesendet wird (Timing-Fix)
@@ -150,8 +149,8 @@ public class ResearchStationBlockEntity extends BlockEntity implements MenuProvi
             entity.finishDelay = 0;
         }
 
-        if (state.getValue(ResearchStationBlock.WORKING) != hasValidBook || state.getValue(ResearchStationBlock.LIT) != isResearching) {
-            level.setBlock(pos, state.setValue(ResearchStationBlock.WORKING, hasValidBook).setValue(ResearchStationBlock.LIT, isResearching), 3);
+        if (state.getValue(ResearchPedestialBlock.WORKING) != hasValidBook || state.getValue(ResearchPedestialBlock.LIT) != isResearching) {
+            level.setBlock(pos, state.setValue(ResearchPedestialBlock.WORKING, hasValidBook).setValue(ResearchPedestialBlock.LIT, isResearching), 3);
         }
         setChanged(level, pos, state);
     }

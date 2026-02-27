@@ -2,8 +2,8 @@
 	"format_version": "1.9.0",
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "historystages:item/research_book",
-		"particle": "historystages:item/research_book"
+		"0": "historystages:item/research_scroll",
+		"particle": "historystages:item/research_scroll"
 	},
 	"elements": [
 		{

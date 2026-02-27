@@ -29,8 +29,8 @@ public class TooltipEventHandler {
         ItemStack stack = event.getItemStack();
         if (stack.isEmpty()) return;
 
-        // --- LOGIK FÜR DAS RESEARCH BOOK ---
-        if (stack.is(net.bananemdnsa.historystages.init.ModItems.RESEARCH_BOOK.get())) {
+        // --- LOGIK FÜR DAS RESEARCH SCROLL ---
+        if (stack.is(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get())) {
             if (stack.hasTag() && stack.getTag().contains("ResearchProgress")) {
                 int progress = stack.getTag().getInt("ResearchProgress");
                 // MaxProgress aus NBT laden (wird von BlockEntity gesetzt) oder Fallback auf 20s (400 Ticks)

@@ -11,11 +11,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
-public class ResearchStationScreen extends AbstractContainerScreen<ResearchStationMenu> {
+public class ResearchPedestialScreen extends AbstractContainerScreen<ResearchPedestialMenu> {
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(HistoryStages.MOD_ID, "textures/gui/research_station_gui.png");
+            new ResourceLocation(HistoryStages.MOD_ID, "textures/gui/research_pedestial_gui.png");
 
-    public ResearchStationScreen(ResearchStationMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
+    public ResearchPedestialScreen(ResearchPedestialMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);
     }
 
