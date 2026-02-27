@@ -74,7 +74,7 @@ This mod is currently in active development. Bugs may occur.
 Please report any issues to help improve the mod.
 
 Loot replacements and other settings can be found in:
-/config/historystages-common.toml
+/config/historystages-common.toml or /config/historystages-client.toml
 
 ----------------------------------------------------------------
 License: MIT
