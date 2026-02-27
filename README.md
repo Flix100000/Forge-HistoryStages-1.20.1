@@ -1,5 +1,5 @@
 ----------------------------------------------------------------
-##History Stages
+History Stages
 ----------------------------------------------------------------
 
 History Stages is a progression and gatekeeping mod for 
