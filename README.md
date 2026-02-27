@@ -1,4 +1,6 @@
-**History Stages**
+----------------------------------------------------------------
+##History Stages
+----------------------------------------------------------------
 
 History Stages is a progression and gatekeeping mod for 
 Minecraft 1.20.1 (Forge). It allows modpack creators to 
@@ -18,7 +20,7 @@ dimensions, and mob equipment behind custom research stages.
   with configurable items like Cobblestone.
 - Anti-Cheese: Mobs won't spawn with gear that hasn't been 
   researched yet.
-- Research System: Uses a Research Station and Research Books.
+- Research System: Uses a Research Pedestial and Research scrolls.
 - JEI Support: Automatically hides or marks locked items.
 
 ----------------------------------------------------------------
@@ -36,14 +38,14 @@ Example format:
   "dimensions": ["minecraft:the_nether"]
 }
 
-RESEARCH BOOKS & STATION:
-1. Place a Research Station.
-2. Put a Research Book into the input slot.
+RESEARCH scroll & Pedestial:
+1. Place a Research Pedestial.
+2. Put a Research scroll into the input slot.
 3. Wait for the "Searching..." process to finish.
 4. The stage is now unlocked globally.
 
 IMPORTANT: This mod does NOT include default crafting recipes 
-for the station or books. You MUST add them yourself using 
+for the Pedestial or scrolls. You MUST add them yourself using 
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
@@ -57,10 +59,10 @@ KubeJS, CraftTweaker, or a Datapack.
 /history reload          - Reloads JSONs and syncs players.
 
 ----------------------------------------------------------------
-4. OBTAINING BOOKS VIA COMMAND
+4. OBTAINING scrollS VIA COMMAND
 ----------------------------------------------------------------
 
-/give @s historystages:research_book{StageResearch:"stage_id"}
+/give @s historystages:research_scroll{StageResearch:"stage_id"}
 
 (Replace "stage_id" with your JSON filename, e.g. "stone_age")
 
