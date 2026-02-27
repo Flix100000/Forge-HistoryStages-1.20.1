@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.block.ResearchStationBlock; // WICHTIGER IMPORT
+import net.bananemdnsa.historystages.block.ResearchPedestialBlock; // WICHTIGER IMPORT
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -15,8 +15,8 @@ public class ModBlocks {
             DeferredRegister.create(ForgeRegistries.BLOCKS, HistoryStages.MOD_ID);
 
     // Geändert: Benutzt jetzt "new ResearchStationBlock" statt "new Block"
-    public static final RegistryObject<Block> RESEARCH_STATION = BLOCKS.register("research_station",
-            () -> new ResearchStationBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)
+    public static final RegistryObject<Block> RESEARCH_PEDESTIAL = BLOCKS.register("research_pedestial",
+            () -> new ResearchPedestialBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)
                     .strength(5.0f)
                     .requiresCorrectToolForDrops()));
 

@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.block;
 
-import net.bananemdnsa.historystages.block.entity.ResearchStationBlockEntity;
+import net.bananemdnsa.historystages.block.entity.ResearchPedestialBlockEntity;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,14 +20,19 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.BooleanOp;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
-public class ResearchStationBlock extends BaseEntityBlock {
+public class ResearchPedestialBlock extends BaseEntityBlock {
     public static final BooleanProperty WORKING = BooleanProperty.create("working");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
+    private static final VoxelShape SHAPE = makeShape();
 
-    public ResearchStationBlock(Properties pProperties) {
+    public ResearchPedestialBlock(Properties pProperties) {
         // noOcclusion() verhindert, dass Nachbarblöcke unsichtbar werden
         super(pProperties.noOcclusion().lightLevel(state -> state.getValue(LIT) ? 13 : 0));
         this.registerDefaultState(this.stateDefinition.any().setValue(WORKING, false).setValue(LIT, false));
@@ -57,14 +62,14 @@ public class ResearchStationBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pPos, BlockState pState) {
-        return new ResearchStationBlockEntity(pPos, pState);
+        return new ResearchPedestialBlockEntity(pPos, pState);
     }
 
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (!pLevel.isClientSide()) {
             BlockEntity entity = pLevel.getBlockEntity(pPos);
-            if (entity instanceof ResearchStationBlockEntity) {
+            if (entity instanceof ResearchPedestialBlockEntity) {
                 NetworkHooks.openScreen((ServerPlayer) pPlayer, (MenuProvider)entity, pPos);
             }
         }
@@ -75,12 +80,25 @@ public class ResearchStationBlock extends BaseEntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level pLevel, BlockState pState, BlockEntityType<T> pBlockEntityType) {
         if (pLevel.isClientSide()) return null;
-        return createTickerHelper(pBlockEntityType, ModBlockEntities.RESEARCH_STATION_BE.get(),
-                (level, pos, state, entity) -> ResearchStationBlockEntity.tick(level, pos, state, entity));
+        return createTickerHelper(pBlockEntityType, ModBlockEntities.RESEARCH_PEDESTIAL_BE.get(),
+                (level, pos, state, entity) -> ResearchPedestialBlockEntity.tick(level, pos, state, entity));
     }
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
         builder.add(WORKING, LIT);
+    }
+
+    private static VoxelShape makeShape() {
+        VoxelShape shape = Shapes.empty();
+        shape = Shapes.join(shape, Shapes.box(0, 0.625, 0, 1, 0.9375, 1), BooleanOp.OR);
+        shape = Shapes.join(shape, Shapes.box(0.1875, 0.1875, 0.1875, 0.8125, 0.625, 0.8125), BooleanOp.OR);
+        shape = Shapes.join(shape, Shapes.box(0, 0, 0, 1, 0.1875, 1), BooleanOp.OR);
+        return shape;
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
+        return SHAPE;
     }
 }

@@ -21,7 +21,7 @@ public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, HistoryStages.MOD_ID);
 
-    public static final RegistryObject<Item> RESEARCH_BOOK = ITEMS.register("research_book",
+    public static final RegistryObject<Item> RESEARCH_SCROLL = ITEMS.register("research_scroll",
             () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
 
                 @Override
@@ -40,7 +40,7 @@ public class ModItems {
                 @Override
                 public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
                     // Nur allgemeine Infos hier lassen
-                    tooltip.add(Component.literal("Use this scroll in a Research Station")
+                    tooltip.add(Component.literal("Use this scroll in a Research Pedestial")
                             .withStyle(ChatFormatting.GOLD));
 
                     tooltip.add(Component.literal("to unlock new technologies.")
@@ -51,8 +51,8 @@ public class ModItems {
                 }
             });
 
-    public static final RegistryObject<Item> RESEARCH_STATION_ITEM = ITEMS.register("research_station",
-            () -> new BlockItem(ModBlocks.RESEARCH_STATION.get(), new Item.Properties()));
+    public static final RegistryObject<Item> RESEARCH_PEDESTIAL_ITEM = ITEMS.register("research_pedestial",
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTIAL.get(), new Item.Properties()));
 
     public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
         ITEMS.register(eventBus);

@@ -17,15 +17,15 @@ public class ModCreativeTabs {
 
     public static final RegistryObject<CreativeModeTab> HISTORY_TAB = CREATIVE_MODE_TABS.register("history_tab",
             () -> CreativeModeTab.builder()
-                    .icon(() -> new ItemStack(ModItems.RESEARCH_BOOK.get())) // Das Icon des Tabs
+                    .icon(() -> new ItemStack(ModItems.RESEARCH_SCROLL.get())) // Das Icon des Tabs
                     .title(Component.translatable("creativetab.history_tab"))
                     .displayItems((parameters, output) -> {
                         // 1. Die Forschungsstation hinzufügen
-                        output.accept(ModItems.RESEARCH_STATION_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTIAL_ITEM.get());
 
                         // 2. Dynamisch für jede geladene Stage ein Buch erstellen
                         for (String stageId : StageManager.getStages().keySet()) {
-                            ItemStack book = new ItemStack(ModItems.RESEARCH_BOOK.get());
+                            ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = book.getOrCreateTag();
                             nbt.putString("StageResearch", stageId);
                             output.accept(book);

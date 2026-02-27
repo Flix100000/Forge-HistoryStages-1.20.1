@@ -110,8 +110,8 @@ public class Config {
 
             builder.pop(); // Schließt "notifications"
 
-            // --- RESEARCH STATION SECTION ---
-            builder.comment("Research Station Settings").push("research");
+            // --- RESEARCH Pedestial SECTION ---
+            builder.comment("Research Pedestial Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("How long a research process takes in seconds. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
