@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.block;
 
-import net.bananemdnsa.historystages.block.entity.ResearchPedestialBlockEntity;
+import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,12 +27,12 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
-public class ResearchPedestialBlock extends BaseEntityBlock {
+public class ResearchPedestalBlock extends BaseEntityBlock {
     public static final BooleanProperty WORKING = BooleanProperty.create("working");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
     private static final VoxelShape SHAPE = makeShape();
 
-    public ResearchPedestialBlock(Properties pProperties) {
+    public ResearchPedestalBlock(Properties pProperties) {
         // noOcclusion() verhindert, dass Nachbarblöcke unsichtbar werden
         super(pProperties.noOcclusion().lightLevel(state -> state.getValue(LIT) ? 13 : 0));
         this.registerDefaultState(this.stateDefinition.any().setValue(WORKING, false).setValue(LIT, false));
@@ -62,14 +62,14 @@ public class ResearchPedestialBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pPos, BlockState pState) {
-        return new ResearchPedestialBlockEntity(pPos, pState);
+        return new ResearchPedestalBlockEntity(pPos, pState);
     }
 
     @Override
     public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
         if (!pLevel.isClientSide()) {
             BlockEntity entity = pLevel.getBlockEntity(pPos);
-            if (entity instanceof ResearchPedestialBlockEntity) {
+            if (entity instanceof ResearchPedestalBlockEntity) {
                 NetworkHooks.openScreen((ServerPlayer) pPlayer, (MenuProvider)entity, pPos);
             }
         }
@@ -80,8 +80,8 @@ public class ResearchPedestialBlock extends BaseEntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level pLevel, BlockState pState, BlockEntityType<T> pBlockEntityType) {
         if (pLevel.isClientSide()) return null;
-        return createTickerHelper(pBlockEntityType, ModBlockEntities.RESEARCH_PEDESTIAL_BE.get(),
-                (level, pos, state, entity) -> ResearchPedestialBlockEntity.tick(level, pos, state, entity));
+        return createTickerHelper(pBlockEntityType, ModBlockEntities.RESEARCH_PEDESTAL_BE.get(),
+                (level, pos, state, entity) -> ResearchPedestalBlockEntity.tick(level, pos, state, entity));
     }
 
     @Override

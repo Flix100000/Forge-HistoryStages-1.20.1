@@ -98,7 +98,7 @@ public class Config {
 
             unlockMessageFormat = builder
                     .comment("Message format for unlocks (Only for the Chat and only if 'broadcastChat' = true). Use {stage} for the name and & for colors.")
-                    .define("unlockMessageFormat", "&6[History] &fThe world has entered the &b{stage}&f!");
+                    .define("unlockMessageFormat", "&fThe world has entered the &b{stage}&f!");
 
             useActionbar = builder
                     .comment("Show messages in the actionbar for everyone? [Default: false]")
@@ -110,8 +110,8 @@ public class Config {
 
             builder.pop(); // Schließt "notifications"
 
-            // --- RESEARCH Pedestial SECTION ---
-            builder.comment("Research Pedestial Settings").push("research");
+            // --- RESEARCH Pedestal SECTION ---
+            builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("How long a research process takes in seconds. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);

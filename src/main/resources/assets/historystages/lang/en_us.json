@@ -1,13 +1,13 @@
 {
-  "block.historystages.research_pedestial": "Research Pedestial",
+  "block.historystages.research_pedestal": "Research Pedestal",
   "item.historystages.research_scroll": "Research Scroll",
-  "container.historystages.research_pedestial": "Research Pedestial",
   "tooltip.historystages.locked": "§cLocked! Requires: §7%s",
   "command.historystages.unlocked_all": "All stages have been unlocked.",
   "command.historystages.not_found": "Stage '%s' not found!",
   "screen.historystages.already_learned": "§cAlready learned!",
   "creativetab.history_tab": "History Stages",
-
+  "tooltip.historystages.research_scroll.info1": "Use this scroll in a Research Pedestal",
+  "tooltip.historystages.research_scroll.info2": "to unlock new technologies.",
   "message.historystages.dimension_locked": "§cYou haven't reached the required era to enter this dimension!",
   "message.historystages.dimension_locked_stage": " §8(Required: §e%s§8)",
   "message.historystages.dimension_unknown": "??? This dimension is still unknown to you ???"

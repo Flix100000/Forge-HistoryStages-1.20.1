@@ -6,7 +6,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
-import net.bananemdnsa.historystages.screen.ResearchPedestialScreen;
+import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.nbt.CompoundTag;
@@ -61,7 +61,7 @@ public class HistoryStages {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         // Wir fügen die Maschine bei den Funktions-Blöcken hinzu
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
-            event.accept(ModItems.RESEARCH_PEDESTIAL_ITEM);
+            event.accept(ModItems.RESEARCH_PEDESTAL_ITEM);
         }
 
         // Das Besondere: Wir generieren für JEDE Stage aus deinen JSONs ein eigenes Buch!
@@ -80,7 +80,7 @@ public class HistoryStages {
 
     private void clientSetup(final FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            MenuScreens.register(ModMenuTypes.RESEARCH_MENU.get(), ResearchPedestialScreen::new);
+            MenuScreens.register(ModMenuTypes.RESEARCH_MENU.get(), ResearchPedestalScreen::new);
         });
     }
 

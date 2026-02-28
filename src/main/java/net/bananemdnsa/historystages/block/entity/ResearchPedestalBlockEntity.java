@@ -1,13 +1,14 @@
 package net.bananemdnsa.historystages.block.entity;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.block.ResearchPedestialBlock;
+import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
-import net.bananemdnsa.historystages.screen.ResearchPedestialMenu;
+import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -33,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 
-public class ResearchPedestialBlockEntity extends BlockEntity implements MenuProvider {
+public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProvider {
 
     private final ItemStackHandler itemHandler = new ItemStackHandler(1) {
         @Override
@@ -57,15 +58,15 @@ public class ResearchPedestialBlockEntity extends BlockEntity implements MenuPro
     private int finishDelay = 0;
     private int syncTickDelay = -1; // Neu: Delay-Timer
 
-    public ResearchPedestialBlockEntity(BlockPos pPos, BlockState pBlockState) {
-        super(ModBlockEntities.RESEARCH_PEDESTIAL_BE.get(), pPos, pBlockState);
+    public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
+        super(ModBlockEntities.RESEARCH_PEDESTAL_BE.get(), pPos, pBlockState);
         this.data = new ContainerData() {
             @Override
             public int get(int pIndex) {
                 return switch (pIndex) {
-                    case 0 -> ResearchPedestialBlockEntity.this.progress;
+                    case 0 -> ResearchPedestalBlockEntity.this.progress;
                     case 1 -> Config.COMMON.researchTimeInSeconds.get() * 20;
-                    case 2 -> ResearchPedestialBlockEntity.this.finishDelay;
+                    case 2 -> ResearchPedestalBlockEntity.this.finishDelay;
                     default -> 0;
                 };
             }
@@ -73,8 +74,8 @@ public class ResearchPedestialBlockEntity extends BlockEntity implements MenuPro
             @Override
             public void set(int pIndex, int pValue) {
                 switch (pIndex) {
-                    case 0 -> ResearchPedestialBlockEntity.this.progress = pValue;
-                    case 2 -> ResearchPedestialBlockEntity.this.finishDelay = pValue;
+                    case 0 -> ResearchPedestalBlockEntity.this.progress = pValue;
+                    case 2 -> ResearchPedestalBlockEntity.this.finishDelay = pValue;
                 }
             }
 
@@ -95,16 +96,16 @@ public class ResearchPedestialBlockEntity extends BlockEntity implements MenuPro
 
     @Override
     public Component getDisplayName() {
-        return Component.translatable("block.historystages.research_pedestial");
+        return Component.translatable("block.historystages.research_pedestal");
     }
 
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int pContainerId, Inventory pPlayerInventory, Player pPlayer) {
-        return new ResearchPedestialMenu(pContainerId, pPlayerInventory, this, this.data);
+        return new ResearchPedestalMenu(pContainerId, pPlayerInventory, this, this.data);
     }
 
-    public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestialBlockEntity entity) {
+    public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestalBlockEntity entity) {
         if (level.isClientSide) return;
 
         // Neu: Warte kurz, bevor das Sync-Paket gesendet wird (Timing-Fix)
@@ -149,8 +150,8 @@ public class ResearchPedestialBlockEntity extends BlockEntity implements MenuPro
             entity.finishDelay = 0;
         }
 
-        if (state.getValue(ResearchPedestialBlock.WORKING) != hasValidBook || state.getValue(ResearchPedestialBlock.LIT) != isResearching) {
-            level.setBlock(pos, state.setValue(ResearchPedestialBlock.WORKING, hasValidBook).setValue(ResearchPedestialBlock.LIT, isResearching), 3);
+        if (state.getValue(ResearchPedestalBlock.WORKING) != hasValidBook || state.getValue(ResearchPedestalBlock.LIT) != isResearching) {
+            level.setBlock(pos, state.setValue(ResearchPedestalBlock.WORKING, hasValidBook).setValue(ResearchPedestalBlock.LIT, isResearching), 3);
         }
         setChanged(level, pos, state);
     }
@@ -182,7 +183,11 @@ public class ResearchPedestialBlockEntity extends BlockEntity implements MenuPro
                 level.getServer().getPlayerList().getPlayers().forEach(player -> {
                     // Chat Nachricht senden
                     if (Config.COMMON.broadcastChat.get()) {
-                        player.sendSystemMessage(Component.literal(finalChat));
+                        player.sendSystemMessage(
+                                Component.literal("[HistoryStages] ")
+                                        .withStyle(ChatFormatting.GRAY)
+                                        .append(Component.literal(finalChat))
+                        );
                     }
                     // Sound abspielen
                     if (Config.COMMON.useSounds.get()) {

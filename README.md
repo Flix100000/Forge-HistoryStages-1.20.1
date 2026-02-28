@@ -18,7 +18,7 @@ dimensions, and mob equipment behind custom research stages.
   with configurable items like Cobblestone.
 - Anti-Cheese: Mobs won't spawn with gear that hasn't been 
   researched yet.
-- Research System: Uses a Research Station and Research Books.
+- Research System: Uses a Research Pedestal and Research Books.
 - JEI Support: Automatically hides or marks locked items.
 
 ----------------------------------------------------------------
@@ -36,14 +36,14 @@ Example format:
   "dimensions": ["minecraft:the_nether"]
 }
 
-RESEARCH BOOKS & STATION:
-1. Place a Research Station.
+RESEARCH BOOKS & Pedestal:
+1. Place a Research Pedestal.
 2. Put a Research Book into the input slot.
 3. Wait for the "Searching..." process to finish.
 4. The stage is now unlocked globally.
 
 IMPORTANT: This mod does NOT include default crafting recipes 
-for the station or books. You MUST add them yourself using 
+for the pedestal or books. You MUST add them yourself using 
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
