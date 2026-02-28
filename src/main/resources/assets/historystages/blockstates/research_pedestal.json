@@ -3,6 +3,6 @@
     "lit=false,working=false": { "model": "historystages:block/research_pedestal" },
     "lit=true,working=false": { "model": "historystages:block/research_pedestal" },
     "lit=false,working=true": { "model": "historystages:block/research_pedestal_working" },
-    "lit=true,working=true": { "model": "historystages:block/research_pedestial_working" }
+    "lit=true,working=true": { "model": "historystages:block/research_pedestal_working" }
   }
 }
