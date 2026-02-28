@@ -161,13 +161,15 @@ public class StageCommand {
             // Nutze die editierbare Nachricht aus der Config für einzelne Unlocks
             String rawMsg = Config.COMMON.unlockMessageFormat.get();
             String formattedMsg = rawMsg.replace("{stage}", name).replace("&", "§");
-            chatMsg = Component.literal(formattedMsg);
+            chatMsg = Component.literal("[HistoryStages] ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(formattedMsg));
         } else if (isUnlock) {
             // Standard für "Alle freischalten"
-            chatMsg = Component.literal("[History] ").withStyle(ChatFormatting.GOLD).append(Component.literal("The world has entered the " + name + "!").withStyle(ChatFormatting.AQUA));
+            chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GOLD).append(Component.literal("The world has entered the " + name + "!").withStyle(ChatFormatting.AQUA));
         } else {
             // Nachricht beim Sperren
-            chatMsg = Component.literal("[History] ").withStyle(ChatFormatting.RED).append(Component.literal("The knowledge of " + name + " has been forgotten...").withStyle(ChatFormatting.WHITE));
+            chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED).append(Component.literal("The knowledge of " + name + " has been forgotten...").withStyle(ChatFormatting.WHITE));
         }
 
         // --- ACTIONBAR LOGIK (Bleibt Standard wie gewünscht) ---
@@ -196,7 +198,7 @@ public class StageCommand {
         StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
-        source.sendSuccess(() -> Component.literal("§7[History] " + msg), true);
+        source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);
         source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
 
         return 1;

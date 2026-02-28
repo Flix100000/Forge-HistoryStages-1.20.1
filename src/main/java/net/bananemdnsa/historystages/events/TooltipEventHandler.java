@@ -52,19 +52,7 @@ public class TooltipEventHandler {
                         .withStyle(ChatFormatting.GRAY)
                         .append(Component.literal(remainingSeconds + "s").withStyle(ChatFormatting.YELLOW)));
 
-                // 3. Target Stage
-                if (stack.getTag().contains("StageResearch")) {
-                    String stageId = stack.getTag().getString("StageResearch");
-                    StageEntry entry = StageManager.getStages().get(stageId);
-                    String displayName = (entry != null) ? entry.getDisplayName() : stageId;
 
-                    event.getToolTip().add(Component.literal("Target: ")
-                            .withStyle(ChatFormatting.GRAY)
-                            .append(Component.literal(displayName).withStyle(ChatFormatting.GOLD)));
-                }
-            } else {
-                event.getToolTip().add(Component.literal("Progress: 0%")
-                        .withStyle(ChatFormatting.RED));
             }
             return;
         }

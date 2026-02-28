@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.screen.ResearchPedestialMenu;
+import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.common.extensions.IForgeMenuType;
@@ -15,8 +15,8 @@ public class ModMenuTypes {
     public static final DeferredRegister<MenuType<?>> MENUS =
             DeferredRegister.create(ForgeRegistries.MENU_TYPES, HistoryStages.MOD_ID);
 
-    public static final RegistryObject<MenuType<ResearchPedestialMenu>> RESEARCH_MENU =
-            registerMenuType(ResearchPedestialMenu::new, "research_menu");
+    public static final RegistryObject<MenuType<ResearchPedestalMenu>> RESEARCH_MENU =
+            registerMenuType(ResearchPedestalMenu::new, "research_menu");
 
     private static <T extends AbstractContainerMenu> RegistryObject<MenuType<T>> registerMenuType(IContainerFactory<T> factory, String name) {
         return MENUS.register(name, () -> IForgeMenuType.create(factory));

@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.screen;
 
-import net.bananemdnsa.historystages.block.entity.ResearchPedestialBlockEntity;
+import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModMenuTypes;
 import net.minecraft.network.FriendlyByteBuf;
@@ -13,22 +13,22 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.SlotItemHandler;
 
-public class ResearchPedestialMenu extends AbstractContainerMenu {
-    private final ResearchPedestialBlockEntity blockEntity;
+public class ResearchPedestalMenu extends AbstractContainerMenu {
+    private final ResearchPedestalBlockEntity blockEntity;
     private final Level level;
     public final ContainerData data;
 
     // Client-Konstruktor
-    public ResearchPedestialMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
+    public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
         // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
         this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(3));
     }
 
     // Server-Konstruktor
-    public ResearchPedestialMenu(int pContainerId, Inventory inv, BlockEntity entity, ContainerData data) {
+    public ResearchPedestalMenu(int pContainerId, Inventory inv, BlockEntity entity, ContainerData data) {
         super(ModMenuTypes.RESEARCH_MENU.get(), pContainerId);
         checkContainerSize(inv, 1);
-        this.blockEntity = ((ResearchPedestialBlockEntity) entity);
+        this.blockEntity = ((ResearchPedestalBlockEntity) entity);
         this.level = inv.player.level();
         this.data = data;
 
@@ -57,7 +57,7 @@ public class ResearchPedestialMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player pPlayer) {
-        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer, ModBlocks.RESEARCH_PEDESTIAL.get());
+        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer, ModBlocks.RESEARCH_PEDESTAL.get());
     }
 
     private void addPlayerInventory(Inventory playerInventory) {

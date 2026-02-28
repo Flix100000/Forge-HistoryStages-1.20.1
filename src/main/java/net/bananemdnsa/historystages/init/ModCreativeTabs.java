@@ -21,7 +21,7 @@ public class ModCreativeTabs {
                     .title(Component.translatable("creativetab.history_tab"))
                     .displayItems((parameters, output) -> {
                         // 1. Die Forschungsstation hinzufügen
-                        output.accept(ModItems.RESEARCH_PEDESTIAL_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
 
                         // 2. Dynamisch für jede geladene Stage ein Buch erstellen
                         for (String stageId : StageManager.getStages().keySet()) {

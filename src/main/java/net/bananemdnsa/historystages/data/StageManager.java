@@ -52,7 +52,7 @@ public class StageManager {
         // Items prüfen und ungültige entfernen
         entry.getItems().removeIf(itemId -> {
             if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemId))) {
-                LOADING_ERRORS.add("§6[Debug] §fItem §e" + itemId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
+                LOADING_ERRORS.add("§7[Debug] §fItem §e" + itemId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
@@ -61,7 +61,7 @@ public class StageManager {
         // Mods prüfen
         entry.getMods().removeIf(modId -> {
             if (!ModList.get().isLoaded(modId)) {
-                LOADING_ERRORS.add("§6[Debug] §fMod §e" + modId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
+                LOADING_ERRORS.add("§7[Debug] §fMod §e" + modId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
@@ -70,7 +70,7 @@ public class StageManager {
         // Dimensionen prüfen
         entry.getDimensions().removeIf(dimId -> {
             if (!ResourceLocation.isValidResourceLocation(dimId)) {
-                LOADING_ERRORS.add("§6[Debug] §fDimension §e" + dimId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                LOADING_ERRORS.add("§7[Debug] §fDimension §e" + dimId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;

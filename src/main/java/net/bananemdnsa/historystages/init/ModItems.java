@@ -39,20 +39,19 @@ public class ModItems {
 
                 @Override
                 public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-                    // Nur allgemeine Infos hier lassen
-                    tooltip.add(Component.literal("Use this scroll in a Research Pedestial")
-                            .withStyle(ChatFormatting.GOLD));
-
-                    tooltip.add(Component.literal("to unlock new technologies.")
+                    // Nutzt jetzt die Keys aus der Sprachdatei
+                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info1")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
-                    // DER FORTSCHRITTS-CODE WURDE HIER ENTFERNT,
-                    // DA ER SCHON IM TooltipEventHandler STEHT!
+                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+
+                    // DER FORTSCHRITTS-CODE BLEIBT ENTFERNT (ist im TooltipEventHandler)
                 }
             });
 
-    public static final RegistryObject<Item> RESEARCH_PEDESTIAL_ITEM = ITEMS.register("research_pedestial",
-            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTIAL.get(), new Item.Properties()));
+    public static final RegistryObject<Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
 
     public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
         ITEMS.register(eventBus);
