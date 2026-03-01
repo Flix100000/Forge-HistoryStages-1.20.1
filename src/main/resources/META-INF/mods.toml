@@ -36,10 +36,18 @@ versionRange="[0.4,)" # Version für 1.20.1
 ordering="AFTER"      # Deine Mod soll nach Lootr laden
 side="BOTH"
 
-# Abhängigkeit zu JEI
+# Abhängigkeit zu JEI (Geändert auf Optional)
 [[dependencies.historystages]]
 modId="jei"
-mandatory=true
-versionRange="[15,)"  # Version für 1.20.1
-ordering="AFTER"      # Deine Mod soll nach JEI laden
+mandatory=false # WICHTIG: Auf false setzen!
+versionRange="[15,)"
+ordering="AFTER"
+side="BOTH"
+
+# Optional: Füge EMI als Abhängigkeit hinzu (ebenfalls optional)
+[[dependencies.historystages]]
+modId="emi"
+mandatory=false
+versionRange="[1.1,)"
+ordering="AFTER"
 side="BOTH"

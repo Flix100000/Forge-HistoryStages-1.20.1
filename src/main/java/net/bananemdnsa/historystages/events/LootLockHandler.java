@@ -1,12 +1,11 @@
 package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.Slot;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -15,74 +14,78 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-@Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+@Mod.EventBusSubscriber(modid = "historystages", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class LootLockHandler {
     private static final Random RANDOM = new Random();
 
     @SubscribeEvent
     public static void onContainerOpen(PlayerContainerEvent.Open event) {
-        // Nur auf dem Server ausführen
         if (event.getEntity().level().isClientSide()) return;
 
-        // Sicherstellen, dass der Stage-Cache geladen ist
-        if (StageData.SERVER_CACHE.isEmpty()) {
-            StageData.get(event.getEntity().level());
-        }
+        if (event.getContainer().slots.isEmpty()) return;
+        Container container = event.getContainer().slots.get(0).container;
 
-        AbstractContainerMenu menu = event.getContainer();
+        if (container == null) return;
+
+        // Prüfen, ob es ein Lootr-Container ist (Klassennamen-Check)
+        if (!container.getClass().getName().toLowerCase().contains("lootr")) return;
+
         boolean changed = false;
-
-        // Wir loopen durch alle Slots im geöffneten Menü (Kiste + Spieler-Inventar)
-        for (Slot slot : menu.slots) {
-
-            // WICHTIG: Wir filtern nur die Slots, die NICHT zum Inventar des Spielers gehören.
-            // So verhindern wir, dass Items, die der Spieler bereits besitzt, gelöscht werden.
-            if (slot.container == event.getEntity().getInventory()) continue;
-
-            ItemStack stack = slot.getItem();
+        for (int i = 0; i < container.getContainerSize(); i++) {
+            ItemStack stack = container.getItem(i);
             if (stack.isEmpty()) continue;
 
-            ResourceLocation resLoc = ForgeRegistries.ITEMS.getKey(stack.getItem());
-            if (resLoc == null) continue;
+            // Nutzt die isItemLockedForServer Methode im StageManager
+            if (StageManager.isItemLockedForServer(stack)) {
 
-            String itemId = resLoc.toString();
-            String modId = resLoc.getNamespace();
-
-            // Prüfen, ob das Item eine Stage benötigt
-            String requiredStage = StageManager.getStageForItemOrMod(itemId, modId);
-
-            // Wenn die Stage gesperrt ist (nicht im SERVER_CACHE)
-            if (requiredStage != null && !StageData.SERVER_CACHE.contains(requiredStage)) {
+                // NUR wenn useReplacements in der Config auf true ist
                 if (Config.COMMON.useReplacements.get()) {
-                    slot.set(getReplacement(stack.getCount()));
+                    container.setItem(i, getReplacement(stack.getCount()));
                 } else {
-                    slot.set(ItemStack.EMPTY);
+                    // Ansonsten wird das Item einfach entfernt
+                    container.setItem(i, ItemStack.EMPTY);
                 }
                 changed = true;
             }
         }
 
-        // Falls wir etwas geändert haben, schicken wir ein Update an den Client
         if (changed) {
-            menu.broadcastChanges();
+            event.getContainer().broadcastChanges();
         }
     }
 
     private static ItemStack getReplacement(int count) {
+        // 1. Priorität: Zufälliges Item aus dem replacementTag
+        String tagStr = Config.COMMON.replacementTag.get();
+        if (tagStr != null && !tagStr.isEmpty()) {
+            try {
+                TagKey<Item> tagKey = ItemTags.create(new ResourceLocation(tagStr));
+                List<Item> tagItems = new ArrayList<>();
+                ForgeRegistries.ITEMS.tags().getTag(tagKey).forEach(tagItems::add);
+
+                if (!tagItems.isEmpty()) {
+                    return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Priorität: Zufälliges Item aus der replacementItems Liste
         List<? extends String> list = Config.COMMON.replacementItems.get();
-        if (list == null || list.isEmpty()) return new ItemStack(Items.COBBLESTONE, count);
+        if (list != null && !list.isEmpty()) {
+            try {
+                String randomId = list.get(RANDOM.nextInt(list.size()));
+                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
+                if (item != null && item != Items.AIR) {
+                    return new ItemStack(item, count);
+                }
+            } catch (Exception ignored) {}
+        }
 
-        try {
-            String randomId = list.get(RANDOM.nextInt(list.size()));
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
-            if (item != null && item != Items.AIR) {
-                return new ItemStack(item, count);
-            }
-        } catch (Exception ignored) {}
-
+        // 3. Fallback: Cobblestone
         return new ItemStack(Items.COBBLESTONE, count);
     }
 }

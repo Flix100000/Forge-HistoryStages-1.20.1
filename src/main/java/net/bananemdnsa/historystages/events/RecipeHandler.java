@@ -19,29 +19,14 @@ public class RecipeHandler {
 
         ItemStack result;
         try {
-            // Attempt to get the result item safely
             result = recipe.getResultItem(RegistryAccess.EMPTY);
         } catch (IllegalStateException e) {
-            // Skip recipes that require registries not yet available (e.g., Smithing Trims during early load)
             return false;
         }
 
         if (result.isEmpty()) return false;
 
-        ResourceLocation resLoc = ForgeRegistries.ITEMS.getKey(result.getItem());
-        if (resLoc == null) return false;
-
-        String itemId = resLoc.toString();
-        String modId = resLoc.getNamespace();
-
-        // Check if the item or its mod/tags are associated with a stage
-        String requiredStage = StageManager.getStageForItemOrMod(itemId, modId);
-
-        if (requiredStage != null) {
-            // If a stage is required, check if it's NOT in the server cache
-            return !StageData.SERVER_CACHE.contains(requiredStage);
-        }
-
-        return false;
+        // Nutze direkt die wasserdichte "Alle-oder-Nichts" Logik aus dem StageManager
+        return StageManager.isItemLockedForServer(result);
     }
 }
