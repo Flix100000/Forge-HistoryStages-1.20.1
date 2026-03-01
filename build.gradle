@@ -81,7 +81,7 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     // JEI (Lokal)
-    implementation fg.deobf(group: 'local', name: 'jei', version: '1.0')
+    implementation fg.deobf("curse.maven:jei-238222:7391695")
 
     // LOOTR (Über CurseMaven - Das ist die sauberste Lösung)
     // Wir nutzen 'implementation' statt 'compileOnly', damit die Klassen im Projekt bekannt sind
