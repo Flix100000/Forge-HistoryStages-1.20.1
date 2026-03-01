@@ -38,21 +38,27 @@ public class SyncStagesPacket {
             // 1. Client-Speicher aktualisieren
             ClientStageCache.setUnlockedStages(msg.unlockedStages);
 
-            // 2. JEI & Client-Reload-Trigger
             if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
                     try {
-                        // Das hier triggert den JEI-Neuaufbau (wie bei /history reload)
-                        if (mc.getConnection() != null) {
-                            // Simuliert den Empfang neuer Rezepte, was JEI zum kompletten Neustart zwingt
+                        // --- DER HARD-RESET (Wichtig für neue Rezepte) ---
+                        if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
+                            // Wir leeren die Rezepte kurzzeitig, um den Re-Index zu erzwingen
                             mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
                         }
 
-                        // Der eigentliche JEI Refresh
-                        JEIPlugin.refreshJei();
+                        // --- MOD-SPEZIFISCHE UPDATES ---
+                        // Wir rufen diese jetzt über die sichere Hilfsklasse auf
+                        if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+                            ExternalMods.refreshJEI();
+                        }
 
-                        System.out.println("[HistoryStages] Client Sync & JEI Hard-Refresh triggered.");
+                        if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
+                            ExternalMods.refreshEMI();
+                        }
+
+                        System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -60,5 +66,25 @@ public class SyncStagesPacket {
             }
         });
         ctx.get().setPacketHandled(true);
+    }
+
+    private static class ExternalMods {
+        private static void refreshJEI() {
+            try {
+                // Dein bestehender JEI-Refresh
+                net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
+            } catch (Throwable ignored) {}
+        }
+
+        private static void refreshEMI() {
+            try {
+                // "Leiser" Refresh für EMI: Suchtext triggert Re-Filter der neuen Rezepte
+                String currentSearch = dev.emi.emi.api.EmiApi.getSearchText();
+                dev.emi.emi.api.EmiApi.setSearchText(currentSearch);
+
+                // Optional: Falls EMI trotzdem nicht alle neuen Rezepte sieht,
+                // kann man hier noch dev.emi.emi.api.EmiApi.forceReload() per Reflection einbauen.
+            } catch (Throwable ignored) {}
+        }
     }
 }

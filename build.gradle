@@ -36,6 +36,8 @@ minecraft {
         }
 
         client {
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
             property 'forge.enabledGameTestNamespaces', mod_id
         }
 
@@ -58,12 +60,16 @@ repositories {
     flatDir {
         dir 'libs'
     }
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/"
+    }
 
     maven {
-        url = 'https://maven.blamejared.com'
-        content {
-            includeGroup 'noobanidus.mods.lootr:lootr-1.20.1:0.7.28.65.1'
-        }
+        url "https://cursemaven.com"
+    }
+    maven {
+        url "https://api.modrinth.com/maven"
     }
     mavenCentral()
 }
@@ -74,9 +80,16 @@ dependencies {
     // Mixin Support
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // Deine funktionierende lokale Einbindung
+    // JEI (Lokal)
     implementation fg.deobf(group: 'local', name: 'jei', version: '1.0')
-    implementation fg.deobf(group: 'local', name: 'lootr', version: '1.0')
+
+    // LOOTR (Über CurseMaven - Das ist die sauberste Lösung)
+    // Wir nutzen 'implementation' statt 'compileOnly', damit die Klassen im Projekt bekannt sind
+    implementation fg.deobf("curse.maven:lootr-361276:5420132")
+
+    // EMI
+    compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
+    runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
 }
 
 tasks.named('processResources', ProcessResources).configure {

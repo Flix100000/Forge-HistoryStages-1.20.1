@@ -23,7 +23,7 @@ public class Config {
             builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
 
             hideInJei = builder
-                    .comment("Hide locked items from JEI/REI/EMI? [Default: false]")
+                    .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
                     .define("hideInJei", false);
 
             showTooltips = builder
@@ -125,11 +125,11 @@ public class Config {
                     .define("useReplacements", false);
 
             replacementItems = builder
-                    .comment("A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
+                    .comment("{ReplacementPriority:2} A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
                     .defineList("replacementItems", List.of("minecraft:cobblestone", "minecraft:dirt"), o -> o instanceof String);
 
             replacementTag = builder
-                    .comment("A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
+                    .comment("{ReplacementPriority:1} A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
             builder.pop(); // Schließt "loot_replacements"
 
