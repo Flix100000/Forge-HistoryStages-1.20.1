@@ -9,9 +9,8 @@
   "tooltip.historystages.research_scroll.info1": "Use this scroll in a Research Pedestal",
   "tooltip.historystages.research_scroll.info2": "to unlock new technologies.",
   "message.historystages.dimension_locked": "§cYou haven't reached the required era to enter this dimension!",
-  "message.historystages.dimension_locked_stage": " §8(Required: §e%s§8)",
+  "message.historystages.locked_stage": " §8(Required: §e%s§8)",
   "message.historystages.dimension_unknown": "??? This dimension is still unknown to you ???",
   "message.historystages.mob_locked": "§cYou don't have the knowledge to harm this creature!",
-  "message.historystages.mob_locked_stage": " §8(Required: §e%s§8)",
   "message.historystages.mob_unknown": "??? This creature is still unknown to you ???"
 }

@@ -43,7 +43,7 @@ public class DimensionLockHandler {
 
                     // Ergänzung des Stage-Namens (Falls aktiv)
                     if (Config.CLIENT.dimShowStagesInChat.get()) {
-                        chatMsg.append(Component.translatable("message.historystages.dimension_locked_stage", stageDisplayName));
+                        chatMsg.append(Component.translatable("message.historystages.locked_stage", stageDisplayName));
                     }
 
                     player.sendSystemMessage(chatMsg);
