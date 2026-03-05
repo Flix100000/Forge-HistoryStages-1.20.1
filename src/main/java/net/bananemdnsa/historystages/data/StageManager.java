@@ -22,6 +22,7 @@ public class StageManager {
     private static final List<String> LOADING_ERRORS = new ArrayList<>(); // NEU
     private static final Gson GSON = new Gson();
 
+
     public static void load() {
         STAGES.clear();
         LOADING_ERRORS.clear(); // Liste leeren beim Neuladen

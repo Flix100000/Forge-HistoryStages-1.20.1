@@ -42,6 +42,12 @@ public class SyncStagesPacket {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
                     try {
+                        // --- NEU: GRAFIK-REFRESH FÜR SCHLÖSSER (JEI/EMI/Inventar) ---
+                        // Das zwingt den LevelRenderer, alle sichtbaren Elemente neu zu berechnen.
+                        if (mc.levelRenderer != null) {
+                            mc.levelRenderer.allChanged();
+                        }
+
                         // --- DER HARD-RESET (Wichtig für neue Rezepte) ---
                         if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
                             // Wir leeren die Rezepte kurzzeitig, um den Re-Index zu erzwingen

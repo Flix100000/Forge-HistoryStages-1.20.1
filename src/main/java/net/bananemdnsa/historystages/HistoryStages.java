@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages;
 
 import com.mojang.logging.LogUtils;
+import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.init.*;
@@ -9,12 +10,15 @@ import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.client.event.RegisterItemDecorationsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -27,6 +31,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -46,6 +51,10 @@ public class HistoryStages {
         ModMenuTypes.register(modEventBus);
         modEventBus.addListener(this::clientSetup);
 
+        modEventBus.addListener(this::addCreative);
+        // Hier fügen wir den Decorator hinzu:
+        modEventBus.addListener(this::onRegisterItemDecorators);
+
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
 
@@ -56,6 +65,14 @@ public class HistoryStages {
         modEventBus.addListener(this::addCreative);
 
         MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    private void onRegisterItemDecorators(RegisterItemDecorationsEvent event) {
+        // ForgeRegistries.ITEMS.forEach ist gut, aber manche Mods registrieren Items später.
+        // Wir registrieren den Decorator für absolut jedes Item.
+        for (Item item : ForgeRegistries.ITEMS) {
+            event.register(item, new LockDecorator());
+        }
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
