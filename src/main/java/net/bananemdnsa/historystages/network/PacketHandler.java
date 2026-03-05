@@ -19,6 +19,7 @@ public class PacketHandler {
     public static void register() {
         int id = 0;
         INSTANCE.registerMessage(id++, SyncStagesPacket.class, SyncStagesPacket::encode, SyncStagesPacket::decode, SyncStagesPacket::handle);
+        INSTANCE.registerMessage(id++, StageUnlockedToastPacket.class, StageUnlockedToastPacket::encode, StageUnlockedToastPacket::decode, StageUnlockedToastPacket::handle);
     }
 
     // Hilfsmethode, um das Paket an alle Spieler zu senden
@@ -29,5 +30,10 @@ public class PacketHandler {
     // Hilfsmethode, um das Paket an einen bestimmten Spieler zu senden (z.B. beim Login)
     public static void sendToPlayer(SyncStagesPacket packet, ServerPlayer player) {
         INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
+    }
+
+    // Toast-Benachrichtigung an alle Spieler senden
+    public static void sendToastToAll(StageUnlockedToastPacket packet) {
+        INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
     }
 }
