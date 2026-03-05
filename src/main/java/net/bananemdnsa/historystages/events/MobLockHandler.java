@@ -53,7 +53,7 @@ public class MobLockHandler {
                 MutableComponent chatMsg = Component.translatable("message.historystages.mob_locked");
 
                 if (Config.CLIENT.mobShowStagesInChat.get()) {
-                    chatMsg.append(Component.translatable("message.historystages.mob_locked_stage", stageDisplayName));
+                    chatMsg.append(Component.translatable("message.historystages.locked_stage", stageDisplayName));
                 }
 
                 player.sendSystemMessage(chatMsg);
