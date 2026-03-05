@@ -12,5 +12,6 @@
   "message.historystages.locked_stage": " §8(Required: §e%s§8)",
   "message.historystages.dimension_unknown": "??? This dimension is still unknown to you ???",
   "message.historystages.mob_locked": "§cYou don't have the knowledge to harm this creature!",
-  "message.historystages.mob_unknown": "??? This creature is still unknown to you ???"
+  "message.historystages.mob_unknown": "??? This creature is still unknown to you ???",
+  "toast.historystages.stage_unlocked": "Stage Unlocked!"
 }
