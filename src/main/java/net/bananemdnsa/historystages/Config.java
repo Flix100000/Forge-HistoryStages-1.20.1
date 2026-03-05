@@ -92,6 +92,7 @@ public class Config {
         public final ForgeConfigSpec.ConfigValue<String> unlockMessageFormat;
         public final ForgeConfigSpec.BooleanValue useActionbar;
         public final ForgeConfigSpec.BooleanValue useSounds;
+        public final ForgeConfigSpec.BooleanValue useToasts;
 
         // Forschungsstation
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
@@ -131,6 +132,10 @@ public class Config {
             useSounds = builder
                     .comment("Play notification sounds for everyone? [Default: true]")
                     .define("useSounds", true);
+
+            useToasts = builder
+                    .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
+                    .define("useToasts", true);
 
             builder.pop(); // Schließt "notifications"
 

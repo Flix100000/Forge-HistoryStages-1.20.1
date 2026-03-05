@@ -194,6 +194,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
                     }
                 });
+
+                // Toast notification
+                if (Config.COMMON.useToasts.get()) {
+                    PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
+                }
             }
         }
 

@@ -156,7 +156,7 @@ public class StageCommand {
     }
 
     private static void broadcastEffect(CommandSourceStack source, String stageID, boolean isUnlock) {
-        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get() && !Config.COMMON.useSounds.get()) return;
+        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get() && !Config.COMMON.useSounds.get() && !Config.COMMON.useToasts.get()) return;
 
         String name = stageID.equals("*") ? "All Progress" : (StageManager.getStages().containsKey(stageID) ? StageManager.getStages().get(stageID).getDisplayName() : stageID);
 
@@ -195,6 +195,11 @@ public class StageCommand {
                 player.playNotifySound(isUnlock ? SoundEvents.UI_TOAST_CHALLENGE_COMPLETE : SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
+
+        // Toast notification
+        if (isUnlock && Config.COMMON.useToasts.get()) {
+            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name));
+        }
     }
 
     private static int syncAndReload(CommandSourceStack source, StageData data, String msg) {
