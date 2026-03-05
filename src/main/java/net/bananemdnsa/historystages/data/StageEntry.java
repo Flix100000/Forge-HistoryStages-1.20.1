@@ -12,6 +12,7 @@ public class StageEntry {
     private List<String> tags;
     private List<String> mods;
     private List<String> dimensions; // NEU
+    private List<String> entities;
 
     public String getDisplayName() {
         return displayName != null ? displayName : "Unknown Stage";
@@ -24,5 +25,9 @@ public class StageEntry {
     // NEU: Getter für Dimensionen
     public List<String> getDimensions() {
         return dimensions != null ? dimensions : new ArrayList<>();
+    }
+
+    public List<String> getEntities() {
+        return entities != null ? entities : new ArrayList<>();
     }
 }
