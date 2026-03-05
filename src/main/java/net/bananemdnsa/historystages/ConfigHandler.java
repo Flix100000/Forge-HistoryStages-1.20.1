@@ -64,6 +64,12 @@ public class ConfigHandler {
         dimensions.add("minecraft:the_end");
         json.add("dimensions", dimensions);
 
+        // Entities Category
+        JsonArray entities = new JsonArray();
+        entities.add("minecraft:zombie");
+        entities.add("minecraft:skeleton");
+        json.add("entities", entities);
+
         try (FileWriter writer = new FileWriter(file)) {
             GSON.toJson(json, writer);
         } catch (IOException e) {
