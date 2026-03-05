@@ -77,6 +77,15 @@ public class StageManager {
             return false;
         });
 
+        // Entities prüfen
+        entry.getEntities().removeIf(entityId -> {
+            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+                LOADING_ERRORS.add("§7[Debug] §fEntity §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                return true;
+            }
+            return false;
+        });
+
         STAGES.put(stageId, entry);
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
     }
@@ -109,6 +118,16 @@ public class StageManager {
                         if (item.builtInRegistryHolder().is(tagKey)) return stageName;
                     }
                 }
+            }
+        }
+        return null;
+    }
+
+    public static String getStageForEntity(String entityId) {
+        for (var entry : STAGES.entrySet()) {
+            StageEntry data = entry.getValue();
+            if (data.getEntities() != null && data.getEntities().contains(entityId)) {
+                return entry.getKey();
             }
         }
         return null;

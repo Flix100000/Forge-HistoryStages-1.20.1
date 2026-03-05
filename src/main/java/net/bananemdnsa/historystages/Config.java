@@ -18,6 +18,9 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue dimUseActionbar;
         public final ForgeConfigSpec.BooleanValue dimShowChat;
         public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
+        public final ForgeConfigSpec.BooleanValue mobUseActionbar;
+        public final ForgeConfigSpec.BooleanValue mobShowChat;
+        public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
         public Client(ForgeConfigSpec.Builder builder) {
             builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
@@ -52,6 +55,22 @@ public class Config {
 
             dimShowStagesInChat = builder
                     .comment("If dimShowChat is true, should the required stages also be listed? [Default: true]")
+                    .define("showStagesInChat", true);
+
+            builder.pop();
+
+            builder.comment("Settings for mob damage lock feedback").push("mob_lock");
+
+            mobUseActionbar = builder
+                    .comment("Show a 'Mob Protected' message in the actionbar? [Default: true]")
+                    .define("useActionbar", true);
+
+            mobShowChat = builder
+                    .comment("Show the mob lock message in the chat? [Default: false]")
+                    .define("showInChat", false);
+
+            mobShowStagesInChat = builder
+                    .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
                     .define("showStagesInChat", true);
 
             builder.pop();
