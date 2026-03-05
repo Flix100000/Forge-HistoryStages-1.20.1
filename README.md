@@ -1,25 +1,28 @@
 **History Stages**
 
-History Stages is a progression and gatekeeping mod for 
-Minecraft 1.20.1 (Forge). It allows modpack creators to 
-implement a global "Era" system by locking items, recipes, 
-dimensions, and mob equipment behind custom research stages.
+History Stages is a progression and gatekeeping mod for
+Minecraft 1.20.1 (Forge). It allows modpack creators to
+implement a global "Era" system by locking items, recipes,
+dimensions, mobs, and mod content behind custom research stages.
 
 ----------------------------------------------------------------
 1. KEY FEATURES
 ----------------------------------------------------------------
 
-- Global Progression: When a stage is unlocked, it is 
+- Global Progression: When a stage is unlocked, it is
   available for everyone on the server.
 - Deep Gating: Lock content by Item ID, Tags, or entire Mod IDs.
-- Dimension Access: Prevent players from entering specific 
+- Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
-- Smart Loot: Locked items are removed from chests or replaced 
+- Mob Protection: Prevent players from damaging specific mobs
+  until the required stage is unlocked.
+- Smart Loot: Locked items are removed from chests or replaced
   with configurable items like Cobblestone.
-- Anti-Cheese: Mobs won't spawn with gear that hasn't been 
-  researched yet.
-- Research System: Uses a Research Pedestal and Research Books.
-- JEI Support: Automatically hides or marks locked items.
+- Mob Loot Lock: Locked items are removed from mob drops.
+- Lock Icon Overlay: Locked items show a lock icon in
+  inventories and JEI (auto-disabled with EMI).
+- Research System: Uses a Research Pedestal and Research Scrolls.
+- JEI/EMI Support: Automatically hides or marks locked items.
 
 ----------------------------------------------------------------
 2. HOW TO USE
@@ -33,17 +36,26 @@ Example format:
   "items": ["minecraft:iron_ingot"],
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
-  "dimensions": ["minecraft:the_nether"]
+  "dimensions": ["minecraft:the_nether"],
+  "entities": ["minecraft:zombie", "minecraft:skeleton"]
 }
 
-RESEARCH BOOKS & Pedestal:
+FIELDS:
+- display_name: Human-readable name shown in messages and tooltips.
+- items: List of item IDs to lock (e.g. "minecraft:diamond").
+- tags: List of item tags to lock (e.g. "forge:ores/iron").
+- mods: List of mod IDs to lock all items from (e.g. "mekanism").
+- dimensions: List of dimension IDs to block access to.
+- entities: List of entity IDs to protect from player damage.
+
+RESEARCH SCROLLS & PEDESTAL:
 1. Place a Research Pedestal.
-2. Put a Research Book into the input slot.
-3. Wait for the "Searching..." process to finish.
+2. Put a Research Scroll into the input slot.
+3. Wait for the research process to finish.
 4. The stage is now unlocked globally.
 
-IMPORTANT: This mod does NOT include default crafting recipes 
-for the pedestal or books. You MUST add them yourself using 
+IMPORTANT: This mod does NOT include default crafting recipes
+for the pedestal or scrolls. You MUST add them yourself using
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
@@ -53,27 +65,55 @@ KubeJS, CraftTweaker, or a Datapack.
 /history unlock <stage>  - Unlocks a stage. Use '*' for all.
 /history lock <stage>    - Relocks a stage. Use '*' for all.
 /history list            - Shows all registered stages.
-/history info <stage>    - Shows status of a specific stage.
+/history info <stage>    - Shows details (items, mods, dims, entities).
 /history reload          - Reloads JSONs and syncs players.
 
 ----------------------------------------------------------------
-4. OBTAINING BOOKS VIA COMMAND
+4. OBTAINING SCROLLS VIA COMMAND
 ----------------------------------------------------------------
 
-/give @s historystages:research_book{StageResearch:"stage_id"}
+/give @s historystages:research_scroll{StageResearch:"stage_id"}
 
-(Replace "stage_id" with your JSON filename, e.g. "stone_age")
+(Replace "stage_id" with your JSON filename, e.g. "bronze_age")
 
 ----------------------------------------------------------------
-5. NOTE: IN DEVELOPMENT
+5. CONFIGURATION
 ----------------------------------------------------------------
 
-This mod is currently in active development. Bugs may occur. 
+CLIENT CONFIG (per player):
+- hideInJei: Hide locked items from JEI.
+- showTooltips: Show required stages on locked items.
+- showLockIcons: Show lock icon overlay on locked items.
+- Dimension lock feedback: Actionbar and/or chat messages.
+- Mob lock feedback: Actionbar and/or chat messages.
+
+COMMON CONFIG (server-side):
+- lockMobLoot: Remove locked items from mob drops.
+- broadcastChat: Broadcast unlock/lock messages to all players.
+- unlockMessageFormat: Customize the unlock message text.
+- researchTimeInSeconds: Duration of the research process.
+- useReplacements: Replace locked loot with alternative items.
+
+Config files are located at:
+- Client: /config/historystages-client.toml
+- Common: /config/historystages-common.toml
+
+----------------------------------------------------------------
+6. DEPENDENCIES
+----------------------------------------------------------------
+
+- Required: Lootr
+- Optional: JEI (recipe viewer integration)
+- Optional: EMI (alternative recipe viewer integration)
+
+----------------------------------------------------------------
+7. NOTE: IN DEVELOPMENT
+----------------------------------------------------------------
+
+This mod is currently in active development. Bugs may occur.
 Please report any issues to help improve the mod.
-
-Loot replacements and other settings can be found in:
-/config/historystages-common.toml
 
 ----------------------------------------------------------------
 License: MIT
+Authors: Flix100000, PixlStudios
 ================================================================
