@@ -21,8 +21,12 @@ dimensions, mobs, and mod content behind custom research stages.
 - Mob Loot Lock: Locked items are removed from mob drops.
 - Lock Icon Overlay: Locked items show a lock icon in
   inventories and JEI (auto-disabled with EMI).
-- Research System: Uses a Research Pedestal and Research Scrolls.
+- Research System: Uses a Research Pedestal and Research Scrolls
+  with configurable research time per stage.
 - JEI/EMI Support: Automatically hides or marks locked items.
+- Forge Events: Fires StageEvent.Unlocked/Locked events for
+  KubeJS, CraftTweaker, and other mod integrations.
+- Localization: English and German translations included.
 
 ----------------------------------------------------------------
 2. HOW TO USE
@@ -33,6 +37,7 @@ Stages are defined via JSON files in: /config/historystages/
 Example format:
 {
   "display_name": "Bronze Age",
+  "research_time": 60,
   "items": ["minecraft:iron_ingot"],
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
@@ -42,6 +47,8 @@ Example format:
 
 FIELDS:
 - display_name: Human-readable name shown in messages and tooltips.
+- research_time: (Optional) Research duration in seconds for this
+  stage. If omitted or 0, uses the global config default.
 - items: List of item IDs to lock (e.g. "minecraft:diamond").
 - tags: List of item tags to lock (e.g. "forge:ores/iron").
 - mods: List of mod IDs to lock all items from (e.g. "mekanism").
@@ -91,7 +98,8 @@ COMMON CONFIG (server-side):
 - lockMobLoot: Remove locked items from mob drops.
 - broadcastChat: Broadcast unlock/lock messages to all players.
 - unlockMessageFormat: Customize the unlock message text.
-- researchTimeInSeconds: Duration of the research process.
+- researchTimeInSeconds: Default research duration (fallback if
+  a stage does not define its own 'research_time' in the JSON).
 - useReplacements: Replace locked loot with alternative items.
 
 Config files are located at:
@@ -99,7 +107,27 @@ Config files are located at:
 - Common: /config/historystages-common.toml
 
 ----------------------------------------------------------------
-6. DEPENDENCIES
+6. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
+----------------------------------------------------------------
+
+HistoryStages fires custom Forge events on the EVENT_BUS:
+
+- StageEvent.Unlocked: Fired after a stage is unlocked
+  (via command or Research Pedestal).
+- StageEvent.Locked: Fired after a stage is locked (via command).
+
+Both events provide: getStageId() and getDisplayName().
+
+KubeJS example:
+ForgeEvents.onEvent(
+  'net.bananemdnsa.historystages.events.StageEvent$Unlocked',
+  event => {
+    console.log('Stage unlocked: ' + event.getStageId());
+  }
+);
+
+----------------------------------------------------------------
+7. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
@@ -107,7 +135,7 @@ Config files are located at:
 - Optional: EMI (alternative recipe viewer integration)
 
 ----------------------------------------------------------------
-7. NOTE: IN DEVELOPMENT
+8. NOTE: IN DEVELOPMENT
 ----------------------------------------------------------------
 
 This mod is currently in active development. Bugs may occur.
