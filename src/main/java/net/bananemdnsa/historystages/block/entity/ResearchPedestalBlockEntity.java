@@ -65,7 +65,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             public int get(int pIndex) {
                 return switch (pIndex) {
                     case 0 -> ResearchPedestalBlockEntity.this.progress;
-                    case 1 -> Config.COMMON.researchTimeInSeconds.get() * 20;
+                    case 1 -> ResearchPedestalBlockEntity.this.getMaxProgressForCurrentStage();
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay;
                     default -> 0;
                 };
@@ -117,7 +117,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
 
         ItemStack stack = entity.itemHandler.getStackInSlot(0);
-        int maxProgress = Config.COMMON.researchTimeInSeconds.get() * 20;
+        int maxProgress = entity.getMaxProgressForCurrentStage();
 
         boolean hasValidBook = !stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch");
         boolean isResearching = false;
@@ -167,6 +167,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 data.addStage(stageId);
                 data.setDirty();
 
+                // Fire custom Forge event for KubeJS/CraftTweaker
+                String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                        new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
+
                 // 2. DEN BEFEHL LEISE AUSFÜHREN (Erzwingt JEI Hard-Reload auf allen Clients)
                 if (level.getServer() != null) {
                     level.getServer().getCommands().performPrefixedCommand(
@@ -207,6 +212,15 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         this.finishDelay = 0;
         stack.shrink(1);
         setChanged();
+    }
+
+    private int getMaxProgressForCurrentStage() {
+        ItemStack stack = this.itemHandler.getStackInSlot(0);
+        if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+            String stageId = stack.getTag().getString("StageResearch");
+            return net.bananemdnsa.historystages.data.StageManager.getResearchTimeInTicks(stageId);
+        }
+        return Config.COMMON.researchTimeInSeconds.get() * 20;
     }
 
     private void performGlobalSync() {

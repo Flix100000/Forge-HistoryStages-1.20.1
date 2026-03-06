@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.events.StageEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -14,6 +15,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraftforge.common.MinecraftForge;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,6 +61,15 @@ public class StageCommand {
                                         return 0;
                                     }
                                     ctx.getSource().sendSuccess(() -> Component.literal("§6--- Stage Info: §e" + stageName + " §6---"), false);
+
+                                    // Research Time
+                                    int researchTime = entry.getResearchTime();
+                                    if (researchTime > 0) {
+                                        ctx.getSource().sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
+                                    } else {
+                                        int defaultTime = Config.COMMON.researchTimeInSeconds.get();
+                                        ctx.getSource().sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
+                                    }
 
                                     if (!entry.getItems().isEmpty()) {
                                         ctx.getSource().sendSuccess(() -> Component.literal("§b▶ Items:"), false);
@@ -111,6 +122,9 @@ public class StageCommand {
             for (String id : StageManager.getStages().keySet()) {
                 if (!d.getUnlockedStages().contains(id)) {
                     d.addStage(id);
+                    var entry = StageManager.getStages().get(id);
+                    String displayName = entry != null ? entry.getDisplayName() : id;
+                    MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(id, displayName));
                     changed = true;
                 }
             }
@@ -123,6 +137,9 @@ public class StageCommand {
         } else {
             if (!StageManager.getStages().containsKey(s)) return 0;
             d.addStage(s);
+            var entry = StageManager.getStages().get(s);
+            String displayName = entry != null ? entry.getDisplayName() : s;
+            MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
             broadcastEffect(source, s, true);
             return syncAndReload(source, d, "Unlocked: " + s);
         }
@@ -139,6 +156,9 @@ public class StageCommand {
             List<String> toRemove = new ArrayList<>(d.getUnlockedStages());
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
+                var entry = StageManager.getStages().get(stageId);
+                String displayName = entry != null ? entry.getDisplayName() : stageId;
+                MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
             }
 
             d.getUnlockedStages().clear();
@@ -150,6 +170,9 @@ public class StageCommand {
         } else {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
+            var lockEntry = StageManager.getStages().get(s);
+            String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
+            MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
             broadcastEffect(source, s, false);
             return syncAndReload(source, d, "Locked: " + s);
         }
