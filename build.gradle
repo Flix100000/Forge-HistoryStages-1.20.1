@@ -89,7 +89,7 @@ dependencies {
 
     // EMI
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
-    runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
+    //runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
 }
 
 tasks.named('processResources', ProcessResources).configure {
