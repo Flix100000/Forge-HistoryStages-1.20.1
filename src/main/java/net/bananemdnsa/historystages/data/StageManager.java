@@ -87,6 +87,11 @@ public class StageManager {
             return false;
         });
 
+        // Research Time Info
+        if (entry.getResearchTime() <= 0) {
+            LOADING_ERRORS.add("§7[Debug] §fStage §b" + stageId + " §fhas no 'research_time' defined. Using global config default.");
+        }
+
         STAGES.put(stageId, entry);
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
     }
