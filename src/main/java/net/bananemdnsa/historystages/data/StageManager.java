@@ -175,6 +175,18 @@ public class StageManager {
         return allFoundStages;
     }
 
+    /**
+     * Returns the research time in ticks for a stage.
+     * Uses the stage's own research_time if > 0, otherwise falls back to the global config.
+     */
+    public static int getResearchTimeInTicks(String stageId) {
+        StageEntry entry = STAGES.get(stageId);
+        if (entry != null && entry.getResearchTime() > 0) {
+            return entry.getResearchTime() * 20;
+        }
+        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
     // Die zentrale Prüf-Logik für den Server (z.B. Lootr)
     public static boolean isItemLockedForServer(ItemStack stack) {
         if (stack.isEmpty()) return false;

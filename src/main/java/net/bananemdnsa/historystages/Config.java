@@ -142,7 +142,7 @@ public class Config {
             // --- RESEARCH Pedestal SECTION ---
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
-                    .comment("How long a research process takes in seconds. [Default: 20]")
+                    .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
             builder.pop(); // Schließt "research"
 
