@@ -41,7 +41,7 @@ public class ConfigHandler {
         json.addProperty("display_name", "Example Stage");
 
         // Research Time (optional, in seconds. If omitted or 0, uses global config default)
-        json.addProperty("research_time", 30);
+        json.addProperty("research_time", 20);
 
         // Items Category
         JsonArray items = new JsonArray();
