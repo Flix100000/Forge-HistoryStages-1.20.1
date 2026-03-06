@@ -1,0 +1,17 @@
+{
+  "block.historystages.research_pedestal": "Forschungspodest",
+  "item.historystages.research_scroll": "Forschungsrolle",
+  "tooltip.historystages.locked": "\u00a7cGesperrt! Ben\u00f6tigt: \u00a77%s",
+  "command.historystages.unlocked_all": "Alle Stufen wurden freigeschaltet.",
+  "command.historystages.not_found": "Stufe '%s' nicht gefunden!",
+  "screen.historystages.already_learned": "\u00a7cBereits erforscht!",
+  "creativetab.history_tab": "History Stages",
+  "tooltip.historystages.research_scroll.info1": "Benutze diese Rolle in einem Forschungspodest,",
+  "tooltip.historystages.research_scroll.info2": "um neue Technologien freizuschalten.",
+  "message.historystages.dimension_locked": "\u00a7cDu hast noch nicht das n\u00f6tige Zeitalter erreicht, um diese Dimension zu betreten!",
+  "message.historystages.locked_stage": " \u00a78(Ben\u00f6tigt: \u00a7e%s\u00a78)",
+  "message.historystages.dimension_unknown": "??? Diese Dimension ist dir noch unbekannt ???",
+  "message.historystages.mob_locked": "\u00a7cDu hast nicht das Wissen, um dieses Wesen zu verletzen!",
+  "message.historystages.mob_unknown": "??? Dieses Wesen ist dir noch unbekannt ???",
+  "toast.historystages.stage_unlocked": "Stufe freigeschaltet!"
+}

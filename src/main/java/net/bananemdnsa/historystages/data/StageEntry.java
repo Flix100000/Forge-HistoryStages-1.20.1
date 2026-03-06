@@ -8,6 +8,9 @@ public class StageEntry {
     @SerializedName("display_name")
     private String displayName;
 
+    @SerializedName("research_time")
+    private int researchTime; // 0 = use global config default
+
     private List<String> items;
     private List<String> tags;
     private List<String> mods;
@@ -16,6 +19,10 @@ public class StageEntry {
 
     public String getDisplayName() {
         return displayName != null ? displayName : "Unknown Stage";
+    }
+
+    public int getResearchTime() {
+        return researchTime; // 0 means "use global default from config"
     }
 
     public List<String> getItems() { return items != null ? items : new ArrayList<>(); }
