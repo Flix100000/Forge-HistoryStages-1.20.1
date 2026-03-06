@@ -36,13 +36,13 @@ public class LockDecorator implements IItemDecorator {
         if (isLocked(stack)) {
             guiGraphics.pose().pushPose();
 
-            // Wir schieben das Bild auf der Z-Achse nach vorne (250),
-            // damit es über dem Item, aber unter dem Tooltip liegt.
-            guiGraphics.pose().translate(0, 0, 250);
+            // Z-Achse nach vorne (250), damit es über dem Item, aber unter dem Tooltip liegt.
+            // Dann skalieren wir die 32x32 Textur auf 8x8 (oberer linker Quadrant des 16x16 Slots).
+            guiGraphics.pose().translate(xOffset, yOffset, 250);
+            guiGraphics.pose().scale(0.25f, 0.25f, 1.0f);
 
-            // ZEICHNEN DER TEXTUR
-            // Parameter: (Textur, x, y, uOffset, vOffset, Breite, Höhe, TexturBreite, TexturHöhe)
-            guiGraphics.blit(LOCK_ICON, xOffset, yOffset, 0, 0, 16, 16, 16, 16);
+            // ZEICHNEN DER TEXTUR (Position 0,0 da Translation bereits gesetzt)
+            guiGraphics.blit(LOCK_ICON, 0, 0, 0, 0, 32, 32, 32, 32);
 
             guiGraphics.pose().popPose();
             return false; // false, damit Haltbarkeitsbalken etc. noch gezeichnet werden
