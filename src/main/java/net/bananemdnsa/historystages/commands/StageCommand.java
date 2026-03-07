@@ -15,7 +15,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraftforge.common.MinecraftForge;
+import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -124,7 +124,7 @@ public class StageCommand {
                     d.addStage(id);
                     var entry = StageManager.getStages().get(id);
                     String displayName = entry != null ? entry.getDisplayName() : id;
-                    MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(id, displayName));
+                    NeoForge.EVENT_BUS.post(new StageEvent.Unlocked(id, displayName));
                     changed = true;
                 }
             }
@@ -139,7 +139,7 @@ public class StageCommand {
             d.addStage(s);
             var entry = StageManager.getStages().get(s);
             String displayName = entry != null ? entry.getDisplayName() : s;
-            MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
+            NeoForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
             broadcastEffect(source, s, true);
             return syncAndReload(source, d, "Unlocked: " + s);
         }
@@ -158,7 +158,7 @@ public class StageCommand {
                 d.removeStage(stageId);
                 var entry = StageManager.getStages().get(stageId);
                 String displayName = entry != null ? entry.getDisplayName() : stageId;
-                MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
+                NeoForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
             }
 
             d.getUnlockedStages().clear();
@@ -172,7 +172,7 @@ public class StageCommand {
             d.removeStage(s);
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
-            MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
+            NeoForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
             broadcastEffect(source, s, false);
             return syncAndReload(source, d, "Locked: " + s);
         }

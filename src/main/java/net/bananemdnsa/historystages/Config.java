@@ -1,29 +1,29 @@
 package net.bananemdnsa.historystages;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.neoforge.common.ModConfigSpec;
+import net.neoforged.fml.common.EventBusSubscriber;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+@EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public class Config {
 
     // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
     public static class Client {
-        public final ForgeConfigSpec.BooleanValue hideInJei;
-        public final ForgeConfigSpec.BooleanValue showTooltips;
-        public final ForgeConfigSpec.BooleanValue showStageName;
-        public final ForgeConfigSpec.BooleanValue showAllUntilComplete;
-        public final ForgeConfigSpec.BooleanValue dimUseActionbar;
-        public final ForgeConfigSpec.BooleanValue dimShowChat;
-        public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
-        public final ForgeConfigSpec.BooleanValue showLockIcons;
-        public final ForgeConfigSpec.BooleanValue mobUseActionbar;
-        public final ForgeConfigSpec.BooleanValue mobShowChat;
-        public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
+        public final ModConfigSpec.BooleanValue hideInJei;
+        public final ModConfigSpec.BooleanValue showTooltips;
+        public final ModConfigSpec.BooleanValue showStageName;
+        public final ModConfigSpec.BooleanValue showAllUntilComplete;
+        public final ModConfigSpec.BooleanValue dimUseActionbar;
+        public final ModConfigSpec.BooleanValue dimShowChat;
+        public final ModConfigSpec.BooleanValue dimShowStagesInChat;
+        public final ModConfigSpec.BooleanValue showLockIcons;
+        public final ModConfigSpec.BooleanValue mobUseActionbar;
+        public final ModConfigSpec.BooleanValue mobShowChat;
+        public final ModConfigSpec.BooleanValue mobShowStagesInChat;
 
-        public Client(ForgeConfigSpec.Builder builder) {
+        public Client(ModConfigSpec.Builder builder) {
             builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
 
             hideInJei = builder
@@ -84,37 +84,32 @@ public class Config {
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
     public static class Common {
-        public final ForgeConfigSpec.BooleanValue lockMobLoot;
-        public final ForgeConfigSpec.BooleanValue showDebugErrors;
+        public final ModConfigSpec.BooleanValue lockMobLoot;
+        public final ModConfigSpec.BooleanValue showDebugErrors;
 
-        // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
-        public final ForgeConfigSpec.BooleanValue broadcastChat;
-        public final ForgeConfigSpec.ConfigValue<String> unlockMessageFormat;
-        public final ForgeConfigSpec.BooleanValue useActionbar;
-        public final ForgeConfigSpec.BooleanValue useSounds;
-        public final ForgeConfigSpec.BooleanValue useToasts;
+        public final ModConfigSpec.BooleanValue broadcastChat;
+        public final ModConfigSpec.ConfigValue<String> unlockMessageFormat;
+        public final ModConfigSpec.BooleanValue useActionbar;
+        public final ModConfigSpec.BooleanValue useSounds;
+        public final ModConfigSpec.BooleanValue useToasts;
 
-        // Forschungsstation
-        public final ForgeConfigSpec.IntValue researchTimeInSeconds;
+        public final ModConfigSpec.IntValue researchTimeInSeconds;
 
-        // Loot-Ersetzungen
-        public final ForgeConfigSpec.BooleanValue useReplacements;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementItems;
-        public final ForgeConfigSpec.ConfigValue<String> replacementTag;
+        public final ModConfigSpec.BooleanValue useReplacements;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> replacementItems;
+        public final ModConfigSpec.ConfigValue<String> replacementTag;
 
-        public Common(ForgeConfigSpec.Builder builder) {
+        public Common(ModConfigSpec.Builder builder) {
             builder.comment("Gameplay and Server-side settings").push("gameplay");
 
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
 
-
             showDebugErrors = builder
                     .comment("If true, players will see debug messages in chat if a JSON stage has errors or missing items. [Default: true]")
                     .define("showDebugErrors", true);
 
-            // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
 
             broadcastChat = builder
@@ -137,16 +132,14 @@ public class Config {
                     .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
                     .define("useToasts", true);
 
-            builder.pop(); // Schließt "notifications"
+            builder.pop();
 
-            // --- RESEARCH Pedestal SECTION ---
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
-            builder.pop(); // Schließt "research"
+            builder.pop();
 
-            // --- LOOT REPLACEMENTS SECTION ---
             builder.comment("Settings for replacing locked loot with alternatives").push("loot_replacements");
 
             useReplacements = builder
@@ -158,25 +151,25 @@ public class Config {
                     .defineList("replacementItems", List.of("minecraft:cobblestone", "minecraft:dirt"), o -> o instanceof String);
 
             replacementTag = builder
-                    .comment("{ReplacementPriority:1} A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
+                    .comment("{ReplacementPriority:1} A tag (e.g. 'c:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
-            builder.pop(); // Schließt "loot_replacements"
+            builder.pop();
 
-            builder.pop(); // gameplay
+            builder.pop();
         }
     }
 
-    public static final ForgeConfigSpec CLIENT_SPEC;
+    public static final ModConfigSpec CLIENT_SPEC;
     public static final Client CLIENT;
-    public static final ForgeConfigSpec COMMON_SPEC;
+    public static final ModConfigSpec COMMON_SPEC;
     public static final Common COMMON;
 
     static {
-        final Pair<Client, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(Client::new);
+        final Pair<Client, ModConfigSpec> clientPair = new ModConfigSpec.Builder().configure(Client::new);
         CLIENT = clientPair.getLeft();
         CLIENT_SPEC = clientPair.getRight();
 
-        final Pair<Common, ForgeConfigSpec> commonPair = new ForgeConfigSpec.Builder().configure(Common::new);
+        final Pair<Common, ModConfigSpec> commonPair = new ModConfigSpec.Builder().configure(Common::new);
         COMMON = commonPair.getLeft();
         COMMON_SPEC = commonPair.getRight();
     }
