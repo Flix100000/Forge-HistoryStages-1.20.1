@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.util;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -17,29 +18,26 @@ public class StageData extends SavedData {
     private final List<String> unlockedStages = new ArrayList<>();
     private static final String DATA_NAME = "historystages_global";
 
-    // --- NEU: DER CACHE ---
-    // Das Mixin greift hierauf zu, weil es keinen direkten Zugriff auf "SavedData" hat
     public static final Set<String> SERVER_CACHE = new HashSet<>();
 
     public StageData() {
-        // Falls das Objekt neu erstellt wird, stellen wir sicher, dass der Cache leer ist
         SERVER_CACHE.clear();
     }
 
-    public static StageData load(CompoundTag nbt) {
+    public static StageData load(CompoundTag nbt, HolderLookup.Provider registries) {
         StageData data = new StageData();
         ListTag list = nbt.getList("stages", Tag.TAG_STRING);
-        SERVER_CACHE.clear(); // Cache leeren beim Laden
+        SERVER_CACHE.clear();
         for (int i = 0; i < list.size(); i++) {
             String stage = list.getString(i);
             data.unlockedStages.add(stage);
-            SERVER_CACHE.add(stage); // CACHE BEIM LADEN FÜLLEN
+            SERVER_CACHE.add(stage);
         }
         return data;
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider registries) {
         ListTag list = new ListTag();
         for (String s : unlockedStages) {
             list.add(StringTag.valueOf(s));
@@ -51,12 +49,13 @@ public class StageData extends SavedData {
     public static StageData get(Level level) {
         if (level instanceof ServerLevel serverLevel) {
             StageData data = serverLevel.getServer().overworld().getDataStorage()
-                    .computeIfAbsent(StageData::load, StageData::new, DATA_NAME);
+                    .computeIfAbsent(
+                            new SavedData.Factory<>(StageData::new, StageData::load),
+                            DATA_NAME
+                    );
 
-            // KRITISCH: Den Cache hier JEDES MAL synchronisieren
             SERVER_CACHE.clear();
             SERVER_CACHE.addAll(data.unlockedStages);
-
             return data;
         }
         return new StageData();
@@ -65,14 +64,14 @@ public class StageData extends SavedData {
     public void addStage(String stage) {
         if (!unlockedStages.contains(stage)) {
             unlockedStages.add(stage);
-            SERVER_CACHE.add(stage); // CACHE AKTUALISIEREN
+            SERVER_CACHE.add(stage);
             setDirty();
         }
     }
 
     public void removeStage(String stage) {
         if (unlockedStages.remove(stage)) {
-            SERVER_CACHE.remove(stage); // AUS CACHE ENTFERNEN
+            SERVER_CACHE.remove(stage);
             setDirty();
         }
     }

@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack;
 
 public class StageUnlockedToast implements Toast {
 
-    private static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/toasts.png");
+    private static final ResourceLocation TEXTURE = ResourceLocation.withDefaultNamespace("textures/gui/toasts.png");
     private static final ItemStack ICON = new ItemStack(ModItems.RESEARCH_SCROLL.get());
 
     private final Component title;

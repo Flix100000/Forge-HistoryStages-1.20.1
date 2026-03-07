@@ -10,6 +10,7 @@ import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import com.mojang.serialization.MapCodec;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
@@ -24,21 +25,24 @@ import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
 public class ResearchPedestalBlock extends BaseEntityBlock {
+    public static final MapCodec<ResearchPedestalBlock> CODEC = simpleCodec(ResearchPedestalBlock::new);
     public static final BooleanProperty WORKING = BooleanProperty.create("working");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
     private static final VoxelShape SHAPE = makeShape();
 
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
+    }
+
     public ResearchPedestalBlock(Properties pProperties) {
-        // noOcclusion() verhindert, dass Nachbarblöcke unsichtbar werden
         super(pProperties.noOcclusion().lightLevel(state -> state.getValue(LIT) ? 13 : 0));
         this.registerDefaultState(this.stateDefinition.any().setValue(WORKING, false).setValue(LIT, false));
     }
 
-    // Diese drei Methoden fixen den "Durchsicht-Bug" (X-Ray) bei Nachbarblöcken:
     @Override
     public boolean propagatesSkylightDown(BlockState pState, BlockGetter pLevel, BlockPos pPos) {
         return true;
@@ -66,11 +70,11 @@ public class ResearchPedestalBlock extends BaseEntityBlock {
     }
 
     @Override
-    public InteractionResult use(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, InteractionHand pHand, BlockHitResult pHit) {
+    public InteractionResult useWithoutItem(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, BlockHitResult pHit) {
         if (!pLevel.isClientSide()) {
             BlockEntity entity = pLevel.getBlockEntity(pPos);
             if (entity instanceof ResearchPedestalBlockEntity) {
-                NetworkHooks.openScreen((ServerPlayer) pPlayer, (MenuProvider)entity, pPos);
+                ((ServerPlayer) pPlayer).openMenu((MenuProvider) entity, pPos);
             }
         }
         return InteractionResult.sidedSuccess(pLevel.isClientSide());

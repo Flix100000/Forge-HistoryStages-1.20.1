@@ -21,6 +21,14 @@ repositories {
     maven {
         url "https://cursemaven.com"
     }
+    maven {
+        name = "Jared's Maven"
+        url "https://maven.blamejared.com"
+    }
+    maven {
+        name = "TerraformersMC"
+        url "https://maven.terraformersmc.com/"
+    }
 }
 
 base {
@@ -121,7 +129,15 @@ dependencies {
     // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
     // localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
     implementation "curse.maven:lootr-361276:7666212"
-    implementation "curse.maven:jei-238222:7428957"
+
+    // JEI for MC 1.21 NeoForge
+    compileOnly "mezz.jei:jei-1.21-common-api:19.8.2.99"
+    compileOnly "mezz.jei:jei-1.21-neoforge-api:19.8.2.99"
+    localRuntime "mezz.jei:jei-1.21-neoforge:19.8.2.99"
+
+    // EMI for MC 1.21 NeoForge
+    compileOnly "dev.emi:emi-neoforge:1.1.10+1.21:api"
+    localRuntime "dev.emi:emi-neoforge:1.1.10+1.21"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
@@ -146,11 +162,14 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
             neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
             loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
     ]
     inputs.properties replaceProperties
     expand replaceProperties
