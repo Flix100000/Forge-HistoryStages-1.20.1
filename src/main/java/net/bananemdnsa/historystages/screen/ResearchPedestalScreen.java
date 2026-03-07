@@ -6,14 +6,17 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPedestalMenu> {
     private static final ResourceLocation TEXTURE =
-            new ResourceLocation(HistoryStages.MOD_ID, "textures/gui/research_pedestal_gui.png");
+            ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "textures/gui/research_pedestal_gui.png");
 
     public ResearchPedestalScreen(ResearchPedestalMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);
@@ -30,8 +33,10 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         int textColor = 0x404040;
 
         if (!stack.isEmpty()) {
-            if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                String stageId = stack.getTag().getString("StageResearch");
+            CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+            CompoundTag tag = customData.copyTag();
+            if (tag.contains("StageResearch")) {
+                String stageId = tag.getString("StageResearch");
                 var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
                 boolean alreadyUnlocked = net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stageId);
                 int finishDelay = this.menu.data.get(2);
@@ -56,9 +61,9 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                     }
 
                     // Fortschritt und Zeit nur anzeigen, wenn nicht "Already Learned" steht
-                    if (stack.getTag().contains("ResearchProgress")) {
-                        int currentProgress = stack.getTag().getInt("ResearchProgress");
-                        int maxProgress = stack.getTag().contains("MaxProgress") ? stack.getTag().getInt("MaxProgress") : 400;
+                    if (tag.contains("ResearchProgress")) {
+                        int currentProgress = tag.getInt("ResearchProgress");
+                        int maxProgress = tag.contains("MaxProgress") ? tag.getInt("MaxProgress") : 400;
 
                         int percent = (int) (((double) currentProgress / maxProgress) * 100);
                         String progressText = "Progress: " + Math.min(100, percent) + "%";
@@ -88,9 +93,6 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
     @Override
     protected void renderBg(GuiGraphics guiGraphics, float pPartialTick, int pMouseX, int pMouseY) {
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        RenderSystem.setShaderTexture(0, TEXTURE);
         int x = (width - imageWidth) / 2;
         int y = (height - imageHeight) / 2;
 
@@ -110,7 +112,6 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
-        renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, delta);
         renderTooltip(guiGraphics, mouseX, mouseY);
     }

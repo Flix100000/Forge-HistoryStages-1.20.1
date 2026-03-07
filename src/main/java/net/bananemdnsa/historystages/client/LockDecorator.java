@@ -5,17 +5,17 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.IItemDecorator;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.client.IItemDecorator;
+import net.neoforged.fml.ModList;
 
 import java.util.List;
 
 public class LockDecorator implements IItemDecorator {
     // Hier definieren wir den Pfad zur Textur: assets/historystages/textures/gui/lock_overlay.png
-    private static final ResourceLocation LOCK_ICON = new ResourceLocation("historystages", "textures/gui/lock_overlay.png");
+    private static final ResourceLocation LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay.png");
 
     // Performance-Check für EMI
     private static final boolean IS_EMI_INSTALLED = ModList.get().isLoaded("emi");
@@ -52,7 +52,7 @@ public class LockDecorator implements IItemDecorator {
     }
 
     private boolean isLocked(ItemStack stack) {
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (res == null) return false;
 
         // Nutzt StageManager (Logik-Prüfung)

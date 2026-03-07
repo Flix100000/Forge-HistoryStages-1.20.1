@@ -1,31 +1,31 @@
 package net.bananemdnsa.historystages.network;
 
+import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-import java.util.function.Supplier;
+public record StageUnlockedToastPacket(String stageName) implements CustomPacketPayload {
 
-public class StageUnlockedToastPacket {
-    private final String stageName;
+    public static final CustomPacketPayload.Type<StageUnlockedToastPacket> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "toast"));
 
-    public StageUnlockedToastPacket(String stageName) {
-        this.stageName = stageName;
-    }
+    public static final StreamCodec<FriendlyByteBuf, StageUnlockedToastPacket> STREAM_CODEC =
+            StreamCodec.of(
+                    (buf, msg) -> buf.writeUtf(msg.stageName),
+                    buf -> new StageUnlockedToastPacket(buf.readUtf())
+            );
 
-    public static void encode(StageUnlockedToastPacket msg, FriendlyByteBuf buffer) {
-        buffer.writeUtf(msg.stageName);
-    }
-
-    public static StageUnlockedToastPacket decode(FriendlyByteBuf buffer) {
-        return new StageUnlockedToastPacket(buffer.readUtf());
-    }
-
-    public static void handle(StageUnlockedToastPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-                net.bananemdnsa.historystages.client.ClientToastHandler.showToast(msg.stageName);
-            }
+    public static void handle(StageUnlockedToastPacket msg, IPayloadContext ctx) {
+        ctx.enqueueWork(() -> {
+            net.bananemdnsa.historystages.client.ClientToastHandler.showToast(msg.stageName);
         });
-        ctx.get().setPacketHandled(true);
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

@@ -2,32 +2,35 @@ package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Rarity;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.level.Level;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
+import net.minecraft.world.item.component.CustomData;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.DeferredHolder;
 import net.bananemdnsa.historystages.HistoryStages;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
-            DeferredRegister.create(ForgeRegistries.ITEMS, HistoryStages.MOD_ID);
+            DeferredRegister.create(Registries.ITEM, HistoryStages.MOD_ID);
 
-    public static final RegistryObject<Item> RESEARCH_SCROLL = ITEMS.register("research_scroll",
+    public static final DeferredHolder<Item, Item> RESEARCH_SCROLL = ITEMS.register("research_scroll",
             () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
 
                 @Override
                 public Component getName(ItemStack stack) {
-                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                        String stageId = stack.getTag().getString("StageResearch");
+                    CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+                    var tag = customData.copyTag();
+                    if (tag.contains("StageResearch")) {
+                        String stageId = tag.getString("StageResearch");
                         var stage = StageManager.getStages().get(stageId);
                         if (stage != null) {
                             return Component.literal(stage.getDisplayName() + " Research Scroll")
@@ -38,22 +41,19 @@ public class ModItems {
                 }
 
                 @Override
-                public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-                    // Nutzt jetzt die Keys aus der Sprachdatei
+                public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info1")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
-
-                    // DER FORTSCHRITTS-CODE BLEIBT ENTFERNT (ist im TooltipEventHandler)
                 }
             });
 
-    public static final RegistryObject<Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
+    public static final DeferredHolder<Item, Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
             () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
 
-    public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
+    public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }
 }

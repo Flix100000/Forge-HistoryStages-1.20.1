@@ -9,10 +9,10 @@ import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
@@ -27,7 +27,7 @@ public class JEIPlugin implements IModPlugin {
 
     @Override
     public ResourceLocation getPluginUid() {
-        return new ResourceLocation(HistoryStages.MOD_ID, "jei_plugin");
+        return ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "jei_plugin");
     }
 
     @Override
@@ -79,7 +79,7 @@ public class JEIPlugin implements IModPlugin {
         // 1. Einzelne Items
         if (entry.getItems() != null) {
             for (String itemId : entry.getItems()) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+                Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
                 if (item != null && item != net.minecraft.world.item.Items.AIR) {
                     items.add(new ItemStack(item));
                 }
@@ -89,8 +89,8 @@ public class JEIPlugin implements IModPlugin {
         // 2. Ganze Mods
         if (entry.getMods() != null) {
             for (String modId : entry.getMods()) {
-                for (Item item : ForgeRegistries.ITEMS) {
-                    ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
+                for (Item item : BuiltInRegistries.ITEM) {
+                    ResourceLocation res = BuiltInRegistries.ITEM.getKey(item);
                     if (res != null && res.getNamespace().equals(modId)) {
                         items.add(new ItemStack(item));
                     }
@@ -101,10 +101,10 @@ public class JEIPlugin implements IModPlugin {
         // 3. Tags
         if (entry.getTags() != null) {
             for (String tagId : entry.getTags()) {
-                ResourceLocation tagRes = new ResourceLocation(tagId);
-                for (Item item : ForgeRegistries.ITEMS) {
+                ResourceLocation tagRes = ResourceLocation.parse(tagId);
+                for (Item item : BuiltInRegistries.ITEM) {
                     ItemStack stack = new ItemStack(item);
-                    if (stack.getTags().anyMatch(t -> t.location().equals(tagRes))) {
+                    if (stack.getItem().builtInRegistryHolder().tags().anyMatch(t -> t.location().equals(tagRes))) {
                         items.add(stack);
                     }
                 }

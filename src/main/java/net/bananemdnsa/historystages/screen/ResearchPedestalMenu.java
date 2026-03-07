@@ -10,8 +10,7 @@ import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.SlotItemHandler;
+import net.neoforged.neoforge.items.SlotItemHandler;
 
 public class ResearchPedestalMenu extends AbstractContainerMenu {
     private final ResearchPedestalBlockEntity blockEntity;
@@ -39,9 +38,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         int slotX = 26;
         int slotY = 35;
 
-        this.blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
-            this.addSlot(new SlotItemHandler(handler, 0, slotX, slotY));
-        });
+        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 0, slotX, slotY));
 
         // Synchronisiert die Daten (Progress, Max, Delay) zwischen Server und Client
         addDataSlots(data);
