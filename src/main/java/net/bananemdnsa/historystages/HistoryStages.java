@@ -9,8 +9,8 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.StageData;
-import net.minecraft.client.gui.screens.MenuScreens;
-import net.minecraft.client.renderer.item.ItemProperties;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -18,20 +18,21 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.client.event.RegisterItemDecorationsEvent;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.level.LevelEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.world.item.component.CustomData;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.client.event.RegisterItemDecorationsEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -41,36 +42,44 @@ public class HistoryStages {
     public static final String MOD_ID = "historystages";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public HistoryStages() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-
+    public HistoryStages(IEventBus modEventBus, ModContainer modContainer) {
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.register(modEventBus);
-        modEventBus.addListener(this::clientSetup);
 
         modEventBus.addListener(this::addCreative);
         // Hier fügen wir den Decorator hinzu:
         modEventBus.addListener(this::onRegisterItemDecorators);
+        modEventBus.addListener(this::registerScreens);
+        modEventBus.addListener(this::registerCapabilities);
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
 
-        PacketHandler.register();
         ConfigHandler.setupConfig();
         StageManager.load();
 
-        modEventBus.addListener(this::addCreative);
+        NeoForge.EVENT_BUS.register(this);
+    }
 
-        MinecraftForge.EVENT_BUS.register(this);
+    private void registerCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(
+                Capabilities.ItemHandler.BLOCK,
+                ModBlockEntities.RESEARCH_PEDESTAL_BE.get(),
+                (blockEntity, side) -> blockEntity.getItemHandler()
+        );
+    }
+
+    private void registerScreens(RegisterMenuScreensEvent event) {
+        event.register(ModMenuTypes.RESEARCH_MENU.get(), ResearchPedestalScreen::new);
     }
 
     private void onRegisterItemDecorators(RegisterItemDecorationsEvent event) {
         // ForgeRegistries.ITEMS.forEach ist gut, aber manche Mods registrieren Items später.
         // Wir registrieren den Decorator für absolut jedes Item.
-        for (Item item : ForgeRegistries.ITEMS) {
+        for (Item item : BuiltInRegistries.ITEM) {
             event.register(item, new LockDecorator());
         }
     }
@@ -78,7 +87,7 @@ public class HistoryStages {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         // Wir fügen die Maschine bei den Funktions-Blöcken hinzu
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
-            event.accept(ModItems.RESEARCH_PEDESTAL_ITEM);
+            event.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
         }
 
         // Das Besondere: Wir generieren für JEDE Stage aus deinen JSONs ein eigenes Buch!
@@ -87,18 +96,13 @@ public class HistoryStages {
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
 
                 // Wir speichern die Stage-ID im Buch, damit es weiß, was es freischaltet
-                CompoundTag nbt = book.getOrCreateTag();
-                nbt.putString("StageResearch", stageId);
+                CompoundTag tag = new CompoundTag();
+                tag.putString("StageResearch", stageId);
+                book.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
 
                 event.accept(book);
             }
         }
-    }
-
-    private void clientSetup(final FMLClientSetupEvent event) {
-        event.enqueueWork(() -> {
-            MenuScreens.register(ModMenuTypes.RESEARCH_MENU.get(), ResearchPedestalScreen::new);
-        });
     }
 
     @SubscribeEvent

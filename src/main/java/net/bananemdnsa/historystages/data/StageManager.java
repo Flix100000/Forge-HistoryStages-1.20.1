@@ -1,13 +1,13 @@
 package net.bananemdnsa.historystages.data;
 
 import com.google.gson.Gson;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.File;
 import java.io.FileReader;
@@ -19,20 +19,18 @@ import java.util.Map;
 
 public class StageManager {
     private static final Map<String, StageEntry> STAGES = new HashMap<>();
-    private static final List<String> LOADING_ERRORS = new ArrayList<>(); // NEU
+    private static final List<String> LOADING_ERRORS = new ArrayList<>();
     private static final Gson GSON = new Gson();
-
 
     public static void load() {
         STAGES.clear();
-        LOADING_ERRORS.clear(); // Liste leeren beim Neuladen
+        LOADING_ERRORS.clear();
 
         File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
         if (!configDir.exists()) configDir.mkdirs();
 
         File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
+                name.endsWith(".json") && !name.startsWith("_"));
 
         if (files == null) return;
 
@@ -40,10 +38,7 @@ public class StageManager {
             try (Reader reader = new FileReader(file)) {
                 StageEntry entry = GSON.fromJson(reader, StageEntry.class);
                 String id = file.getName().replace(".json", "");
-
-                if (entry != null) {
-                    validateAndAdd(id, entry);
-                }
+                if (entry != null) validateAndAdd(id, entry);
             } catch (Exception e) {
                 LOADING_ERRORS.add("§c[Debug] Error in file: §e" + file.getName() + " §7(Invalid JSON syntax, stage skipped)");
             }
@@ -51,16 +46,14 @@ public class StageManager {
     }
 
     private static void validateAndAdd(String stageId, StageEntry entry) {
-        // Items prüfen und ungültige entfernen
         entry.getItems().removeIf(itemId -> {
-            if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemId))) {
+            if (!BuiltInRegistries.ITEM.containsKey(ResourceLocation.parse(itemId))) {
                 LOADING_ERRORS.add("§7[Debug] §fItem §e" + itemId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
         });
 
-        // Mods prüfen
         entry.getMods().removeIf(modId -> {
             if (!ModList.get().isLoaded(modId)) {
                 LOADING_ERRORS.add("§7[Debug] §fMod §e" + modId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
@@ -69,25 +62,22 @@ public class StageManager {
             return false;
         });
 
-        // Dimensionen prüfen
         entry.getDimensions().removeIf(dimId -> {
-            if (!ResourceLocation.isValidResourceLocation(dimId)) {
+            if (ResourceLocation.tryParse(dimId) == null) {
                 LOADING_ERRORS.add("§7[Debug] §fDimension §e" + dimId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
         });
 
-        // Entities prüfen
         entry.getEntities().removeIf(entityId -> {
-            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+            if (ResourceLocation.tryParse(entityId) == null) {
                 LOADING_ERRORS.add("§7[Debug] §fEntity §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
         });
 
-        // Research Time Info
         if (entry.getResearchTime() <= 0) {
             LOADING_ERRORS.add("§7[Debug] §fStage §b" + stageId + " §fhas no 'research_time' defined. Using global config default.");
         }
@@ -96,32 +86,21 @@ public class StageManager {
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
     }
 
-    public static List<String> getLoadingErrors() {
-        return LOADING_ERRORS;
-    }
-
-    public static void reloadStages() {
-        load();
-    }
-
-    public static Map<String, StageEntry> getStages() {
-        return STAGES;
-    }
+    public static List<String> getLoadingErrors() { return LOADING_ERRORS; }
+    public static void reloadStages() { load(); }
+    public static Map<String, StageEntry> getStages() { return STAGES; }
 
     public static String getStageForItemOrMod(String itemId, String modId) {
         for (var entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
             StageEntry data = entry.getValue();
-
-            if (data.getItems() != null && data.getItems().contains(itemId)) return stageName;
-            if (data.getMods() != null && data.getMods().contains(modId)) return stageName;
-
+            if (data.getItems() != null && data.getItems().contains(itemId)) return entry.getKey();
+            if (data.getMods() != null && data.getMods().contains(modId)) return entry.getKey();
             if (data.getTags() != null) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+                Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
                 if (item != null) {
                     for (String tagId : data.getTags()) {
-                        var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, new ResourceLocation(tagId));
-                        if (item.builtInRegistryHolder().is(tagKey)) return stageName;
+                        var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
+                        if (item.builtInRegistryHolder().is(tagKey)) return entry.getKey();
                     }
                 }
             }
@@ -131,88 +110,54 @@ public class StageManager {
 
     public static String getStageForEntity(String entityId) {
         for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-            if (data.getEntities() != null && data.getEntities().contains(entityId)) {
+            if (entry.getValue().getEntities() != null && entry.getValue().getEntities().contains(entityId))
                 return entry.getKey();
-            }
         }
         return null;
     }
 
     public static String getStageForDimension(String dimensionId) {
         for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-            if (data.getDimensions() != null && data.getDimensions().contains(dimensionId)) {
+            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId))
                 return entry.getKey();
-            }
         }
         return null;
     }
 
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
         List<String> allFoundStages = new ArrayList<>();
-        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+        Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
             StageEntry data = entry.getValue();
-
-            boolean match = false;
-            // Check Item ID
-            if (data.getItems().contains(itemId)) match = true;
-            // Check Mod ID
-            if (!match && data.getMods().contains(modId)) match = true;
-            // Check Tags
+            boolean match = data.getItems().contains(itemId);
+            if (!match) match = data.getMods().contains(modId);
             if (!match && item != null && data.getTags() != null) {
                 for (String tagId : data.getTags()) {
-                    var tagKey = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, new ResourceLocation(tagId));
-                    if (item.builtInRegistryHolder().is(tagKey)) {
-                        match = true;
-                        break;
-                    }
+                    var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
+                    if (item.builtInRegistryHolder().is(tagKey)) { match = true; break; }
                 }
             }
-
-            if (match) {
-                allFoundStages.add(stageName);
-            }
+            if (match) allFoundStages.add(entry.getKey());
         }
         return allFoundStages;
     }
 
-    /**
-     * Returns the research time in ticks for a stage.
-     * Uses the stage's own research_time if > 0, otherwise falls back to the global config.
-     */
     public static int getResearchTimeInTicks(String stageId) {
         StageEntry entry = STAGES.get(stageId);
-        if (entry != null && entry.getResearchTime() > 0) {
-            return entry.getResearchTime() * 20;
-        }
+        if (entry != null && entry.getResearchTime() > 0) return entry.getResearchTime() * 20;
         return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
     }
 
-    // Die zentrale Prüf-Logik für den Server (z.B. Lootr)
     public static boolean isItemLockedForServer(ItemStack stack) {
         if (stack.isEmpty()) return false;
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (res == null) return false;
-
-        // Wir holen uns ALLE Stages, die für dieses Item registriert sind
         List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace());
-
         if (requiredStages.isEmpty()) return false;
-
-        // NEUE LOGIK: Das Item ist GESPERRT, wenn mindestens EINE der benötigten Stages FEHLT
-        // (Der Spieler muss also ALLE Stages besitzen, um es zu sehen)
         for (String stage : requiredStages) {
-            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
-                return true; // Eine Stage fehlt noch -> Item bleibt gesperrt
-            }
+            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) return true;
         }
-
-        return false; // Alle erforderlichen Stages sind im Cache -> Item ist frei
+        return false;
     }
-
-
 }

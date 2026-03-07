@@ -10,7 +10,8 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -21,14 +22,12 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,7 +51,6 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
     };
 
-    private LazyOptional<IItemHandler> lazyItemHandler = LazyOptional.empty();
     protected final ContainerData data;
     private int progress = 0;
     private int finishDelay = 0;
@@ -86,9 +84,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         };
     }
 
+    public ItemStackHandler getItemHandler() {
+        return itemHandler;
+    }
+
     private void loadProgressFromItem(ItemStack stack) {
-        if (stack.hasTag() && stack.getTag().contains("ResearchProgress")) {
-            this.progress = stack.getTag().getInt("ResearchProgress");
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        if (tag.contains("ResearchProgress")) {
+            this.progress = tag.getInt("ResearchProgress");
         } else {
             this.progress = 0;
         }
@@ -119,11 +122,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         ItemStack stack = entity.itemHandler.getStackInSlot(0);
         int maxProgress = entity.getMaxProgressForCurrentStage();
 
-        boolean hasValidBook = !stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch");
+        CompoundTag stackTag = !stack.isEmpty() ? stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag() : new CompoundTag();
+        boolean hasValidBook = !stack.isEmpty() && stackTag.contains("StageResearch");
         boolean isResearching = false;
 
         if (hasValidBook) {
-            String stageId = stack.getTag().getString("StageResearch");
+            String stageId = stackTag.getString("StageResearch");
             StageData data = StageData.get(level);
             boolean alreadyUnlocked = data.getUnlockedStages().contains(stageId);
 
@@ -132,9 +136,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 if (entity.progress < maxProgress) {
                     entity.progress++;
                     if (entity.progress % 10 == 0) {
-                        CompoundTag nbt = stack.getOrCreateTag();
+                        CompoundTag nbt = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
                         nbt.putInt("ResearchProgress", entity.progress);
                         nbt.putInt("MaxProgress", maxProgress);
+                        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
                     }
                 } else {
                     entity.finishDelay++;
@@ -157,8 +162,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     private void finishResearch(ItemStack stack) {
-        if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
-            String stageId = stack.getTag().getString("StageResearch");
+        CompoundTag stackTag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        if (!level.isClientSide && stackTag.contains("StageResearch")) {
+            String stageId = stackTag.getString("StageResearch");
             var stageEntry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
             net.bananemdnsa.historystages.util.StageData data = net.bananemdnsa.historystages.util.StageData.get(level);
 
@@ -167,9 +173,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 data.addStage(stageId);
                 data.setDirty();
 
-                // Fire custom Forge event for KubeJS/CraftTweaker
+                // Fire custom NeoForge event for KubeJS/CraftTweaker
                 String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                NeoForge.EVENT_BUS.post(
                         new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
 
                 // 2. DEN BEFEHL LEISE AUSFÜHREN (Erzwingt JEI Hard-Reload auf allen Clients)
@@ -216,9 +222,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
     private int getMaxProgressForCurrentStage() {
         ItemStack stack = this.itemHandler.getStackInSlot(0);
-        if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
-            String stageId = stack.getTag().getString("StageResearch");
-            return net.bananemdnsa.historystages.data.StageManager.getResearchTimeInTicks(stageId);
+        if (!stack.isEmpty()) {
+            CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+            if (tag.contains("StageResearch")) {
+                String stageId = tag.getString("StageResearch");
+                return net.bananemdnsa.historystages.data.StageManager.getResearchTimeInTicks(stageId);
+            }
         }
         return Config.COMMON.researchTimeInSeconds.get() * 20;
     }
@@ -231,35 +240,17 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     @Override
-    public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        if (cap == ForgeCapabilities.ITEM_HANDLER) return lazyItemHandler.cast();
-        return super.getCapability(cap, side);
-    }
-
-    @Override
-    public void onLoad() {
-        super.onLoad();
-        lazyItemHandler = LazyOptional.of(() -> itemHandler);
-    }
-
-    @Override
-    public void invalidateCaps() {
-        super.invalidateCaps();
-        lazyItemHandler.invalidate();
-    }
-
-    @Override
-    protected void saveAdditional(CompoundTag nbt) {
-        nbt.put("inventory", itemHandler.serializeNBT());
+    protected void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
+        nbt.put("inventory", itemHandler.serializeNBT(registries));
         nbt.putInt("research.progress", progress);
         nbt.putInt("research.finishDelay", finishDelay);
-        super.saveAdditional(nbt);
+        super.saveAdditional(nbt, registries);
     }
 
     @Override
-    public void load(CompoundTag nbt) {
-        super.load(nbt);
-        itemHandler.deserializeNBT(nbt.getCompound("inventory"));
+    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.loadAdditional(nbt, registries);
+        itemHandler.deserializeNBT(registries, nbt.getCompound("inventory"));
         progress = nbt.getInt("research.progress");
         finishDelay = nbt.getInt("research.finishDelay");
     }

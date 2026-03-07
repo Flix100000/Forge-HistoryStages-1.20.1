@@ -2,6 +2,8 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
@@ -9,16 +11,16 @@ import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraftforge.event.entity.player.PlayerContainerEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
-@Mod.EventBusSubscriber(modid = "historystages", bus = Mod.EventBusSubscriber.Bus.FORGE)
+@EventBusSubscriber(modid = "historystages")
 public class LootLockHandler {
     private static final Random RANDOM = new Random();
 
@@ -31,7 +33,6 @@ public class LootLockHandler {
 
         if (container == null) return;
 
-        // Prüfen, ob es ein Lootr-Container ist (Klassennamen-Check)
         if (!container.getClass().getName().toLowerCase().contains("lootr")) return;
 
         boolean changed = false;
@@ -39,14 +40,10 @@ public class LootLockHandler {
             ItemStack stack = container.getItem(i);
             if (stack.isEmpty()) continue;
 
-            // Nutzt die isItemLockedForServer Methode im StageManager
             if (StageManager.isItemLockedForServer(stack)) {
-
-                // NUR wenn useReplacements in der Config auf true ist
                 if (Config.COMMON.useReplacements.get()) {
                     container.setItem(i, getReplacement(stack.getCount()));
                 } else {
-                    // Ansonsten wird das Item einfach entfernt
                     container.setItem(i, ItemStack.EMPTY);
                 }
                 changed = true;
@@ -59,13 +56,17 @@ public class LootLockHandler {
     }
 
     private static ItemStack getReplacement(int count) {
-        // 1. Priorität: Zufälliges Item aus dem replacementTag
         String tagStr = Config.COMMON.replacementTag.get();
         if (tagStr != null && !tagStr.isEmpty()) {
             try {
-                TagKey<Item> tagKey = ItemTags.create(new ResourceLocation(tagStr));
+                TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
                 List<Item> tagItems = new ArrayList<>();
-                ForgeRegistries.ITEMS.tags().getTag(tagKey).forEach(tagItems::add);
+                Optional<? extends Iterable<Holder<Item>>> tagOptional = BuiltInRegistries.ITEM.getTag(tagKey);
+                tagOptional.ifPresent(holders -> {
+                    for (Holder<Item> holder : holders) {
+                        tagItems.add(holder.value());
+                    }
+                });
 
                 if (!tagItems.isEmpty()) {
                     return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
@@ -73,19 +74,17 @@ public class LootLockHandler {
             } catch (Exception ignored) {}
         }
 
-        // 2. Priorität: Zufälliges Item aus der replacementItems Liste
         List<? extends String> list = Config.COMMON.replacementItems.get();
         if (list != null && !list.isEmpty()) {
             try {
                 String randomId = list.get(RANDOM.nextInt(list.size()));
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
+                Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(randomId));
                 if (item != null && item != Items.AIR) {
                     return new ItemStack(item, count);
                 }
             } catch (Exception ignored) {}
         }
 
-        // 3. Fallback: Cobblestone
         return new ItemStack(Items.COBBLESTONE, count);
     }
 }

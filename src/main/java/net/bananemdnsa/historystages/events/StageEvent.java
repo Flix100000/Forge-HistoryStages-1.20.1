@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.events;
 
-import net.minecraftforge.eventbus.api.Event;
+import net.neoforged.bus.api.Event;
 
 /**
  * Custom Forge events fired when stages are unlocked or locked.

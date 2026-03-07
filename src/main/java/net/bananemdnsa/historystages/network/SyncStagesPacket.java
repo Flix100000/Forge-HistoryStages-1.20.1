@@ -1,30 +1,32 @@
 package net.bananemdnsa.historystages.network;
 
+import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.jei.JEIPlugin; // Import für JEI Refresh
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Supplier;
 
-public class SyncStagesPacket {
-    private final List<String> unlockedStages;
+public record SyncStagesPacket(List<String> unlockedStages) implements CustomPacketPayload {
 
-    public SyncStagesPacket(List<String> unlockedStages) {
-        this.unlockedStages = unlockedStages;
-    }
+    public static final CustomPacketPayload.Type<SyncStagesPacket> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "sync_stages"));
 
-    // Wandelt die Liste in Daten um, die durch das Internet passen (Senden)
-    public static void encode(SyncStagesPacket msg, FriendlyByteBuf buffer) {
+    public static final StreamCodec<FriendlyByteBuf, SyncStagesPacket> STREAM_CODEC =
+            StreamCodec.of(SyncStagesPacket::encode, SyncStagesPacket::decode);
+
+    private static void encode(FriendlyByteBuf buffer, SyncStagesPacket msg) {
         buffer.writeInt(msg.unlockedStages.size());
         for (String stage : msg.unlockedStages) {
             buffer.writeUtf(stage);
         }
     }
 
-    // Wandelt die Daten wieder in eine Liste um (Empfangen)
-    public static SyncStagesPacket decode(FriendlyByteBuf buffer) {
+    private static SyncStagesPacket decode(FriendlyByteBuf buffer) {
         int size = buffer.readInt();
         List<String> stages = new ArrayList<>();
         for (int i = 0; i < size; i++) {
@@ -33,63 +35,53 @@ public class SyncStagesPacket {
         return new SyncStagesPacket(stages);
     }
 
-    public static void handle(SyncStagesPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // 1. Client-Speicher aktualisieren
+    public static void handle(SyncStagesPacket msg, IPayloadContext ctx) {
+        ctx.enqueueWork(() -> {
             ClientStageCache.setUnlockedStages(msg.unlockedStages);
 
-            if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
-                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
-                mc.execute(() -> {
-                    try {
-                        // --- NEU: GRAFIK-REFRESH FÜR SCHLÖSSER (JEI/EMI/Inventar) ---
-                        // Das zwingt den LevelRenderer, alle sichtbaren Elemente neu zu berechnen.
-                        if (mc.levelRenderer != null) {
-                            mc.levelRenderer.allChanged();
-                        }
-
-                        // --- DER HARD-RESET (Wichtig für neue Rezepte) ---
-                        if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
-                            // Wir leeren die Rezepte kurzzeitig, um den Re-Index zu erzwingen
-                            mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
-                        }
-
-                        // --- MOD-SPEZIFISCHE UPDATES ---
-                        // Wir rufen diese jetzt über die sichere Hilfsklasse auf
-                        if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
-                            ExternalMods.refreshJEI();
-                        }
-
-                        if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
-                            ExternalMods.refreshEMI();
-                        }
-
-                        System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
-                    } catch (Exception e) {
-                        e.printStackTrace();
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            mc.execute(() -> {
+                try {
+                    if (mc.levelRenderer != null) {
+                        mc.levelRenderer.allChanged();
                     }
-                });
-            }
+
+                    if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
+                        mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
+                    }
+
+                    if (net.neoforged.fml.ModList.get().isLoaded("jei")) {
+                        ExternalMods.refreshJEI();
+                    }
+
+                    if (net.neoforged.fml.ModList.get().isLoaded("emi")) {
+                        ExternalMods.refreshEMI();
+                    }
+
+                    System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
         });
-        ctx.get().setPacketHandled(true);
+    }
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
     private static class ExternalMods {
         private static void refreshJEI() {
             try {
-                // Dein bestehender JEI-Refresh
                 net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
             } catch (Throwable ignored) {}
         }
 
         private static void refreshEMI() {
             try {
-                // "Leiser" Refresh für EMI: Suchtext triggert Re-Filter der neuen Rezepte
                 String currentSearch = dev.emi.emi.api.EmiApi.getSearchText();
                 dev.emi.emi.api.EmiApi.setSearchText(currentSearch);
-
-                // Optional: Falls EMI trotzdem nicht alle neuen Rezepte sieht,
-                // kann man hier noch dev.emi.emi.api.EmiApi.forceReload() per Reflection einbauen.
             } catch (Throwable ignored) {}
         }
     }
