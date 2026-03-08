@@ -128,7 +128,7 @@ dependencies {
     // compileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
     // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
     // localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
-    implementation "curse.maven:lootr-361276:7666212"
+    implementation "curse.maven:lootr-361276:7293581"
 
     // JEI for MC 1.21 NeoForge
     compileOnly "mezz.jei:jei-1.21-common-api:19.8.2.99"
@@ -137,7 +137,7 @@ dependencies {
 
     // EMI for MC 1.21 NeoForge
     compileOnly "dev.emi:emi-neoforge:1.1.10+1.21:api"
-    localRuntime "dev.emi:emi-neoforge:1.1.10+1.21"
+    //localRuntime "dev.emi:emi-neoforge:1.1.10+1.21"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar

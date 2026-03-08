@@ -1,12 +1,10 @@
 package net.bananemdnsa.historystages;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
-import net.neoforged.fml.common.EventBusSubscriber;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.List;
 
-@EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public class Config {
 
     // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
