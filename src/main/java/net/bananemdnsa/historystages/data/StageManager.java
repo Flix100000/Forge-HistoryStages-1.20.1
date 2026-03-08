@@ -124,6 +124,16 @@ public class StageManager {
         return null;
     }
 
+    public static List<String> getAllStagesForDimension(String dimensionId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
         List<String> allFoundStages = new ArrayList<>();
         Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));

@@ -14,6 +14,9 @@ import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @EventBusSubscriber(modid = HistoryStages.MOD_ID)
 public class DimensionLockHandler {
 
@@ -24,30 +27,38 @@ public class DimensionLockHandler {
         ResourceLocation targetDim = event.getDimension().location();
         String dimId = targetDim.toString();
 
-        String requiredStageId = StageManager.getStageForDimension(dimId);
+        List<String> requiredStageIds = StageManager.getAllStagesForDimension(dimId);
+        if (requiredStageIds.isEmpty()) return;
 
-        if (requiredStageId != null) {
-            if (!StageData.SERVER_CACHE.contains(requiredStageId)) {
-                event.setCanceled(true);
+        // Alle Stages sammeln, die noch nicht freigeschaltet sind
+        List<String> lockedStages = new ArrayList<>();
+        for (String stageId : requiredStageIds) {
+            if (!StageData.SERVER_CACHE.contains(stageId)) {
+                lockedStages.add(stageId);
+            }
+        }
 
-                StageEntry stageEntry = StageManager.getStages().get(requiredStageId);
-                String stageDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : requiredStageId;
+        if (!lockedStages.isEmpty()) {
+            event.setCanceled(true);
 
-                if (Config.CLIENT.dimShowChat.get()) {
-                    MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
-                    if (Config.CLIENT.dimShowStagesInChat.get()) {
-                        chatMsg.append(Component.translatable("message.historystages.locked_stage", stageDisplayName));
+            if (Config.CLIENT.dimShowChat.get()) {
+                MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
+                if (Config.CLIENT.dimShowStagesInChat.get()) {
+                    for (String stageId : lockedStages) {
+                        StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+                        chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
                     }
-                    player.sendSystemMessage(chatMsg);
                 }
+                player.sendSystemMessage(chatMsg);
+            }
 
-                if (Config.CLIENT.dimUseActionbar.get()) {
-                    player.displayClientMessage(
-                            Component.translatable("message.historystages.dimension_unknown")
-                                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                            true
-                    );
-                }
+            if (Config.CLIENT.dimUseActionbar.get()) {
+                player.displayClientMessage(
+                        Component.translatable("message.historystages.dimension_unknown")
+                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
+                        true
+                );
             }
         }
     }
