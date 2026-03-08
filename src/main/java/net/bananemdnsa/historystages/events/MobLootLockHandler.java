@@ -37,12 +37,7 @@ public class MobLootLockHandler {
             ItemStack stack = itemEntity.getItem();
             if (stack.isEmpty()) continue;
 
-            ResourceLocation resLoc = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (resLoc == null) continue;
-
-            String requiredStage = StageManager.getStageForItemOrMod(resLoc.toString(), resLoc.getNamespace());
-
-            if (requiredStage != null && !StageData.SERVER_CACHE.contains(requiredStage)) {
+            if (StageManager.isItemLockedForServer(stack)) {
                 if (Config.COMMON.useReplacements.get()) {
                     itemEntity.setItem(getReplacement(stack.getCount()));
                 } else {
