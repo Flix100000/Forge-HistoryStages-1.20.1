@@ -139,6 +139,16 @@ public class StageManager {
         return null;
     }
 
+    public static List<String> getAllStagesForEntity(String entityId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getEntities() != null && entry.getValue().getEntities().contains(entityId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
     public static String getStageForDimension(String dimensionId) {
         for (var entry : STAGES.entrySet()) {
             StageEntry data = entry.getValue();
@@ -147,6 +157,16 @@ public class StageManager {
             }
         }
         return null;
+    }
+
+    public static List<String> getAllStagesForDimension(String dimensionId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
     }
 
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {

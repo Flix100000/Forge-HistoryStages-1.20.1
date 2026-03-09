@@ -33,7 +33,7 @@ public class StageUnlockedToast implements Toast {
         guiGraphics.blit(TEXTURE, 0, 0, 0, 0, this.width(), this.height());
 
         // Draw title text (line 1)
-        guiGraphics.drawString(toastComponent.getMinecraft().font, this.title, 30, 7, 0xFFFF00FF, false);
+        guiGraphics.drawString(toastComponent.getMinecraft().font, this.title, 30, 7, 0xFFFFFF00, false);
 
         // Draw stage name (line 2)
         guiGraphics.drawString(toastComponent.getMinecraft().font, this.stageName, 30, 18, 0xFFFFFFFF, false);

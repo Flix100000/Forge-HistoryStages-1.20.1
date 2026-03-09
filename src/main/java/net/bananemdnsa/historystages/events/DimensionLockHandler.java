@@ -14,6 +14,9 @@ import net.minecraftforge.event.entity.EntityTravelToDimensionEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class DimensionLockHandler {
 
@@ -24,39 +27,38 @@ public class DimensionLockHandler {
         ResourceLocation targetDim = event.getDimension().location();
         String dimId = targetDim.toString();
 
-        String requiredStageId = StageManager.getStageForDimension(dimId);
+        List<String> requiredStageIds = StageManager.getAllStagesForDimension(dimId);
+        if (requiredStageIds.isEmpty()) return;
 
-        if (requiredStageId != null) {
-            if (!StageData.SERVER_CACHE.contains(requiredStageId)) {
+        // Alle Stages sammeln, die noch nicht freigeschaltet sind
+        List<String> lockedStages = new ArrayList<>();
+        for (String stageId : requiredStageIds) {
+            if (!StageData.SERVER_CACHE.contains(stageId)) {
+                lockedStages.add(stageId);
+            }
+        }
 
-                // Teleport abbrechen
-                event.setCanceled(true);
+        if (!lockedStages.isEmpty()) {
+            event.setCanceled(true);
 
-                // Daten für die Nachricht holen
-                StageEntry stageEntry = StageManager.getStages().get(requiredStageId);
-                String stageDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : requiredStageId;
-
-                // 1. Nachricht im Chat
-                if (Config.CLIENT.dimShowChat.get()) {
-                    // Basis-Nachricht laden
-                    MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
-
-                    // Ergänzung des Stage-Namens (Falls aktiv)
-                    if (Config.CLIENT.dimShowStagesInChat.get()) {
-                        chatMsg.append(Component.translatable("message.historystages.locked_stage", stageDisplayName));
+            if (Config.CLIENT.dimShowChat.get()) {
+                MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
+                if (Config.CLIENT.dimShowStagesInChat.get()) {
+                    for (String stageId : lockedStages) {
+                        StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+                        chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
                     }
-
-                    player.sendSystemMessage(chatMsg);
                 }
+                player.sendSystemMessage(chatMsg);
+            }
 
-                // 2. Nachricht in der Actionbar (Mysteriöser Text)
-                if (Config.CLIENT.dimUseActionbar.get()) {
-                    player.displayClientMessage(
-                            Component.translatable("message.historystages.dimension_unknown")
-                                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                            true // true = Actionbar
-                    );
-                }
+            if (Config.CLIENT.dimUseActionbar.get()) {
+                player.displayClientMessage(
+                        Component.translatable("message.historystages.dimension_unknown")
+                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
+                        true
+                );
             }
         }
     }
