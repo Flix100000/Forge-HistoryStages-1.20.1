@@ -67,14 +67,21 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
                         int percent = (int) (((double) currentProgress / maxProgress) * 100);
                         String progressText = "Progress: " + Math.min(100, percent) + "%";
-                        guiGraphics.drawString(this.font, progressText, 75, 52, 0x2E8B57, false);
+                        guiGraphics.drawString(this.font, progressText, 48, 52, 0x2E8B57, false);
 
                         int remainingTicks = Math.max(0, maxProgress - currentProgress);
                         int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
                         if (percent >= 100) remainingSeconds = 0;
 
-                        String timeText = "Remaining Time: " + remainingSeconds + "s";
-                        guiGraphics.drawString(this.font, timeText, 65, 62, 0x707070, false);
+                        String timeText;
+                        if (remainingSeconds >= 60) {
+                            int mins = remainingSeconds / 60;
+                            int secs = remainingSeconds % 60;
+                            timeText = "Remaining Time: " + mins + "min " + secs + "s";
+                        } else {
+                            timeText = "Remaining Time: " + remainingSeconds + "s";
+                        }
+                        guiGraphics.drawString(this.font, timeText, 48, 62, 0x707070, false);
                     }
                 }
             } else {

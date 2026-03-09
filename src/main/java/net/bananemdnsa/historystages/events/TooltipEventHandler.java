@@ -49,9 +49,18 @@ public class TooltipEventHandler {
                 int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
                 if (percent >= 100) remainingSeconds = 0;
 
+                String timeDisplay;
+                if (remainingSeconds >= 60) {
+                    int mins = remainingSeconds / 60;
+                    int secs = remainingSeconds % 60;
+                    timeDisplay = mins + "min " + secs + "s";
+                } else {
+                    timeDisplay = remainingSeconds + "s";
+                }
+
                 event.getToolTip().add(Component.literal("Remaining Time: ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(remainingSeconds + "s").withStyle(ChatFormatting.YELLOW)));
+                        .append(Component.literal(timeDisplay).withStyle(ChatFormatting.YELLOW)));
             }
             return;
         }
