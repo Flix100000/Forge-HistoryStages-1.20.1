@@ -68,7 +68,14 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                         int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
                         if (percent >= 100) remainingSeconds = 0;
 
-                        String timeText = "Remaining Time: " + remainingSeconds + "s";
+                        String timeText;
+                        if (remainingSeconds >= 60) {
+                            int mins = remainingSeconds / 60;
+                            int secs = remainingSeconds % 60;
+                            timeText = "Remaining Time: " + mins + "min " + secs + "s";
+                        } else {
+                            timeText = "Remaining Time: " + remainingSeconds + "s";
+                        }
                         guiGraphics.drawString(this.font, timeText, 65, 62, 0x707070, false);
                     }
                 }
