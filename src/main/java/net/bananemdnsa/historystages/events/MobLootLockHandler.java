@@ -41,19 +41,10 @@ public class MobLootLockHandler {
             ItemStack stack = itemEntity.getItem();
             if (stack.isEmpty()) continue;
 
-            ResourceLocation resLoc = ForgeRegistries.ITEMS.getKey(stack.getItem());
-            if (resLoc == null) continue;
-
-            String requiredStage = StageManager.getStageForItemOrMod(resLoc.toString(), resLoc.getNamespace());
-
-            // Wenn das Item einer gesperrten Stage angehört
-            if (requiredStage != null && !StageData.SERVER_CACHE.contains(requiredStage)) {
-
+            if (StageManager.isItemLockedForServer(stack)) {
                 if (Config.COMMON.useReplacements.get()) {
-                    // Item durch Ersatz aus der Config tauschen
                     itemEntity.setItem(getReplacement(stack.getCount()));
                 } else {
-                    // Item komplett entfernen (auf AIR setzen)
                     itemEntity.setItem(new ItemStack(Items.AIR));
                 }
             }

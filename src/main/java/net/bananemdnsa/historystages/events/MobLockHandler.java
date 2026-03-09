@@ -15,7 +15,9 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,27 +37,34 @@ public class MobLockHandler {
         if (entityType == null) return;
 
         String entityId = entityType.toString();
-        String requiredStageId = StageManager.getStageForEntity(entityId);
+        List<String> requiredStageIds = StageManager.getAllStagesForEntity(entityId);
+        if (requiredStageIds.isEmpty()) return;
 
-        if (requiredStageId != null && !StageData.SERVER_CACHE.contains(requiredStageId)) {
+        // Alle Stages sammeln, die noch nicht freigeschaltet sind
+        List<String> lockedStages = new ArrayList<>();
+        for (String stageId : requiredStageIds) {
+            if (!StageData.SERVER_CACHE.contains(stageId)) {
+                lockedStages.add(stageId);
+            }
+        }
+
+        if (!lockedStages.isEmpty()) {
             event.setCanceled(true);
 
-            // Cooldown um Nachrichtenspam zu vermeiden
             long now = System.currentTimeMillis();
             Long lastMessage = MESSAGE_COOLDOWNS.get(player.getUUID());
             if (lastMessage != null && (now - lastMessage) < COOLDOWN_MS) return;
             MESSAGE_COOLDOWNS.put(player.getUUID(), now);
 
-            StageEntry stageEntry = StageManager.getStages().get(requiredStageId);
-            String stageDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : requiredStageId;
-
             if (Config.CLIENT.mobShowChat.get()) {
                 MutableComponent chatMsg = Component.translatable("message.historystages.mob_locked");
-
                 if (Config.CLIENT.mobShowStagesInChat.get()) {
-                    chatMsg.append(Component.translatable("message.historystages.locked_stage", stageDisplayName));
+                    for (String stageId : lockedStages) {
+                        StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+                        chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
+                    }
                 }
-
                 player.sendSystemMessage(chatMsg);
             }
 

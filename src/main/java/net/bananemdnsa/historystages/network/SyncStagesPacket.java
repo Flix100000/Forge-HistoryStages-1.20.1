@@ -48,11 +48,10 @@ public class SyncStagesPacket {
                             mc.levelRenderer.allChanged();
                         }
 
-                        // --- DER HARD-RESET (Wichtig für neue Rezepte) ---
-                        if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
-                            // Wir leeren die Rezepte kurzzeitig, um den Re-Index zu erzwingen
-                            mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
-                        }
+                        // Rezept-Resync wird durch reloadResources() auf dem Server ausgelöst,
+                        // das schickt automatisch ClientboundUpdateRecipesPacket an alle Clients.
+                        // replaceRecipes(emptyList()) wurde entfernt, da es Mod-Maschinen
+                        // (z.B. SewingKit) kaputt macht, die die leere Liste cachen.
 
                         // --- MOD-SPEZIFISCHE UPDATES ---
                         // Wir rufen diese jetzt über die sichere Hilfsklasse auf
