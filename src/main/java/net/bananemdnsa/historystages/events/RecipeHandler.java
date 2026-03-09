@@ -20,7 +20,8 @@ public class RecipeHandler {
         ItemStack result;
         try {
             result = recipe.getResultItem(RegistryAccess.EMPTY);
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
+            // Manche Mods (z.B. SewingKit) werfen andere Exceptions als IllegalStateException
             return false;
         }
 

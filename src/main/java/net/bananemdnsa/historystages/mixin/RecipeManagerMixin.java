@@ -34,17 +34,31 @@ public class RecipeManagerMixin {
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         }
 
-        // Registry "reinigen"
+        // Registry "reinigen" - pro RecipeType absichern, damit ein fehlerhaftes
+        // Rezept nicht alle anderen RecipeTypes (z.B. sewingkit:sewing) mitzieht
         Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> newRecipes = new HashMap<>();
         this.recipes.forEach((type, map) -> {
-            Map<ResourceLocation, Recipe<?>> filtered = new HashMap<>(map);
-            filtered.entrySet().removeIf(e -> RecipeHandler.isOutputLocked(e.getValue()));
-            newRecipes.put(type, filtered);
+            try {
+                Map<ResourceLocation, Recipe<?>> filtered = new HashMap<>(map);
+                filtered.entrySet().removeIf(e -> RecipeHandler.isOutputLocked(e.getValue()));
+                newRecipes.put(type, filtered);
+            } catch (Exception e) {
+                // Bei Fehler den RecipeType unverändert übernehmen statt zu verlieren
+                System.err.println("[HistoryStages] Fehler beim Filtern von RecipeType " + type + ": " + e.getMessage());
+                newRecipes.put(type, map);
+            }
         });
         this.recipes = newRecipes;
 
         Map<ResourceLocation, Recipe<?>> newByName = new HashMap<>(this.byName);
-        newByName.entrySet().removeIf(e -> RecipeHandler.isOutputLocked(e.getValue()));
+        newByName.entrySet().removeIf(e -> {
+            try {
+                return RecipeHandler.isOutputLocked(e.getValue());
+            } catch (Exception ex) {
+                System.err.println("[HistoryStages] Fehler beim Filtern von Rezept " + e.getKey() + ": " + ex.getMessage());
+                return false; // Im Zweifel Rezept behalten
+            }
+        });
         this.byName = newByName;
 
         System.out.println("[HistoryStages] Registry gesäubert.");
