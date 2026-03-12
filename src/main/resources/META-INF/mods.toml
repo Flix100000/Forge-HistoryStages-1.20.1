@@ -32,7 +32,7 @@ side="BOTH"
 [[dependencies.historystages]]
 modId="lootr"
 mandatory=true
-versionRange="[0.4,)" # Version für 1.20.1
+versionRange="[0.4,)" # Version für 1.19.2
 ordering="AFTER"      # Deine Mod soll nach Lootr laden
 side="BOTH"
 
@@ -40,7 +40,7 @@ side="BOTH"
 [[dependencies.historystages]]
 modId="jei"
 mandatory=false # WICHTIG: Auf false setzen!
-versionRange="[15,)"
+versionRange="[11,)"
 ordering="AFTER"
 side="BOTH"
 

@@ -81,11 +81,11 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     // JEI (Lokal)
-    implementation fg.deobf("curse.maven:jei-238222:7391695")
+    implementation fg.deobf("curse.maven:jei-238222:5106178")
 
     // LOOTR (Über CurseMaven - Das ist die sauberste Lösung)
     // Wir nutzen 'implementation' statt 'compileOnly', damit die Klassen im Projekt bekannt sind
-    implementation fg.deobf("curse.maven:lootr-361276:5420132")
+    implementation fg.deobf("curse.maven:lootr-361276:5383240")
 
     // EMI
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
