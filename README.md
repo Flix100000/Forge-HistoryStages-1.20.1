@@ -14,8 +14,10 @@ dimensions, mobs, and mod content behind custom research stages.
 - Deep Gating: Lock content by Item ID, Tags, or entire Mod IDs.
 - Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
-- Mob Protection: Prevent players from damaging specific mobs
-  until the required stage is unlocked.
+- Entity Control: Two lock modes for entities:
+  - Attacklock: Prevent players from damaging specific mobs.
+  - Spawnlock: Prevent entities from spawning entirely.
+    Spawnlocked entities are also automatically attacklocked.
 - Smart Loot: Locked items are removed from chests or replaced
   with configurable items like Cobblestone.
 - Mob Loot Lock: Locked items are removed from mob drops.
@@ -42,7 +44,10 @@ Example format:
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
   "dimensions": ["minecraft:the_nether"],
-  "entities": ["minecraft:zombie", "minecraft:skeleton"]
+  "entities": {
+    "attacklock": ["minecraft:zombie"],
+    "spawnlock": ["minecraft:skeleton"]
+  }
 }
 
 FIELDS:
@@ -53,7 +58,10 @@ FIELDS:
 - tags: List of item tags to lock (e.g. "forge:ores/iron").
 - mods: List of mod IDs to lock all items from (e.g. "mekanism").
 - dimensions: List of dimension IDs to block access to.
-- entities: List of entity IDs to protect from player damage.
+- entities: Object with two optional subcategories:
+  - attacklock: Entities that cannot be attacked by players.
+  - spawnlock: Entities that are prevented from spawning entirely.
+    Spawnlocked entities are also automatically attacklocked.
 
 RESEARCH SCROLLS & PEDESTAL:
 1. Place a Research Pedestal.
