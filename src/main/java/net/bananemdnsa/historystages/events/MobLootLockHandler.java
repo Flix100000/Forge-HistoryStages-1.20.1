@@ -28,11 +28,11 @@ public class MobLootLockHandler {
         if (!Config.COMMON.lockMobLoot.get()) return;
 
         // Nur auf dem Server arbeiten
-        if (event.getEntity().level().isClientSide()) return;
+        if (event.getEntity().getLevel().isClientSide()) return;
 
         // Sicherstellen, dass der Cache geladen ist
         if (StageData.SERVER_CACHE.isEmpty()) {
-            StageData.get(event.getEntity().level());
+            StageData.get(event.getEntity().getLevel());
         }
 
         Collection<ItemEntity> drops = event.getDrops();

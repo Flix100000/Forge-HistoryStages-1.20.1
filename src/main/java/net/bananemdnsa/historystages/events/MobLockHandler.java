@@ -29,7 +29,7 @@ public class MobLockHandler {
 
     @SubscribeEvent
     public static void onMobAttacked(LivingAttackEvent event) {
-        if (event.getEntity().level().isClientSide()) return;
+        if (event.getEntity().getLevel().isClientSide()) return;
 
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
 

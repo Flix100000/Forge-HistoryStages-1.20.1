@@ -1,9 +1,10 @@
 package net.bananemdnsa.historystages.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
@@ -20,9 +21,9 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
     }
 
     @Override
-    protected void renderLabels(GuiGraphics guiGraphics, int pMouseX, int pMouseY) {
+    protected void renderLabels(PoseStack poseStack, int pMouseX, int pMouseY) {
         // 1. Titel oben links
-        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
+        this.font.draw(poseStack, this.title, this.titleLabelX, this.titleLabelY, 4210752);
 
         // 2. Dynamischer Forschungs-Status
         ItemStack stack = menu.getSlot(36).getItem();
@@ -43,7 +44,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
                     Component alreadyLearnedText = Component.translatable("screen.historystages.already_learned");
                     int textWidth = this.font.width(alreadyLearnedText);
-                    guiGraphics.drawString(this.font, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55, 0xFF5555, false);
+                    this.font.draw(poseStack, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55, 0xFF5555);
                 }
                 // FALL B: Stage wird gerade erforscht (oder ist in der Finalisierung)
                 else {
@@ -62,7 +63,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
                         int percent = (int) (((double) currentProgress / maxProgress) * 100);
                         String progressText = "Progress: " + Math.min(100, percent) + "%";
-                        guiGraphics.drawString(this.font, progressText, 48, 52, 0x2E8B57, false);
+                        this.font.draw(poseStack, progressText, 48, 52, 0x2E8B57);
 
                         int remainingTicks = Math.max(0, maxProgress - currentProgress);
                         int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
@@ -76,11 +77,11 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                         } else {
                             timeText = "Remaining Time: " + remainingSeconds + "s";
                         }
-                        guiGraphics.drawString(this.font, timeText, 48, 62, 0x707070, false);
+                        this.font.draw(poseStack, timeText, 48, 62, 0x707070);
                     }
                 }
             } else {
-                displayTitle = "Invalid Book!";
+                displayTitle = "Invalid Scroll!";
                 textColor = 0xFF5555;
             }
         } else {
@@ -89,19 +90,19 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             textColor = 0x707070;
         }
 
-        guiGraphics.drawString(this.font, displayTitle, 48, 25, textColor, false);
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 4210752, false);
+        this.font.draw(poseStack, displayTitle, 48, 25, textColor);
+        this.font.draw(poseStack, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 4210752);
     }
 
     @Override
-    protected void renderBg(GuiGraphics guiGraphics, float pPartialTick, int pMouseX, int pMouseY) {
+    protected void renderBg(PoseStack poseStack, float pPartialTick, int pMouseX, int pMouseY) {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.setShaderTexture(0, TEXTURE);
         int x = (width - imageWidth) / 2;
         int y = (height - imageHeight) / 2;
 
-        guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
+        this.blit(poseStack, x, y, 0, 0, imageWidth, imageHeight);
 
         // Fortschrittsbalken nur zeichnen, wenn wirklich gearbeitet wird
         if (menu.isCrafting()) {
@@ -111,14 +112,14 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             int barHeight = 7;
 
             // Zeichnet einen grünen Balken
-            guiGraphics.fill(startX, startY, startX + progressWidth, startY + barHeight, 0xFF00FF00);
+            fill(poseStack, startX, startY, startX + progressWidth, startY + barHeight, 0xFF00FF00);
         }
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
-        renderBackground(guiGraphics);
-        super.render(guiGraphics, mouseX, mouseY, delta);
-        renderTooltip(guiGraphics, mouseX, mouseY);
+    public void render(PoseStack poseStack, int mouseX, int mouseY, float delta) {
+        renderBackground(poseStack);
+        super.render(poseStack, mouseX, mouseY, delta);
+        renderTooltip(poseStack, mouseX, mouseY);
     }
 }

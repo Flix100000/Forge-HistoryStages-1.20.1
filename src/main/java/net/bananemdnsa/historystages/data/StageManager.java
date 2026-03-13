@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.data;
 
 import com.google.gson.Gson;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -120,7 +120,7 @@ public class StageManager {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
                 if (item != null) {
                     for (String tagId : data.getTags()) {
-                        var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, new ResourceLocation(tagId));
+                        var tagKey = net.minecraft.tags.TagKey.create(Registry.ITEM_REGISTRY, new ResourceLocation(tagId));
                         if (item.builtInRegistryHolder().is(tagKey)) return stageName;
                     }
                 }
@@ -185,7 +185,7 @@ public class StageManager {
             // Check Tags
             if (!match && item != null && data.getTags() != null) {
                 for (String tagId : data.getTags()) {
-                    var tagKey = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, new ResourceLocation(tagId));
+                    var tagKey = net.minecraft.tags.TagKey.create(net.minecraft.core.Registry.ITEM_REGISTRY, new ResourceLocation(tagId));
                     if (item.builtInRegistryHolder().is(tagKey)) {
                         match = true;
                         break;

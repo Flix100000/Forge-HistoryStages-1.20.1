@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
-import net.minecraft.core.RegistryAccess;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
@@ -19,7 +19,7 @@ public class RecipeHandler {
 
         ItemStack result;
         try {
-            result = recipe.getResultItem(RegistryAccess.EMPTY);
+            result = recipe.getResultItem();
         } catch (Exception e) {
             // Manche Mods (z.B. SewingKit) werfen andere Exceptions als IllegalStateException
             return false;

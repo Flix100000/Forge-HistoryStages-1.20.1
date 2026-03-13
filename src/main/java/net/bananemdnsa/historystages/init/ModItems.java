@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.init.ModCreativeTabs;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
@@ -22,7 +23,7 @@ public class ModItems {
             DeferredRegister.create(ForgeRegistries.ITEMS, HistoryStages.MOD_ID);
 
     public static final RegistryObject<Item> RESEARCH_SCROLL = ITEMS.register("research_scroll",
-            () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
+            () -> new Item(new Item.Properties().tab(ModCreativeTabs.HISTORY_TAB).stacksTo(1).rarity(Rarity.EPIC)) {
 
                 @Override
                 public Component getName(ItemStack stack) {
@@ -51,7 +52,7 @@ public class ModItems {
             });
 
     public static final RegistryObject<Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
-            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties().tab(ModCreativeTabs.HISTORY_TAB)));
 
     public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
         ITEMS.register(eventBus);

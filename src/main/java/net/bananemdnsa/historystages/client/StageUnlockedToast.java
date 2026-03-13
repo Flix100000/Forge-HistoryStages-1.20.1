@@ -1,7 +1,10 @@
 package net.bananemdnsa.historystages.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiComponent;
 import net.bananemdnsa.historystages.init.ModItems;
-import net.minecraft.client.gui.GuiGraphics;
+
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastComponent;
 import net.minecraft.network.chat.Component;
@@ -24,22 +27,23 @@ public class StageUnlockedToast implements Toast {
     }
 
     @Override
-    public Visibility render(GuiGraphics guiGraphics, ToastComponent toastComponent, long timeSinceLastVisible) {
+    public Visibility render(PoseStack poseStack, ToastComponent toastComponent, long timeSinceLastVisible) {
         if (this.firstRender == -1) {
             this.firstRender = timeSinceLastVisible;
         }
 
         // Draw the vanilla toast background (standard dark frame at UV 0,0)
-        guiGraphics.blit(TEXTURE, 0, 0, 0, 0, this.width(), this.height());
+        RenderSystem.setShaderTexture(0, TEXTURE);
+        GuiComponent.blit(poseStack, 0, 0, 0, 0.0f, this.width(), this.height(), 256, 256);
 
         // Draw title text (line 1)
-        guiGraphics.drawString(toastComponent.getMinecraft().font, this.title, 30, 7, 0xFFFFFF00, false);
+        toastComponent.getMinecraft().font.draw(poseStack, this.title, 30, 7, 0xFFFFFF00);
 
         // Draw stage name (line 2)
-        guiGraphics.drawString(toastComponent.getMinecraft().font, this.stageName, 30, 18, 0xFFFFFFFF, false);
+        toastComponent.getMinecraft().font.draw(poseStack, this.stageName, 30, 18, 0xFFFFFFFF);
 
         // Draw the research scroll as a rendered item (with its 3D model)
-        guiGraphics.renderItem(ICON, 8, 8);
+        toastComponent.getMinecraft().getItemRenderer().renderAndDecorateItem(ICON, 8, 8);
 
         return (timeSinceLastVisible - this.firstRender) >= DISPLAY_TIME
                 ? Visibility.HIDE : Visibility.SHOW;
