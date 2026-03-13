@@ -37,19 +37,30 @@ public class RecipeManagerMixin {
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         }
 
-        // Registry "reinigen" - Immutable Maps neu aufbauen, da 1.21 ImmutableMultimap/ImmutableMap verwendet
+        // Registry "reinigen" - pro Eintrag absichern, damit ein fehlerhaftes
+        // Rezept (z.B. von SewingKit) nicht alle anderen Rezepte mitzieht
         ImmutableMultimap.Builder<RecipeType<?>, RecipeHolder<?>> typeBuilder = ImmutableMultimap.builder();
         this.byType.forEach((type, holder) -> {
-            if (!RecipeHandler.isOutputLocked(holder)) {
-                typeBuilder.put(type, holder);
+            try {
+                if (!RecipeHandler.isOutputLocked(holder)) {
+                    typeBuilder.put(type, holder);
+                }
+            } catch (Exception e) {
+                System.err.println("[HistoryStages] Fehler beim Filtern von RecipeType " + type + ": " + e.getMessage());
+                typeBuilder.put(type, holder); // Im Zweifel Rezept behalten
             }
         });
         this.byType = typeBuilder.build();
 
         ImmutableMap.Builder<ResourceLocation, RecipeHolder<?>> nameBuilder = ImmutableMap.builder();
         this.byName.forEach((loc, holder) -> {
-            if (!RecipeHandler.isOutputLocked(holder)) {
-                nameBuilder.put(loc, holder);
+            try {
+                if (!RecipeHandler.isOutputLocked(holder)) {
+                    nameBuilder.put(loc, holder);
+                }
+            } catch (Exception e) {
+                System.err.println("[HistoryStages] Fehler beim Filtern von Rezept " + loc + ": " + e.getMessage());
+                nameBuilder.put(loc, holder); // Im Zweifel Rezept behalten
             }
         });
         this.byName = nameBuilder.build();
