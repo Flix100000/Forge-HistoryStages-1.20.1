@@ -10,7 +10,7 @@ import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 public class ResearchPedestalMenu extends AbstractContainerMenu {
@@ -21,7 +21,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
         // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
-        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(3));
+        this(pContainerId, inv, inv.player.getLevel().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(3));
     }
 
     // Server-Konstruktor
@@ -29,7 +29,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         super(ModMenuTypes.RESEARCH_MENU.get(), pContainerId);
         checkContainerSize(inv, 1);
         this.blockEntity = ((ResearchPedestalBlockEntity) entity);
-        this.level = inv.player.level();
+        this.level = inv.player.getLevel();
         this.data = data;
 
         addPlayerInventory(inv);
@@ -39,7 +39,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         int slotX = 26;
         int slotY = 35;
 
-        this.blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
+        this.blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY).ifPresent(handler -> {
             this.addSlot(new SlotItemHandler(handler, 0, slotX, slotY));
         });
 

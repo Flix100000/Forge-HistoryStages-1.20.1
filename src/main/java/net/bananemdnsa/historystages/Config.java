@@ -18,7 +18,6 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue dimUseActionbar;
         public final ForgeConfigSpec.BooleanValue dimShowChat;
         public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
-        public final ForgeConfigSpec.BooleanValue showLockIcons;
         public final ForgeConfigSpec.BooleanValue mobUseActionbar;
         public final ForgeConfigSpec.BooleanValue mobShowChat;
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
@@ -41,10 +40,6 @@ public class Config {
             showAllUntilComplete = builder
                     .comment("If an item is in multiple stages, show all of them until all are unlocked? [Default: true]")
                     .define("showAllUntilComplete", true);
-
-            showLockIcons = builder
-                    .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
-                    .define("showLockIcons", true);
 
             builder.pop();
 

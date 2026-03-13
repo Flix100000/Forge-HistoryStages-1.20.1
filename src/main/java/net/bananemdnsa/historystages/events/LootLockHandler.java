@@ -24,7 +24,7 @@ public class LootLockHandler {
 
     @SubscribeEvent
     public static void onContainerOpen(PlayerContainerEvent.Open event) {
-        if (event.getEntity().level().isClientSide()) return;
+        if (event.getEntity().getLevel().isClientSide()) return;
 
         if (event.getContainer().slots.isEmpty()) return;
         Container container = event.getContainer().slots.get(0).container;

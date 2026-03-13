@@ -60,35 +60,35 @@ public class StageCommand {
                                         ctx.getSource().sendFailure(Component.literal("Stage '" + stageName + "' not found!"));
                                         return 0;
                                     }
-                                    ctx.getSource().sendSuccess(() -> Component.literal("§6--- Stage Info: §e" + stageName + " §6---"), false);
+                                    ctx.getSource().sendSuccess(Component.literal("§6--- Stage Info: §e" + stageName + " §6---"), false);
 
                                     // Research Time
                                     int researchTime = entry.getResearchTime();
                                     if (researchTime > 0) {
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
+                                        ctx.getSource().sendSuccess(Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
                                     } else {
                                         int defaultTime = Config.COMMON.researchTimeInSeconds.get();
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
+                                        ctx.getSource().sendSuccess(Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
                                     }
 
                                     if (!entry.getItems().isEmpty()) {
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§b▶ Items:"), false);
-                                        entry.getItems().forEach(i -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + i), false));
+                                        ctx.getSource().sendSuccess(Component.literal("§b▶ Items:"), false);
+                                        entry.getItems().forEach(i -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + i), false));
                                     }
 
                                     if (!entry.getMods().isEmpty()) {
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§a▶ Mods:"), false);
-                                        entry.getMods().forEach(m -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + m), false));
+                                        ctx.getSource().sendSuccess(Component.literal("§a▶ Mods:"), false);
+                                        entry.getMods().forEach(m -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + m), false));
                                     }
 
                                     if (!entry.getDimensions().isEmpty()) {
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
-                                        entry.getDimensions().forEach(d -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + d), false));
+                                        ctx.getSource().sendSuccess(Component.literal("§d▶ Dimensions:"), false);
+                                        entry.getDimensions().forEach(d -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + d), false));
                                     }
 
                                     if (!entry.getEntities().isEmpty()) {
-                                        ctx.getSource().sendSuccess(() -> Component.literal("§c▶ Entities:"), false);
-                                        entry.getEntities().forEach(e -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + e), false));
+                                        ctx.getSource().sendSuccess(Component.literal("§c▶ Entities:"), false);
+                                        entry.getEntities().forEach(e -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + e), false));
                                     }
 
                                     return 1;
@@ -98,10 +98,10 @@ public class StageCommand {
                 .then(Commands.literal("list")
                         .executes(ctx -> {
                             StageData d = StageData.get(ctx.getSource().getLevel());
-                            ctx.getSource().sendSuccess(() -> Component.literal("§6--- Registered Stages ---"), false);
+                            ctx.getSource().sendSuccess(Component.literal("§6--- Registered Stages ---"), false);
                             StageManager.getStages().keySet().forEach(s -> {
                                 String color = d.getUnlockedStages().contains(s) ? "§a" : "§c";
-                                ctx.getSource().sendSuccess(() -> Component.literal(color + "- " + s), false);
+                                ctx.getSource().sendSuccess(Component.literal(color + "- " + s), false);
                             });
                             return 1;
                         }))
@@ -231,7 +231,7 @@ public class StageCommand {
         StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);
+        source.sendSuccess(Component.literal("§7[HistoryStages] " + msg), true);
         source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
 
         return 1;
