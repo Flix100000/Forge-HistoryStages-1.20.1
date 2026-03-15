@@ -40,7 +40,7 @@ public class RecipeManagerMixin {
         this.recipes.forEach((type, map) -> {
             try {
                 Map<ResourceLocation, Recipe<?>> filtered = new HashMap<>(map);
-                filtered.entrySet().removeIf(e -> RecipeHandler.isOutputLocked(e.getValue()));
+                filtered.entrySet().removeIf(e -> RecipeHandler.isOutputLocked(e.getValue()) || RecipeHandler.isRecipeIdLocked(e.getKey()));
                 newRecipes.put(type, filtered);
             } catch (Exception e) {
                 // Bei Fehler den RecipeType unverändert übernehmen statt zu verlieren
@@ -53,7 +53,12 @@ public class RecipeManagerMixin {
         Map<ResourceLocation, Recipe<?>> newByName = new HashMap<>(this.byName);
         newByName.entrySet().removeIf(e -> {
             try {
-                return RecipeHandler.isOutputLocked(e.getValue());
+                boolean outputLocked = RecipeHandler.isOutputLocked(e.getValue());
+                boolean idLocked = RecipeHandler.isRecipeIdLocked(e.getKey());
+                if (idLocked) {
+                    System.out.println("[HistoryStages] Recipe locked by ID: " + e.getKey());
+                }
+                return outputLocked || idLocked;
             } catch (Exception ex) {
                 System.err.println("[HistoryStages] Fehler beim Filtern von Rezept " + e.getKey() + ": " + ex.getMessage());
                 return false; // Im Zweifel Rezept behalten

@@ -30,4 +30,9 @@ public class RecipeHandler {
         // Nutze direkt die wasserdichte "Alle-oder-Nichts" Logik aus dem StageManager
         return StageManager.isItemLockedForServer(result);
     }
+
+    public static boolean isRecipeIdLocked(ResourceLocation recipeId) {
+        if (recipeId == null) return false;
+        return StageManager.isRecipeIdLockedForServer(recipeId.toString());
+    }
 }

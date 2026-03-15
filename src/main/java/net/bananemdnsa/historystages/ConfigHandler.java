@@ -61,7 +61,13 @@ public class ConfigHandler {
         mods.add("mekanism");
         json.add("mods", mods);
 
-        // Dimensions Category (NEW)
+        // Recipes Category
+        JsonArray recipes = new JsonArray();
+        recipes.add("minecraft:iron_sword");
+        recipes.add("minecraft:iron_ingot_from_smelting_raw_iron");
+        json.add("recipes", recipes);
+
+        // Dimensions Category
         JsonArray dimensions = new JsonArray();
         dimensions.add("minecraft:the_nether");
         dimensions.add("minecraft:the_end");

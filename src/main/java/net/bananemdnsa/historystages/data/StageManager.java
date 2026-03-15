@@ -60,6 +60,15 @@ public class StageManager {
             return false;
         });
 
+        // Tags prüfen
+        entry.getTags().removeIf(tagId -> {
+            if (!ResourceLocation.isValidResourceLocation(tagId)) {
+                LOADING_ERRORS.add("§7[Debug] §fTag §e" + tagId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                return true;
+            }
+            return false;
+        });
+
         // Mods prüfen
         entry.getMods().removeIf(modId -> {
             if (!ModList.get().isLoaded(modId)) {
@@ -73,6 +82,15 @@ public class StageManager {
         entry.getDimensions().removeIf(dimId -> {
             if (!ResourceLocation.isValidResourceLocation(dimId)) {
                 LOADING_ERRORS.add("§7[Debug] §fDimension §e" + dimId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                return true;
+            }
+            return false;
+        });
+
+        // Recipes prüfen
+        entry.getRecipes().removeIf(recipeId -> {
+            if (!ResourceLocation.isValidResourceLocation(recipeId)) {
+                LOADING_ERRORS.add("§7[Debug] §fRecipe §e" + recipeId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
@@ -221,6 +239,17 @@ public class StageManager {
             return entry.getResearchTime() * 20;
         }
         return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    public static boolean isRecipeIdLockedForServer(String recipeId) {
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getRecipes().contains(recipeId)) {
+                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // Die zentrale Prüf-Logik für den Server (z.B. Lootr)
