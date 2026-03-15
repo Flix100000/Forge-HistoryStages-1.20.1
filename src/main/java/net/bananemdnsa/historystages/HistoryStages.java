@@ -113,7 +113,14 @@ public class HistoryStages {
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
             // player.server.getPlayerList().reloadResources(); // Entfernt: verursacht Crash mit SerializerDebug (null-Player im OnDatapackSyncEvent)
 
-            // NEU: Nachricht an ALLE Spieler senden (Permission-Check entfernt)
+            // Welcome message
+            if (Config.COMMON.showWelcomeMessage.get()) {
+                player.sendSystemMessage(Component.literal("§7[HistoryStages] §fThank you for using §bHistory Stages§f!"));
+                player.sendSystemMessage(Component.literal("§7Define your stages in §fconfig/historystages/§7 and adjust settings in §fhistorystages-common.toml §7& §fhistorystages-client.toml§7."));
+                player.sendSystemMessage(Component.literal("§8(You can disable this message in the common config)"));
+            }
+
+            // Debug error messages
             if (Config.COMMON.showDebugErrors.get()) {
                 List<String> errors = StageManager.getLoadingErrors();
                 if (!errors.isEmpty()) {

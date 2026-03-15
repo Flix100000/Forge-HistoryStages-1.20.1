@@ -77,15 +77,16 @@ public class Config {
             mobShowStagesInChat = builder
                     .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
                     .define("showStagesInChat", true);
-
             builder.pop();
         }
     }
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
     public static class Common {
-        public final ForgeConfigSpec.BooleanValue lockMobLoot;
+        public final ForgeConfigSpec.BooleanValue showWelcomeMessage;
         public final ForgeConfigSpec.BooleanValue showDebugErrors;
+
+        public final ForgeConfigSpec.BooleanValue lockMobLoot;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -103,16 +104,28 @@ public class Config {
         public final ForgeConfigSpec.ConfigValue<String> replacementTag;
 
         public Common(ForgeConfigSpec.Builder builder) {
+            builder.comment(
+                    "General Settings",
+                    "",
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues"
+            ).push("general");
+
+            showWelcomeMessage = builder
+                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
+                    .define("showWelcomeMessage", true);
+
+            showDebugErrors = builder
+                    .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
+                    .define("showDebugErrors", true);
+
+            builder.pop(); // general
+
             builder.comment("Gameplay and Server-side settings").push("gameplay");
 
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
-
-
-            showDebugErrors = builder
-                    .comment("If true, players will see debug messages in chat if a JSON stage has errors or missing items. [Default: true]")
-                    .define("showDebugErrors", true);
 
             // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
@@ -161,6 +174,7 @@ public class Config {
                     .comment("{ReplacementPriority:1} A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
             builder.pop(); // Schließt "loot_replacements"
+
 
             builder.pop(); // gameplay
         }
