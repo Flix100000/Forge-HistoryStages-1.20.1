@@ -12,8 +12,8 @@ body:
   - type: input
     id: mod_version
     attributes:
-      label: Mod Version
-      placeholder: "1.1.0-1.20.1"
+      label: History Stages Version
+      placeholder: "2.1.0-1.20.1"
     validations:
       required: true
 
