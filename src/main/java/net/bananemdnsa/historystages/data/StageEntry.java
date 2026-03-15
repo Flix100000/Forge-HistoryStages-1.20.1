@@ -14,7 +14,8 @@ public class StageEntry {
     private List<String> items;
     private List<String> tags;
     private List<String> mods;
-    private List<String> dimensions; // NEU
+    private List<String> recipes;
+    private List<String> dimensions;
     private EntityLocks entities;
 
     public String getDisplayName() {
@@ -28,8 +29,8 @@ public class StageEntry {
     public List<String> getItems() { return items != null ? items : new ArrayList<>(); }
     public List<String> getTags() { return tags != null ? tags : new ArrayList<>(); }
     public List<String> getMods() { return mods != null ? mods : new ArrayList<>(); }
+    public List<String> getRecipes() { return recipes != null ? recipes : new ArrayList<>(); }
 
-    // NEU: Getter für Dimensionen
     public List<String> getDimensions() {
         return dimensions != null ? dimensions : new ArrayList<>();
     }

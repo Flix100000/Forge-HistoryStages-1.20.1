@@ -81,6 +81,11 @@ public class StageCommand {
                                         entry.getMods().forEach(m -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + m), false));
                                     }
 
+                                    if (!entry.getRecipes().isEmpty()) {
+                                        ctx.getSource().sendSuccess(() -> Component.literal("§e▶ Recipes:"), false);
+                                        entry.getRecipes().forEach(r -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + r), false));
+                                    }
+
                                     if (!entry.getDimensions().isEmpty()) {
                                         ctx.getSource().sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
                                         entry.getDimensions().forEach(d -> ctx.getSource().sendSuccess(() -> Component.literal("  §8• §7" + d), false));
