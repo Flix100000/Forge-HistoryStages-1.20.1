@@ -23,7 +23,12 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
         public Client(ForgeConfigSpec.Builder builder) {
-            builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
+            builder.comment(
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Visual and UI settings (Individual for each player)")
+                    .push("visuals");
 
             hideInJei = builder
                     .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
@@ -79,8 +84,10 @@ public class Config {
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
     public static class Common {
-        public final ForgeConfigSpec.BooleanValue lockMobLoot;
+        public final ForgeConfigSpec.BooleanValue showWelcomeMessage;
         public final ForgeConfigSpec.BooleanValue showDebugErrors;
+
+        public final ForgeConfigSpec.BooleanValue lockMobLoot;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -98,16 +105,30 @@ public class Config {
         public final ForgeConfigSpec.ConfigValue<String> replacementTag;
 
         public Common(ForgeConfigSpec.Builder builder) {
+            builder.comment(
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Chat messages settings"
+            ).push("messages");
+
+            showWelcomeMessage = builder
+                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
+                    .define("showWelcomeMessage", true);
+
+            showDebugErrors = builder
+                    .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
+                    .define("showDebugErrors", true);
+
+            builder.pop(); // messages
+
             builder.comment("Gameplay and Server-side settings").push("gameplay");
 
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
 
-
-            showDebugErrors = builder
-                    .comment("If true, players will see debug messages in chat if a JSON stage has errors or missing items. [Default: true]")
-                    .define("showDebugErrors", true);
+            builder.pop(); // gameplay
 
             // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
@@ -156,8 +177,6 @@ public class Config {
                     .comment("{ReplacementPriority:1} A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
             builder.pop(); // Schließt "loot_replacements"
-
-            builder.pop(); // gameplay
         }
     }
 
