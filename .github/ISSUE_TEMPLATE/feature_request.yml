@@ -1,12 +1,21 @@
 name: Feature Request
 description: Suggest a new feature or improvement
+title: "[Feature] "
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Before submitting, please check if a similar request already exists.
+        Note: Per-player stage unlocking is a known limitation and will not be implemented,
+        as global locking via the RecipeManager Mixin cannot operate on a per-player basis.
+
   - type: textarea
     id: description
     attributes:
       label: Feature Description
-      description: What would you like to see added or changed?
+      description: What should the mod do that it currently does not?
+      placeholder: "It would be useful if the Research Pedestal could output a redstone signal when a stage is unlocked."
     validations:
       required: true
 
@@ -14,9 +23,37 @@ body:
     id: usecase
     attributes:
       label: Use Case
-      description: Why would this be useful? How would you use it?
+      description: How would you use this feature in a modpack?
+      placeholder: "This would allow automating stage-dependent logic using redstone or modded automation."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you found a workaround, or is there currently no way to achieve this?
     validations:
       required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: What area of the mod does this affect?
+      options:
+        - Research Pedestal / Scrolls
+        - Stage Configuration (JSON)
+        - Commands
+        - JEI / EMI Integration
+        - Loot / Mob Drop Locking
+        - Dimension Locking
+        - Entity Locking
+        - KubeJS / CraftTweaker API
+        - Configuration (config files)
+        - Other
+    validations:
+      required: true
 
   - type: textarea
     id: example

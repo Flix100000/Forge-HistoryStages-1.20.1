@@ -1,12 +1,20 @@
 name: Compatibility Issue
 description: Report an incompatibility with another mod
+title: "[Incompatibility] History Stages + "
 labels: ["compatibility"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when History Stages causes issues in combination with another mod.
+        Common symptoms: recipes disappearing from mod machines, items behaving unexpectedly,
+        or crashes that only occur with both mods installed.
+
   - type: input
     id: version
     attributes:
-      label: HistoryStages Version
-      placeholder: "e.g. 2.0.0"
+      label: History Stages Version
+      placeholder: "e.g. 2.0.1"
     validations:
       required: true
 
@@ -26,19 +34,62 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Singleplayer (integrated server)
+        - Dedicated Server + Client
+    validations:
+      required: true
+
   - type: textarea
     id: description
     attributes:
-      label: What happens?
-      description: Describe the incompatibility (crash, broken feature, etc.)
+      label: Description of the Conflict
+      description: What goes wrong? When does it happen?
+      placeholder: "Recipes from the other mod disappear in-game after History Stages is installed, even though they are still visible in JEI."
     validations:
       required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      placeholder: |
+        1. Install History Stages and the conflicting mod.
+        2. Configure stage X to lock item Y.
+        3. Open the mod's interface.
+        4. Observe that ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: stage-config
+    attributes:
+      label: Relevant Stage JSON (if applicable)
+      description: Paste the stage config that triggers the conflict.
+      render: json
+    validations:
+      required: false
 
   - type: textarea
     id: log
     attributes:
       label: Log / Crash Report
-      description: Paste the relevant error. Use a paste site (e.g. https://mclo.gs) for full logs [Not Required].
+      description: "Paste the relevant error from your latest.log or crash report. Use a paste site (e.g. https://mclo.gs) for full logs."
       render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: isolation
+    attributes:
+      label: Isolation Check
+      description: Please confirm before submitting.
+      options:
+        - label: I have reproduced this with only History Stages and the conflicting mod installed.
+        - label: The issue does not occur when History Stages is removed.
     validations:
       required: false
