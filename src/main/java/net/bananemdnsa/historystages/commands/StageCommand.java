@@ -86,9 +86,14 @@ public class StageCommand {
                                         entry.getDimensions().forEach(d -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + d), false));
                                     }
 
-                                    if (!entry.getEntities().isEmpty()) {
-                                        ctx.getSource().sendSuccess(Component.literal("§c▶ Entities:"), false);
-                                        entry.getEntities().forEach(e -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + e), false));
+                                    if (!entry.getEntities().getAttacklock().isEmpty()) {
+                                        ctx.getSource().sendSuccess(Component.literal("§c▶ Entities (Attacklock):"), false);
+                                        entry.getEntities().getAttacklock().forEach(e -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + e), false));
+                                    }
+
+                                    if (!entry.getEntities().getSpawnlock().isEmpty()) {
+                                        ctx.getSource().sendSuccess(Component.literal("§c▶ Entities (Spawnlock):"), false);
+                                        entry.getEntities().getSpawnlock().forEach(e -> ctx.getSource().sendSuccess(Component.literal("  §8• §7" + e), false));
                                     }
 
                                     return 1;

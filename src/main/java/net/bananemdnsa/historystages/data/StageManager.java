@@ -78,10 +78,19 @@ public class StageManager {
             return false;
         });
 
-        // Entities prüfen
-        entry.getEntities().removeIf(entityId -> {
+        // Entities prüfen (attacklock)
+        entry.getEntities().getAttacklock().removeIf(entityId -> {
             if (!ResourceLocation.isValidResourceLocation(entityId)) {
-                LOADING_ERRORS.add("§7[Debug] §fEntity §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                LOADING_ERRORS.add("§7[Debug] §fEntity (attacklock) §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                return true;
+            }
+            return false;
+        });
+
+        // Entities prüfen (spawnlock)
+        entry.getEntities().getSpawnlock().removeIf(entityId -> {
+            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+                LOADING_ERRORS.add("§7[Debug] §fEntity (spawnlock) §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
                 return true;
             }
             return false;
@@ -129,20 +138,22 @@ public class StageManager {
         return null;
     }
 
-    public static String getStageForEntity(String entityId) {
-        for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-            if (data.getEntities() != null && data.getEntities().contains(entityId)) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForEntity(String entityId) {
+    public static List<String> getAllStagesForAttackLockedEntity(String entityId) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getEntities() != null && entry.getValue().getEntities().contains(entityId)) {
+            EntityLocks locks = entry.getValue().getEntities();
+            // Spawnlock-Entities sind automatisch auch attacklocked
+            if (locks.getAttacklock().contains(entityId) || locks.getSpawnlock().contains(entityId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllStagesForSpawnLockedEntity(String entityId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getEntities().getSpawnlock().contains(entityId)) {
                 allFoundStages.add(entry.getKey());
             }
         }
