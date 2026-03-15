@@ -49,3 +49,5 @@ body:
       label: Relevant Configuration (if applicable)
       description: Paste any stage JSON or config snippets relevant to your question.
       render: json
+    validations:
+      required: false

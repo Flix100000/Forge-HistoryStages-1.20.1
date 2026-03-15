@@ -1,5 +1,6 @@
 name: Other
 description: Anything that doesn't fit the other categories
+title: "[Other] "
 labels: ["other"]
 body:
   - type: textarea
