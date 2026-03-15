@@ -1,6 +1,6 @@
 name: Compatibility Issue
 description: Report an incompatibility with another mod
-labels: ["bug", "compatibility"]
+labels: ["compatibility"]
 body:
   - type: input
     id: version
