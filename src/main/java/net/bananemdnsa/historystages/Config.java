@@ -24,7 +24,12 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
         public Client(ForgeConfigSpec.Builder builder) {
-            builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
+            builder.comment(
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Visual and UI settings (Individual for each player)")
+                    .push("visuals");
 
             hideInJei = builder
                     .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
@@ -105,11 +110,11 @@ public class Config {
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.comment(
-                    "General Settings",
-                    "",
                     "Found a bug or have a feature request?",
-                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues"
-            ).push("general");
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Chat messages settings"
+            ).push("messages");
 
             showWelcomeMessage = builder
                     .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
@@ -126,6 +131,8 @@ public class Config {
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
+
+            builder.pop(); // gameplay
 
             // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
@@ -174,9 +181,6 @@ public class Config {
                     .comment("{ReplacementPriority:1} A tag (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
             builder.pop(); // Schließt "loot_replacements"
-
-
-            builder.pop(); // gameplay
         }
     }
 
