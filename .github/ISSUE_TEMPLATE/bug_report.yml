@@ -50,7 +50,7 @@ body:
     attributes:
       name: "Log"
       label: Log / Crash Report
-      description: [Not Required] Paste the relevant error from your `latest.log` or crash report. Use a paste site (e.g. https://mclo.gs) for full logs.
+      description: "[Not Required] Paste the relevant error from your latest.log or crash report. Use a paste site (e.g. https://mclo.gs) for full logs."
       render: text
     validations:
       required: false
