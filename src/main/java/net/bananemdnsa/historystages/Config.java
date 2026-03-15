@@ -22,7 +22,12 @@ public class Config {
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
 
         public Client(ModConfigSpec.Builder builder) {
-            builder.comment("Visual and UI settings (Individual for each player)").push("visuals");
+            builder.comment(
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Visual and UI settings (Individual for each player)")
+                    .push("visuals");
 
             hideInJei = builder
                     .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
@@ -82,32 +87,53 @@ public class Config {
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
     public static class Common {
-        public final ModConfigSpec.BooleanValue lockMobLoot;
+        public final ModConfigSpec.BooleanValue showWelcomeMessage;
         public final ModConfigSpec.BooleanValue showDebugErrors;
 
+        public final ModConfigSpec.BooleanValue lockMobLoot;
+
+        // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ModConfigSpec.BooleanValue broadcastChat;
         public final ModConfigSpec.ConfigValue<String> unlockMessageFormat;
         public final ModConfigSpec.BooleanValue useActionbar;
         public final ModConfigSpec.BooleanValue useSounds;
         public final ModConfigSpec.BooleanValue useToasts;
 
+        // Forschungsstation
         public final ModConfigSpec.IntValue researchTimeInSeconds;
 
+        // Loot-Ersetzungen
         public final ModConfigSpec.BooleanValue useReplacements;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementItems;
         public final ModConfigSpec.ConfigValue<String> replacementTag;
 
         public Common(ModConfigSpec.Builder builder) {
+            builder.comment(
+                    "Found a bug or have a feature request?",
+                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
+                    "",
+                    "Chat messages settings"
+            ).push("messages");
+
+            showWelcomeMessage = builder
+                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
+                    .define("showWelcomeMessage", true);
+
+            showDebugErrors = builder
+                    .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
+                    .define("showDebugErrors", true);
+
+            builder.pop(); // messages
+
             builder.comment("Gameplay and Server-side settings").push("gameplay");
 
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
 
-            showDebugErrors = builder
-                    .comment("If true, players will see debug messages in chat if a JSON stage has errors or missing items. [Default: true]")
-                    .define("showDebugErrors", true);
+            builder.pop(); // gameplay
 
+            // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
 
             broadcastChat = builder
@@ -130,14 +156,16 @@ public class Config {
                     .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
                     .define("useToasts", true);
 
-            builder.pop();
+            builder.pop(); // Schließt "notifications"
 
+            // --- RESEARCH Pedestal SECTION ---
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
-            builder.pop();
+            builder.pop(); // Schließt "research"
 
+            // --- LOOT REPLACEMENTS SECTION ---
             builder.comment("Settings for replacing locked loot with alternatives").push("loot_replacements");
 
             useReplacements = builder
@@ -151,9 +179,7 @@ public class Config {
             replacementTag = builder
                     .comment("{ReplacementPriority:1} A tag (e.g. 'c:dusts') to pick a random replacement from. [Default: empty]")
                     .define("replacementTag", "");
-            builder.pop();
-
-            builder.pop();
+            builder.pop(); // Schließt "loot_replacements"
         }
     }
 

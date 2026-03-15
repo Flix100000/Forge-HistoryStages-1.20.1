@@ -37,7 +37,7 @@ public class MobLockHandler {
         if (entityType == null) return;
 
         String entityId = entityType.toString();
-        List<String> requiredStageIds = StageManager.getAllStagesForEntity(entityId);
+        List<String> requiredStageIds = StageManager.getAllStagesForAttackLockedEntity(entityId);
         if (requiredStageIds.isEmpty()) return;
 
         // Alle Stages sammeln, die noch nicht freigeschaltet sind

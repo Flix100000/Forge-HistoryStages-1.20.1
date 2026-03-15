@@ -67,10 +67,14 @@ public class ConfigHandler {
         dimensions.add("minecraft:the_end");
         json.add("dimensions", dimensions);
 
-        // Entities Category
-        JsonArray entities = new JsonArray();
-        entities.add("minecraft:zombie");
-        entities.add("minecraft:skeleton");
+        // Entities Category (with subcategories)
+        JsonObject entities = new JsonObject();
+        JsonArray attacklock = new JsonArray();
+        attacklock.add("minecraft:zombie");
+        entities.add("attacklock", attacklock);
+        JsonArray spawnlock = new JsonArray();
+        spawnlock.add("minecraft:skeleton");
+        entities.add("spawnlock", spawnlock);
         json.add("entities", entities);
 
         try (FileWriter writer = new FileWriter(file)) {
