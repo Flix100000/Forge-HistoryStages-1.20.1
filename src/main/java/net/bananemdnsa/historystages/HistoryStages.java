@@ -111,7 +111,7 @@ public class HistoryStages {
         if (event.getEntity() instanceof ServerPlayer player) {
             StageData data = StageData.get(player.serverLevel());
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
-            player.server.getPlayerList().reloadResources();
+            // player.server.getPlayerList().reloadResources(); // Entfernt: verursacht Crash mit SerializerDebug (null-Player im OnDatapackSyncEvent)
 
             // NEU: Nachricht an ALLE Spieler senden (Permission-Check entfernt)
             if (Config.COMMON.showDebugErrors.get()) {
