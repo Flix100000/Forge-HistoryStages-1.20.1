@@ -1,0 +1,67 @@
+name: Bug Report
+description: Report a bug or crash
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the information below so we can reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: HistoryStages Version
+      placeholder: "e.g. 2.0.1"
+    validations:
+      required: true
+
+  - type: input
+    id: mc-version
+    attributes:
+      label: Minecraft / Forge Version
+      placeholder: "e.g. 1.20.1 / Forge 47.4.10"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened?
+      placeholder: Describe the bug clearly...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Install mod X and Y
+        2. Join a world
+        3. Do this...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log / Crash Report
+      description: Paste the relevant error from your `latest.log` or crash report. Use a paste site (e.g. https://mclo.gs) for full logs.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: modlist
+    attributes:
+      label: Other Mods Installed
+      description: List other mods that might be relevant, or share your full mod list.
+      placeholder: |
+        - JEI
+        - SerializerDebug
+        - ...
+    validations:
+      required: false
