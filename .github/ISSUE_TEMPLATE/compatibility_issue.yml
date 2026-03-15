@@ -1,0 +1,44 @@
+name: Compatibility Issue
+description: Report an incompatibility with another mod
+labels: ["bug", "compatibility"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: HistoryStages Version
+      placeholder: "e.g. 2.0.1"
+    validations:
+      required: true
+
+  - type: input
+    id: other-mod
+    attributes:
+      label: Conflicting Mod (Name + Version)
+      placeholder: "e.g. SerializerDebug 1.0.1"
+    validations:
+      required: true
+
+  - type: input
+    id: mc-version
+    attributes:
+      label: Minecraft / Forge Version
+      placeholder: "e.g. 1.20.1 / Forge 47.4.10"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happens?
+      description: Describe the incompatibility (crash, broken feature, etc.)
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log / Crash Report
+      description: Paste the relevant error. Use a paste site (e.g. https://mclo.gs) for full logs.
+      render: text
+    validations:
+      required: false
