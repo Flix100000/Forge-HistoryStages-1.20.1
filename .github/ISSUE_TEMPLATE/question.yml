@@ -1,27 +1,51 @@
-name: Question
-description: Ask a question about usage or configuration
+name: Question / Support
+description: Ask a question about configuring or using History Stages.
+title: "[Question] "
 labels: ["question"]
 body:
-  - type: textarea
-    id: question
+  - type: markdown
     attributes:
-      label: Your Question
-      description: What do you need help with?
+      value: |
+        For quick questions, you can also check the README or ask on Reddit (r/feedthebeast).
+        Please do not use this template for bug reports or feature requests.
+
+  - type: input
+    id: mod_version
+    attributes:
+      label: Mod Version
+      placeholder: "1.1.0-1.20.1"
     validations:
       required: true
 
-  - type: input
-    id: version
+  - type: dropdown
+    id: topic
     attributes:
-      label: HistoryStages Version
-      placeholder: "e.g. 2.0.1"
+      label: Topic
+      options:
+        - Stage JSON Configuration
+        - Research Pedestal / Scrolls
+        - Commands (/history)
+        - JEI / EMI Integration
+        - KubeJS / CraftTweaker
+        - Loot / Drop Locking
+        - Dimension / Entity Locking
+        - Compatibility with another mod
+        - Other
     validations:
-      required: false
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe what you are trying to do and what you are unsure about.
+      placeholder: "How do I lock all items from a specific mod until a certain stage is unlocked?"
+    validations:
+      required: true
 
   - type: textarea
     id: context
     attributes:
-      label: Additional Context
-      description: Any relevant config files, screenshots, or details.
-    validations:
-      required: false
+      label: Relevant Configuration (if applicable)
+      description: Paste any stage JSON or config snippets relevant to your question.
+      render: json
