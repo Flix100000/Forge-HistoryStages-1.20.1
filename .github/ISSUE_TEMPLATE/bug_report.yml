@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: HistoryStages Version
-      placeholder: "e.g. 2.0.1"
+      placeholder: "e.g. 2.0.0"
     validations:
       required: true
 
@@ -49,7 +49,7 @@ body:
     id: log
     attributes:
       label: Log / Crash Report
-      description: Paste the relevant error from your `latest.log` or crash report. Use a paste site (e.g. https://mclo.gs) for full logs.
+      description: [Not Required] Paste the relevant error from your `latest.log` or crash report. Use a paste site (e.g. https://mclo.gs) for full logs.
       render: text
     validations:
       required: false
@@ -61,7 +61,7 @@ body:
       description: List other mods that might be relevant, or share your full mod list.
       placeholder: |
         - JEI
-        - SerializerDebug
+        - Create
         - ...
     validations:
       required: false
