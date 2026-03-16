@@ -59,21 +59,7 @@ public class LootLockHandler {
     }
 
     private static ItemStack getReplacement(int count) {
-        // 1. Priorität: Zufälliges Item aus dem replacementTag
-        String tagStr = Config.COMMON.replacementTag.get();
-        if (tagStr != null && !tagStr.isEmpty()) {
-            try {
-                TagKey<Item> tagKey = ItemTags.create(new ResourceLocation(tagStr));
-                List<Item> tagItems = new ArrayList<>();
-                ForgeRegistries.ITEMS.tags().getTag(tagKey).forEach(tagItems::add);
-
-                if (!tagItems.isEmpty()) {
-                    return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
-                }
-            } catch (Exception ignored) {}
-        }
-
-        // 2. Priorität: Zufälliges Item aus der replacementItems Liste
+        // 1. Priorität: Zufälliges Item aus der replacementItems Liste
         List<? extends String> list = Config.COMMON.replacementItems.get();
         if (list != null && !list.isEmpty()) {
             try {
@@ -81,6 +67,21 @@ public class LootLockHandler {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
                 if (item != null && item != Items.AIR) {
                     return new ItemStack(item, count);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Priorität: Zufälliges Item aus den replacementTags
+        List<? extends String> tags = Config.COMMON.replacementTag.get();
+        if (tags != null && !tags.isEmpty()) {
+            try {
+                String tagStr = tags.get(RANDOM.nextInt(tags.size()));
+                TagKey<Item> tagKey = ItemTags.create(new ResourceLocation(tagStr));
+                List<Item> tagItems = new ArrayList<>();
+                ForgeRegistries.ITEMS.tags().getTag(tagKey).forEach(tagItems::add);
+
+                if (!tagItems.isEmpty()) {
+                    return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
                 }
             } catch (Exception ignored) {}
         }
