@@ -11,8 +11,11 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -239,6 +242,57 @@ public class StageManager {
             return entry.getResearchTime() * 20;
         }
         return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    public static boolean saveStage(String stageId, StageEntry entry) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        if (!configDir.exists()) configDir.mkdirs();
+
+        File file = new File(configDir, stageId + ".json");
+        try (Writer writer = new FileWriter(file)) {
+            writer.write(entry.toJson());
+            STAGES.put(stageId, entry);
+            return true;
+        } catch (Exception e) {
+            System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean deleteStage(String stageId) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File file = new File(configDir, stageId + ".json");
+        if (file.exists() && file.delete()) {
+            STAGES.remove(stageId);
+            return true;
+        }
+        return false;
+    }
+
+    public static List<String> getStageOrder() {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        if (!configDir.exists()) return new ArrayList<>(STAGES.keySet());
+
+        File[] files = configDir.listFiles((dir, name) ->
+                name.endsWith(".json") && !name.startsWith("_")
+        );
+        if (files == null) return new ArrayList<>(STAGES.keySet());
+
+        Arrays.sort(files);
+        List<String> order = new ArrayList<>();
+        for (File file : files) {
+            String id = file.getName().replace(".json", "");
+            if (STAGES.containsKey(id)) {
+                order.add(id);
+            }
+        }
+        // Add any stages not found as files (shouldn't happen, but safety)
+        for (String id : STAGES.keySet()) {
+            if (!order.contains(id)) {
+                order.add(id);
+            }
+        }
+        return order;
     }
 
     public static boolean isRecipeIdLockedForServer(String recipeId) {
