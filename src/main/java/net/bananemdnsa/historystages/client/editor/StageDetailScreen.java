@@ -33,9 +33,15 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.ShapedRecipe;
+import net.bananemdnsa.historystages.util.AllRecipesCache;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Quaternionf;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -90,8 +96,39 @@ public class StageDetailScreen extends Screen {
     private long tooltipHoverStart = 0;
     private static final long TOOLTIP_DELAY_MS = 400;
 
+    // Animation state
+    private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
+    private float tabIndicatorX = 0;
+    private float tabIndicatorW = 0;
+    private boolean tabIndicatorInit = false;
+    private long tabSwitchTime = 0;
+    private float smoothScrollOffset = 0;
+
+    // Marquee state for card entries
+    private int hoveredCardIndex = -1;
+    private long cardHoverStartTime = 0;
+    private static final long CARD_MARQUEE_DELAY_MS = 800;
+    private static final float CARD_MARQUEE_SPEED = 25.0f;
+
+    // Recipe detail popup state
+    private boolean recipePopupVisible = false;
+    private String recipePopupId = null;
+    private int recipePopupIngredientScroll = 0;
+    private boolean recipePopupAddMode = false;
+    private Runnable recipePopupAddAction = null;
+    // Popup layout cache for click detection
+    private int cachedPopupX, cachedPopupY, cachedPopupW, cachedPopupH;
+    // Popup recipe ID marquee state
+    private long popupMarqueeStartTime = 0;
+    private String popupMarqueeLastId = null;
+    private boolean popupIdHovered = false;
+
     // Entity preview cache and hover state
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
+
+    // Recipe info cache: recipeId -> [workstation, result]
+    private final Map<String, ItemStack[]> recipeInfoCache = new HashMap<>();
+    private boolean recipeInfoBuilt = false;
 
     // Section definitions
     static final String[] SECTION_KEYS = {
@@ -261,19 +298,31 @@ public class StageDetailScreen extends Screen {
         });
 
         recipeSearch = new SearchableRecipeList(recipeId -> {
-            editRecipes.add(recipeId);
-            hasChanges = true;
-            updateMaxScroll();
+            showRecipePreview(recipeId, () -> {
+                editRecipes.add(recipeId);
+                hasChanges = true;
+                updateMaxScroll();
+            });
         });
+        recipeSearch.setKeepVisibleOnSelect(true);
 
         contextMenu = new ContextMenu();
         updateMaxScroll();
+    }
+
+    private boolean isAnyOverlayVisible() {
+        return itemSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
+                || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
+                || contextMenu.isVisible() || recipePopupVisible;
     }
 
     private void switchTab(int tab) {
         if (activeTab != tab) {
             activeTab = tab;
             scrollOffset = 0;
+            smoothScrollOffset = 0;
+            tabSwitchTime = System.currentTimeMillis();
+            cardHoverProgress.clear();
             updateMaxScroll();
         }
     }
@@ -349,18 +398,32 @@ public class StageDetailScreen extends Screen {
             }
         }
 
+        // Animated tab indicator - smoothly slide to active tab
+        if (!tabIndicatorInit) {
+            tabIndicatorX = tabX[activeTab];
+            tabIndicatorW = tabW[activeTab];
+            tabIndicatorInit = true;
+        }
+        float targetX = tabX[activeTab];
+        float targetW = tabW[activeTab];
+        tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
+        tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
+        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
+        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+
+        // Suppress hover when overlays are open
+        boolean overlayOpen = isAnyOverlayVisible();
+        int effectiveMouseX = overlayOpen ? -1 : mouseX;
+        int effectiveMouseY = overlayOpen ? -1 : mouseY;
+
         // Render tabs
         for (int i = 0; i < TAB_KEYS.length; i++) {
             boolean active = (i == activeTab);
-            boolean hovered = mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
+            boolean hovered = !overlayOpen && mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
 
             int bg = active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF);
             guiGraphics.fill(tabX[i], tabY, tabX[i] + tabW[i], tabY + TAB_HEIGHT, bg);
-
-            if (active) {
-                guiGraphics.fill(tabX[i], tabY + TAB_HEIGHT - 2, tabX[i] + tabW[i], tabY + TAB_HEIGHT, 0xFFFFCC00);
-            }
 
             String label = Component.translatable(TAB_KEYS[i]).getString();
             int entryCount = getListForSection(i).size();
@@ -374,6 +437,9 @@ public class StageDetailScreen extends Screen {
             }
         }
 
+        // Sliding gold underline indicator
+        guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+
         guiGraphics.fill(10, HEADER_HEIGHT - 2, this.width - 10, HEADER_HEIGHT - 1, 0xFF555555);
 
         int listTop = HEADER_HEIGHT;
@@ -383,70 +449,174 @@ public class StageDetailScreen extends Screen {
 
         guiGraphics.enableScissor(contentLeft - 10, listTop, contentRight + 10, listBottom);
 
+        // Smooth scroll interpolation
+        smoothScrollOffset += ((float) scrollOffset - smoothScrollOffset) * 0.25f;
+        if (Math.abs(smoothScrollOffset - (float) scrollOffset) < 0.5f) smoothScrollOffset = (float) scrollOffset;
+
         List<String> list = getActiveList();
-        int y = listTop - (int) scrollOffset + CARD_GAP;
+        int y = listTop - (int) smoothScrollOffset + CARD_GAP;
         boolean isItemsTab = (activeTab == 0);
 
-        // Entries — Card style
-        for (int i = 0; i < list.size(); i++) {
-            if (y + CARD_HEIGHT > listTop - 20 && y < listBottom + 20) {
-                boolean entryHovered = mouseX >= contentLeft && mouseX <= contentRight
-                        && mouseY >= Math.max(y, listTop) && mouseY < Math.min(y + CARD_HEIGHT, listBottom);
+        // Slide-in timing for tab switch
+        long slideElapsed = System.currentTimeMillis() - tabSwitchTime;
 
-                int cardBg = entryHovered ? 0x35FFFFFF : 0x20FFFFFF;
-                int cardBorder = entryHovered ? 0x50FFFFFF : 0x30FFFFFF;
-                guiGraphics.fill(contentLeft, y, contentRight, y + CARD_HEIGHT, cardBorder);
-                guiGraphics.fill(contentLeft + 1, y + 1, contentRight - 1, y + CARD_HEIGHT - 1, cardBg);
+        // Track marquee hover
+        int currentHoveredCard = -1;
+
+        // Entries — Card style with smooth hover animation + slide-in + marquee
+        for (int i = 0; i < list.size(); i++) {
+            // Per-card slide-in: staggered delay based on index
+            float slideProgress = 1.0f;
+            if (slideElapsed < 400) {
+                float cardDelay = Math.min(i * 25.0f, 200.0f);
+                float cardElapsed = Math.max(0, slideElapsed - cardDelay);
+                slideProgress = Math.min(1.0f, cardElapsed / 200.0f);
+                // Ease-out curve
+                slideProgress = 1.0f - (1.0f - slideProgress) * (1.0f - slideProgress);
+            }
+
+            if (y + CARD_HEIGHT > listTop - 20 && y < listBottom + 20) {
+                boolean entryHovered = effectiveMouseX >= contentLeft && effectiveMouseX <= contentRight
+                        && effectiveMouseY >= Math.max(y, listTop) && effectiveMouseY < Math.min(y + CARD_HEIGHT, listBottom);
+
+                if (entryHovered) currentHoveredCard = i;
+
+                // Smooth card hover progress
+                float cardProgress = cardHoverProgress.getOrDefault(i, 0.0f);
+                if (entryHovered) {
+                    cardProgress = Math.min(1.0f, cardProgress + 0.1f);
+                } else {
+                    cardProgress = Math.max(0.0f, cardProgress - 0.07f);
+                }
+                if (cardProgress > 0.001f) cardHoverProgress.put(i, cardProgress);
+                else cardHoverProgress.remove(i);
+
+                // Hover lift: card moves up slightly
+                int liftY = (int) (cardProgress * -1.5f);
+                int cardY = y + liftY;
+
+                // Slide-in offset from left
+                int slideOffsetX = (int) ((1.0f - slideProgress) * 15);
+                float slideAlpha = slideProgress;
+
+                int borderAlpha = (int) ((0x30 + cardProgress * 0x20) * slideAlpha);
+                int bgAlpha = (int) ((0x20 + cardProgress * 0x18) * slideAlpha);
+                int cardBorder = (borderAlpha << 24) | 0xFFFFFF;
+                int cardBg = (bgAlpha << 24) | 0xFFFFFF;
+                guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentRight, cardY + CARD_HEIGHT, cardBorder);
+                guiGraphics.fill(contentLeft + 1 + slideOffsetX, cardY + 1, contentRight - 1, cardY + CARD_HEIGHT - 1, cardBg);
+
+                // Gold left accent on hover
+                if (cardProgress > 0.01f) {
+                    int accentAlpha = (int) (cardProgress * 0xCC);
+                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX, cardY + CARD_HEIGHT, (accentAlpha << 24) | 0xFFCC00);
+                }
 
                 int textOffsetX = 8;
                 boolean isEntityTab = (activeTab == 5 || activeTab == 6);
+                int renderLeft = contentLeft + slideOffsetX;
                 if (isItemsTab) {
                     ItemStack stack = getItemStack(list.get(i));
                     if (!stack.isEmpty()) {
                         guiGraphics.pose().pushPose();
-                        guiGraphics.pose().translate(contentLeft + 3, y + 3, 0);
+                        guiGraphics.pose().translate(renderLeft + 3, cardY + 3, 0);
                         guiGraphics.pose().scale(0.85f, 0.85f, 1.0f);
                         guiGraphics.renderItem(stack, 0, 0);
                         guiGraphics.pose().popPose();
                     }
                     textOffsetX = 20;
+                } else if (activeTab == 3) {
+                    ItemStack[] info = getRecipeInfo(list.get(i));
+                    if (info != null && info.length > 1 && !info[1].isEmpty()) {
+                        guiGraphics.pose().pushPose();
+                        guiGraphics.pose().translate(renderLeft + 3, cardY + 3, 0);
+                        guiGraphics.pose().scale(0.85f, 0.85f, 1.0f);
+                        guiGraphics.renderItem(info[1], 0, 0);
+                        guiGraphics.pose().popPose();
+                    }
+                    textOffsetX = 20;
                 } else if (isEntityTab) {
-                    // Render small entity preview in card
                     LivingEntity living = getOrCreateEntity(list.get(i));
                     if (living != null) {
                         try {
                             float angle = (System.currentTimeMillis() % 3600) / 10.0f;
-                            guiGraphics.enableScissor(contentLeft + 1, y + 1, contentLeft + 20, y + CARD_HEIGHT - 1);
+                            guiGraphics.enableScissor(renderLeft + 1, cardY + 1, renderLeft + 20, cardY + CARD_HEIGHT - 1);
                             int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
-                            renderSpinningEntity(guiGraphics, contentLeft + 10, y + CARD_HEIGHT - 2, entityScale, angle, living);
+                            renderSpinningEntity(guiGraphics, renderLeft + 10, cardY + CARD_HEIGHT - 2, entityScale, angle, living);
                             guiGraphics.disableScissor();
                         } catch (Exception ignored) {}
                     }
                     textOffsetX = 22;
-
                 }
 
-                guiGraphics.drawString(this.font, list.get(i), contentLeft + textOffsetX, y + 7, entryHovered ? 0xFFFFFF : 0xBBBBBB, false);
+                // Text with marquee for truncated entries
+                String entryText = list.get(i);
+                int textStartX = renderLeft + textOffsetX;
+                int textAvailW = contentRight - textStartX - 4;
+                int entryTextW = this.font.width(entryText);
+                int textColor = entryHovered ? 0xFFFFFF : 0xBBBBBB;
+
+                if (entryTextW > textAvailW && entryHovered && i == hoveredCardIndex) {
+                    long elapsed = System.currentTimeMillis() - cardHoverStartTime;
+                    if (elapsed > CARD_MARQUEE_DELAY_MS) {
+                        float scrollProg = (elapsed - CARD_MARQUEE_DELAY_MS) / 1000.0f * CARD_MARQUEE_SPEED;
+                        int maxMarquee = entryTextW - textAvailW + 10;
+                        float cycle = (float) maxMarquee * 2;
+                        float pos = scrollProg % cycle;
+                        int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                        guiGraphics.enableScissor(textStartX, cardY, textStartX + textAvailW, cardY + CARD_HEIGHT);
+                        guiGraphics.drawString(this.font, entryText, textStartX - scrollOff, cardY + 7, textColor, false);
+                        guiGraphics.disableScissor();
+                    } else {
+                        String truncated = this.font.plainSubstrByWidth(entryText, textAvailW - 8) + "...";
+                        guiGraphics.drawString(this.font, truncated, textStartX, cardY + 7, textColor, false);
+                    }
+                } else if (entryTextW > textAvailW) {
+                    String truncated = this.font.plainSubstrByWidth(entryText, textAvailW - 8) + "...";
+                    guiGraphics.drawString(this.font, truncated, textStartX, cardY + 7, textColor, false);
+                } else {
+                    guiGraphics.drawString(this.font, entryText, textStartX, cardY + 7, textColor, false);
+                }
             }
             y += CARD_HEIGHT + CARD_GAP;
         }
 
-        // Add button with card styling
+        // Update marquee hover tracking for cards
+        if (currentHoveredCard != hoveredCardIndex) {
+            hoveredCardIndex = currentHoveredCard;
+            cardHoverStartTime = System.currentTimeMillis();
+        }
+
+        // Add button with card styling and subtle hover glow
         if (y + ADD_ROW_HEIGHT > listTop - 20 && y < listBottom + 20) {
             String addText = "+ " + Component.translatable("editor.historystages.add").getString();
             int addTextW = this.font.width(addText);
             int addBoxRight = contentLeft + addTextW + 20;
-            boolean addHovered = mouseX >= contentLeft && mouseX <= addBoxRight
-                    && mouseY >= y && mouseY < y + ADD_ROW_HEIGHT
-                    && mouseY >= listTop && mouseY <= listBottom;
+            boolean addHovered = effectiveMouseX >= contentLeft && effectiveMouseX <= addBoxRight
+                    && effectiveMouseY >= y && effectiveMouseY < y + ADD_ROW_HEIGHT
+                    && effectiveMouseY >= listTop && effectiveMouseY <= listBottom;
 
-            int addBg = addHovered ? 0x30FFFFFF : 0x18FFFFFF;
-            int addBorder = addHovered ? 0x40FFFFFF : 0x25FFFFFF;
-            guiGraphics.fill(contentLeft, y, addBoxRight, y + ADD_ROW_HEIGHT, addBorder);
-            guiGraphics.fill(contentLeft + 1, y + 1, addBoxRight - 1, y + ADD_ROW_HEIGHT - 1, addBg);
+            // Use index -1 for add button hover progress
+            float addProgress = cardHoverProgress.getOrDefault(-1, 0.0f);
+            if (addHovered) addProgress = Math.min(1.0f, addProgress + 0.1f);
+            else addProgress = Math.max(0.0f, addProgress - 0.07f);
+            if (addProgress > 0.001f) cardHoverProgress.put(-1, addProgress);
+            else cardHoverProgress.remove(-1);
 
+            int addBorderAlpha = (int) (0x25 + addProgress * 0x1B);
+            int addBgAlpha = (int) (0x18 + addProgress * 0x18);
+            guiGraphics.fill(contentLeft, y, addBoxRight, y + ADD_ROW_HEIGHT, (addBorderAlpha << 24) | 0xFFFFFF);
+            guiGraphics.fill(contentLeft + 1, y + 1, addBoxRight - 1, y + ADD_ROW_HEIGHT - 1, (addBgAlpha << 24) | 0xFFFFFF);
+
+            if (addProgress > 0.01f) {
+                int greenAlpha = (int) (addProgress * 0xAA);
+                guiGraphics.fill(contentLeft, y, contentLeft + 2, y + ADD_ROW_HEIGHT, (greenAlpha << 24) | 0x55FF55);
+            }
+
+            int addG = (int) (0x88 + addProgress * 0x77);
+            int addRB = (int) (0x33 + addProgress * 0x22);
             guiGraphics.drawString(this.font, addText, contentLeft + 6, y + 7,
-                    addHovered ? 0x55FF55 : 0x338833, false);
+                    (0xFF << 24) | (addRB << 16) | (addG << 8) | addRB, false);
         }
 
         guiGraphics.disableScissor();
@@ -461,7 +631,10 @@ public class StageDetailScreen extends Screen {
         if (hasChanges) {
             String unsavedText = Component.translatable("editor.historystages.unsaved").getString();
             int dotX = this.width / 2 + 55;
-            guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, 0xFFFFCC00);
+            // Pulsing dot: gentle opacity oscillation
+            float pulse = (float) (Math.sin(System.currentTimeMillis() / 400.0) * 0.3 + 0.7);
+            int dotAlpha = (int) (pulse * 255);
+            guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, (dotAlpha << 24) | 0xFFCC00);
             drawSmallText(guiGraphics, unsavedText, dotX + 9, this.height - 24, 0xFFCC00);
         }
 
@@ -480,6 +653,7 @@ public class StageDetailScreen extends Screen {
         dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
+        if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Tooltip rendering
@@ -625,6 +799,373 @@ public class StageDetailScreen extends Screen {
         }
     }
 
+    /**
+     * Returns [workstation, result] for a recipe ID, cached for performance.
+     */
+    private ItemStack[] getRecipeInfo(String recipeId) {
+        if (!recipeInfoBuilt) {
+            recipeInfoBuilt = true;
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                Collection<Recipe<?>> allCachedRecipes = AllRecipesCache.get();
+                Collection<Recipe<?>> recipes = allCachedRecipes.isEmpty()
+                        ? mc.level.getRecipeManager().getRecipes()
+                        : allCachedRecipes;
+                for (Recipe<?> recipe : recipes) {
+                    try {
+                        String id = recipe.getId().toString();
+                        ItemStack result = recipe.getResultItem(mc.level.registryAccess());
+                        ItemStack workstation = getWorkstationForType(recipe.getType());
+                        recipeInfoCache.put(id, new ItemStack[]{workstation, result});
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+        return recipeInfoCache.get(recipeId);
+    }
+
+    private static ItemStack getWorkstationForType(RecipeType<?> type) {
+        if (type == RecipeType.CRAFTING) return new ItemStack(Blocks.CRAFTING_TABLE);
+        if (type == RecipeType.SMELTING) return new ItemStack(Blocks.FURNACE);
+        if (type == RecipeType.BLASTING) return new ItemStack(Blocks.BLAST_FURNACE);
+        if (type == RecipeType.SMOKING) return new ItemStack(Blocks.SMOKER);
+        if (type == RecipeType.CAMPFIRE_COOKING) return new ItemStack(Blocks.CAMPFIRE);
+        if (type == RecipeType.STONECUTTING) return new ItemStack(Blocks.STONECUTTER);
+        if (type == RecipeType.SMITHING) return new ItemStack(Blocks.SMITHING_TABLE);
+        return ItemStack.EMPTY;
+    }
+
+    private static String getRecipeTypeName(RecipeType<?> type) {
+        if (type == RecipeType.CRAFTING) return "Crafting";
+        if (type == RecipeType.SMELTING) return "Smelting";
+        if (type == RecipeType.BLASTING) return "Blasting";
+        if (type == RecipeType.SMOKING) return "Smoking";
+        if (type == RecipeType.CAMPFIRE_COOKING) return "Campfire";
+        if (type == RecipeType.STONECUTTING) return "Stonecutting";
+        if (type == RecipeType.SMITHING) return "Smithing";
+        return "Recipe";
+    }
+
+    private static int getRecipeTypeAccentColor(RecipeType<?> type) {
+        if (type == RecipeType.CRAFTING) return 0xFFFFCC00;
+        if (type == RecipeType.SMELTING) return 0xFFFF8800;
+        if (type == RecipeType.BLASTING) return 0xFFFF4400;
+        if (type == RecipeType.SMOKING) return 0xFF996633;
+        if (type == RecipeType.CAMPFIRE_COOKING) return 0xFFFF6600;
+        if (type == RecipeType.STONECUTTING) return 0xFF888888;
+        if (type == RecipeType.SMITHING) return 0xFF6688AA;
+        return 0xFF55CC55;
+    }
+
+    private void showRecipePreview(String recipeId, Runnable onAdd) {
+        recipePopupId = recipeId;
+        recipePopupVisible = true;
+        recipePopupAddMode = true;
+        recipePopupIngredientScroll = 0;
+        recipePopupAddAction = onAdd;
+    }
+
+    private void closeRecipePopup() {
+        recipePopupVisible = false;
+        recipePopupId = null;
+        recipePopupAddMode = false;
+        recipePopupAddAction = null;
+        popupMarqueeLastId = null;
+    }
+
+    private void renderRecipePopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        if (recipePopupId == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
+        Recipe<?> recipe = null;
+        Collection<Recipe<?>> allCached = AllRecipesCache.get();
+        Collection<Recipe<?>> allRecipes = allCached.isEmpty()
+                ? mc.level.getRecipeManager().getRecipes()
+                : allCached;
+        for (Recipe<?> r : allRecipes) {
+            if (r.getId().toString().equals(recipePopupId)) { recipe = r; break; }
+        }
+        if (recipe == null) { recipePopupVisible = false; return; }
+
+        ItemStack result = recipe.getResultItem(mc.level.registryAccess());
+        ItemStack workstation = getWorkstationForType(recipe.getType());
+        String typeName = getRecipeTypeName(recipe.getType());
+        int typeColor = getRecipeTypeAccentColor(recipe.getType());
+
+        // Check if this is a crafting recipe (shaped or shapeless)
+        boolean isCrafting = recipe.getType() == RecipeType.CRAFTING;
+        boolean isShaped = recipe instanceof ShapedRecipe;
+        int craftW = isShaped ? ((ShapedRecipe) recipe).getWidth() : 0;
+        int craftH = isShaped ? ((ShapedRecipe) recipe).getHeight() : 0;
+
+        // Get raw ingredient list (preserving positions for shaped recipes)
+        List<net.minecraft.world.item.crafting.Ingredient> rawIngredients = recipe.getIngredients();
+
+        // Collect unique ingredients with counts (for non-crafting recipes)
+        List<ItemStack> ingredients = new ArrayList<>();
+        Map<String, Integer> ingredientCounts = new HashMap<>();
+        if (!isCrafting) {
+            for (net.minecraft.world.item.crafting.Ingredient ing : rawIngredients) {
+                ItemStack[] items = ing.getItems();
+                if (items.length > 0) {
+                    ItemStack stack = items[0];
+                    String key = ForgeRegistries.ITEMS.getKey(stack.getItem()) + ":" + stack.getDamageValue();
+                    int count = ingredientCounts.getOrDefault(key, 0);
+                    if (count == 0) ingredients.add(stack.copy());
+                    ingredientCounts.put(key, count + 1);
+                }
+            }
+        }
+
+        // Layout
+        int pad = 14;
+        int slotSize = 24;
+        int resultSlotSize = 32;
+        int rightColW = 84;
+        int arrowGap = 28;
+
+        int gridW, gridH;
+        boolean hasScroll;
+        if (isCrafting) {
+            int gridCols = isShaped ? craftW : 3;
+            int gridRows = isShaped ? craftH : (int) Math.ceil(rawIngredients.size() / 3.0);
+            if (!isShaped) gridRows = Math.max(gridRows, 1);
+            gridW = gridCols * slotSize;
+            gridH = gridRows * slotSize;
+            hasScroll = false;
+        } else {
+            int slotsPerRow = 3;
+            int totalIngredients = ingredients.size();
+            int ingredientRows = Math.max(1, (totalIngredients + slotsPerRow - 1) / slotsPerRow);
+            int visibleRows = Math.min(ingredientRows, 3);
+            int maxIngScroll = Math.max(0, ingredientRows - 3);
+            recipePopupIngredientScroll = Math.min(recipePopupIngredientScroll, maxIngScroll);
+            gridW = slotsPerRow * slotSize;
+            gridH = visibleRows * slotSize;
+            hasScroll = maxIngScroll > 0;
+        }
+
+        int innerW = gridW + (hasScroll ? 10 : 0) + arrowGap + rightColW;
+        int popupW = Math.max(innerW + pad * 2, 240);
+        int headerH = 40;
+        int contentH = Math.max(gridH, resultSlotSize + 20);
+        int btnAreaH = recipePopupAddMode ? 36 : 0;
+        int popupH = headerH + contentH + btnAreaH + pad + 6;
+
+        int popupX = this.width / 2 - popupW / 2;
+        int popupY = this.height / 2 - popupH / 2;
+
+        cachedPopupX = popupX;
+        cachedPopupY = popupY;
+        cachedPopupW = popupW;
+        cachedPopupH = popupH;
+
+        // Dim background
+        guiGraphics.fill(0, 0, this.width, this.height, 0x88000000);
+
+        // Shadow + border + background
+        guiGraphics.fill(popupX + 3, popupY + 3, popupX + popupW + 3, popupY + popupH + 3, 0x50000000);
+        guiGraphics.fill(popupX - 1, popupY - 1, popupX + popupW + 1, popupY + popupH + 1, 0xFF333333);
+        guiGraphics.fill(popupX, popupY, popupX + popupW, popupY + popupH, 0xFF1A1A1A);
+
+        // Recipe type accent bar
+        guiGraphics.fill(popupX, popupY, popupX + popupW, popupY + 3, typeColor);
+
+        // Header: workstation icon + type name
+        int hdrY = popupY + 8;
+        int hdrX = popupX + pad;
+        if (!workstation.isEmpty()) {
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(hdrX, hdrY - 1, 0);
+            guiGraphics.pose().scale(0.75f, 0.75f, 1.0f);
+            guiGraphics.renderItem(workstation, 0, 0);
+            guiGraphics.pose().popPose();
+            hdrX += 14;
+        }
+        guiGraphics.drawString(this.font, typeName, hdrX, hdrY + 1, 0xFFFFFF, false);
+
+        // ESC hint
+        String escText = "[ESC]";
+        guiGraphics.drawString(this.font, escText, popupX + popupW - pad - this.font.width(escText), hdrY + 1, 0x444444, false);
+
+        // Recipe ID (with marquee scroll on hover if too wide)
+        int idMaxW = popupW - pad * 2;
+        int idTextW = (int)(this.font.width(recipePopupId) * SMALL_SCALE);
+        int idX = popupX + pad;
+        int idY = hdrY + 15;
+        int idH = (int)(this.font.lineHeight * SMALL_SCALE);
+        boolean isIdHovered = mouseX >= idX && mouseX < idX + idMaxW && mouseY >= idY && mouseY < idY + idH + 2;
+        if (idTextW <= idMaxW) {
+            drawSmallText(guiGraphics, recipePopupId, idX, idY, 0x666666);
+        } else {
+            // Track hover state for marquee
+            if (isIdHovered && !popupIdHovered) {
+                popupIdHovered = true;
+                popupMarqueeStartTime = System.currentTimeMillis();
+                popupMarqueeLastId = recipePopupId;
+            } else if (!isIdHovered) {
+                popupIdHovered = false;
+            }
+            float scrollOff = 0;
+            int overflow = idTextW - idMaxW;
+            if (isIdHovered) {
+                long elapsed = System.currentTimeMillis() - popupMarqueeStartTime;
+                if (elapsed > CARD_MARQUEE_DELAY_MS) {
+                    float t = (elapsed - CARD_MARQUEE_DELAY_MS) / 1000.0f;
+                    float cycle = overflow / CARD_MARQUEE_SPEED;
+                    float phase = t % (cycle * 2);
+                    scrollOff = phase <= cycle ? (phase / cycle) * overflow : (2 - phase / cycle) * overflow;
+                }
+            }
+            guiGraphics.enableScissor(idX, idY, idX + idMaxW, idY + idH + 2);
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(idX - scrollOff, idY, 0);
+            guiGraphics.pose().scale(SMALL_SCALE, SMALL_SCALE, 1.0f);
+            guiGraphics.drawString(this.font, recipePopupId, 0, 0, 0x666666, false);
+            guiGraphics.pose().popPose();
+            guiGraphics.disableScissor();
+        }
+
+        // Separator
+        int sepY = popupY + headerH - 1;
+        guiGraphics.fill(popupX + pad - 2, sepY, popupX + popupW - pad + 2, sepY + 1, 0xFF333333);
+
+        // Content area
+        int contentY = popupY + headerH + 6;
+        int gridX = popupX + pad;
+        int gridY = contentY;
+
+        // Ingredient grid
+        if (isCrafting) {
+            // Crafting grid: render all slots in grid pattern
+            int gridCols = isShaped ? craftW : 3;
+            int gridRows = isShaped ? craftH : (int) Math.max(1, Math.ceil(rawIngredients.size() / 3.0));
+            for (int row = 0; row < gridRows; row++) {
+                for (int col = 0; col < gridCols; col++) {
+                    int sx = gridX + col * slotSize;
+                    int sy = gridY + row * slotSize;
+                    int idx = row * gridCols + col;
+                    guiGraphics.fill(sx, sy, sx + slotSize - 1, sy + slotSize - 1, 0xFF2A2A2A);
+                    guiGraphics.fill(sx + 1, sy + 1, sx + slotSize - 2, sy + slotSize - 2, 0xFF1E1E1E);
+                    if (idx < rawIngredients.size()) {
+                        ItemStack[] items = rawIngredients.get(idx).getItems();
+                        if (items.length > 0) {
+                            guiGraphics.renderItem(items[0], sx + 4, sy + 4);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Generic ingredient grid with scroll
+            int slotsPerRow = 3;
+            int totalIngredients = ingredients.size();
+            int ingredientRows = Math.max(1, (totalIngredients + slotsPerRow - 1) / slotsPerRow);
+            int maxIngScroll = Math.max(0, ingredientRows - 3);
+            recipePopupIngredientScroll = Math.min(recipePopupIngredientScroll, maxIngScroll);
+
+            guiGraphics.enableScissor(gridX, gridY, gridX + gridW, gridY + gridH);
+            int startIdx = recipePopupIngredientScroll * slotsPerRow;
+            for (int idx = 0; idx < totalIngredients; idx++) {
+                int displayIdx = idx - startIdx;
+                if (displayIdx < 0) continue;
+                int row = displayIdx / slotsPerRow;
+                int col = displayIdx % slotsPerRow;
+                int sx = gridX + col * slotSize;
+                int sy = gridY + row * slotSize;
+                if (sy >= gridY + gridH) break;
+
+                ItemStack stack = ingredients.get(idx);
+                String key = ForgeRegistries.ITEMS.getKey(stack.getItem()) + ":" + stack.getDamageValue();
+                int count = ingredientCounts.getOrDefault(key, 1);
+
+                guiGraphics.fill(sx, sy, sx + slotSize - 1, sy + slotSize - 1, 0xFF2A2A2A);
+                guiGraphics.fill(sx + 1, sy + 1, sx + slotSize - 2, sy + slotSize - 2, 0xFF1E1E1E);
+                guiGraphics.renderItem(stack, sx + 4, sy + 4);
+
+                if (count > 1) {
+                    String cs = count + "x";
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(sx + slotSize - this.font.width(cs) * 0.65f - 1, sy + slotSize - 9, 200);
+                    guiGraphics.pose().scale(0.65f, 0.65f, 1.0f);
+                    guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
+                    guiGraphics.pose().popPose();
+                }
+            }
+            guiGraphics.disableScissor();
+
+            // Scroll bar
+            if (hasScroll) {
+                int sbX = gridX + gridW + 3;
+                int thumbH = Math.max(8, gridH * 3 / ingredientRows);
+                int thumbY = gridY + (int)((float) recipePopupIngredientScroll / maxIngScroll * (gridH - thumbH));
+                guiGraphics.fill(sbX, gridY, sbX + 2, gridY + gridH, 0xFF2A2A2A);
+                guiGraphics.fill(sbX, thumbY, sbX + 2, thumbY + thumbH, 0xFF666666);
+            }
+        }
+
+        // Arrow
+        int arrowX = gridX + gridW + (hasScroll ? 14 : 8);
+        int arrowY = contentY + contentH / 2 - 4;
+        guiGraphics.drawString(this.font, "\u2192", arrowX, arrowY, (typeColor & 0x00FFFFFF) | 0xFF000000, false);
+
+        // Result area
+        int resultAreaX = popupX + popupW - pad - rightColW;
+        int rSlotX = resultAreaX + (rightColW - resultSlotSize) / 2;
+        int rSlotY = contentY + Math.max(0, (contentH - resultSlotSize - 18) / 2);
+
+        // Result slot with gold border
+        guiGraphics.fill(rSlotX - 2, rSlotY - 2, rSlotX + resultSlotSize + 2, rSlotY + resultSlotSize + 2, 0xAAFFCC00);
+        guiGraphics.fill(rSlotX - 1, rSlotY - 1, rSlotX + resultSlotSize + 1, rSlotY + resultSlotSize + 1, 0xFF2A2A1A);
+        guiGraphics.fill(rSlotX, rSlotY, rSlotX + resultSlotSize, rSlotY + resultSlotSize, 0xFF1A1A14);
+
+        if (!result.isEmpty()) {
+            guiGraphics.renderItem(result, rSlotX + 8, rSlotY + 8);
+            if (result.getCount() > 1) {
+                String cs = String.valueOf(result.getCount());
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(rSlotX + resultSlotSize - this.font.width(cs) * 0.7f, rSlotY + resultSlotSize - 9, 200);
+                guiGraphics.pose().scale(0.7f, 0.7f, 1.0f);
+                guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
+                guiGraphics.pose().popPose();
+            }
+            String rName = result.getHoverName().getString();
+            int nameW = (int)(this.font.width(rName) * SMALL_SCALE);
+            if (nameW > rightColW) {
+                rName = this.font.plainSubstrByWidth(rName, (int)(rightColW / SMALL_SCALE) - 6) + "...";
+                nameW = (int)(this.font.width(rName) * SMALL_SCALE);
+            }
+            drawSmallText(guiGraphics, rName, resultAreaX + (rightColW - nameW) / 2, rSlotY + resultSlotSize + 4, 0xFFCC00);
+        }
+
+        // Workstation below result
+        if (!workstation.isEmpty()) {
+            int stationSlot = 22;
+            int stationX = resultAreaX + (rightColW - stationSlot) / 2;
+            int stationY = rSlotY + resultSlotSize + 18;
+            if (stationY + stationSlot < contentY + contentH + 10) {
+                guiGraphics.fill(stationX, stationY, stationX + stationSlot - 1, stationY + stationSlot - 1, 0xFF2A2A2A);
+                guiGraphics.fill(stationX + 1, stationY + 1, stationX + stationSlot - 2, stationY + stationSlot - 2, 0xFF1E1E1E);
+                guiGraphics.renderItem(workstation, stationX + 3, stationY + 3);
+                drawSmallText(guiGraphics, "Station", stationX - 2, stationY + stationSlot + 2, 0x555555);
+            }
+        }
+
+        // Add button (add mode only)
+        if (recipePopupAddMode) {
+            int btnW = 76;
+            int btnH = 18;
+            int btnY = popupY + popupH - pad - btnH;
+            int addBtnX = popupX + popupW / 2 - btnW / 2;
+
+            boolean aHov = mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH;
+            guiGraphics.fill(addBtnX, btnY, addBtnX + btnW, btnY + btnH, aHov ? 0x50FFCC00 : 0x25FFCC00);
+            guiGraphics.fill(addBtnX, btnY + btnH - 2, addBtnX + btnW, btnY + btnH, aHov ? 0xD0FFCC00 : 0x70FFCC00);
+            String aLabel = Component.translatable("editor.historystages.add").getString();
+            guiGraphics.drawCenteredString(this.font, aLabel, addBtnX + btnW / 2, btnY + 5, aHov ? 0xFFFFFF : 0xDDDDDD);
+        }
+    }
+
     private void drawSmallText(GuiGraphics guiGraphics, String text, int x, int y, int color) {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(x, y, 0);
@@ -635,6 +1176,27 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (recipePopupVisible) {
+            int btnW = 76, btnH = 18, btnPad = 14;
+            if (recipePopupAddMode) {
+                int btnY = cachedPopupY + cachedPopupH - btnPad - btnH;
+                int addBtnX = cachedPopupX + cachedPopupW / 2 - btnW / 2;
+                if (mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
+                    if (recipePopupAddAction != null) recipePopupAddAction.run();
+                    closeRecipePopup();
+                    if (recipeSearch.isVisible()) recipeSearch.hide();
+                    return true;
+                }
+            }
+            // Click outside popup closes everything
+            if (mouseX < cachedPopupX || mouseX > cachedPopupX + cachedPopupW
+                    || mouseY < cachedPopupY || mouseY > cachedPopupY + cachedPopupH) {
+                closeRecipePopup();
+                if (recipeSearch.isVisible()) recipeSearch.hide();
+                return true;
+            }
+            return true; // consume clicks inside popup
+        }
         if (contextMenu.isVisible()) {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
@@ -661,10 +1223,19 @@ public class StageDetailScreen extends Screen {
         if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom) return false;
 
         List<String> list = getActiveList();
-        int y = listTop - (int) scrollOffset + CARD_GAP;
+        int y = listTop - (int) smoothScrollOffset + CARD_GAP;
 
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
+                if (button == 0 && activeTab == 3) {
+                    // Left-click on recipe card: show recipe detail popup (view-only)
+                    recipePopupId = list.get(i);
+                    recipePopupVisible = true;
+                    recipePopupAddMode = false;
+                    recipePopupAddAction = null;
+                    recipePopupIngredientScroll = 0;
+                    return true;
+                }
                 if (button == 1) {
                     final int entryIdx = i;
                     final String entryValue = list.get(i);
@@ -718,8 +1289,17 @@ public class StageDetailScreen extends Screen {
                 modSearch = new SearchableModList(id -> { editMods.add(id); hasChanges = true; updateMaxScroll(); }); });
             modSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 3) {
-            recipeSearch = new SearchableRecipeList(recipeId -> { getListForSection(tabIdx).set(entryIdx, recipeId); hasChanges = true;
-                recipeSearch = new SearchableRecipeList(id -> { editRecipes.add(id); hasChanges = true; updateMaxScroll(); }); });
+            recipeSearch = new SearchableRecipeList(recipeId -> {
+                showRecipePreview(recipeId, () -> {
+                    getListForSection(tabIdx).set(entryIdx, recipeId);
+                    hasChanges = true;
+                    recipeSearch = new SearchableRecipeList(id -> {
+                        showRecipePreview(id, () -> { editRecipes.add(id); hasChanges = true; updateMaxScroll(); });
+                    });
+                    recipeSearch.setKeepVisibleOnSelect(true);
+                });
+            });
+            recipeSearch.setKeepVisibleOnSelect(true);
             recipeSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 4) {
             dimensionSearch = new SearchableDimensionList(dimId -> { getListForSection(tabIdx).set(entryIdx, dimId); hasChanges = true;
@@ -758,6 +1338,10 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (recipePopupVisible) {
+            recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
+            return true;
+        }
         if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (modSearch.isVisible() && modSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, delta)) return true;
@@ -770,6 +1354,10 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (recipePopupVisible && keyCode == 256) {
+            closeRecipePopup();
+            return true;
+        }
         if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode)) return true;
         if (modSearch.isVisible() && modSearch.keyPressed(keyCode)) return true;
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
