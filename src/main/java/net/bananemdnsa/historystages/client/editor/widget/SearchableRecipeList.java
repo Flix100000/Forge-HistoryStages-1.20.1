@@ -15,6 +15,8 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import net.bananemdnsa.historystages.util.AllRecipesCache;
+
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -39,6 +41,13 @@ public class SearchableRecipeList {
     // State
     private boolean visible = false;
     private boolean inRecipePhase = false;
+    private boolean keepVisibleOnSelect = false;
+
+    // Marquee scroll state for truncated recipe IDs
+    private int hoveredRecipeIndex = -1;
+    private long hoverStartTime = 0;
+    private static final long MARQUEE_DELAY_MS = 600;
+    private static final float MARQUEE_SPEED = 30.0f; // pixels per second
 
     // Phase 1: Item grid
     private final List<ItemEntry> allRecipeItems = new ArrayList<>();
@@ -74,7 +83,11 @@ public class SearchableRecipeList {
         if (mc.level == null) return;
 
         RegistryAccess registryAccess = mc.level.registryAccess();
-        Collection<Recipe<?>> recipes = mc.level.getRecipeManager().getRecipes();
+        // Use unfiltered recipes so locked recipes are still visible in the editor
+        Collection<Recipe<?>> allCached = AllRecipesCache.get();
+        Collection<Recipe<?>> recipes = allCached.isEmpty()
+                ? mc.level.getRecipeManager().getRecipes()
+                : allCached;
 
         for (Recipe<?> recipe : recipes) {
             try {
@@ -159,6 +172,7 @@ public class SearchableRecipeList {
 
     public void hide() { this.visible = false; this.inRecipePhase = false; }
     public boolean isVisible() { return visible; }
+    public void setKeepVisibleOnSelect(boolean keep) { this.keepVisibleOnSelect = keep; }
 
     public void setFilter(String f) {
         this.filter = f.toLowerCase();
@@ -326,12 +340,18 @@ public class SearchableRecipeList {
         int listX = recipePanelX + PADDING;
         int listW = recipePanelW - PADDING * 2 - 8;
 
+        // Track which recipe row is hovered for marquee
+        int currentHoveredIndex = -1;
+
         for (int i = 0; i < RECIPE_VISIBLE_ROWS; i++) {
             int index = recipeScrollRow + i;
             int rowY = listY + i * RECIPE_ROW_HEIGHT;
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + RECIPE_ROW_HEIGHT;
+
+            if (rowHovered && index < currentRecipes.size()) currentHoveredIndex = index;
+
             guiGraphics.fill(listX, rowY, listX + listW, rowY + RECIPE_ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
             guiGraphics.fill(listX, rowY, listX + listW, rowY + 1, 0xFF3D3D3D);
@@ -339,52 +359,55 @@ public class SearchableRecipeList {
             if (index < currentRecipes.size()) {
                 RecipeInfo recipe = currentRecipes.get(index);
 
-                // Workstation icon (left side)
-                int iconX = listX + 3;
-                if (!recipe.workstation.isEmpty()) {
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(iconX, rowY + 3, 0);
-                    guiGraphics.pose().scale(0.85f, 0.85f, 1.0f);
-                    guiGraphics.renderItem(recipe.workstation, 0, 0);
-                    guiGraphics.pose().popPose();
-                    iconX += 16;
-                }
-
-                // Render ingredient icons (up to 3)
-                int maxIcons = Math.min(3, recipe.ingredients.size());
-                for (int j = 0; j < maxIcons; j++) {
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(iconX, rowY + 3, 0);
-                    guiGraphics.pose().scale(0.85f, 0.85f, 1.0f);
-                    guiGraphics.renderItem(recipe.ingredients.get(j), 0, 0);
-                    guiGraphics.pose().popPose();
-                    iconX += 16;
-                }
-                if (recipe.ingredients.size() > 3) {
-                    guiGraphics.drawString(font, "+" + (recipe.ingredients.size() - 3), iconX, rowY + 7, 0x888888, false);
-                    iconX += 16;
-                }
-
-                // Arrow
-                guiGraphics.drawString(font, "\u2192", iconX + 2, rowY + 7, 0xFFCC00, false);
-                iconX += 12;
+                // Recipe type color bar (left edge, 2px wide)
+                int typeColor = getRecipeTypeColor(recipe.type);
+                guiGraphics.fill(listX, rowY + 1, listX + 2, rowY + RECIPE_ROW_HEIGHT, typeColor);
 
                 // Result icon
                 guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(iconX, rowY + 3, 0);
+                guiGraphics.pose().translate(listX + 5, rowY + 3, 0);
                 guiGraphics.pose().scale(0.85f, 0.85f, 1.0f);
                 guiGraphics.renderItem(recipe.result, 0, 0);
                 guiGraphics.pose().popPose();
 
-                // Recipe ID (truncated)
-                String recipeIdText = "\u00A77" + recipe.recipeId;
-                int textX = iconX + 18;
+                // Recipe ID with marquee scroll for truncated text
+                String fullText = recipe.recipeId;
+                int textX = listX + 22;
                 int availW = listX + listW - textX - 2;
-                if (font.width(recipeIdText) > availW) {
-                    recipeIdText = font.plainSubstrByWidth(recipeIdText, availW - 8) + "...";
+                int fullTextW = font.width(fullText);
+
+                if (fullTextW > availW && rowHovered && index == hoveredRecipeIndex) {
+                    // Marquee scroll: clip text area and scroll
+                    long elapsed = System.currentTimeMillis() - hoverStartTime;
+                    if (elapsed > MARQUEE_DELAY_MS) {
+                        float scrollProgress = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                        int maxScroll = fullTextW - availW + 10;
+                        // Ping-pong: scroll right then back left
+                        float cycle = (float) maxScroll * 2;
+                        float pos = scrollProgress % cycle;
+                        int scrollOff = pos <= maxScroll ? (int) pos : (int) (cycle - pos);
+
+                        guiGraphics.enableScissor(textX, rowY, textX + availW, rowY + RECIPE_ROW_HEIGHT);
+                        guiGraphics.drawString(font, fullText, textX - scrollOff, rowY + 7, 0xFFFFFF, false);
+                        guiGraphics.disableScissor();
+                    } else {
+                        // Still in delay, show truncated
+                        String truncated = font.plainSubstrByWidth(fullText, availW - 8) + "...";
+                        guiGraphics.drawString(font, truncated, textX, rowY + 7, 0xFFFFFF, false);
+                    }
+                } else if (fullTextW > availW) {
+                    String truncated = font.plainSubstrByWidth(fullText, availW - 8) + "...";
+                    guiGraphics.drawString(font, truncated, textX, rowY + 7, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+                } else {
+                    guiGraphics.drawString(font, fullText, textX, rowY + 7, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
                 }
-                guiGraphics.drawString(font, recipeIdText, textX, rowY + 7, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
             }
+        }
+
+        // Update marquee hover tracking
+        if (currentHoveredIndex != hoveredRecipeIndex) {
+            hoveredRecipeIndex = currentHoveredIndex;
+            hoverStartTime = System.currentTimeMillis();
         }
 
         // Scrollbar
@@ -398,6 +421,17 @@ public class SearchableRecipeList {
             int thumbY = scrollBarTop + (int) ((float) recipeScrollRow / recipeMaxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
+    }
+
+    private static int getRecipeTypeColor(String type) {
+        if (type.contains("crafting")) return 0xFFFFCC00;     // Gold - crafting
+        if (type.contains("smelting")) return 0xFFFF6600;     // Orange - smelting
+        if (type.contains("blasting")) return 0xFFFF3300;     // Red-orange - blasting
+        if (type.contains("smoking")) return 0xFF996633;      // Brown - smoking
+        if (type.contains("campfire")) return 0xFFFF9900;     // Warm orange - campfire
+        if (type.contains("stonecutting")) return 0xFF999999;  // Gray - stonecutting
+        if (type.contains("smithing")) return 0xFF4499CC;     // Blue - smithing
+        return 0xFF66CC66;                                     // Green - modded/unknown
     }
 
     // ========== INPUT ==========
@@ -484,7 +518,7 @@ public class SearchableRecipeList {
             if (index < currentRecipes.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + RECIPE_ROW_HEIGHT) {
                 onSelect.accept(currentRecipes.get(index).recipeId);
-                hide();
+                if (!keepVisibleOnSelect) hide();
                 return true;
             }
         }

@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.events.RecipeHandler;
+import net.bananemdnsa.historystages.util.AllRecipesCache;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -33,6 +34,9 @@ public class RecipeManagerMixin {
             StageData.SERVER_CACHE.clear();
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         }
+
+        // Save complete unfiltered recipe list for editor access
+        AllRecipesCache.set(new ArrayList<>(this.byName.values()));
 
         // Registry "reinigen" - pro RecipeType absichern, damit ein fehlerhaftes
         // Rezept nicht alle anderen RecipeTypes (z.B. sewingkit:sewing) mitzieht

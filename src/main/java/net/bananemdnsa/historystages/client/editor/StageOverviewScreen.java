@@ -32,6 +32,19 @@ public class StageOverviewScreen extends Screen {
     private boolean draggingScrollbar = false;
     private ContextMenu contextMenu;
 
+    // Animation state
+    private final java.util.Map<Integer, Float> hoverProgress = new java.util.HashMap<>();
+    private int lastHoveredIndex = -1;
+
+    // Marquee state
+    private int hoveredStageIndex = -1;
+    private long stageHoverStartTime = 0;
+    private static final long MARQUEE_DELAY_MS = 800;
+    private static final float MARQUEE_SPEED = 25.0f;
+
+    // Smooth scroll
+    private float smoothScroll = 0;
+
     public StageOverviewScreen() {
         super(Component.translatable("editor.historystages.title"));
     }
@@ -62,6 +75,10 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Smooth scroll
+        smoothScroll += ((float) scrollOffset - smoothScroll) * 0.25f;
+        if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f) smoothScroll = (float) scrollOffset;
+
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
         guiGraphics.fill(10, HEADER_HEIGHT, this.width - 10, HEADER_HEIGHT + 1, 0xFF555555);
@@ -73,9 +90,15 @@ public class StageOverviewScreen extends Screen {
 
         guiGraphics.enableScissor(listLeft, listTop, listRight, listBottom);
 
-        Map<String, StageEntry> stages = StageManager.getStages();
-        int y = listTop - (int) scrollOffset;
+        boolean overlayOpen = contextMenu != null && contextMenu.isVisible();
+        int effectiveMouseX = overlayOpen ? -1 : mouseX;
+        int effectiveMouseY = overlayOpen ? -1 : mouseY;
 
+        Map<String, StageEntry> stages = StageManager.getStages();
+        int y = listTop - (int) smoothScroll;
+
+        int currentHovered = -1;
+        int currentHoveredStage = -1;
         for (int i = 0; i < stageOrder.size(); i++) {
             String stageId = stageOrder.get(i);
             StageEntry entry = stages.get(stageId);
@@ -86,11 +109,43 @@ public class StageOverviewScreen extends Screen {
 
             if (entryBottom < listTop || entryTop > listBottom) continue;
 
-            boolean hovered = mouseX >= listLeft && mouseX <= listRight
-                    && mouseY >= Math.max(entryTop, listTop) && mouseY <= Math.min(entryBottom, listBottom);
+            // Lock button bounds (calculated early for hover exclusion)
+            int lockBtnX = listRight - 60;
+            int lockBtnY = entryTop + 5;
+            int lockBtnW = 50;
+            int lockBtnH = 16;
+            boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
+                    && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
 
-            int bgColor = hovered ? 0x40FFFFFF : 0x20FFFFFF;
+            boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
+                    && effectiveMouseY >= Math.max(entryTop, listTop) && effectiveMouseY <= Math.min(entryBottom, listBottom)
+                    && !onLockBtn;
+
+            if (hovered) { currentHovered = i; currentHoveredStage = i; }
+
+            // Smooth hover animation (0.0 -> 1.0)
+            float progress = hoverProgress.getOrDefault(i, 0.0f);
+            if (hovered) {
+                progress = Math.min(1.0f, progress + 0.08f);
+            } else {
+                progress = Math.max(0.0f, progress - 0.06f);
+            }
+            if (progress > 0.001f) hoverProgress.put(i, progress);
+            else hoverProgress.remove(i);
+
+            // Animated background - subtle gold tint on hover
+            int bgAlpha = (int) (0x20 + progress * 0x25);
+            int bgR = (int) (0xFF + progress * (0xFF - 0xFF));
+            int bgG = (int) (0xFF + progress * (0xCC - 0xFF));
+            int bgB = (int) (0xFF + progress * (0x00 - 0xFF));
+            int bgColor = (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB;
             guiGraphics.fill(listLeft, entryTop, listRight, entryBottom, bgColor);
+
+            // Gold accent bar on left when hovered
+            if (progress > 0.01f) {
+                int accentAlpha = (int) (progress * 0xFF);
+                guiGraphics.fill(listLeft, entryTop, listLeft + 2, entryBottom, (accentAlpha << 24) | 0xFFCC00);
+            }
 
             // Lock/unlock icon
             boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
@@ -98,23 +153,39 @@ public class StageOverviewScreen extends Screen {
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
 
-            // Stage name
+            // Stage name with marquee for long names
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
-            guiGraphics.drawString(this.font, displayText, listLeft + 22, entryTop + 4, 0xFFFFFF, false);
+            int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
+            int nameX = listLeft + 22;
+            int nameAvailW = (listRight - 60) - nameX - 5; // account for lock button
+            int nameW = this.font.width(displayText);
+
+            if (nameW > nameAvailW && hovered && i == hoveredStageIndex) {
+                long elapsed = System.currentTimeMillis() - stageHoverStartTime;
+                if (elapsed > MARQUEE_DELAY_MS) {
+                    float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                    int maxMarquee = nameW - nameAvailW + 10;
+                    float cycle = (float) maxMarquee * 2;
+                    float pos = scrollProg % cycle;
+                    int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                    guiGraphics.enableScissor(nameX, entryTop, nameX + nameAvailW, entryBottom);
+                    guiGraphics.drawString(this.font, displayText, nameX - scrollOff, entryTop + 4, nameColor, false);
+                    guiGraphics.disableScissor();
+                } else {
+                    guiGraphics.drawString(this.font, displayText, nameX, entryTop + 4, nameColor, false);
+                }
+            } else {
+                guiGraphics.drawString(this.font, displayText, nameX, entryTop + 4, nameColor, false);
+            }
 
             // Item count info
             int itemCount = entry.getItems().size() + entry.getTags().size() + entry.getMods().size();
             String info = itemCount + " entries";
-            guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, 0x888888, false);
+            int infoColor = (int) (0x88 + progress * 0x33);
+            guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
 
-            // Lock/Unlock toggle button (right side)
-            int lockBtnX = listRight - 60;
-            int lockBtnY = entryTop + 5;
-            int lockBtnW = 50;
-            int lockBtnH = 16;
-            boolean lockBtnHovered = mouseX >= lockBtnX && mouseX <= lockBtnX + lockBtnW
-                    && mouseY >= lockBtnY && mouseY <= lockBtnY + lockBtnH
-                    && mouseY >= listTop && mouseY <= listBottom;
+            // Lock/Unlock toggle button (right side) - bounds already calculated above
+            boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
 
             int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
             guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
@@ -126,6 +197,13 @@ public class StageOverviewScreen extends Screen {
             int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
             int textW = this.font.width(lockLabel);
             guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor, false);
+        }
+        lastHoveredIndex = currentHovered;
+
+        // Update marquee tracking
+        if (currentHoveredStage != hoveredStageIndex) {
+            hoveredStageIndex = currentHoveredStage;
+            stageHoverStartTime = System.currentTimeMillis();
         }
 
         guiGraphics.disableScissor();

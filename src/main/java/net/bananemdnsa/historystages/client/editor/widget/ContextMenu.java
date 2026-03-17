@@ -20,6 +20,8 @@ public class ContextMenu {
     private int menuWidth;
     private int menuHeight;
     private boolean visible = false;
+    private long showTime = 0;
+    private static final long FADE_DURATION_MS = 120;
 
     public void addEntry(String label, Runnable action) {
         entries.add(new Entry(label, action));
@@ -29,6 +31,7 @@ public class ContextMenu {
         this.x = x;
         this.y = y;
         this.visible = true;
+        this.showTime = System.currentTimeMillis();
 
         // Calculate width based on longest entry
         menuWidth = MIN_WIDTH;
@@ -49,12 +52,25 @@ public class ContextMenu {
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         if (!visible) return;
 
-        // Background
-        guiGraphics.fill(x, y, x + menuWidth, y + menuHeight, 0xFF1A1A1A);
-        guiGraphics.fill(x, y, x + menuWidth, y + 1, 0xFF4A4A4A);
-        guiGraphics.fill(x, y + menuHeight - 1, x + menuWidth, y + menuHeight, 0xFF4A4A4A);
-        guiGraphics.fill(x, y, x + 1, y + menuHeight, 0xFF4A4A4A);
-        guiGraphics.fill(x + menuWidth - 1, y, x + menuWidth, y + menuHeight, 0xFF4A4A4A);
+        // Fade-in animation
+        float fadeProgress = Math.min(1.0f, (System.currentTimeMillis() - showTime) / (float) FADE_DURATION_MS);
+        int baseAlpha = (int) (fadeProgress * 0xFF);
+        if (baseAlpha < 4) return;
+
+        // Background with fade
+        int bgColor = (baseAlpha << 24) | 0x1A1A1A;
+        guiGraphics.fill(x, y, x + menuWidth, y + menuHeight, bgColor);
+
+        // Gold top accent line
+        int accentAlpha = (int) (fadeProgress * 0xFF);
+        guiGraphics.fill(x, y, x + menuWidth, y + 2, (accentAlpha << 24) | 0xFFCC00);
+
+        // Borders
+        int borderAlpha = (int) (fadeProgress * 0x4A);
+        int borderColor = (borderAlpha << 24) | 0x4A4A4A;
+        guiGraphics.fill(x, y + menuHeight - 1, x + menuWidth, y + menuHeight, borderColor);
+        guiGraphics.fill(x, y, x + 1, y + menuHeight, borderColor);
+        guiGraphics.fill(x + menuWidth - 1, y, x + menuWidth, y + menuHeight, borderColor);
 
         for (int i = 0; i < entries.size(); i++) {
             int entryY = y + PADDING + i * ITEM_HEIGHT;
@@ -65,7 +81,9 @@ public class ContextMenu {
                 guiGraphics.fill(x + 1, entryY, x + menuWidth - 1, entryY + ITEM_HEIGHT, 0x40FFFFFF);
             }
 
-            guiGraphics.drawString(font, entries.get(i).label, x + PADDING + 2, entryY + 4, hovered ? 0xFFFFFF : 0xCCCCCC, false);
+            int textAlpha = (int) (fadeProgress * (hovered ? 0xFF : 0xCC));
+            int textColor = (0xFF << 24) | (textAlpha << 16) | (textAlpha << 8) | textAlpha;
+            guiGraphics.drawString(font, entries.get(i).label, x + PADDING + 2, entryY + 4, textColor, false);
         }
     }
 
