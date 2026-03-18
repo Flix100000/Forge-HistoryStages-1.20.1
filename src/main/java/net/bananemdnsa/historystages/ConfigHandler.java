@@ -6,6 +6,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraftforge.fml.loading.FMLPaths;
 
+import net.bananemdnsa.historystages.util.DebugLogger;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -30,7 +32,8 @@ public class ConfigHandler {
                 createExampleJson(exampleFile);
             }
         } catch (IOException e) {
-            System.err.println("Could not create config directory: " + e.getMessage());
+            System.err.println("[HistoryStages] Could not create config directory: " + e.getMessage());
+            DebugLogger.error("Config Setup", "Could not create config directory: " + e.getMessage());
         }
     }
 

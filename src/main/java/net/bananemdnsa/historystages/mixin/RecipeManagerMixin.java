@@ -15,6 +15,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import net.bananemdnsa.historystages.util.DebugLogger;
+
 import java.util.*;
 
 @Mixin(RecipeManager.class)
@@ -49,6 +51,7 @@ public class RecipeManagerMixin {
             } catch (Exception e) {
                 // Bei Fehler den RecipeType unverändert übernehmen statt zu verlieren
                 System.err.println("[HistoryStages] Fehler beim Filtern von RecipeType " + type + ": " + e.getMessage());
+                DebugLogger.error("Recipe Filtering", "Failed to filter RecipeType '" + type + "': " + e.getMessage());
                 newRecipes.put(type, map);
             }
         });
@@ -65,6 +68,7 @@ public class RecipeManagerMixin {
                 return outputLocked || idLocked;
             } catch (Exception ex) {
                 System.err.println("[HistoryStages] Fehler beim Filtern von Rezept " + e.getKey() + ": " + ex.getMessage());
+                DebugLogger.error("Recipe Filtering", "Failed to filter recipe '" + e.getKey() + "': " + ex.getMessage());
                 return false; // Im Zweifel Rezept behalten
             }
         });

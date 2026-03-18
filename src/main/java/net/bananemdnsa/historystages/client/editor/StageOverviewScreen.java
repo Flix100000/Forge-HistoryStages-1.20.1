@@ -179,7 +179,9 @@ public class StageOverviewScreen extends Screen {
             }
 
             // Item count info
-            int itemCount = entry.getItems().size() + entry.getTags().size() + entry.getMods().size();
+            int itemCount = entry.getItems().size() + entry.getTags().size() + entry.getMods().size()
+                    + entry.getRecipes().size() + entry.getDimensions().size()
+                    + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
             guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
