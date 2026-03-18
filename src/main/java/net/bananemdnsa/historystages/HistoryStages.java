@@ -115,20 +115,25 @@ public class HistoryStages {
 
             // Welcome message
             if (Config.COMMON.showWelcomeMessage.get()) {
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §fThank you for using §bHistory Stages§f!"));
-                player.sendSystemMessage(Component.literal("§7Define your stages in §fconfig/historystages/§7 and adjust settings in §fhistorystages-common.toml §7& §fhistorystages-client.toml§7."));
-                player.sendSystemMessage(Component.literal("§8(You can disable this message in the common config)"));
+                int stageCount = StageManager.getStages().size();
+                player.sendSystemMessage(Component.literal("§8§m                                                §r"));
+                player.sendSystemMessage(Component.literal("  §b§lHistory Stages §7— §fWelcome!"));
+                player.sendSystemMessage(Component.literal("  §7Loaded §f" + stageCount + " §7stage" + (stageCount != 1 ? "s" : "") + " from §fconfig/historystages/"));
+                player.sendSystemMessage(Component.literal("  §7Settings: §fhistorystages-common.toml §7& §fhistorystages-client.toml"));
+                player.sendSystemMessage(Component.literal("  §8(Disable this message in the common config)"));
+                player.sendSystemMessage(Component.literal("§8§m                                                §r"));
             }
 
             // Debug error messages
             if (Config.COMMON.showDebugErrors.get()) {
                 List<String> errors = StageManager.getLoadingErrors();
                 if (!errors.isEmpty()) {
-                    player.sendSystemMessage(Component.literal("§7[HistoryStages] §cDebug Info: Issues in JSON configs found!"));
+                    player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFound §f" + errors.size() + " §cissue" + (errors.size() != 1 ? "s" : "") + " in stage configs:"));
                     for (String error : errors) {
-                        player.sendSystemMessage(Component.literal(error));
+                        player.sendSystemMessage(Component.literal("  " + error));
                     }
-                    player.sendSystemMessage(Component.literal("§8(This is a debug message. Disable it in the common config for players)"));
+                    player.sendSystemMessage(Component.literal("  §8Full report: config/historystages/logs/"));
+                    player.sendSystemMessage(Component.literal("  §8(Disable debug messages in the common config)"));
                 }
             }
         }

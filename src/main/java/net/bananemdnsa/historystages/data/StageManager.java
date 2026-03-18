@@ -9,10 +9,15 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import net.bananemdnsa.historystages.util.DebugLogger;
+
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +30,8 @@ public class StageManager {
 
     public static void load() {
         STAGES.clear();
-        LOADING_ERRORS.clear(); // Liste leeren beim Neuladen
+        LOADING_ERRORS.clear();
+        DebugLogger.clear();
 
         File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
         if (!configDir.exists()) configDir.mkdirs();
@@ -45,16 +51,25 @@ public class StageManager {
                     validateAndAdd(id, entry);
                 }
             } catch (Exception e) {
-                LOADING_ERRORS.add("§c[Debug] Error in file: §e" + file.getName() + " §7(Invalid JSON syntax, stage skipped)");
+                String msg = "Error in file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
+                LOADING_ERRORS.add("§c[Debug] " + msg);
+                DebugLogger.error("Stage Loading", msg + " — " + e.getMessage());
             }
         }
+
+        DebugLogger.setStagesLoaded(STAGES.size());
+        DebugLogger.writeLogFile();
     }
 
     private static void validateAndAdd(String stageId, StageEntry entry) {
-        // Items prüfen und ungültige entfernen
+        // Items prüfen — nur Format-Validierung, NICHT gegen Registry prüfen!
+        // Grund: load() wird im Mod-Konstruktor aufgerufen, zu diesem Zeitpunkt
+        // sind die Registries anderer Mods (z.B. Create) noch nicht befüllt.
+        // Eine Registry-Prüfung würde gültige Items fälschlicherweise entfernen.
         entry.getItems().removeIf(itemId -> {
-            if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemId))) {
-                LOADING_ERRORS.add("§7[Debug] §fItem §e" + itemId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
+            if (!ResourceLocation.isValidResourceLocation(itemId)) {
+                LOADING_ERRORS.add("§7[Debug] §fItem §e" + itemId + " §finvalid format (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Items", "Item '" + itemId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -64,16 +79,23 @@ public class StageManager {
         entry.getTags().removeIf(tagId -> {
             if (!ResourceLocation.isValidResourceLocation(tagId)) {
                 LOADING_ERRORS.add("§7[Debug] §fTag §e" + tagId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Tags", "Tag '" + tagId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
         });
 
-        // Mods prüfen
+        // Mods prüfen — nur Format, nicht entfernen wenn Mod fehlt.
+        // Fehlende Mods sind kein Fehler (optionale Mod-Abhängigkeiten sind normal).
+        // Die Lock-Logik ignoriert nicht-geladene Mods ohnehin automatisch.
         entry.getMods().removeIf(modId -> {
-            if (!ModList.get().isLoaded(modId)) {
-                LOADING_ERRORS.add("§7[Debug] §fMod §e" + modId + " §fnot found (Stage: §b" + stageId + "§f). Skipping.");
+            if (modId == null || modId.isEmpty() || modId.contains(" ")) {
+                LOADING_ERRORS.add("§7[Debug] §fMod §e" + modId + " §finvalid format (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Mods", "Mod ID '" + modId + "' has invalid format (Stage: " + stageId + "). Removed.");
                 return true;
+            }
+            if (!ModList.get().isLoaded(modId)) {
+                DebugLogger.info("Missing Mods", "Mod '" + modId + "' is not installed (Stage: " + stageId + "). Entry kept — will apply if mod is added later.");
             }
             return false;
         });
@@ -82,6 +104,7 @@ public class StageManager {
         entry.getDimensions().removeIf(dimId -> {
             if (!ResourceLocation.isValidResourceLocation(dimId)) {
                 LOADING_ERRORS.add("§7[Debug] §fDimension §e" + dimId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Dimensions", "Dimension '" + dimId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -91,6 +114,7 @@ public class StageManager {
         entry.getRecipes().removeIf(recipeId -> {
             if (!ResourceLocation.isValidResourceLocation(recipeId)) {
                 LOADING_ERRORS.add("§7[Debug] §fRecipe §e" + recipeId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Recipes", "Recipe '" + recipeId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -100,6 +124,7 @@ public class StageManager {
         entry.getEntities().getAttacklock().removeIf(entityId -> {
             if (!ResourceLocation.isValidResourceLocation(entityId)) {
                 LOADING_ERRORS.add("§7[Debug] §fEntity (attacklock) §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Entities", "Entity attacklock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -109,14 +134,16 @@ public class StageManager {
         entry.getEntities().getSpawnlock().removeIf(entityId -> {
             if (!ResourceLocation.isValidResourceLocation(entityId)) {
                 LOADING_ERRORS.add("§7[Debug] §fEntity (spawnlock) §e" + entityId + " §finvalid (Stage: §b" + stageId + "§f). Skipping.");
+                DebugLogger.warn("Invalid Entities", "Entity spawnlock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
         });
 
-        // Research Time Info
-        if (entry.getResearchTime() <= 0) {
-            LOADING_ERRORS.add("§7[Debug] §fStage §b" + stageId + " §fhas no 'research_time' defined. Using global config default.");
+        // Research Time Info (nur negativ ist ein Fehler, 0 = globaler Default ist gewollt)
+        if (entry.getResearchTime() < 0) {
+            LOADING_ERRORS.add("§7[Debug] §fStage §b" + stageId + " §fhas negative 'research_time' (" + entry.getResearchTime() + "). Using global config default.");
+            DebugLogger.warn("Configuration", "Stage '" + stageId + "' has negative research_time (" + entry.getResearchTime() + "). Falling back to global default.");
         }
 
         STAGES.put(stageId, entry);
@@ -239,6 +266,59 @@ public class StageManager {
             return entry.getResearchTime() * 20;
         }
         return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    public static boolean saveStage(String stageId, StageEntry entry) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        if (!configDir.exists()) configDir.mkdirs();
+
+        File file = new File(configDir, stageId + ".json");
+        try (Writer writer = new FileWriter(file)) {
+            writer.write(entry.toJson());
+            STAGES.put(stageId, entry);
+            return true;
+        } catch (Exception e) {
+            System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
+            DebugLogger.error("Stage Saving", "Failed to save stage '" + stageId + "': " + e.getMessage());
+            DebugLogger.writeLogFile();
+            return false;
+        }
+    }
+
+    public static boolean deleteStage(String stageId) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File file = new File(configDir, stageId + ".json");
+        if (file.exists() && file.delete()) {
+            STAGES.remove(stageId);
+            return true;
+        }
+        return false;
+    }
+
+    public static List<String> getStageOrder() {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        if (!configDir.exists()) return new ArrayList<>(STAGES.keySet());
+
+        File[] files = configDir.listFiles((dir, name) ->
+                name.endsWith(".json") && !name.startsWith("_")
+        );
+        if (files == null) return new ArrayList<>(STAGES.keySet());
+
+        Arrays.sort(files);
+        List<String> order = new ArrayList<>();
+        for (File file : files) {
+            String id = file.getName().replace(".json", "");
+            if (STAGES.containsKey(id)) {
+                order.add(id);
+            }
+        }
+        // Add any stages not found as files (shouldn't happen, but safety)
+        for (String id : STAGES.keySet()) {
+            if (!order.contains(id)) {
+                order.add(id);
+            }
+        }
+        return order;
     }
 
     public static boolean isRecipeIdLockedForServer(String recipeId) {

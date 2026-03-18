@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.events.RecipeHandler;
+import net.bananemdnsa.historystages.util.AllRecipesCache;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -13,6 +14,8 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+import net.bananemdnsa.historystages.util.DebugLogger;
 
 import java.util.*;
 
@@ -34,6 +37,9 @@ public class RecipeManagerMixin {
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
         }
 
+        // Save complete unfiltered recipe list for editor access
+        AllRecipesCache.set(new ArrayList<>(this.byName.values()));
+
         // Registry "reinigen" - pro RecipeType absichern, damit ein fehlerhaftes
         // Rezept nicht alle anderen RecipeTypes (z.B. sewingkit:sewing) mitzieht
         Map<RecipeType<?>, Map<ResourceLocation, Recipe<?>>> newRecipes = new HashMap<>();
@@ -45,6 +51,7 @@ public class RecipeManagerMixin {
             } catch (Exception e) {
                 // Bei Fehler den RecipeType unverändert übernehmen statt zu verlieren
                 System.err.println("[HistoryStages] Fehler beim Filtern von RecipeType " + type + ": " + e.getMessage());
+                DebugLogger.error("Recipe Filtering", "Failed to filter RecipeType '" + type + "': " + e.getMessage());
                 newRecipes.put(type, map);
             }
         });
@@ -61,6 +68,7 @@ public class RecipeManagerMixin {
                 return outputLocked || idLocked;
             } catch (Exception ex) {
                 System.err.println("[HistoryStages] Fehler beim Filtern von Rezept " + e.getKey() + ": " + ex.getMessage());
+                DebugLogger.error("Recipe Filtering", "Failed to filter recipe '" + e.getKey() + "': " + ex.getMessage());
                 return false; // Im Zweifel Rezept behalten
             }
         });
