@@ -11,7 +11,10 @@ dimensions, mobs, and mod content behind custom research stages.
 
 - Global Progression: When a stage is unlocked, it is
   available for everyone on the server.
-- Deep Gating: Lock content by Item ID, Tags, or entire Mod IDs.
+- Deep Gating: Lock content by Item ID, Recipe ID, Tags,
+  or entire Mod IDs.
+- Recipe Locking: Hide specific crafting recipes from
+  crafting menus by recipe ID.
 - Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
 - Entity Control: Two lock modes for entities:
@@ -19,15 +22,23 @@ dimensions, mobs, and mod content behind custom research stages.
   - Spawnlock: Prevent entities from spawning entirely.
     Spawnlocked entities are also automatically attacklocked.
 - Smart Loot: Locked items are removed from chests or replaced
-  with configurable items like Cobblestone.
+  with configurable items.
 - Mob Loot Lock: Locked items are removed from mob drops.
 - Lock Icon Overlay: Locked items show a lock icon in
   inventories and JEI (auto-disabled with EMI).
 - Research System: Uses a Research Pedestal and Research Scrolls
   with configurable research time per stage.
+- In-Game Stage Editor: Full GUI for creating, editing,
+  duplicating, and deleting stages without leaving the game.
+- In-Game Config Editor: Modify all mod settings from within
+  the game with organized categories and reset-to-defaults.
 - JEI/EMI Support: Automatically hides or marks locked items.
+- Debug Logging: Configurable debug log system for
+  troubleshooting config validation and stage loading.
 - Forge Events: Fires StageEvent.Unlocked/Locked events for
   KubeJS, CraftTweaker, and other mod integrations.
+- Toast Notifications: Advancement-style popup notifications
+  when stages are unlocked.
 - Localization: English and German translations included.
 
 ----------------------------------------------------------------
@@ -43,6 +54,7 @@ Example format:
   "items": ["minecraft:iron_ingot"],
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
+  "recipes": ["minecraft:iron_pickaxe"],
   "dimensions": ["minecraft:the_nether"],
   "entities": {
     "attacklock": ["minecraft:zombie"],
@@ -57,11 +69,15 @@ FIELDS:
 - items: List of item IDs to lock (e.g. "minecraft:diamond").
 - tags: List of item tags to lock (e.g. "forge:ores/iron").
 - mods: List of mod IDs to lock all items from (e.g. "mekanism").
+- recipes: List of recipe IDs to hide from crafting menus.
 - dimensions: List of dimension IDs to block access to.
 - entities: Object with two optional subcategories:
   - attacklock: Entities that cannot be attacked by players.
   - spawnlock: Entities that are prevented from spawning entirely.
     Spawnlocked entities are also automatically attacklocked.
+
+Note: JSON files prefixed with underscore (e.g. _exampleStage.json)
+are ignored during loading.
 
 RESEARCH SCROLLS & PEDESTAL:
 1. Place a Research Pedestal.
@@ -69,12 +85,24 @@ RESEARCH SCROLLS & PEDESTAL:
 3. Wait for the research process to finish.
 4. The stage is now unlocked globally.
 
+The pedestal emits light (level 13) while actively researching
+and progress is saved in the scroll item's NBT data.
+
 IMPORTANT: This mod does NOT include default crafting recipes
 for the pedestal or scrolls. You MUST add them yourself using
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
-3. ADMIN COMMANDS (Permission Level 2)
+3. IN-GAME STAGE EDITOR
+----------------------------------------------------------------
+
+History Stages includes a full in-game editor for creating,
+editing, duplicating, and deleting stages. No need to leave
+the game or manually edit JSON files. All stage configs and
+mod settings can be managed directly from within the GUI.
+
+----------------------------------------------------------------
+4. ADMIN COMMANDS (Permission Level 2)
 ----------------------------------------------------------------
 
 /history unlock <stage>  - Unlocks a stage. Use '*' for all.
@@ -84,7 +112,7 @@ KubeJS, CraftTweaker, or a Datapack.
 /history reload          - Reloads JSONs and syncs players.
 
 ----------------------------------------------------------------
-4. OBTAINING SCROLLS VIA COMMAND
+5. OBTAINING SCROLLS VIA COMMAND
 ----------------------------------------------------------------
 
 /give @s historystages:research_scroll{StageResearch:"stage_id"}
@@ -92,30 +120,39 @@ KubeJS, CraftTweaker, or a Datapack.
 (Replace "stage_id" with your JSON filename, e.g. "bronze_age")
 
 ----------------------------------------------------------------
-5. CONFIGURATION
+6. CONFIGURATION
 ----------------------------------------------------------------
 
 CLIENT CONFIG (per player):
-- hideInJei: Hide locked items from JEI.
+- hideInJei: Hide locked items from JEI/EMI.
 - showTooltips: Show required stages on locked items.
+- showStageName: Show required stage name in tooltips.
+- showAllUntilComplete: Show all required stages until unlocked.
 - showLockIcons: Show lock icon overlay on locked items.
 - Dimension lock feedback: Actionbar and/or chat messages.
 - Mob lock feedback: Actionbar and/or chat messages.
 
 COMMON CONFIG (server-side):
+- showWelcomeMessage: Display welcome message on player join.
+- showDebugErrors: Show config validation errors in chat.
 - lockMobLoot: Remove locked items from mob drops.
 - broadcastChat: Broadcast unlock/lock messages to all players.
-- unlockMessageFormat: Customize the unlock message text.
-- researchTimeInSeconds: Default research duration (fallback if
-  a stage does not define its own 'research_time' in the JSON).
+- unlockMessageFormat: Customize the unlock message text
+  (supports {stage} placeholder).
+- useActionbar: Show messages in actionbar.
+- useSounds: Play notification sounds.
+- useToasts: Show advancement-style toast popups.
+- researchTimeInSeconds: Default research duration (default: 20s).
 - useReplacements: Replace locked loot with alternative items.
+- replacementItems: List of replacement item IDs.
+- replacementTag: List of item tags for replacement fallback.
 
 Config files are located at:
 - Client: /config/historystages-client.toml
 - Common: /config/historystages-common.toml
 
 ----------------------------------------------------------------
-6. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
+7. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
 ----------------------------------------------------------------
 
 HistoryStages fires custom Forge events on the EVENT_BUS:
@@ -135,19 +172,12 @@ ForgeEvents.onEvent(
 );
 
 ----------------------------------------------------------------
-7. DEPENDENCIES
+8. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
 - Optional: JEI (recipe viewer integration)
 - Optional: EMI (alternative recipe viewer integration)
-
-----------------------------------------------------------------
-8. NOTE: IN DEVELOPMENT
-----------------------------------------------------------------
-
-This mod is currently in active development. Bugs may occur.
-Please report any issues to help improve the mod.
 
 ----------------------------------------------------------------
 License: MIT
