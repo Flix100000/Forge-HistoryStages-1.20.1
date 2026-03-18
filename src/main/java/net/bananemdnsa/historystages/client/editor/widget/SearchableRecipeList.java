@@ -35,7 +35,7 @@ public class SearchableRecipeList {
 
     // Recipe list phase constants
     private static final int RECIPE_ROW_HEIGHT = 22;
-    private static final int RECIPE_VISIBLE_ROWS = 8;
+    private static final int RECIPE_VISIBLE_ROWS = 5;
     private static final int RECIPE_PANEL_WIDTH = 300;
 
     // State
@@ -354,7 +354,6 @@ public class SearchableRecipeList {
 
             guiGraphics.fill(listX, rowY, listX + listW, rowY + RECIPE_ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
-            guiGraphics.fill(listX, rowY, listX + listW, rowY + 1, 0xFF3D3D3D);
 
             if (index < currentRecipes.size()) {
                 RecipeInfo recipe = currentRecipes.get(index);
