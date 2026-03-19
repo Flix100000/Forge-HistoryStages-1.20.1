@@ -44,11 +44,16 @@ body:
       options:
         - Research Pedestal / Scrolls
         - Stage Configuration (JSON)
+        - In-Game Editors (Stage / Config)
+        - Recipe Locking
         - Commands
         - JEI / EMI Integration
         - Loot / Mob Drop Locking
         - Dimension Locking
         - Entity Locking
+        - Toast Notifications / UI
+        - Lock Icon Overlay
+        - Debug Logging
         - KubeJS / CraftTweaker API
         - Configuration (config files)
         - Other
