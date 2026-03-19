@@ -39,9 +39,18 @@ jobs:
           name: History Stages ${{ github.event.release.tag_name }}
           version: ${{ github.event.release.tag_name }}
           changelog: ${{ github.event.release.body }}
-          game-versions: 1.21
+          game-versions: |
+            1.21
+            1.21.1
           loaders: neoforge
           version-type: release
+          dependencies: |
+            lootr(required)
+            jei(optional)
+            emi(optional)
+          curseforge-environment: both
+          modrinth-environment: both
+          java: 21
           files: build/libs/!(*-sources).jar
 
       - name: Upload jar to GitHub Release
