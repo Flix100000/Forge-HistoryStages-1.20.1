@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls -lh)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(sed -i 's/curse.maven:jei-238222:7391695/curse.maven:jei-238222:5106178/' build.gradle)",
+      "Bash(sed -i 's/curse.maven:lootr-361276:5420132/curse.maven:lootr-361276:5383240/' build.gradle)",
+      "Bash(sed -i \"s/java-version: ''21''/java-version: ''17''/\" .github/workflows/build.yml)",
+      "Bash(sed -i 's/Setup JDK 21/Setup JDK 17/' .github/workflows/build.yml)",
+      "Bash(xargs grep -l \"@SubscribeEvent\\\\|@Mod.EventBusSubscriber\")",
+      "Bash(./gradlew build)",
+      "Bash(gh label:*)"
+    ]
+  }
+}
