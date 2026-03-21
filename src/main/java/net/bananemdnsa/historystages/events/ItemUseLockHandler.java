@@ -81,22 +81,9 @@ public class ItemUseLockHandler {
         }
     }
 
-    /**
-     * Prevents swinging a locked item in the air.
-     * Client-side only event — prevents swing animation.
-     */
-    @SubscribeEvent
-    public static void onLeftClickEmpty(PlayerInteractEvent.LeftClickEmpty event) {
-        if (!Config.COMMON.lockItemUsage.get()) return;
-
-        ItemStack heldItem = event.getItemStack();
-        if (heldItem.isEmpty()) return;
-
-        // LeftClickEmpty is client-side only
-        if (StageManager.isItemLocked(heldItem, true)) {
-            event.setCanceled(true);
-        }
-    }
+    // Note: LeftClickEmpty is NOT cancelable in Forge, so we cannot prevent
+    // the swing animation when left-clicking air with a locked item.
+    // LeftClickBlock and AttackEntity already handle the important cases.
 
     /**
      * Prevents attacking entities with a locked weapon/tool in hand.
