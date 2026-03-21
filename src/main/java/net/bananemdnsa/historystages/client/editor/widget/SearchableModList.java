@@ -303,5 +303,15 @@ public class SearchableModList {
         return false;
     }
 
+    /**
+     * Returns the display name for a given mod ID, or the mod ID itself if not found.
+     */
+    public String getDisplayName(String modId) {
+        for (ModEntry entry : allMods) {
+            if (entry.modId.equals(modId)) return entry.displayName;
+        }
+        return modId;
+    }
+
     private record ModEntry(String modId, String displayName) {}
 }

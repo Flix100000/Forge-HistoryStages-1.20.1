@@ -309,10 +309,17 @@ public class SearchableRecipeList {
                     String name = entry.stack.getHoverName().getString();
                     String tooltipText = name + " \u00A77(" + entry.recipeCount + " recipes)";
                     int tooltipW = font.width(tooltipText) + 8;
+                    int tooltipH = 16;
+                    int screenW = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledWidth();
+                    int screenH = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight();
                     int tooltipX = mouseX + 12;
                     int tooltipY = mouseY - 12;
-                    guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + 14, 0xFF3D3D3D);
-                    guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + 13, 0xFF0D0D0D);
+                    if (tooltipX + tooltipW + 2 > screenW - 4) tooltipX = mouseX - tooltipW - 4;
+                    if (tooltipY + tooltipH + 2 > screenH - 4) tooltipY = screenH - tooltipH - 6;
+                    if (tooltipX < 4) tooltipX = 4;
+                    if (tooltipY < 4) tooltipY = 4;
+                    guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF3D3D3D);
+                    guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D0D);
                     guiGraphics.drawString(font, tooltipText, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
                 }
             }

@@ -98,6 +98,7 @@ public class StageEntry {
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());
+        locksCopy.setModLinked(getEntities().getModLinked());
         copy.setEntities(locksCopy);
         return copy;
     }

@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
+import net.bananemdnsa.historystages.client.editor.widget.ModEntitySelectionPopup;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionList;
@@ -64,6 +65,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editDimensions;
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
+    private final List<String> editModLinked;
 
     // UI state
     private EditBox stageIdField;
@@ -90,6 +92,7 @@ public class StageDetailScreen extends Screen {
     private SearchableDimensionList dimensionSearch;
     private SearchableRecipeList recipeSearch;
     private ContextMenu contextMenu;
+    private ModEntitySelectionPopup modEntityPopup;
 
     // Tooltip hover tracking
     private String hoveredTooltipKey = null;
@@ -195,6 +198,7 @@ public class StageDetailScreen extends Screen {
         this.editDimensions = new ArrayList<>(e.getDimensions());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>(e.getEntities().getSpawnlock());
+        this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
     }
 
     @Override
@@ -273,10 +277,26 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         });
 
+        modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
+            for (String id : spawnlockIds) {
+                if (!editSpawnlock.contains(id)) editSpawnlock.add(id);
+                if (!editModLinked.contains(id)) editModLinked.add(id);
+            }
+            for (String id : attacklockIds) {
+                if (!editAttacklock.contains(id)) editAttacklock.add(id);
+                if (!editModLinked.contains(id)) editModLinked.add(id);
+            }
+            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty()) hasChanges = true;
+            updateMaxScroll();
+        });
+
         modSearch = new SearchableModList(modId -> {
             editMods.add(modId);
             hasChanges = true;
             updateMaxScroll();
+            // Show entity selection popup if mod has entities
+            String displayName = modSearch.getDisplayName(modId);
+            modEntityPopup.showForMod(modId, displayName, this.width / 2, this.height / 2);
         });
 
         entitySearch = new SearchableEntityList(entityId -> {
@@ -313,7 +333,7 @@ public class StageDetailScreen extends Screen {
     private boolean isAnyOverlayVisible() {
         return itemSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
-                || contextMenu.isVisible() || recipePopupVisible;
+                || contextMenu.isVisible() || recipePopupVisible || modEntityPopup.isVisible();
     }
 
     private void switchTab(int tab) {
@@ -549,10 +569,18 @@ public class StageDetailScreen extends Screen {
                     textOffsetX = 22;
                 }
 
+                // Mod badge for entity tabs: show tag if entity was added via mod popup
+                int badgeW = 0;
+                if (isEntityTab && editModLinked.contains(list.get(i))) {
+                    String badge = "\u00A77[mod]";
+                    badgeW = this.font.width(badge) + 4;
+                    guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
+                }
+
                 // Text with marquee for truncated entries
                 String entryText = list.get(i);
                 int textStartX = renderLeft + textOffsetX;
-                int textAvailW = contentRight - textStartX - 4;
+                int textAvailW = contentRight - textStartX - 4 - badgeW;
                 int entryTextW = this.font.width(entryText);
                 int textColor = entryHovered ? 0xFFFFFF : 0xBBBBBB;
 
@@ -653,6 +681,7 @@ public class StageDetailScreen extends Screen {
         dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
+        modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
@@ -697,8 +726,10 @@ public class StageDetailScreen extends Screen {
 
         int tooltipX = mouseX + 12;
         int tooltipY = mouseY - 4;
-        if (tooltipX + tooltipW > this.width - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH > this.height - 4) tooltipY = this.height - tooltipH - 4;
+        if (tooltipX + tooltipW + 2 > this.width - 4) tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > this.height - 4) tooltipY = this.height - tooltipH - 6;
+        if (tooltipX < 4) tooltipX = 4;
+        if (tooltipY < 4) tooltipY = 4;
 
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
         guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
@@ -1176,6 +1207,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (modEntityPopup.isVisible()) { return modEntityPopup.mouseClicked(mouseX, mouseY); }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
@@ -1243,7 +1275,17 @@ public class StageDetailScreen extends Screen {
                     contextMenu = new ContextMenu();
                     contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openEditDialog(tabIdx, entryIdx, entryValue));
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
-                    contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> { getListForSection(tabIdx).remove(entryIdx); hasChanges = true; updateMaxScroll(); });
+                    contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
+                        String removedValue = getListForSection(tabIdx).remove(entryIdx);
+                        // When removing a mod, also remove mod-linked entities
+                        if (tabIdx == 2 && removedValue != null) {
+                            String prefix = removedValue + ":";
+                            editSpawnlock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                            editAttacklock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                            editModLinked.removeIf(id -> id.startsWith(prefix));
+                        }
+                        hasChanges = true; updateMaxScroll();
+                    });
                     contextMenu.show((int) mouseX, (int) mouseY, this.font);
                     return true;
                 }
@@ -1285,8 +1327,16 @@ public class StageDetailScreen extends Screen {
                 tagSearch = new SearchableTagList(id -> { editTags.add(id); hasChanges = true; updateMaxScroll(); }); });
             tagSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 2) {
-            modSearch = new SearchableModList(modId -> { getListForSection(tabIdx).set(entryIdx, modId); hasChanges = true;
-                modSearch = new SearchableModList(id -> { editMods.add(id); hasChanges = true; updateMaxScroll(); }); });
+            modSearch = new SearchableModList(modId -> {
+                getListForSection(tabIdx).set(entryIdx, modId); hasChanges = true;
+                String displayName = modSearch.getDisplayName(modId);
+                modEntityPopup.showForMod(modId, displayName, this.width / 2, this.height / 2);
+                modSearch = new SearchableModList(id -> {
+                    editMods.add(id); hasChanges = true; updateMaxScroll();
+                    String dn = modSearch.getDisplayName(id);
+                    modEntityPopup.showForMod(id, dn, this.width / 2, this.height / 2);
+                });
+            });
             modSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 3) {
             recipeSearch = new SearchableRecipeList(recipeId -> {
@@ -1316,6 +1366,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseDragged(mouseX, mouseY)) return true;
         if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY)) return true;
         if (modSearch.isVisible() && modSearch.mouseDragged(mouseX, mouseY)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY)) return true;
@@ -1327,6 +1378,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased()) return true;
         if (itemSearch.isVisible() && itemSearch.mouseReleased()) return true;
         if (modSearch.isVisible() && modSearch.mouseReleased()) return true;
         if (entitySearch.isVisible() && entitySearch.mouseReleased()) return true;
@@ -1338,6 +1390,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (recipePopupVisible) {
             recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
             return true;
@@ -1354,6 +1407,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode)) return true;
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
             return true;
@@ -1435,6 +1489,7 @@ public class StageDetailScreen extends Screen {
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         locks.setSpawnlock(editSpawnlock);
+        locks.setModLinked(editModLinked);
         newEntry.setEntities(locks);
         PacketHandler.sendToServer(new SaveStagePacket(id, newEntry));
         hasChanges = false;

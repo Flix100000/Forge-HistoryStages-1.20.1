@@ -423,8 +423,10 @@ public class ConfigEditorScreen extends Screen {
         int tooltipY = mouseY - 4;
 
         // Keep on screen
-        if (tooltipX + tooltipW > this.width - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH > this.height - 4) tooltipY = this.height - tooltipH - 4;
+        if (tooltipX + tooltipW + 2 > this.width - 4) tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > this.height - 4) tooltipY = this.height - tooltipH - 6;
+        if (tooltipX < 4) tooltipX = 4;
+        if (tooltipY < 4) tooltipY = 4;
 
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
         guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
