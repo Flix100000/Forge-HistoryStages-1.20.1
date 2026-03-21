@@ -64,6 +64,11 @@ public class SaveConfigPacket {
                 case "showWelcomeMessage" -> Config.COMMON.showWelcomeMessage.set(Boolean.parseBoolean(value));
                 case "showDebugErrors" -> Config.COMMON.showDebugErrors.set(Boolean.parseBoolean(value));
                 case "lockMobLoot" -> Config.COMMON.lockMobLoot.set(Boolean.parseBoolean(value));
+                case "lockBlockBreaking" -> Config.COMMON.lockBlockBreaking.set(Boolean.parseBoolean(value));
+                case "lockedBlockBreakSpeedMultiplier" -> {
+                    try { Config.COMMON.lockedBlockBreakSpeedMultiplier.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "lockItemUsage" -> Config.COMMON.lockItemUsage.set(Boolean.parseBoolean(value));
                 case "broadcastChat" -> Config.COMMON.broadcastChat.set(Boolean.parseBoolean(value));
                 case "unlockMessageFormat" -> Config.COMMON.unlockMessageFormat.set(value);
                 case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));

@@ -113,6 +113,9 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue showDebugErrors;
 
         public final ForgeConfigSpec.BooleanValue lockMobLoot;
+        public final ForgeConfigSpec.BooleanValue lockBlockBreaking;
+        public final ForgeConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
+        public final ForgeConfigSpec.BooleanValue lockItemUsage;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -152,6 +155,18 @@ public class Config {
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
+
+            lockBlockBreaking = builder
+                    .comment("Make locked blocks much harder to break and prevent their drops? [Default: true]")
+                    .define("lockBlockBreaking", true);
+
+            lockedBlockBreakSpeedMultiplier = builder
+                    .comment("Break speed multiplier for locked blocks. Lower = slower. 0.05 = 20x slower (like using wrong tool). [Default: 0.05]")
+                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
+
+            lockItemUsage = builder
+                    .comment("Prevent using locked items? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
+                    .define("lockItemUsage", true);
 
             builder.pop(); // gameplay
 

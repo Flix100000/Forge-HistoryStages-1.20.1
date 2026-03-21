@@ -191,6 +191,15 @@ public class ConfigEditorScreen extends Screen {
         gameplay.add(new ConfigEntry("lockMobLoot", ConfigType.BOOLEAN,
                 Config.COMMON.lockMobLoot.get().toString(), false, "true",
                 "Handle locked items in mob loot tables?"));
+        gameplay.add(new ConfigEntry("lockBlockBreaking", ConfigType.BOOLEAN,
+                Config.COMMON.lockBlockBreaking.get().toString(), false, "true",
+                "Make locked blocks much harder to break and prevent their drops?"));
+        gameplay.add(new ConfigEntry("lockedBlockBreakSpeedMultiplier", ConfigType.STRING,
+                Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
+                "Break speed multiplier for locked blocks (0.001-1.0). Lower = slower."));
+        gameplay.add(new ConfigEntry("lockItemUsage", ConfigType.BOOLEAN,
+                Config.COMMON.lockItemUsage.get().toString(), false, "true",
+                "Prevent using locked items? (equipping armor, weapons, food, etc.)"));
         commonSections.add(gameplay);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
