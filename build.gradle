@@ -90,6 +90,9 @@ dependencies {
     // EMI
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
     //runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
+    
+    //Jade
+    implementation fg.deobf("curse.maven:jade-324717:6855440")
 }
 
 tasks.named('processResources', ProcessResources).configure {

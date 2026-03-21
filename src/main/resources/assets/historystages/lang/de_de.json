@@ -61,6 +61,7 @@
   "editor.historystages.entries": "%d Eintr\u00e4ge",
 
   "editor.historystages.config.visuals": "Darstellung",
+  "editor.historystages.config.jade": "Jade",
   "editor.historystages.config.dimension_lock": "Dimensionssperre",
   "editor.historystages.config.mob_lock": "Mob-Sperre",
   "editor.historystages.config.messages": "Nachrichten",
@@ -74,6 +75,9 @@
   "editor.historystages.config.showStageName": "Stufenname anzeigen",
   "editor.historystages.config.showAllUntilComplete": "Alle bis Abschluss zeigen",
   "editor.historystages.config.showLockIcons": "Schloss-Icons anzeigen",
+  "editor.historystages.config.jadeShowInfo": "Jade-Info anzeigen",
+  "editor.historystages.config.jadeStageName": "Stufenname anzeigen (Jade)",
+  "editor.historystages.config.jadeShowAllUntilComplete": "Alle bis Abschluss zeigen (Jade)",
   "editor.historystages.config.dimUseActionbar": "Aktionsleiste nutzen",
   "editor.historystages.config.dimShowChat": "Im Chat anzeigen",
   "editor.historystages.config.dimShowStagesInChat": "Stufen im Chat zeigen",
@@ -113,5 +117,7 @@
 
   "editor.historystages.reset": "Reset",
   "editor.historystages.reset_warning_title": "Konfiguration zur\u00fccksetzen",
-  "editor.historystages.reset_warning": "Bist du sicher, dass du alle Einstellungen auf die Standardwerte zur\u00fccksetzen willst?"
+  "editor.historystages.reset_warning": "Bist du sicher, dass du alle Einstellungen auf die Standardwerte zur\u00fccksetzen willst?",
+
+  "config.jade.plugin_historystages.locked_block": "Gesperrter Block Info"
 }

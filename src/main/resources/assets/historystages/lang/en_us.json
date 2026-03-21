@@ -61,6 +61,7 @@
   "editor.historystages.entries": "%d entries",
 
   "editor.historystages.config.visuals": "Visuals",
+  "editor.historystages.config.jade": "Jade",
   "editor.historystages.config.dimension_lock": "Dimension Lock",
   "editor.historystages.config.mob_lock": "Mob Lock",
   "editor.historystages.config.messages": "Messages",
@@ -74,6 +75,9 @@
   "editor.historystages.config.showStageName": "Show Stage Name",
   "editor.historystages.config.showAllUntilComplete": "Show All Until Complete",
   "editor.historystages.config.showLockIcons": "Show Lock Icons",
+  "editor.historystages.config.jadeShowInfo": "Show Jade Info",
+  "editor.historystages.config.jadeStageName": "Show Stage Name (Jade)",
+  "editor.historystages.config.jadeShowAllUntilComplete": "Show All Until Complete (Jade)",
   "editor.historystages.config.dimUseActionbar": "Use Actionbar",
   "editor.historystages.config.dimShowChat": "Show in Chat",
   "editor.historystages.config.dimShowStagesInChat": "Show Stages in Chat",
@@ -113,5 +117,7 @@
 
   "editor.historystages.reset": "Reset",
   "editor.historystages.reset_warning_title": "Reset Configuration",
-  "editor.historystages.reset_warning": "Are you sure you want to reset all settings to their default values?"
+  "editor.historystages.reset_warning": "Are you sure you want to reset all settings to their default values?",
+
+  "config.jade.plugin_historystages.locked_block": "Locked Block Info"
 }

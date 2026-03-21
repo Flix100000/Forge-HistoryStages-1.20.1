@@ -139,6 +139,18 @@ public class ConfigEditorScreen extends Screen {
                 "Show a lock icon overlay on locked items in JEI and Inventories?"));
         clientSections.add(visuals);
 
+        ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
+        jade.add(new ConfigEntry("jadeShowInfo", ConfigType.BOOLEAN,
+                Config.CLIENT.jadeShowInfo.get().toString(), true, "true",
+                "Show stage information on locked blocks in the Jade overlay?"));
+        jade.add(new ConfigEntry("jadeStageName", ConfigType.BOOLEAN,
+                Config.CLIENT.jadeStageName.get().toString(), true, "true",
+                "If Jade info is enabled, show the name of the required stage?"));
+        jade.add(new ConfigEntry("jadeShowAllUntilComplete", ConfigType.BOOLEAN,
+                Config.CLIENT.jadeShowAllUntilComplete.get().toString(), true, "true",
+                "If a block is in multiple stages, show all of them until all are unlocked?"));
+        clientSections.add(jade);
+
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
                 Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
@@ -645,6 +657,9 @@ public class ConfigEditorScreen extends Screen {
                 case "dimUseActionbar" -> Config.CLIENT.dimUseActionbar.set(Boolean.parseBoolean(value));
                 case "dimShowChat" -> Config.CLIENT.dimShowChat.set(Boolean.parseBoolean(value));
                 case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
+                case "jadeShowInfo" -> Config.CLIENT.jadeShowInfo.set(Boolean.parseBoolean(value));
+                case "jadeStageName" -> Config.CLIENT.jadeStageName.set(Boolean.parseBoolean(value));
+                case "jadeShowAllUntilComplete" -> Config.CLIENT.jadeShowAllUntilComplete.set(Boolean.parseBoolean(value));
                 case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
                 case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
