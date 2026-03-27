@@ -333,10 +333,24 @@ public class StageManager {
     }
 
     public static boolean isRecipeIdLockedForServer(String recipeId) {
+        return isRecipeIdLocked(recipeId, false);
+    }
+
+    /**
+     * Checks if a recipe ID is locked — works on Client AND Server.
+     * Uses ClientStageCache on the client, SERVER_CACHE on the server.
+     */
+    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
-                    return true;
+                if (isClientSide) {
+                    if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())) {
+                        return true;
+                    }
+                } else {
+                    if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
+                        return true;
+                    }
                 }
             }
         }

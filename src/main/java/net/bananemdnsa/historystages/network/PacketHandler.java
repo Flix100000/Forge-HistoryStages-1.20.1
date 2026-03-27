@@ -1,7 +1,9 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.HistoryStages;
+import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
@@ -52,6 +54,15 @@ public class PacketHandler {
     // Send stage definitions to all players (e.g. after editor save/delete)
     public static void sendDefinitionsToAll(SyncStageDefinitionsPacket packet) {
         INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
+    }
+
+    // Resync recipes to all players without a full resource reload
+    public static void resyncRecipes(MinecraftServer server) {
+        ClientboundUpdateRecipesPacket recipePacket = new ClientboundUpdateRecipesPacket(
+                server.getRecipeManager().getRecipes());
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            p.connection.send(recipePacket);
+        }
     }
 
     // Send a packet from client to server
