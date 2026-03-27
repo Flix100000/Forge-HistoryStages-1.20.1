@@ -60,7 +60,7 @@ public class SearchableModList {
             String modId = mod.getModId();
             if (!contentMods.contains(modId)) continue;
             String displayName = mod.getDisplayName();
-            allMods.add(new ModEntry(modId, displayName));
+            allMods.add(new ModEntry(modId, displayName, displayName.toLowerCase()));
         }
         allMods.sort((a, b) -> a.modId.compareToIgnoreCase(b.modId));
         filteredMods.addAll(allMods);
@@ -100,7 +100,7 @@ public class SearchableModList {
             filteredMods.addAll(allMods);
         } else {
             for (ModEntry entry : allMods) {
-                if (entry.modId.contains(this.filter) || entry.displayName.toLowerCase().contains(this.filter)) {
+                if (entry.modId.contains(this.filter) || entry.searchName.contains(this.filter)) {
                     filteredMods.add(entry);
                 }
             }
@@ -316,5 +316,5 @@ public class SearchableModList {
         return modId;
     }
 
-    private record ModEntry(String modId, String displayName) {}
+    private record ModEntry(String modId, String displayName, String searchName) {}
 }

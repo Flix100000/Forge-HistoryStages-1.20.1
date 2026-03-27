@@ -131,7 +131,7 @@ public class SearchableRecipeList {
         for (Map.Entry<String, List<RecipeInfo>> entry : recipesByOutput.entrySet()) {
             if (seen.add(entry.getKey())) {
                 ItemStack stack = entry.getValue().get(0).result;
-                allRecipeItems.add(new ItemEntry(entry.getKey(), stack, entry.getValue().size()));
+                allRecipeItems.add(new ItemEntry(entry.getKey(), stack, entry.getValue().size(), stack.getHoverName().getString().toLowerCase()));
             }
         }
         allRecipeItems.sort((a, b) -> {
@@ -190,7 +190,7 @@ public class SearchableRecipeList {
             }
         } else {
             for (ItemEntry entry : allRecipeItems) {
-                if (entry.id.contains(this.filter) || entry.stack.getHoverName().getString().toLowerCase().contains(this.filter)) {
+                if (entry.id.contains(this.filter) || entry.searchName.contains(this.filter)) {
                     filteredItems.add(entry);
                 }
             }
@@ -635,6 +635,6 @@ public class SearchableRecipeList {
     }
 
     // ========== Data types ==========
-    private record ItemEntry(String id, ItemStack stack, int recipeCount) {}
+    private record ItemEntry(String id, ItemStack stack, int recipeCount, String searchName) {}
     private record RecipeInfo(String recipeId, ItemStack result, List<ItemStack> ingredients, String type, ItemStack workstation) {}
 }

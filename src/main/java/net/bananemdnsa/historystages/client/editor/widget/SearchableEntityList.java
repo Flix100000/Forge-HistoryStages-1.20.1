@@ -62,7 +62,7 @@ public class SearchableEntityList {
             ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(entityType);
             if (key != null && isLivingEntityType(entityType)) {
                 String displayName = entityType.getDescription().getString();
-                allEntities.add(new EntityEntry(key.toString(), displayName));
+                allEntities.add(new EntityEntry(key.toString(), displayName, displayName.toLowerCase()));
             }
         }
         allEntities.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
@@ -139,7 +139,7 @@ public class SearchableEntityList {
             filteredEntities.addAll(allEntities);
         } else {
             for (EntityEntry entry : allEntities) {
-                if (entry.id.contains(this.filter) || entry.displayName.toLowerCase().contains(this.filter)) {
+                if (entry.id.contains(this.filter) || entry.searchName.contains(this.filter)) {
                     filteredEntities.add(entry);
                 }
             }
@@ -424,5 +424,5 @@ public class SearchableEntityList {
         return false;
     }
 
-    private record EntityEntry(String id, String displayName) {}
+    private record EntityEntry(String id, String displayName, String searchName) {}
 }

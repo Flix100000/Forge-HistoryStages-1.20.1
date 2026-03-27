@@ -42,11 +42,13 @@ public class SearchableItemList {
     public SearchableItemList(Consumer<String> onSelect) {
         this.onSelect = onSelect;
 
-        // Pre-populate all registered items
+        // Pre-populate all registered items with cached search names
         for (Item item : ForgeRegistries.ITEMS) {
             ResourceLocation key = ForgeRegistries.ITEMS.getKey(item);
             if (key != null) {
-                allItems.add(new ItemEntry(key.toString(), new ItemStack(item)));
+                ItemStack stack = new ItemStack(item);
+                String searchName = stack.getHoverName().getString().toLowerCase();
+                allItems.add(new ItemEntry(key.toString(), stack, searchName));
             }
         }
         filteredItems.addAll(allItems);
@@ -96,7 +98,7 @@ public class SearchableItemList {
             }
         } else {
             for (ItemEntry entry : allItems) {
-                if (entry.id.contains(this.filter) || entry.stack.getHoverName().getString().toLowerCase().contains(this.filter)) {
+                if (entry.id.contains(this.filter) || entry.searchName.contains(this.filter)) {
                     filteredItems.add(entry);
                 }
             }
@@ -352,5 +354,5 @@ public class SearchableItemList {
         return false;
     }
 
-    private record ItemEntry(String id, ItemStack stack) {}
+    private record ItemEntry(String id, ItemStack stack, String searchName) {}
 }
