@@ -1,7 +1,10 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,6 +99,7 @@ public class ContextMenu {
         if (mouseX >= x && mouseX <= x + menuWidth && mouseY >= y && mouseY <= y + menuHeight) {
             int index = (int) ((mouseY - y - PADDING) / ITEM_HEIGHT);
             if (index >= 0 && index < entries.size()) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 entries.get(index).action.run();
             }
             hide();

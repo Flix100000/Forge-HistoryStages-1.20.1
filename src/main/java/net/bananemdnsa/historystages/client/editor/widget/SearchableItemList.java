@@ -4,7 +4,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -256,6 +258,7 @@ public class SearchableItemList {
 
                 if (index < filteredItems.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
                         && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     onSelect.accept(filteredItems.get(index).id);
                     hide();
                     return true;

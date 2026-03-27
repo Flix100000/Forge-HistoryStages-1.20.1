@@ -4,11 +4,14 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveConfigPacket;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 
 import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
@@ -508,6 +511,7 @@ public class ConfigEditorScreen extends Screen {
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
                 if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     switchTab(i);
                     return true;
                 }
@@ -545,6 +549,7 @@ public class ConfigEditorScreen extends Screen {
                     int labelWidth = this.font.width(label);
                     int controlX = contentLeft + Math.max(labelWidth + 20, 180);
                     if (mouseX >= controlX && mouseX <= contentRight - 5) {
+                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         handleEntryClick(entry);
                         return true;
                     }

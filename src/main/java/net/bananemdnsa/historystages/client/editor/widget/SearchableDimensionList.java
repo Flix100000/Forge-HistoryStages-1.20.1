@@ -5,6 +5,8 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
@@ -192,6 +194,7 @@ public class SearchableDimensionList {
             int rowY = listY + i * ROW_HEIGHT;
             if (index < filteredDimensions.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(filteredDimensions.get(index));
                 hide();
                 return true;

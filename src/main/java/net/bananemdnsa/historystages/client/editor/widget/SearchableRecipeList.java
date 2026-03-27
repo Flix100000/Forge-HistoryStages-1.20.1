@@ -4,7 +4,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -523,6 +525,7 @@ public class SearchableRecipeList {
             int rowY = listY + i * RECIPE_ROW_HEIGHT;
             if (index < currentRecipes.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + RECIPE_ROW_HEIGHT) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(currentRecipes.get(index).recipeId);
                 if (!keepVisibleOnSelect) hide();
                 return true;

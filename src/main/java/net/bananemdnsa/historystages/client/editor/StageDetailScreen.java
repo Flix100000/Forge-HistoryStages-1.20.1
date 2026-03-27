@@ -27,7 +27,9 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -1214,6 +1216,7 @@ public class StageDetailScreen extends Screen {
                 int btnY = cachedPopupY + cachedPopupH - btnPad - btnH;
                 int addBtnX = cachedPopupX + cachedPopupW / 2 - btnW / 2;
                 if (mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     if (recipePopupAddAction != null) recipePopupAddAction.run();
                     closeRecipePopup();
                     if (recipeSearch.isVisible()) recipeSearch.hide();
@@ -1242,7 +1245,7 @@ public class StageDetailScreen extends Screen {
 
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
-                if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) { switchTab(i); return true; }
+                if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); switchTab(i); return true; }
             }
         }
 
@@ -1261,6 +1264,7 @@ public class StageDetailScreen extends Screen {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
                 if (button == 0 && activeTab == 3) {
                     // Left-click on recipe card: show recipe detail popup (view-only)
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     recipePopupId = list.get(i);
                     recipePopupVisible = true;
                     recipePopupAddMode = false;
@@ -1297,7 +1301,7 @@ public class StageDetailScreen extends Screen {
             String addText = "+ " + Component.translatable("editor.historystages.add").getString();
             int addTextW = this.font.width(addText);
             int addBoxRight = contentLeft + addTextW + 20;
-            if (mouseX >= contentLeft && mouseX <= addBoxRight) { openAddDialog(); return true; }
+            if (mouseX >= contentLeft && mouseX <= addBoxRight) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); openAddDialog(); return true; }
         }
         return false;
     }

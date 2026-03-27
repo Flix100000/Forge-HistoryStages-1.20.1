@@ -8,7 +8,9 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -517,11 +519,13 @@ public class ModEntitySelectionPopup {
                     if (row.spawnlock) spawnlockIds.add(row.id);
                     if (row.attacklock) attacklockIds.add(row.id);
                 }
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onConfirm.accept(spawnlockIds, attacklockIds);
                 hide();
                 return true;
             }
             if (mouseX >= skipX && mouseX < skipX + btnW) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 hide();
                 return true;
             }
@@ -546,6 +550,7 @@ public class ModEntitySelectionPopup {
         int selectAllY = panelY + 20;
         if (mouseX >= cbSpawnX && mouseX < cbSpawnX + CHECKBOX_SIZE
                 && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allSpawn = !allSpawn;
             if (allSpawn) {
                 // ON: set all unchecked spawn to checked, clear their attacklock
@@ -565,6 +570,7 @@ public class ModEntitySelectionPopup {
         }
         if (mouseX >= cbAttackX && mouseX < cbAttackX + CHECKBOX_SIZE
                 && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allAttack = !allAttack;
             if (allAttack) {
                 // ON: set all unchecked attack to checked, clear their spawnlock
@@ -596,6 +602,7 @@ public class ModEntitySelectionPopup {
             // Spawnlock checkbox
             if (mouseX >= cbSpawnX && mouseX < cbSpawnX + CHECKBOX_SIZE
                     && mouseY >= cbY && mouseY < cbY + CHECKBOX_SIZE) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newSpawn = !row.spawnlock;
                 entities.set(index, new EntityRow(row.id, row.displayName, newSpawn, newSpawn ? false : row.attacklock));
@@ -606,6 +613,7 @@ public class ModEntitySelectionPopup {
             // Attacklock checkbox
             if (mouseX >= cbAttackX && mouseX < cbAttackX + CHECKBOX_SIZE
                     && mouseY >= cbY && mouseY < cbY + CHECKBOX_SIZE) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newAttack = !row.attacklock;
                 entities.set(index, new EntityRow(row.id, row.displayName, newAttack ? false : row.spawnlock, newAttack));

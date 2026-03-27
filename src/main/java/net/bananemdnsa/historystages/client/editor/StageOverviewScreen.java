@@ -14,7 +14,9 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -265,6 +267,7 @@ public class StageOverviewScreen extends Screen {
                 int lockBtnY = entryTop + 5;
                 if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + 50
                         && mouseY >= lockBtnY && mouseY <= lockBtnY + 16) {
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     PacketHandler.sendToServer(new ToggleStageLockPacket(stageId, !unlocked));
                     return true;
                 }
@@ -285,11 +288,13 @@ public class StageOverviewScreen extends Screen {
                                 Component.translatable("editor.historystages.confirm_delete", stageId),
                                 () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId)); stageOrder.remove(stageId); updateMaxScroll(); Minecraft.getInstance().setScreen(self); }));
                     });
+                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     contextMenu.show((int) mouseX, (int) mouseY, this.font);
                     return true;
                 }
 
                 // Left-click on stage entry -> open detail editor
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry));
                 return true;
             }
