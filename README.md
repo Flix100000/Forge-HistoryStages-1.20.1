@@ -17,6 +17,10 @@ dimensions, mobs, and mod content behind custom research stages.
   crafting menus by recipe ID.
 - Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
+- Item Usage Lock: Prevent players from using locked items
+  (equipping armor, using weapons, eating food, etc.).
+- Block Breaking Lock: Locked blocks are much harder to break
+  (configurable speed multiplier) and drop nothing.
 - Entity Control: Two lock modes for entities:
   - Attacklock: Prevent players from damaging specific mobs.
   - Spawnlock: Prevent entities from spawning entirely.
@@ -33,6 +37,8 @@ dimensions, mobs, and mod content behind custom research stages.
 - In-Game Config Editor: Modify all mod settings from within
   the game with organized categories and reset-to-defaults.
 - JEI/EMI Support: Automatically hides or marks locked items.
+- Jade Support: Shows stage information on locked blocks in
+  the Jade block overlay.
 - Debug Logging: Configurable debug log system for
   troubleshooting config validation and stage loading.
 - Forge Events: Fires StageEvent.Unlocked/Locked events for
@@ -125,10 +131,13 @@ mod settings can be managed directly from within the GUI.
 
 CLIENT CONFIG (per player):
 - hideInJei: Hide locked items from JEI/EMI.
-- showTooltips: Show required stages on locked items.
+- showTooltips: Show information tooltips on locked items.
 - showStageName: Show required stage name in tooltips.
 - showAllUntilComplete: Show all required stages until unlocked.
-- showLockIcons: Show lock icon overlay on locked items.
+- showLockIcons: Show lock icon overlay on locked items
+  (auto-disabled with EMI).
+- Jade settings: jadeShowInfo, jadeStageName,
+  jadeShowAllUntilComplete (requires Jade mod).
 - Dimension lock feedback: Actionbar and/or chat messages.
 - Mob lock feedback: Actionbar and/or chat messages.
 
@@ -136,9 +145,14 @@ COMMON CONFIG (server-side):
 - showWelcomeMessage: Display welcome message on player join.
 - showDebugErrors: Show config validation errors in chat.
 - lockMobLoot: Remove locked items from mob drops.
+- lockBlockBreaking: Make locked blocks harder to break and
+  prevent their drops (default: true).
+- lockedBlockBreakSpeedMultiplier: Break speed multiplier for
+  locked blocks (default: 0.05 = 20x slower).
+- lockItemUsage: Prevent using locked items (default: true).
 - broadcastChat: Broadcast unlock/lock messages to all players.
 - unlockMessageFormat: Customize the unlock message text
-  (supports {stage} placeholder).
+  (supports {stage} placeholder and & color codes).
 - useActionbar: Show messages in actionbar.
 - useSounds: Play notification sounds.
 - useToasts: Show advancement-style toast popups.
@@ -178,8 +192,9 @@ ForgeEvents.onEvent(
 - Required: Lootr
 - Optional: JEI (recipe viewer integration)
 - Optional: EMI (alternative recipe viewer integration)
+- Optional: Jade (block overlay integration)
 
 ----------------------------------------------------------------
-License: MIT
+License: GPL-3.0
 Authors: Flix100000, PixlStudios
 ================================================================
