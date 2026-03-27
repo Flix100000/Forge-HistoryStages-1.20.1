@@ -52,6 +52,7 @@ public class SaveStagePacket {
                 StageManager.reloadStages();
                 // Sync updated stages to all players
                 StageData data = StageData.get(player.serverLevel());
+                PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §aStage '" + msg.stageId + "' saved successfully."));
 

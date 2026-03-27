@@ -162,6 +162,17 @@ public class StageManager {
         return STAGES;
     }
 
+    /**
+     * Replaces all stage definitions with the given map.
+     * Used on the client side to sync stage definitions from the server in multiplayer.
+     */
+    public static void setStages(Map<String, StageEntry> stages) {
+        STAGES.clear();
+        if (stages != null) {
+            STAGES.putAll(stages);
+        }
+    }
+
     public static String getStageForItemOrMod(String itemId, String modId) {
         for (var entry : STAGES.entrySet()) {
             String stageName = entry.getKey();
