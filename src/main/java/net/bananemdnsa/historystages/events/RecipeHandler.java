@@ -1,38 +1,43 @@
 package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.world.level.Level;
 
 public class RecipeHandler {
     /**
      * Checks if a recipe's output is locked based on history stages.
-     * * @param recipe The recipe to check
-     * @return true if the output item is locked for the current server state
+     * Uses ClientStageCache on the client side, SERVER_CACHE on the server side.
      */
-    public static boolean isOutputLocked(Recipe<?> recipe) {
+    public static boolean isOutputLocked(Recipe<?> recipe, boolean isClientSide) {
         if (recipe == null) return false;
 
         ItemStack result;
         try {
             result = recipe.getResultItem(RegistryAccess.EMPTY);
         } catch (Exception e) {
-            // Manche Mods (z.B. SewingKit) werfen andere Exceptions als IllegalStateException
             return false;
         }
 
         if (result.isEmpty()) return false;
 
-        // Nutze direkt die wasserdichte "Alle-oder-Nichts" Logik aus dem StageManager
-        return StageManager.isItemLockedForServer(result);
+        return StageManager.isItemLocked(result, isClientSide);
+    }
+
+    /** Overload without side info — defaults to server-side check. */
+    public static boolean isOutputLocked(Recipe<?> recipe) {
+        return isOutputLocked(recipe, false);
+    }
+
+    public static boolean isRecipeIdLocked(ResourceLocation recipeId, boolean isClientSide) {
+        if (recipeId == null) return false;
+        return StageManager.isRecipeIdLocked(recipeId.toString(), isClientSide);
     }
 
     public static boolean isRecipeIdLocked(ResourceLocation recipeId) {
-        if (recipeId == null) return false;
-        return StageManager.isRecipeIdLockedForServer(recipeId.toString());
+        return isRecipeIdLocked(recipeId, false);
     }
 }

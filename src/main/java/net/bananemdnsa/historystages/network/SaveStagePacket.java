@@ -55,7 +55,7 @@ public class SaveStagePacket {
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §aStage '" + msg.stageId + "' saved successfully."));
-                PacketHandler.resyncRecipes(player.server);
+                PacketHandler.reloadRecipesOnly(player.server);
             } else {
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to save stage '" + msg.stageId + "'."));
             }

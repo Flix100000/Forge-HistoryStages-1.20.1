@@ -242,7 +242,7 @@ public class StageCommand {
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
         source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);
-        source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
+        PacketHandler.reloadRecipesOnly(source.getServer());
 
         return 1;
     }
