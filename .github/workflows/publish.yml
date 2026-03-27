@@ -48,9 +48,7 @@ jobs:
             lootr(required)
             jei(optional)
             emi(optional)
-          curseforge-environment: |
-            client
-            server
+          curseforge-environment: both
           modrinth-environment: both
           java: 17
           files: build/libs/!(*-sources).jar
