@@ -116,6 +116,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue lockBlockBreaking;
         public final ForgeConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
         public final ForgeConfigSpec.BooleanValue lockItemUsage;
+        public final ForgeConfigSpec.BooleanValue lockEntityItems;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -167,6 +168,10 @@ public class Config {
             lockItemUsage = builder
                     .comment("Prevent using locked items? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
                     .define("lockItemUsage", true);
+
+            lockEntityItems = builder
+                    .comment("Prevent interacting with or breaking armor stands and item frames that contain locked items? [Default: true]")
+                    .define("lockEntityItems", true);
 
             builder.pop(); // gameplay
 

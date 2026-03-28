@@ -90,7 +90,9 @@
   "editor.historystages.config.lockBlockBreaking": "Block-Abbau sperren",
   "editor.historystages.config.lockedBlockBreakSpeedMultiplier": "Gesperrte Block-Abbaugeschwindigkeit",
   "editor.historystages.config.lockItemUsage": "Item-Nutzung sperren",
+  "editor.historystages.config.lockEntityItems": "Entity-Items sperren",
   "message.historystages.item_locked": "??? Dieser Gegenstand ist dir noch unbekannt ???",
+  "message.historystages.entity_item_locked": "??? Diese Auslage enth\u00e4lt Gegenst\u00e4nde, die dir noch unbekannt sind ???",
   "editor.historystages.config.broadcastChat": "Chat-Broadcast",
   "editor.historystages.config.unlockMessageFormat": "Freischalt-Nachrichtenformat",
   "editor.historystages.config.useActionbar": "Aktionsleiste nutzen",
@@ -124,6 +126,7 @@
   "editor.historystages.reset_warning": "Bist du sicher, dass du alle Einstellungen auf die Standardwerte zur\u00fccksetzen willst?",
 
   "config.jade.plugin_historystages.locked_block": "Gesperrter Block Info",
+  "config.jade.plugin_historystages.locked_entity_item": "Gesperrtes Entity-Item Info",
 
   "ftbquests.historystages.task.history_stage": "History Stage",
   "ftbquests.historystages.task.title": "History Stage: %s",

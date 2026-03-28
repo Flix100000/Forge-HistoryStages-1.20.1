@@ -90,7 +90,9 @@
   "editor.historystages.config.lockBlockBreaking": "Lock Block Breaking",
   "editor.historystages.config.lockedBlockBreakSpeedMultiplier": "Locked Block Break Speed",
   "editor.historystages.config.lockItemUsage": "Lock Item Usage",
+  "editor.historystages.config.lockEntityItems": "Lock Entity Items",
   "message.historystages.item_locked": "??? This item is still unknown to you ???",
+  "message.historystages.entity_item_locked": "??? This display contains items unknown to you ???",
   "editor.historystages.config.broadcastChat": "Broadcast Chat",
   "editor.historystages.config.unlockMessageFormat": "Unlock Message Format",
   "editor.historystages.config.useActionbar": "Use Actionbar",
@@ -124,6 +126,7 @@
   "editor.historystages.reset_warning": "Are you sure you want to reset all settings to their default values?",
 
   "config.jade.plugin_historystages.locked_block": "Locked Block Info",
+  "config.jade.plugin_historystages.locked_entity_item": "Locked Entity Item Info",
 
   "ftbquests.historystages.task.history_stage": "History Stage",
   "ftbquests.historystages.task.title": "History Stage: %s",

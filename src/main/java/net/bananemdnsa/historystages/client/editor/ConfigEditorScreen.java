@@ -203,6 +203,9 @@ public class ConfigEditorScreen extends Screen {
         gameplay.add(new ConfigEntry("lockItemUsage", ConfigType.BOOLEAN,
                 Config.COMMON.lockItemUsage.get().toString(), false, "true",
                 "Prevent using locked items? (equipping armor, weapons, food, etc.)"));
+        gameplay.add(new ConfigEntry("lockEntityItems", ConfigType.BOOLEAN,
+                Config.COMMON.lockEntityItems.get().toString(), false, "true",
+                "Prevent interacting with or breaking armor stands and item frames that contain locked items?"));
         commonSections.add(gameplay);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
