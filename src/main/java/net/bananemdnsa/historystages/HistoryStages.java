@@ -27,6 +27,7 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -62,6 +63,15 @@ public class HistoryStages {
         PacketHandler.register();
         ConfigHandler.setupConfig();
         StageManager.load();
+
+        if (ModList.get().isLoaded("ftbquests")) {
+            try {
+                net.bananemdnsa.historystages.ftbquests.FTBQuestsIntegration.init();
+                LOGGER.info("[HistoryStages] FTB Quests integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load FTB Quests integration.", e);
+            }
+        }
 
         modEventBus.addListener(this::addCreative);
 

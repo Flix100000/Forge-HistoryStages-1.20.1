@@ -123,5 +123,13 @@
   "editor.historystages.reset_warning_title": "Reset Configuration",
   "editor.historystages.reset_warning": "Are you sure you want to reset all settings to their default values?",
 
-  "config.jade.plugin_historystages.locked_block": "Locked Block Info"
+  "config.jade.plugin_historystages.locked_block": "Locked Block Info",
+
+  "ftbquests.historystages.task.history_stage": "History Stage",
+  "ftbquests.historystages.task.title": "History Stage: %s",
+  "ftbquests.historystages.reward.history_stage": "History Stage",
+  "ftbquests.historystages.reward.title.unlock": "Unlock History Stage: %s",
+  "ftbquests.historystages.reward.title.lock": "Lock History Stage: %s",
+  "ftbquests.historystages.config.stage": "Stage ID",
+  "ftbquests.historystages.config.remove": "Lock instead of Unlock"
 }

@@ -123,5 +123,13 @@
   "editor.historystages.reset_warning_title": "Konfiguration zur\u00fccksetzen",
   "editor.historystages.reset_warning": "Bist du sicher, dass du alle Einstellungen auf die Standardwerte zur\u00fccksetzen willst?",
 
-  "config.jade.plugin_historystages.locked_block": "Gesperrter Block Info"
+  "config.jade.plugin_historystages.locked_block": "Gesperrter Block Info",
+
+  "ftbquests.historystages.task.history_stage": "History Stage",
+  "ftbquests.historystages.task.title": "History Stage: %s",
+  "ftbquests.historystages.reward.history_stage": "History Stage",
+  "ftbquests.historystages.reward.title.unlock": "History Stage freischalten: %s",
+  "ftbquests.historystages.reward.title.lock": "History Stage sperren: %s",
+  "ftbquests.historystages.config.stage": "Stufen-ID",
+  "ftbquests.historystages.config.remove": "Sperren statt Freischalten"
 }

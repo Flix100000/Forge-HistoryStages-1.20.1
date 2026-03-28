@@ -87,6 +87,12 @@ dependencies {
     // Wir nutzen 'implementation' statt 'compileOnly', damit die Klassen im Projekt bekannt sind
     implementation fg.deobf("curse.maven:lootr-361276:5420132")
 
+    //FTB Quests + Dependencies
+    implementation fg.deobf("curse.maven:ftb-quests-forge-289412:7608804")
+    implementation fg.deobf("curse.maven:ftb-library-forge-404465:7296748")
+    implementation fg.deobf("curse.maven:ftb-teams-forge-404468:7499810")
+    implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
+
     // EMI
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
     //runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
