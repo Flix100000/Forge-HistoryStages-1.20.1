@@ -41,6 +41,9 @@ dimensions, mobs, and mod content behind custom research stages.
   the Jade block overlay.
 - Debug Logging: Configurable debug log system for
   troubleshooting config validation and stage loading.
+- FTB Quests Support: Custom task type (check if a stage is
+  unlocked) and reward type (unlock/lock a stage) for seamless
+  quest-based progression.
 - Forge Events: Fires StageEvent.Unlocked/Locked events for
   KubeJS, CraftTweaker, and other mod integrations.
 - Toast Notifications: Advancement-style popup notifications
@@ -166,15 +169,40 @@ Config files are located at:
 - Common: /config/historystages-common.toml
 
 ----------------------------------------------------------------
-7. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
+7. FTB QUESTS INTEGRATION
 ----------------------------------------------------------------
 
-HistoryStages fires custom Forge events on the EVENT_BUS:
+If FTB Quests is installed, History Stages adds two new types
+to the FTB Quests editor:
+
+TASK - "History Stage":
+  Checks if a specific History Stage is globally unlocked.
+  The task auto-completes once the stage is unlocked (checks
+  every second). Configure the Stage ID in the quest editor.
+
+REWARD - "History Stage":
+  Unlocks (or locks) a History Stage when the quest reward is
+  claimed. Uses the same broadcast effects as the Research
+  Pedestal (chat messages, actionbar, sounds, toasts) based
+  on your mod config settings.
+  - Stage ID: The stage to unlock/lock.
+  - Lock instead of Unlock: If enabled, locks the stage instead.
+
+The integration is fully optional and crash-safe. If FTB Quests
+is not installed, the mod works normally without it.
+
+----------------------------------------------------------------
+8. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
+----------------------------------------------------------------
+
+History Stages fires custom Forge events on the EVENT_BUS:
 
 - StageEvent.Unlocked: Fired after a stage is unlocked
-  (via command or Research Pedestal).
-- StageEvent.Locked: Fired after a stage is locked (via command).
+  (via command, Research Pedestal, or FTB Quests reward).
+- StageEvent.Locked: Fired after a stage is locked
+  (via command or FTB Quests reward).
 
+Both events are also fired by FTB Quests rewards.
 Both events provide: getStageId() and getDisplayName().
 
 KubeJS example:
@@ -186,13 +214,15 @@ ForgeEvents.onEvent(
 );
 
 ----------------------------------------------------------------
-8. DEPENDENCIES
+9. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
 - Optional: JEI (recipe viewer integration)
 - Optional: EMI (alternative recipe viewer integration)
 - Optional: Jade (block overlay integration)
+
+- Optional: FTB Quests (quest task and reward integration)
 
 ----------------------------------------------------------------
 License: GPL-3.0
