@@ -1,16 +1,17 @@
 package net.bananemdnsa.historystages.ftbquests;
 
-import dev.ftb.mods.ftblibrary.icon.Icon;
 import dev.ftb.mods.ftblibrary.icon.ItemIcon;
 import dev.ftb.mods.ftbquests.quest.task.TaskType;
 import dev.ftb.mods.ftbquests.quest.task.TaskTypes;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import dev.ftb.mods.ftbquests.quest.reward.RewardTypes;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.MinecraftForge;
 
 public class FTBQuestsIntegration {
 
@@ -29,5 +30,9 @@ public class FTBQuestsIntegration {
                 HistoryStageReward::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
         ).setDisplayName(Component.translatable("ftbquests.historystages.reward.history_stage"));
+
+        MinecraftForge.EVENT_BUS.addListener((StageEvent.Unlocked event) ->
+                HistoryStageTask.onStageUnlocked(event.getStageId())
+        );
     }
 }

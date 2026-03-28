@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.ftbquests;
 
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
 import dev.ftb.mods.ftbquests.quest.Quest;
+import dev.ftb.mods.ftbquests.quest.ServerQuestFile;
 import dev.ftb.mods.ftbquests.quest.TeamData;
 import dev.ftb.mods.ftbquests.quest.task.AbstractBooleanTask;
 import dev.ftb.mods.ftbquests.quest.task.TaskType;
@@ -61,8 +62,8 @@ public class HistoryStageTask extends AbstractBooleanTask {
     }
 
     @Override
-    public int autoSubmitOnPlayerTick() {
-        return 20;
+    public boolean checkOnLogin() {
+        return true;
     }
 
     @Override
@@ -70,5 +71,27 @@ public class HistoryStageTask extends AbstractBooleanTask {
         if (stage.isEmpty()) return false;
         StageData data = StageData.get(player.serverLevel());
         return data.hasStage(stage);
+    }
+
+    public String getStage() {
+        return stage;
+    }
+
+    /**
+     * Called when a History Stage is unlocked. Checks all HistoryStageTask instances
+     * and submits matching ones for all online players.
+     */
+    public static void onStageUnlocked(String stageId) {
+        ServerQuestFile file = ServerQuestFile.INSTANCE;
+        if (file == null) return;
+
+        for (HistoryStageTask task : file.collect(HistoryStageTask.class)) {
+            if (stageId.equals(task.getStage())) {
+                for (ServerPlayer player : file.server.getPlayerList().getPlayers()) {
+                    TeamData teamData = file.getOrCreateTeamData(player);
+                    task.submitTask(teamData, player);
+                }
+            }
+        }
     }
 }
