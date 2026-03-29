@@ -195,6 +195,23 @@ public class StageManager {
         return false;
     }
 
+    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getRecipes().contains(recipeId)) {
+                if (isClientSide) {
+                    if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())) {
+                        return true;
+                    }
+                } else {
+                    if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     public static boolean isItemLocked(ItemStack stack, boolean isClientSide) {
         if (stack.isEmpty()) return false;
         ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
