@@ -91,6 +91,9 @@ public class Config {
         public final ModConfigSpec.BooleanValue showDebugErrors;
 
         public final ModConfigSpec.BooleanValue lockMobLoot;
+        public final ModConfigSpec.BooleanValue lockBlockBreaking;
+        public final ModConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
+        public final ModConfigSpec.BooleanValue lockItemUsage;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ModConfigSpec.BooleanValue broadcastChat;
@@ -130,6 +133,18 @@ public class Config {
             lockMobLoot = builder
                     .comment("Handle locked items in mob loot tables? [Default: true]")
                     .define("lockMobLoot", true);
+
+            lockBlockBreaking = builder
+                    .comment("Prevent normal breaking of blocks whose item form is locked? The block is removed without drops. [Default: true]")
+                    .define("lockBlockBreaking", true);
+
+            lockedBlockBreakSpeedMultiplier = builder
+                    .comment("Break speed multiplier for locked blocks (0.0 = impossible, 1.0 = normal). [Default: 0.05]")
+                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.0, 1.0);
+
+            lockItemUsage = builder
+                    .comment("Prevent using, placing, or equipping locked items? [Default: true]")
+                    .define("lockItemUsage", true);
 
             builder.pop(); // gameplay
 

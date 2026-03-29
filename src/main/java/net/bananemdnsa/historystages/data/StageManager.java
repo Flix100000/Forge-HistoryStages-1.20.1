@@ -194,4 +194,20 @@ public class StageManager {
         }
         return false;
     }
+
+    public static boolean isItemLocked(ItemStack stack, boolean isClientSide) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (res == null) return false;
+        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace());
+        if (requiredStages.isEmpty()) return false;
+        for (String stage : requiredStages) {
+            if (isClientSide) {
+                if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stage)) return true;
+            } else {
+                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) return true;
+            }
+        }
+        return false;
+    }
 }
