@@ -51,8 +51,7 @@ public class ToggleStageLockPacket {
             }
 
             data.setDirty();
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            StageData.refreshCache(data.getUnlockedStages());
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
             PacketHandler.reloadRecipesOnly(player.server);
         });

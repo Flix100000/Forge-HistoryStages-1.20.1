@@ -42,8 +42,7 @@ public class RecipeManagerMixin {
         net.minecraft.server.MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             StageData data = StageData.get(server.overworld());
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            StageData.refreshCache(data.getUnlockedStages());
         }
 
         AllRecipesCache.set(new ArrayList<>(this.byName.values()));

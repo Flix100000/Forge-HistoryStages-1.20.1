@@ -42,6 +42,8 @@ public class SyncStageDefinitionsPacket {
         ctx.get().enqueueWork(() -> {
             // Replace client-side stage definitions with the server's data
             StageManager.setStages(msg.stages);
+            // Keep editor cache in sync so open editors always show current data
+            EditorDataCache.setStages(new HashMap<>(msg.stages));
             System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions from server.");
         });
         ctx.get().setPacketHandled(true);

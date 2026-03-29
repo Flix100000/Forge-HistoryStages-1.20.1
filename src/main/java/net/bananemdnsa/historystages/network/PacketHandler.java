@@ -14,7 +14,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 import java.util.concurrent.CompletableFuture;
 
 public class PacketHandler {
-    private static final String PROTOCOL_VERSION = "3";
+    private static final String PROTOCOL_VERSION = "4";
     public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(HistoryStages.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
@@ -33,6 +33,7 @@ public class PacketHandler {
         INSTANCE.registerMessage(id++, ToggleStageLockPacket.class, ToggleStageLockPacket::encode, ToggleStageLockPacket::decode, ToggleStageLockPacket::handle);
         INSTANCE.registerMessage(id++, SaveConfigPacket.class, SaveConfigPacket::encode, SaveConfigPacket::decode, SaveConfigPacket::handle);
         INSTANCE.registerMessage(id++, SyncStageDefinitionsPacket.class, SyncStageDefinitionsPacket::encode, SyncStageDefinitionsPacket::decode, SyncStageDefinitionsPacket::handle);
+        INSTANCE.registerMessage(id++, SyncConfigPacket.class, SyncConfigPacket::encode, SyncConfigPacket::decode, SyncConfigPacket::handle);
     }
 
     // Hilfsmethode, um das Paket an alle Spieler zu senden
@@ -88,6 +89,16 @@ public class PacketHandler {
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             p.connection.send(recipePacket);
         }
+    }
+
+    // Send config to a specific player (e.g. on login)
+    public static void sendConfigToPlayer(SyncConfigPacket packet, ServerPlayer player) {
+        INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
+    }
+
+    // Send config to all players (e.g. after admin saves config)
+    public static void sendConfigToAll(SyncConfigPacket packet) {
+        INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
     }
 
     // Send a packet from client to server

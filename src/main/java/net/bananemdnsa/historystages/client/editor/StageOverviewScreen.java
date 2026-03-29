@@ -29,6 +29,7 @@ public class StageOverviewScreen extends Screen {
     private static final int HEADER_HEIGHT = 30;
 
     private List<String> stageOrder;
+    private int lastKnownStageCount = -1;
     private double scrollOffset = 0;
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
@@ -77,6 +78,14 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // Refresh stage list if another admin changed definitions (broadcast via SyncStageDefinitionsPacket)
+        int currentCount = StageManager.getStages().size();
+        if (currentCount != lastKnownStageCount || !StageManager.getStages().keySet().containsAll(stageOrder) || !stageOrder.containsAll(StageManager.getStages().keySet())) {
+            stageOrder = StageManager.getStageOrder();
+            lastKnownStageCount = currentCount;
+            updateMaxScroll();
+        }
+
         // Smooth scroll
         smoothScroll += ((float) scrollOffset - smoothScroll) * 0.25f;
         if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f) smoothScroll = (float) scrollOffset;

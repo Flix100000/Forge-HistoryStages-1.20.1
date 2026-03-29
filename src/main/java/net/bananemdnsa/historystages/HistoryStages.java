@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncConfigPacket;
 import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
@@ -126,10 +127,11 @@ public class HistoryStages {
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
-            // Send stage definitions first, then unlocked stages
+            // Send stage definitions, unlocked stages, and server config to client
             PacketHandler.sendDefinitionsToPlayer(new SyncStageDefinitionsPacket(StageManager.getStages()), player);
             StageData data = StageData.get(player.serverLevel());
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
+            PacketHandler.sendConfigToPlayer(SyncConfigPacket.fromServerConfig(), player);
             DebugLogger.runtime("Player Login", player.getName().getString(),
                     "Synced " + StageManager.getStages().size() + " stage definitions, " + data.getUnlockedStages().size() + " unlocked stages");
 
@@ -199,8 +201,7 @@ public class HistoryStages {
     public void onWorldLoad(LevelEvent.Load event) {
         if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel sl) {
             StageData data = StageData.get(sl);
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            StageData.refreshCache(data.getUnlockedStages());
 
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {

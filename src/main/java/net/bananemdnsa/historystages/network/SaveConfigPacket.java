@@ -49,13 +49,17 @@ public class SaveConfigPacket {
             // Apply common config values on the server
             if (!msg.isClient) {
                 applyCommonConfig(msg.configValues);
+                // Force Forge to persist the TOML file to disk
+                Config.COMMON_SPEC.save();
+                // Sync updated config to all connected clients
+                PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §aCommon config saved."));
             }
         });
         ctx.get().setPacketHandled(true);
     }
 
-    private static void applyCommonConfig(Map<String, String> values) {
+    public static void applyCommonConfig(Map<String, String> values) {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();

@@ -9,9 +9,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StageData extends SavedData {
     private final List<String> unlockedStages = new ArrayList<>();
@@ -19,7 +19,7 @@ public class StageData extends SavedData {
 
     // --- NEU: DER CACHE ---
     // Das Mixin greift hierauf zu, weil es keinen direkten Zugriff auf "SavedData" hat
-    public static final Set<String> SERVER_CACHE = new HashSet<>();
+    public static final Set<String> SERVER_CACHE = ConcurrentHashMap.newKeySet();
 
     public StageData() {
         // Falls das Objekt neu erstellt wird, stellen wir sicher, dass der Cache leer ist
@@ -48,14 +48,23 @@ public class StageData extends SavedData {
         return nbt;
     }
 
+    /**
+     * Replaces the cache contents atomically: adds new entries first, then removes stale ones.
+     * This avoids the brief empty-cache window that clear()+addAll() would cause.
+     */
+    public static void refreshCache(List<String> stages) {
+        Set<String> newSet = ConcurrentHashMap.newKeySet();
+        newSet.addAll(stages);
+        SERVER_CACHE.addAll(newSet);
+        SERVER_CACHE.retainAll(newSet);
+    }
+
     public static StageData get(Level level) {
         if (level instanceof ServerLevel serverLevel) {
             StageData data = serverLevel.getServer().overworld().getDataStorage()
                     .computeIfAbsent(StageData::load, StageData::new, DATA_NAME);
 
-            // KRITISCH: Den Cache hier JEDES MAL synchronisieren
-            SERVER_CACHE.clear();
-            SERVER_CACHE.addAll(data.unlockedStages);
+            refreshCache(data.unlockedStages);
 
             return data;
         }
