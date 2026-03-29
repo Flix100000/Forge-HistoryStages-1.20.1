@@ -13,6 +13,10 @@ public class Config {
         public final ModConfigSpec.BooleanValue showTooltips;
         public final ModConfigSpec.BooleanValue showStageName;
         public final ModConfigSpec.BooleanValue showAllUntilComplete;
+        // Jade integration
+        public final ModConfigSpec.BooleanValue jadeShowInfo;
+        public final ModConfigSpec.BooleanValue jadeStageName;
+        public final ModConfigSpec.BooleanValue jadeShowAllUntilComplete;
         public final ModConfigSpec.BooleanValue dimUseActionbar;
         public final ModConfigSpec.BooleanValue dimShowChat;
         public final ModConfigSpec.BooleanValue dimShowStagesInChat;
@@ -48,6 +52,22 @@ public class Config {
             showLockIcons = builder
                     .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
                     .define("showLockIcons", true);
+
+            builder.pop();
+
+            builder.comment("Settings for Jade block overlay (requires Jade mod)").push("jade");
+
+            jadeShowInfo = builder
+                    .comment("Show stage information on locked blocks in the Jade overlay? [Default: true]")
+                    .define("showInfo", true);
+
+            jadeStageName = builder
+                    .comment("If Jade info is enabled, show the name of the required stage? [Default: true]")
+                    .define("showStageName", true);
+
+            jadeShowAllUntilComplete = builder
+                    .comment("If a block is in multiple stages, show all of them until all are unlocked? [Default: true]")
+                    .define("showAllUntilComplete", true);
 
             builder.pop();
 

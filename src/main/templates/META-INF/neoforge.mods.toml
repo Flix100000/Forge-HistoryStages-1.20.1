@@ -46,3 +46,10 @@ type="optional"
 versionRange="[1.1,)"
 ordering="AFTER"
 side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="jade"
+type="optional"
+versionRange="[15,)"
+ordering="AFTER"
+side="BOTH"
