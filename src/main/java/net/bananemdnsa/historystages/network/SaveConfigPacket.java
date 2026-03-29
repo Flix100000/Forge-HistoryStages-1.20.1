@@ -63,6 +63,7 @@ public class SaveConfigPacket {
             switch (key) {
                 case "showWelcomeMessage" -> Config.COMMON.showWelcomeMessage.set(Boolean.parseBoolean(value));
                 case "showDebugErrors" -> Config.COMMON.showDebugErrors.set(Boolean.parseBoolean(value));
+                case "enableRuntimeLogging" -> Config.COMMON.enableRuntimeLogging.set(Boolean.parseBoolean(value));
                 case "lockMobLoot" -> Config.COMMON.lockMobLoot.set(Boolean.parseBoolean(value));
                 case "lockBlockBreaking" -> Config.COMMON.lockBlockBreaking.set(Boolean.parseBoolean(value));
                 case "lockedBlockBreakSpeedMultiplier" -> {

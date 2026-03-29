@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -50,6 +51,8 @@ public class MobLockHandler {
 
         if (!lockedStages.isEmpty()) {
             event.setCanceled(true);
+            DebugLogger.runtimeThrottled("Mob Attack Lock", "mob_attack_" + player.getUUID() + "_" + entityId,
+                    "<" + player.getName().getString() + "> Attack on '" + entityId + "' blocked — missing stages: " + lockedStages);
 
             long now = System.currentTimeMillis();
             Long lastMessage = MESSAGE_COOLDOWNS.get(player.getUUID());

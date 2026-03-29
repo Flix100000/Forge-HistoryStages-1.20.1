@@ -86,6 +86,7 @@
   "editor.historystages.config.mobShowStagesInChat": "Show Stages in Chat",
   "editor.historystages.config.showWelcomeMessage": "Show Welcome Message",
   "editor.historystages.config.showDebugErrors": "Show Debug Errors",
+  "editor.historystages.config.enableRuntimeLogging": "Enable Runtime Logging",
   "editor.historystages.config.lockMobLoot": "Lock Mob Loot",
   "editor.historystages.config.lockBlockBreaking": "Lock Block Breaking",
   "editor.historystages.config.lockedBlockBreakSpeedMultiplier": "Locked Block Break Speed",

@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -24,7 +25,12 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -124,6 +130,12 @@ public class HistoryStages {
             PacketHandler.sendDefinitionsToPlayer(new SyncStageDefinitionsPacket(StageManager.getStages()), player);
             StageData data = StageData.get(player.serverLevel());
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
+            DebugLogger.runtime("Player Login", player.getName().getString(),
+                    "Synced " + StageManager.getStages().size() + " stage definitions, " + data.getUnlockedStages().size() + " unlocked stages");
+
+            // Log locked items in player inventory
+            logLockedInventoryItems(player);
+
             // player.server.getPlayerList().reloadResources(); // Entfernt: verursacht Crash mit SerializerDebug (null-Player im OnDatapackSyncEvent)
 
             // Welcome message
@@ -137,14 +149,43 @@ public class HistoryStages {
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
             }
 
-            // Debug error messages
+            // Debug error/warning messages (INFO only in log file, not in chat)
             if (Config.COMMON.showDebugErrors.get()) {
-                List<String> errors = StageManager.getLoadingErrors();
-                if (!errors.isEmpty()) {
-                    player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFound §f" + errors.size() + " §cissue" + (errors.size() != 1 ? "s" : "") + " in stage configs:"));
-                    for (String error : errors) {
-                        player.sendSystemMessage(Component.literal("  " + error));
+                List<StageManager.LoadingMessage> messages = StageManager.getLoadingMessages();
+                List<StageManager.LoadingMessage> chatMessages = messages.stream()
+                        .filter(m -> m.level() != StageManager.MessageLevel.INFO)
+                        .toList();
+                long infoCount = messages.size() - chatMessages.size();
+
+                if (!chatMessages.isEmpty()) {
+                    long errorCount = chatMessages.stream().filter(m -> m.level() == StageManager.MessageLevel.ERROR).count();
+                    long warnCount = chatMessages.stream().filter(m -> m.level() == StageManager.MessageLevel.WARN).count();
+
+                    // Summary header
+                    StringBuilder summary = new StringBuilder("§7[HistoryStages] §fFound ");
+                    if (errorCount > 0) summary.append("§c").append(errorCount).append(" error").append(errorCount != 1 ? "s" : "");
+                    if (errorCount > 0 && warnCount > 0) summary.append("§f, ");
+                    if (warnCount > 0) summary.append("§e").append(warnCount).append(" warning").append(warnCount != 1 ? "s" : "");
+                    if (infoCount > 0) summary.append("§f (+ §b").append(infoCount).append(" info §fin log file)");
+                    summary.append("§f:");
+                    player.sendSystemMessage(Component.literal(summary.toString()));
+
+                    // Show individual messages (max 10, then truncate)
+                    int shown = 0;
+                    for (StageManager.LoadingMessage msg : chatMessages) {
+                        if (shown >= 10) {
+                            player.sendSystemMessage(Component.literal("  §8... and " + (chatMessages.size() - 10) + " more (see log file)"));
+                            break;
+                        }
+                        String prefix = switch (msg.level()) {
+                            case ERROR -> "  §c[ERROR] §f";
+                            case WARN ->  "  §e[WARN]  §f";
+                            case INFO ->  "  §b[INFO]  §7";
+                        };
+                        player.sendSystemMessage(Component.literal(prefix + msg.message()));
+                        shown++;
                     }
+
                     player.sendSystemMessage(Component.literal("  §8Full report: config/historystages/logs/"));
                     player.sendSystemMessage(Component.literal("  §8(Disable debug messages in the common config)"));
                 }
@@ -152,13 +193,80 @@ public class HistoryStages {
         }
     }
 
+    private static boolean serverInitialized = false;
+
     @SubscribeEvent
     public void onWorldLoad(LevelEvent.Load event) {
         if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel sl) {
             StageData data = StageData.get(sl);
             StageData.SERVER_CACHE.clear();
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
-            LOGGER.info("[HistoryStages] Server cache initialized.");
+
+            // Only run once per server session (onWorldLoad fires for each dimension)
+            if (!serverInitialized) {
+                serverInitialized = true;
+                LOGGER.info("[HistoryStages] Server cache initialized.");
+
+                // Registry validation (registries are now fully loaded)
+                StageManager.validateAgainstRegistries();
+                DebugLogger.writeLogFile(StageManager.getStages());
+
+                DebugLogger.initRuntimeSession();
+                DebugLogger.runtime("Server", "Server started — cache initialized with " + data.getUnlockedStages().size() + " unlocked stages, " + StageManager.getStages().size() + " stages loaded");
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(net.minecraftforge.event.server.ServerStoppingEvent event) {
+        serverInitialized = false;
+        DebugLogger.runtime("Server", "Server stopping — flushing runtime log");
+        DebugLogger.flushRuntimeBuffer();
+    }
+
+    private static int tickCounter = 0;
+    private static final int FLUSH_INTERVAL = 600; // every 30 seconds (20 ticks/s * 30s)
+    private static final int CLEANUP_INTERVAL = 6000; // every 5 minutes
+
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        tickCounter++;
+
+        if (tickCounter % FLUSH_INTERVAL == 0) {
+            DebugLogger.flushRuntimeBuffer();
+        }
+        if (tickCounter % CLEANUP_INTERVAL == 0) {
+            DebugLogger.cleanupThrottleMap();
+        }
+    }
+
+    @SubscribeEvent
+    public void onItemPickup(EntityItemPickupEvent event) {
+        if (event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        ItemStack stack = event.getItem().getItem();
+        if (stack.isEmpty() || !StageManager.isItemLockedForServer(stack)) return;
+
+        ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
+                "<" + player.getName().getString() + "> Picked up locked item: " + itemRL + " x" + stack.getCount());
+    }
+
+    private static void logLockedInventoryItems(ServerPlayer player) {
+        java.util.List<String> lockedItems = new java.util.ArrayList<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.isEmpty()) continue;
+            if (StageManager.isItemLockedForServer(stack)) {
+                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                lockedItems.add(itemRL + " x" + stack.getCount());
+            }
+        }
+        if (!lockedItems.isEmpty()) {
+            DebugLogger.runtime("Inventory", player.getName().getString(),
+                    "Has " + lockedItems.size() + " locked item stack(s) in inventory: " + String.join(", ", lockedItems));
         }
     }
 }

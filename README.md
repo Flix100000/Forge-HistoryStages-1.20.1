@@ -39,8 +39,10 @@ dimensions, mobs, and mod content behind custom research stages.
 - JEI/EMI Support: Automatically hides or marks locked items.
 - Jade Support: Shows stage information on locked blocks in
   the Jade block overlay.
-- Debug Logging: Configurable debug log system for
-  troubleshooting config validation and stage loading.
+- Debug Logging: Comprehensive diagnostic reports with
+  config validation, registry checks, and stage content
+  overview. Runtime event logging for tracking stage
+  changes, blocked actions, and inventory issues.
 - FTB Quests Support: Custom task type (check if a stage is
   unlocked) and reward type (unlock/lock a stage) for seamless
   quest-based progression.
@@ -153,6 +155,8 @@ COMMON CONFIG (server-side):
 - lockedBlockBreakSpeedMultiplier: Break speed multiplier for
   locked blocks (default: 0.05 = 20x slower).
 - lockItemUsage: Prevent using locked items (default: true).
+- lockEntityItems: Prevent interacting with or breaking armor
+  stands and item frames containing locked items (default: true).
 - broadcastChat: Broadcast unlock/lock messages to all players.
 - unlockMessageFormat: Customize the unlock message text
   (supports {stage} placeholder and & color codes).
@@ -160,6 +164,8 @@ COMMON CONFIG (server-side):
 - useSounds: Play notification sounds.
 - useToasts: Show advancement-style toast popups.
 - researchTimeInSeconds: Default research duration (default: 20s).
+- enableRuntimeLogging: Log runtime events (stage changes,
+  blocked actions, inventory tracking) to file (default: false).
 - useReplacements: Replace locked loot with alternative items.
 - replacementItems: List of replacement item IDs.
 - replacementTag: List of item tags for replacement fallback.

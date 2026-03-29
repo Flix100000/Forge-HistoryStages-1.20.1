@@ -188,6 +188,9 @@ public class ConfigEditorScreen extends Screen {
         messages.add(new ConfigEntry("showDebugErrors", ConfigType.BOOLEAN,
                 Config.COMMON.showDebugErrors.get().toString(), false, "true",
                 "Show debug messages in chat if a JSON stage has errors or missing items?"));
+        messages.add(new ConfigEntry("enableRuntimeLogging", ConfigType.BOOLEAN,
+                Config.COMMON.enableRuntimeLogging.get().toString(), false, "false",
+                "Log runtime events (unlock/lock, blocked actions, loot replacements) to config/historystages/logs/?"));
         commonSections.add(messages);
 
         ConfigSection gameplay = new ConfigSection("editor.historystages.config.gameplay");

@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.events.StageEvent;
 import net.minecraft.ChatFormatting;
@@ -120,12 +121,14 @@ public class StageCommand {
                 .then(Commands.literal("reload")
                         .executes(ctx -> {
                             StageManager.reloadStages();
+                            DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!");
                         }))
         );
     }
 
     private static int handleUnlock(CommandSourceStack source, String s) {
+        String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
         if (s.equals("*")) {
             boolean changed = false;
@@ -142,6 +145,7 @@ public class StageCommand {
                 source.sendFailure(Component.literal("All stages are already unlocked!"));
                 return 0;
             }
+            DebugLogger.runtime("Stage Unlock", executor, "Unlocked ALL stages (" + StageManager.getStages().size() + " total)");
             broadcastEffect(source, "*", true);
             return syncAndReload(source, d, "All stages unlocked.");
         } else {
@@ -150,12 +154,14 @@ public class StageCommand {
             var entry = StageManager.getStages().get(s);
             String displayName = entry != null ? entry.getDisplayName() : s;
             MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
+            DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
             broadcastEffect(source, s, true);
             return syncAndReload(source, d, "Unlocked: " + s);
         }
     }
 
     private static int handleLock(CommandSourceStack source, String s) {
+        String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
         if (s.equals("*")) {
             if (d.getUnlockedStages().isEmpty()) {
@@ -163,6 +169,7 @@ public class StageCommand {
                 return 0;
             }
 
+            int count = d.getUnlockedStages().size();
             List<String> toRemove = new ArrayList<>(d.getUnlockedStages());
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
@@ -175,6 +182,7 @@ public class StageCommand {
             d.setDirty();
             StageData.SERVER_CACHE.clear();
 
+            DebugLogger.runtime("Stage Lock", executor, "Locked ALL stages (" + count + " total)");
             broadcastEffect(source, "*", false);
             return syncAndReload(source, d, "All stages locked.");
         } else {
@@ -183,6 +191,7 @@ public class StageCommand {
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
             MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
+            DebugLogger.runtime("Stage Lock", executor, "Locked stage '" + s + "' (" + lockDisplayName + ")");
             broadcastEffect(source, s, false);
             return syncAndReload(source, d, "Locked: " + s);
         }

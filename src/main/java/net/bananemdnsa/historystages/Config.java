@@ -111,6 +111,7 @@ public class Config {
     public static class Common {
         public final ForgeConfigSpec.BooleanValue showWelcomeMessage;
         public final ForgeConfigSpec.BooleanValue showDebugErrors;
+        public final ForgeConfigSpec.BooleanValue enableRuntimeLogging;
 
         public final ForgeConfigSpec.BooleanValue lockMobLoot;
         public final ForgeConfigSpec.BooleanValue lockBlockBreaking;
@@ -148,6 +149,10 @@ public class Config {
             showDebugErrors = builder
                     .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
                     .define("showDebugErrors", true);
+
+            enableRuntimeLogging = builder
+                    .comment("Log runtime events (stage unlock/lock, blocked actions, loot replacements) to config/historystages/logs/runtime-*.log? [Default: false]")
+                    .define("enableRuntimeLogging", false);
 
             builder.pop(); // general
 

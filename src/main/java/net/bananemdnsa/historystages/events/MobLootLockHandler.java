@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -36,6 +37,7 @@ public class MobLootLockHandler {
         }
 
         Collection<ItemEntity> drops = event.getDrops();
+        int replacedCount = 0;
 
         for (ItemEntity itemEntity : drops) {
             ItemStack stack = itemEntity.getItem();
@@ -47,11 +49,18 @@ public class MobLootLockHandler {
                 } else {
                     itemEntity.setItem(new ItemStack(Items.AIR));
                 }
+                replacedCount++;
             }
         }
 
         // Bereinigung: Alle Einträge entfernen, die jetzt AIR sind
         drops.removeIf(itemEntity -> itemEntity.getItem().isEmpty() || itemEntity.getItem().is(Items.AIR));
+
+        if (replacedCount > 0) {
+            ResourceLocation entityType = ForgeRegistries.ENTITY_TYPES.getKey(event.getEntity().getType());
+            DebugLogger.runtimeThrottled("Mob Loot Lock", "mobloot_" + entityType,
+                    "Replaced " + replacedCount + " locked drop(s) from '" + entityType + "'");
+        }
     }
 
     private static ItemStack getReplacement(int count) {

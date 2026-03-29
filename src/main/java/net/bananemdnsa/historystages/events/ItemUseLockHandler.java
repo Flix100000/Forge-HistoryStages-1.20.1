@@ -3,10 +3,12 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
@@ -15,6 +17,7 @@ import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,7 +44,12 @@ public class ItemUseLockHandler {
 
         if (StageManager.isItemLocked(heldItem, isClient)) {
             event.setCanceled(true);
-            if (!isClient) showMessage(event.getEntity());
+            if (!isClient) {
+                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
+                DebugLogger.runtimeThrottled("Item Use Lock", "use_" + event.getEntity().getUUID() + "_" + itemRL,
+                        "<" + event.getEntity().getName().getString() + "> Right-click use of '" + itemRL + "' blocked");
+                showMessage(event.getEntity());
+            }
         }
     }
 
@@ -77,7 +85,12 @@ public class ItemUseLockHandler {
 
         if (StageManager.isItemLocked(heldItem, isClient)) {
             event.setCanceled(true);
-            if (!isClient) showMessage(event.getEntity());
+            if (!isClient) {
+                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
+                DebugLogger.runtimeThrottled("Item Use Lock", "mine_" + event.getEntity().getUUID() + "_" + itemRL,
+                        "<" + event.getEntity().getName().getString() + "> Mining with locked tool '" + itemRL + "' blocked");
+                showMessage(event.getEntity());
+            }
         }
     }
 
@@ -100,7 +113,12 @@ public class ItemUseLockHandler {
 
         if (StageManager.isItemLocked(weapon, isClient)) {
             event.setCanceled(true);
-            if (!isClient) showMessage(event.getEntity());
+            if (!isClient) {
+                ResourceLocation weaponRL = ForgeRegistries.ITEMS.getKey(weapon.getItem());
+                DebugLogger.runtimeThrottled("Item Use Lock", "attack_" + event.getEntity().getUUID() + "_" + weaponRL,
+                        "<" + event.getEntity().getName().getString() + "> Attack with locked weapon '" + weaponRL + "' blocked");
+                showMessage(event.getEntity());
+            }
         }
     }
 
@@ -124,6 +142,9 @@ public class ItemUseLockHandler {
         if (slot.getType() != EquipmentSlot.Type.ARMOR && slot != EquipmentSlot.OFFHAND) return;
 
         if (StageManager.isItemLockedForServer(newItem)) {
+            ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(newItem.getItem());
+            DebugLogger.runtime("Item Use Lock", player.getName().getString(),
+                    "Equipped locked item '" + itemRL + "' in slot " + slot.getName() + " — removed and returned to inventory");
             suppressEquipmentCheck = true;
             try {
                 player.setItemSlot(slot, ItemStack.EMPTY);

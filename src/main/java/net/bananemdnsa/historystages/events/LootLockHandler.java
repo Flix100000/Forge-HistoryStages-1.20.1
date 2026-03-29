@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.TagKey;
@@ -35,25 +36,25 @@ public class LootLockHandler {
         if (!container.getClass().getName().toLowerCase().contains("lootr")) return;
 
         boolean changed = false;
+        int replacedCount = 0;
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack stack = container.getItem(i);
             if (stack.isEmpty()) continue;
 
-            // Nutzt die isItemLockedForServer Methode im StageManager
             if (StageManager.isItemLockedForServer(stack)) {
-
-                // NUR wenn useReplacements in der Config auf true ist
                 if (Config.COMMON.useReplacements.get()) {
                     container.setItem(i, getReplacement(stack.getCount()));
                 } else {
-                    // Ansonsten wird das Item einfach entfernt
                     container.setItem(i, ItemStack.EMPTY);
                 }
+                replacedCount++;
                 changed = true;
             }
         }
 
         if (changed) {
+            DebugLogger.runtime("Loot Lock", event.getEntity().getName().getString(),
+                    "Replaced " + replacedCount + " locked item(s) in Lootr container");
             event.getContainer().broadcastChanges();
         }
     }

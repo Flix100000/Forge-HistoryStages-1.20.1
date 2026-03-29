@@ -86,6 +86,7 @@
   "editor.historystages.config.mobShowStagesInChat": "Stufen im Chat zeigen",
   "editor.historystages.config.showWelcomeMessage": "Willkommensnachricht",
   "editor.historystages.config.showDebugErrors": "Debug-Fehler anzeigen",
+  "editor.historystages.config.enableRuntimeLogging": "Laufzeit-Logging aktivieren",
   "editor.historystages.config.lockMobLoot": "Mob-Loot sperren",
   "editor.historystages.config.lockBlockBreaking": "Block-Abbau sperren",
   "editor.historystages.config.lockedBlockBreakSpeedMultiplier": "Gesperrte Block-Abbaugeschwindigkeit",
