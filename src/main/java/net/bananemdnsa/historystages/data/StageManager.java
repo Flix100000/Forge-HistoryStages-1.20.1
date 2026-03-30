@@ -100,6 +100,38 @@ public class StageManager {
     public static void reloadStages() { load(); }
     public static Map<String, StageEntry> getStages() { return STAGES; }
 
+    public static void setStages(Map<String, StageEntry> stages) {
+        STAGES.clear();
+        if (stages != null) {
+            STAGES.putAll(stages);
+        }
+    }
+
+    public static boolean saveStage(String stageId, StageEntry entry) {
+        java.io.File configDir = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        if (!configDir.exists()) configDir.mkdirs();
+
+        java.io.File file = new java.io.File(configDir, stageId + ".json");
+        try (java.io.Writer writer = new java.io.FileWriter(file)) {
+            writer.write(entry.toJson());
+            STAGES.put(stageId, entry);
+            return true;
+        } catch (Exception e) {
+            System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean deleteStage(String stageId) {
+        java.io.File configDir = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        java.io.File file = new java.io.File(configDir, stageId + ".json");
+        if (file.exists() && file.delete()) {
+            STAGES.remove(stageId);
+            return true;
+        }
+        return false;
+    }
+
     public static String getStageForItemOrMod(String itemId, String modId) {
         for (var entry : STAGES.entrySet()) {
             StageEntry data = entry.getValue();

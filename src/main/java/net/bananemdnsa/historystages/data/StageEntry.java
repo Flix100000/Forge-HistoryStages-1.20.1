@@ -1,10 +1,14 @@
 package net.bananemdnsa.historystages.data;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
 import java.util.ArrayList;
 import java.util.List;
 
 public class StageEntry {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
     @SerializedName("display_name")
     private String displayName;
 
@@ -38,5 +42,18 @@ public class StageEntry {
 
     public EntityLocks getEntities() {
         return entities != null ? entities : new EntityLocks();
+    }
+
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public void setResearchTime(int researchTime) { this.researchTime = researchTime; }
+    public void setItems(List<String> items) { this.items = items != null ? new ArrayList<>(items) : new ArrayList<>(); }
+    public void setTags(List<String> tags) { this.tags = tags != null ? new ArrayList<>(tags) : new ArrayList<>(); }
+    public void setMods(List<String> mods) { this.mods = mods != null ? new ArrayList<>(mods) : new ArrayList<>(); }
+    public void setRecipes(List<String> recipes) { this.recipes = recipes != null ? new ArrayList<>(recipes) : new ArrayList<>(); }
+    public void setDimensions(List<String> dimensions) { this.dimensions = dimensions != null ? new ArrayList<>(dimensions) : new ArrayList<>(); }
+    public void setEntities(EntityLocks entities) { this.entities = entities != null ? entities : new EntityLocks(); }
+
+    public String toJson() {
+        return GSON.toJson(this);
     }
 }

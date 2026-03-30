@@ -6,6 +6,8 @@ import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncConfigPacket;
+import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.StageData;
@@ -113,8 +115,11 @@ public class HistoryStages {
     @SubscribeEvent
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
+            // Send stage definitions, unlocked stages, and server config to client
             StageData data = StageData.get(player.serverLevel());
+            PacketHandler.sendDefinitionsToPlayer(new SyncStageDefinitionsPacket(StageManager.getStages()), player);
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
+            PacketHandler.sendConfigToPlayer(SyncConfigPacket.fromServerConfig(), player);
             // player.server.getPlayerList().reloadResources(); // Entfernt: verursacht Crash mit SerializerDebug (null-Player im OnDatapackSyncEvent)
 
             // Welcome message
