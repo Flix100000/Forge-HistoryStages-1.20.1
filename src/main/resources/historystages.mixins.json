@@ -8,6 +8,9 @@
     "RecipeManagerMixin",
     "ContainerClickMixin"
   ],
+  "client": [
+    "jei.RecipeLayoutMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

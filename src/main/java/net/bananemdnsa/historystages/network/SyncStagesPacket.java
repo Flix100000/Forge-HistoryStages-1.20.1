@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.jei.JEIPlugin; // Import für JEI Refresh
+import net.bananemdnsa.historystages.jei.JEIPlugin;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 import java.util.ArrayList;
@@ -42,28 +42,20 @@ public class SyncStagesPacket {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
                     try {
-                        // --- NEU: GRAFIK-REFRESH FÜR SCHLÖSSER (JEI/EMI/Inventar) ---
-                        // Das zwingt den LevelRenderer, alle sichtbaren Elemente neu zu berechnen.
+                        // Grafik-Refresh für Lock-Overlays
                         if (mc.levelRenderer != null) {
                             mc.levelRenderer.allChanged();
                         }
 
-                        // Rezept-Resync wird durch reloadResources() auf dem Server ausgelöst,
-                        // das schickt automatisch ClientboundUpdateRecipesPacket an alle Clients.
-                        // replaceRecipes(emptyList()) wurde entfernt, da es Mod-Maschinen
-                        // (z.B. SewingKit) kaputt macht, die die leere Liste cachen.
-
-                        // --- MOD-SPEZIFISCHE UPDATES ---
-                        // Wir rufen diese jetzt über die sichere Hilfsklasse auf
+                        // JEI: Item-Sichtbarkeit aktualisieren (Decorator für Rezepte prüft live)
                         if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
-                            ExternalMods.refreshJEI();
+                            JEIPlugin.refreshJei();
                         }
 
+                        // EMI extra reload (hat eigenen Reload-Mechanismus)
                         if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
                             ExternalMods.refreshEMI();
                         }
-
-                        System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -74,21 +66,10 @@ public class SyncStagesPacket {
     }
 
     private static class ExternalMods {
-        private static void refreshJEI() {
-            try {
-                // Dein bestehender JEI-Refresh
-                net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
-            } catch (Throwable ignored) {}
-        }
-
         private static void refreshEMI() {
             try {
-                // "Leiser" Refresh für EMI: Suchtext triggert Re-Filter der neuen Rezepte
-                String currentSearch = dev.emi.emi.api.EmiApi.getSearchText();
-                dev.emi.emi.api.EmiApi.setSearchText(currentSearch);
-
-                // Optional: Falls EMI trotzdem nicht alle neuen Rezepte sieht,
-                // kann man hier noch dev.emi.emi.api.EmiApi.forceReload() per Reflection einbauen.
+                Class<?> reloadManager = Class.forName("dev.emi.emi.runtime.EmiReloadManager");
+                reloadManager.getMethod("reload").invoke(null);
             } catch (Throwable ignored) {}
         }
     }

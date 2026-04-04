@@ -122,7 +122,6 @@ public class HistoryStageReward extends Reward {
 
         StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-        PacketHandler.reloadRecipesOnly(player.server);
     }
 
     private void claimIndividual(ServerPlayer player) {

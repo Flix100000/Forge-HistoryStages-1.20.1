@@ -17,7 +17,10 @@ import java.util.Map;
 public class EMIPlugin implements EmiPlugin {
     @Override
     public void register(EmiRegistry registry) {
-        // Nutzt dieselbe Config-Option wie JEI
+        // Locked recipe overlay (always active, works for all recipe categories)
+        registry.addRecipeDecorator(new LockedEmiRecipeDecorator());
+
+        // Item hiding (optional, controlled by config)
         if (!Config.CLIENT.hideInJei.get()) return;
 
         for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {

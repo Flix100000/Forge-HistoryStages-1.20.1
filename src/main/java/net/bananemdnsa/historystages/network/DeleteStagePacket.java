@@ -53,9 +53,6 @@ public class DeleteStagePacket {
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
                 String prefix = msg.individual ? "Individual stage" : "Stage";
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' deleted."));
-                if (!msg.individual) {
-                    PacketHandler.reloadRecipesOnly(player.server);
-                }
             } else {
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to delete stage '" + msg.stageId + "'."));
             }
