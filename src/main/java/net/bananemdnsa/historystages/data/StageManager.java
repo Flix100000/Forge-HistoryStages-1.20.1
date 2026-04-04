@@ -55,7 +55,7 @@ public class StageManager {
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
         if (!configDir.exists()) configDir.mkdirs();
 
         File[] files = configDir.listFiles((dir, name) ->
@@ -489,7 +489,7 @@ public class StageManager {
     }
 
     public static boolean saveStage(String stageId, StageEntry entry) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
         if (!configDir.exists()) configDir.mkdirs();
 
         File file = new File(configDir, stageId + ".json");
@@ -501,13 +501,13 @@ public class StageManager {
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
             DebugLogger.error("Stage Saving", "Failed to save stage '" + stageId + "': " + e.getMessage());
-            DebugLogger.writeLogFile(STAGES);
+            DebugLogger.writeLogFile(STAGES, INDIVIDUAL_STAGES);
             return false;
         }
     }
 
     public static boolean deleteStage(String stageId) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
         File file = new File(configDir, stageId + ".json");
         if (file.exists() && file.delete()) {
             STAGES.remove(stageId);
@@ -518,7 +518,7 @@ public class StageManager {
     }
 
     public static List<String> getStageOrder() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").toFile();
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
         if (!configDir.exists()) return new ArrayList<>(STAGES.keySet());
 
         File[] files = configDir.listFiles((dir, name) ->

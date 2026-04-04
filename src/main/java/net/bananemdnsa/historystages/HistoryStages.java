@@ -228,7 +228,7 @@ public class HistoryStages {
 
                 // Registry validation (registries are now fully loaded)
                 StageManager.validateAgainstRegistries();
-                DebugLogger.writeLogFile(StageManager.getStages());
+                DebugLogger.writeLogFile(StageManager.getStages(), StageManager.getIndividualStages());
 
                 DebugLogger.initRuntimeSession();
                 DebugLogger.runtime("Server", "Server started — cache initialized with " + data.getUnlockedStages().size() + " unlocked stages, " + StageManager.getStages().size() + " stages loaded");
