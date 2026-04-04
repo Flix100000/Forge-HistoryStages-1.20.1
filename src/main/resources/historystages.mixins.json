@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "refmap": "historystages.refmap.json",
   "mixins": [
-    "RecipeManagerMixin"
+    "RecipeManagerMixin",
+    "ContainerClickMixin"
   ],
   "injectors": {
     "defaultRequire": 1

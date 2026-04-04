@@ -61,6 +61,9 @@ public class DimensionLockHandler {
                 if (Config.CLIENT.dimShowStagesInChat.get()) {
                     for (String stageId : lockedStages) {
                         StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        if (stageEntry == null) {
+                            stageEntry = StageManager.getIndividualStages().get(stageId);
+                        }
                         String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
                         chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
                     }

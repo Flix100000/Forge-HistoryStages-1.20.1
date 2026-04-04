@@ -20,15 +20,27 @@ public class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.RESEARCH_SCROLL.get())) // Das Icon des Tabs
                     .title(Component.translatable("creativetab.history_tab"))
                     .displayItems((parameters, output) -> {
-                        // 1. Die Forschungsstation hinzufügen
+                        // 1. Forschungsstation und Creative Scroll
                         output.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
 
-                        // 2. Dynamisch für jede geladene Stage ein Buch erstellen
+                        ItemStack creativeScroll = new ItemStack(ModItems.CREATIVE_SCROLL.get());
+                        creativeScroll.getOrCreateTag().putString("StageResearch", ModItems.CREATIVE_STAGE_ID);
+                        output.accept(creativeScroll);
+
+                        // 2. Dynamisch für jede geladene Stage ein Scroll erstellen (Global)
                         for (String stageId : StageManager.getStages().keySet()) {
-                            ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-                            CompoundTag nbt = book.getOrCreateTag();
+                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+                            CompoundTag nbt = scroll.getOrCreateTag();
                             nbt.putString("StageResearch", stageId);
-                            output.accept(book);
+                            output.accept(scroll);
+                        }
+
+                        // 3. Individual Stages
+                        for (String stageId : StageManager.getIndividualStages().keySet()) {
+                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+                            CompoundTag nbt = scroll.getOrCreateTag();
+                            nbt.putString("StageResearch", stageId);
+                            output.accept(scroll);
                         }
                     })
                     .build());

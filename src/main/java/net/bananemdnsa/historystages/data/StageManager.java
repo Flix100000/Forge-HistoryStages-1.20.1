@@ -764,12 +764,11 @@ public class StageManager {
      * Global stages have loading priority — conflicting individual entries are removed with an error.
      */
     private static void detectOverlaps() {
-        // Build a lookup: item/tag/mod/dimension/entity -> global stage ID
+        // Build a lookup: item/tag/mod -> global stage ID
+        // Note: Dimensions and entities are allowed to overlap — a player needs BOTH global and individual stages unlocked.
         Map<String, String> globalItemMap = new HashMap<>();
         Map<String, String> globalTagMap = new HashMap<>();
         Map<String, String> globalModMap = new HashMap<>();
-        Map<String, String> globalDimMap = new HashMap<>();
-        Map<String, String> globalEntityMap = new HashMap<>();
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
@@ -777,8 +776,6 @@ public class StageManager {
             for (String item : gEntry.getItems()) globalItemMap.put(item, gStageId);
             for (String tag : gEntry.getTags()) globalTagMap.put(tag, gStageId);
             for (String mod : gEntry.getMods()) globalModMap.put(mod, gStageId);
-            for (String dim : gEntry.getDimensions()) globalDimMap.put(dim, gStageId);
-            for (String e : gEntry.getEntities().getAttacklock()) globalEntityMap.put(e, gStageId);
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
@@ -811,28 +808,6 @@ public class StageManager {
                 String conflict = globalModMap.get(mod);
                 if (conflict != null) {
                     String msg = "Individual stage '" + iStageId + "' mod '" + mod + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
-                    addMessage(MessageLevel.ERROR, msg);
-                    DebugLogger.error("Overlap Detection", msg);
-                    return true;
-                }
-                return false;
-            });
-
-            iEntry.getDimensions().removeIf(dim -> {
-                String conflict = globalDimMap.get(dim);
-                if (conflict != null) {
-                    String msg = "Individual stage '" + iStageId + "' dimension '" + dim + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
-                    addMessage(MessageLevel.ERROR, msg);
-                    DebugLogger.error("Overlap Detection", msg);
-                    return true;
-                }
-                return false;
-            });
-
-            iEntry.getEntities().getAttacklock().removeIf(entity -> {
-                String conflict = globalEntityMap.get(entity);
-                if (conflict != null) {
-                    String msg = "Individual stage '" + iStageId + "' entity '" + entity + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
                     addMessage(MessageLevel.ERROR, msg);
                     DebugLogger.error("Overlap Detection", msg);
                     return true;

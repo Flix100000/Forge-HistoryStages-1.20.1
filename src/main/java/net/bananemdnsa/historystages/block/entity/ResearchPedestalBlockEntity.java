@@ -50,6 +50,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 if (isCurrentScrollIndividual() && lastInteractingPlayer != null) {
                     ownerUUID = lastInteractingPlayer;
                     stack.getOrCreateTag().putUUID("OwnerUUID", ownerUUID);
+                    // Store owner name for client-side display
+                    if (level != null && level.getServer() != null) {
+                        net.minecraft.server.level.ServerPlayer ownerPlayer =
+                                level.getServer().getPlayerList().getPlayer(ownerUUID);
+                        if (ownerPlayer != null) {
+                            stack.getOrCreateTag().putString("OwnerName", ownerPlayer.getName().getString());
+                        }
+                    }
                 }
             } else {
                 ownerUUID = null;
@@ -59,7 +67,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         @Override
         public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return stack.is(ModItems.RESEARCH_SCROLL.get());
+            return stack.is(ModItems.RESEARCH_SCROLL.get()) || stack.is(ModItems.CREATIVE_SCROLL.get());
         }
 
         @Override
@@ -155,10 +163,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         if (hasValidBook) {
             String stageId = stack.getTag().getString("StageResearch");
-            boolean isIndividual = StageManager.isIndividualStage(stageId);
+            boolean isCreative = ModItems.CREATIVE_STAGE_ID.equals(stageId);
+            boolean isIndividual = !isCreative && StageManager.isIndividualStage(stageId);
             boolean alreadyUnlocked;
 
-            if (isIndividual) {
+            if (isCreative) {
+                // Creative scroll: never "already unlocked"
+                alreadyUnlocked = false;
+            } else if (isIndividual) {
                 // Individual: check if the owner has this stage
                 UUID owner = entity.ownerUUID;
                 if (owner == null && stack.hasTag() && stack.getTag().hasUUID("OwnerUUID")) {
@@ -203,9 +215,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private void finishResearch(ItemStack stack) {
         if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
-            boolean isIndividual = StageManager.isIndividualStage(stageId);
 
-            if (isIndividual) {
+            if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                finishCreativeResearch();
+            } else if (StageManager.isIndividualStage(stageId)) {
                 finishIndividualResearch(stack, stageId);
             } else {
                 finishGlobalResearch(stack, stageId);
@@ -313,10 +326,66 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
     }
 
+    private void finishCreativeResearch() {
+        if (level.getServer() == null) return;
+
+        // Unlock all global stages
+        StageData stageData = StageData.get(level);
+        for (String id : StageManager.getStages().keySet()) {
+            if (!stageData.getUnlockedStages().contains(id)) {
+                stageData.addStage(id);
+            }
+        }
+        stageData.setDirty();
+
+        // Reload recipes
+        level.getServer().getCommands().performPrefixedCommand(
+                level.getServer().createCommandSourceStack().withSuppressedOutput(),
+                "history reload"
+        );
+
+        // Unlock all individual stages for all online players
+        IndividualStageData individualData = IndividualStageData.get(level);
+        for (net.minecraft.server.level.ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            for (String id : StageManager.getIndividualStages().keySet()) {
+                if (!individualData.hasStage(player.getUUID(), id)) {
+                    individualData.addStage(player.getUUID(), id);
+                }
+            }
+            // Sync individual stages to each player
+            PacketHandler.sendIndividualStagesToPlayer(
+                    new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
+                    player
+            );
+        }
+        individualData.setDirty();
+
+        // Sync global stages and notify
+        PacketHandler.sendToAll(new SyncStagesPacket(new java.util.ArrayList<>(StageData.SERVER_CACHE)));
+
+        level.getServer().getPlayerList().getPlayers().forEach(player -> {
+            if (Config.COMMON.broadcastChat.get()) {
+                player.sendSystemMessage(
+                        Component.literal("[HistoryStages] ")
+                                .withStyle(ChatFormatting.GRAY)
+                                .append(Component.translatable("command.historystages.unlocked_all")
+                                        .withStyle(ChatFormatting.GREEN))
+                );
+            }
+            if (Config.COMMON.useSounds.get()) {
+                player.playNotifySound(net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
+                        net.minecraft.sounds.SoundSource.MASTER, 0.75F, 1.0F);
+            }
+        });
+    }
+
     private int getMaxProgressForCurrentStage() {
         ItemStack stack = this.itemHandler.getStackInSlot(0);
         if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
+            if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                return Config.COMMON.researchTimeInSeconds.get() * 20;
+            }
             if (StageManager.isIndividualStage(stageId)) {
                 return StageManager.getIndividualResearchTimeInTicks(stageId);
             }

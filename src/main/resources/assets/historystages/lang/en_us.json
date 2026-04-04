@@ -1,6 +1,9 @@
 {
   "block.historystages.research_pedestal": "Research Pedestal",
   "item.historystages.research_scroll": "Research Scroll",
+  "item.historystages.creative_scroll": "Creative Scroll",
+  "tooltip.historystages.creative_scroll.info1": "Use this scroll in a Research Pedestal",
+  "tooltip.historystages.creative_scroll.info2": "to unlock all stages at once.",
   "tooltip.historystages.locked": "§cLocked! Requires: §7%s",
   "command.historystages.unlocked_all": "All stages have been unlocked.",
   "command.historystages.not_found": "Stage '%s' not found!",
