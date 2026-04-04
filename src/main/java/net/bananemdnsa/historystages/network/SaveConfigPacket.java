@@ -98,6 +98,10 @@ public class SaveConfigPacket {
                             .collect(Collectors.toList());
                     Config.COMMON.replacementTag.set(tagList);
                 }
+                case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
+                case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));
+                case "individualNotifyPlayer" -> Config.COMMON.individualNotifyPlayer.set(Boolean.parseBoolean(value));
+                case "individualUnlockMessageFormat" -> Config.COMMON.individualUnlockMessageFormat.set(value);
             }
         }
     }

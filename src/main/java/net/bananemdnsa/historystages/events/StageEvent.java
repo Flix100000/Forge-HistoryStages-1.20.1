@@ -47,4 +47,36 @@ public abstract class StageEvent extends Event {
             super(stageId, displayName);
         }
     }
+
+    /**
+     * Fired after an individual stage has been unlocked for a specific player.
+     */
+    public static class IndividualUnlocked extends StageEvent {
+        private final java.util.UUID playerUUID;
+
+        public IndividualUnlocked(String stageId, String displayName, java.util.UUID playerUUID) {
+            super(stageId, displayName);
+            this.playerUUID = playerUUID;
+        }
+
+        public java.util.UUID getPlayerUUID() {
+            return playerUUID;
+        }
+    }
+
+    /**
+     * Fired after an individual stage has been locked for a specific player.
+     */
+    public static class IndividualLocked extends StageEvent {
+        private final java.util.UUID playerUUID;
+
+        public IndividualLocked(String stageId, String displayName, java.util.UUID playerUUID) {
+            super(stageId, displayName);
+            this.playerUUID = playerUUID;
+        }
+
+        public java.util.UUID getPlayerUUID() {
+            return playerUUID;
+        }
+    }
 }

@@ -67,6 +67,10 @@ public class SyncConfigPacket {
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         values.put("replacementTag", Config.COMMON.replacementTag.get().stream().map(Object::toString).collect(Collectors.joining(",")));
+        values.put("individualLockItemPickup", Config.COMMON.individualLockItemPickup.get().toString());
+        values.put("individualDropOnRevoke", Config.COMMON.individualDropOnRevoke.get().toString());
+        values.put("individualNotifyPlayer", Config.COMMON.individualNotifyPlayer.get().toString());
+        values.put("individualUnlockMessageFormat", Config.COMMON.individualUnlockMessageFormat.get());
         return new SyncConfigPacket(values);
     }
 }

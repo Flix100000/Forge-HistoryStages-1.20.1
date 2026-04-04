@@ -154,6 +154,15 @@ public class ConfigEditorScreen extends Screen {
                 "If a block is in multiple stages, show all of them until all are unlocked?"));
         clientSections.add(jade);
 
+        ConfigSection individualClient = new ConfigSection("editor.historystages.config.individual_stages");
+        individualClient.add(new ConfigEntry("showSilverLockIcons", ConfigType.BOOLEAN,
+                Config.CLIENT.showSilverLockIcons.get().toString(), true, "true",
+                "Show a silver lock icon on items locked by individual stages?"));
+        individualClient.add(new ConfigEntry("showIndividualTooltips", ConfigType.BOOLEAN,
+                Config.CLIENT.showIndividualTooltips.get().toString(), true, "true",
+                "Show tooltip information for items locked by individual stages?"));
+        clientSections.add(individualClient);
+
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
                 Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
@@ -229,6 +238,22 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.useToasts.get().toString(), false, "true",
                 "Show an advancement-style toast popup when a stage is unlocked?"));
         commonSections.add(notifications);
+
+        ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
+        individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockItemPickup.get().toString(), false, "true",
+                "Prevent players from picking up items locked by individual stages?"));
+        individualCommon.add(new ConfigEntry("individualDropOnRevoke", ConfigType.BOOLEAN,
+                Config.COMMON.individualDropOnRevoke.get().toString(), false, "true",
+                "Drop locked items from a player's inventory when their individual stage is revoked?"));
+        individualCommon.add(new ConfigEntry("individualNotifyPlayer", ConfigType.BOOLEAN,
+                Config.COMMON.individualNotifyPlayer.get().toString(), false, "true",
+                "Send chat/sound/toast notifications to the player when their individual stage is unlocked?"));
+        individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.STRING,
+                Config.COMMON.individualUnlockMessageFormat.get(), false,
+                "&fYou have unlocked &b{stage}&f!",
+                "Message format for individual unlocks. Use {stage} for the name, {player} for the player, and & for colors."));
+        commonSections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
@@ -685,6 +710,8 @@ public class ConfigEditorScreen extends Screen {
                 case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
                 case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
+                case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
+                case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
             }
         }
     }

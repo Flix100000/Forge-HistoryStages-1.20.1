@@ -29,6 +29,7 @@ import java.util.Set;
 
 public class StageManager {
     private static final Map<String, StageEntry> STAGES = new HashMap<>();
+    private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new HashMap<>();
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
@@ -50,6 +51,7 @@ public class StageManager {
 
     public static void load() {
         STAGES.clear();
+        INDIVIDUAL_STAGES.clear();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
@@ -91,6 +93,9 @@ public class StageManager {
         }
 
         DebugLogger.setStagesLoaded(STAGES.size());
+
+        // Load individual stages after global stages
+        loadIndividual();
     }
 
     private static void validateFileName(String id, String fileName) {
@@ -333,6 +338,30 @@ public class StageManager {
                 if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
                     addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Stage: " + stageId + ", spawnlock).");
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", spawnlock). Typo or missing mod?");
+                }
+            }
+        }
+
+        // Validate individual stages against registries
+        for (Map.Entry<String, StageEntry> indEntry : INDIVIDUAL_STAGES.entrySet()) {
+            String indId = indEntry.getKey();
+            StageEntry indData = indEntry.getValue();
+
+            for (String itemId : indData.getItems()) {
+                if (!ResourceLocation.isValidResourceLocation(itemId)) continue;
+                ResourceLocation rl = new ResourceLocation(itemId);
+                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Item '" + itemId + "' does not exist in registry (Individual Stage: " + indId + ").");
+                    DebugLogger.warn("Unknown Items", "Item '" + itemId + "' does not exist in the item registry (Individual Stage: " + indId + "). Typo or missing mod?");
+                }
+            }
+
+            for (String entityId : indData.getEntities().getAttacklock()) {
+                if (!ResourceLocation.isValidResourceLocation(entityId)) continue;
+                ResourceLocation rl = new ResourceLocation(entityId);
+                if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Individual Stage: " + indId + ", attacklock).");
+                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Individual Stage: " + indId + ", attacklock). Typo or missing mod?");
                 }
             }
         }
@@ -587,5 +616,360 @@ public class StageManager {
         return false;
     }
 
+    // =============================================
+    // INDIVIDUAL STAGES
+    // =============================================
 
+    private static final Set<String> INDIVIDUAL_UNSUPPORTED_KEYS = Set.of("recipes");
+
+    private static void loadIndividual() {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
+        if (!configDir.exists()) {
+            configDir.mkdirs();
+            return;
+        }
+
+        File[] files = configDir.listFiles((dir, name) ->
+                name.endsWith(".json") && !name.startsWith("_")
+        );
+
+        if (files == null) return;
+
+        for (File file : files) {
+            String id = file.getName().replace(".json", "");
+
+            validateFileName(id, file.getName());
+
+            try (Reader reader = new FileReader(file)) {
+                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                detectUnknownKeys(id, content);
+
+                StageEntry entry = GSON.fromJson(content, StageEntry.class);
+
+                if (entry != null) {
+                    stripUnsupportedIndividualCategories(id, entry);
+                    validateAndAddIndividual(id, entry);
+                } else {
+                    String msg = "Individual file '" + file.getName() + "' parsed as null (empty or invalid JSON)";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Individual Stage Loading", msg);
+                }
+            } catch (Exception e) {
+                String msg = "Error in individual file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
+                addMessage(MessageLevel.ERROR, msg);
+                DebugLogger.error("Individual Stage Loading", msg + " — " + e.getMessage());
+            }
+        }
+
+        // Overlap detection: individual entries that conflict with global stages are skipped
+        detectOverlaps();
+
+        System.out.println("[HistoryStages] Individual Stages geladen: " + INDIVIDUAL_STAGES.size());
+    }
+
+    private static void stripUnsupportedIndividualCategories(String stageId, StageEntry entry) {
+        // Recipes are not supported for individual stages
+        if (entry.getRecipes() != null && !entry.getRecipes().isEmpty()) {
+            String msg = "Individual stage '" + stageId + "' contains 'recipes' — not supported for individual stages. Entries removed.";
+            addMessage(MessageLevel.ERROR, msg);
+            DebugLogger.error("Individual Stage Loading", msg);
+            entry.getRecipes().clear();
+        }
+
+        // Spawnlock is not supported for individual stages
+        if (entry.getEntities().getSpawnlock() != null && !entry.getEntities().getSpawnlock().isEmpty()) {
+            String msg = "Individual stage '" + stageId + "' contains 'entities.spawnlock' — not supported for individual stages. Entries removed.";
+            addMessage(MessageLevel.ERROR, msg);
+            DebugLogger.error("Individual Stage Loading", msg);
+            entry.getEntities().getSpawnlock().clear();
+        }
+    }
+
+    private static void validateAndAddIndividual(String stageId, StageEntry entry) {
+        // Check for duplicate stage ID across global and individual
+        if (STAGES.containsKey(stageId)) {
+            String msg = "Individual stage '" + stageId + "' has the same ID as a global stage. Individual stage skipped.";
+            addMessage(MessageLevel.ERROR, msg);
+            DebugLogger.error("Individual Stage Loading", msg);
+            return;
+        }
+
+        // Reuse global validation (empty strings, duplicates, format checks)
+        removeEmptyStrings(entry.getItems(), stageId, "items");
+        removeEmptyStrings(entry.getTags(), stageId, "tags");
+        removeEmptyStrings(entry.getMods(), stageId, "mods");
+        removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
+        removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+
+        checkDuplicates(entry.getItems(), stageId, "items");
+        checkDuplicates(entry.getTags(), stageId, "tags");
+        checkDuplicates(entry.getMods(), stageId, "mods");
+        checkDuplicates(entry.getDimensions(), stageId, "dimensions");
+        checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+
+        entry.getItems().removeIf(itemId -> {
+            if (!ResourceLocation.isValidResourceLocation(itemId)) {
+                addMessage(MessageLevel.WARN, "Item '" + itemId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        entry.getTags().removeIf(tagId -> {
+            if (!ResourceLocation.isValidResourceLocation(tagId)) {
+                addMessage(MessageLevel.WARN, "Tag '" + tagId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        entry.getMods().removeIf(modId -> {
+            if (modId == null || modId.isEmpty() || modId.contains(" ")) {
+                addMessage(MessageLevel.WARN, "Mod ID '" + modId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        entry.getDimensions().removeIf(dimId -> {
+            if (!ResourceLocation.isValidResourceLocation(dimId)) {
+                addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        entry.getEntities().getAttacklock().removeIf(entityId -> {
+            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+                addMessage(MessageLevel.WARN, "Entity attacklock '" + entityId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        if (entry.getDisplayName().equals("Unknown Stage")) {
+            addMessage(MessageLevel.WARN, "Individual stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
+        }
+
+        if (entry.getResearchTime() < 0) {
+            addMessage(MessageLevel.INFO, "Individual stage '" + stageId + "' has negative research_time. Using global default.");
+        }
+
+        INDIVIDUAL_STAGES.put(stageId, entry);
+        System.out.println("[HistoryStages] Individual Stage geladen: " + stageId);
+    }
+
+    /**
+     * Checks for overlap between individual and global stages.
+     * Global stages have loading priority — conflicting individual entries are removed with an error.
+     */
+    private static void detectOverlaps() {
+        // Build a lookup: item/tag/mod/dimension/entity -> global stage ID
+        Map<String, String> globalItemMap = new HashMap<>();
+        Map<String, String> globalTagMap = new HashMap<>();
+        Map<String, String> globalModMap = new HashMap<>();
+        Map<String, String> globalDimMap = new HashMap<>();
+        Map<String, String> globalEntityMap = new HashMap<>();
+
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            String gStageId = entry.getKey();
+            StageEntry gEntry = entry.getValue();
+            for (String item : gEntry.getItems()) globalItemMap.put(item, gStageId);
+            for (String tag : gEntry.getTags()) globalTagMap.put(tag, gStageId);
+            for (String mod : gEntry.getMods()) globalModMap.put(mod, gStageId);
+            for (String dim : gEntry.getDimensions()) globalDimMap.put(dim, gStageId);
+            for (String e : gEntry.getEntities().getAttacklock()) globalEntityMap.put(e, gStageId);
+        }
+
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            String iStageId = entry.getKey();
+            StageEntry iEntry = entry.getValue();
+
+            iEntry.getItems().removeIf(item -> {
+                String conflict = globalItemMap.get(item);
+                if (conflict != null) {
+                    String msg = "Individual stage '" + iStageId + "' item '" + item + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Overlap Detection", msg);
+                    return true;
+                }
+                return false;
+            });
+
+            iEntry.getTags().removeIf(tag -> {
+                String conflict = globalTagMap.get(tag);
+                if (conflict != null) {
+                    String msg = "Individual stage '" + iStageId + "' tag '" + tag + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Overlap Detection", msg);
+                    return true;
+                }
+                return false;
+            });
+
+            iEntry.getMods().removeIf(mod -> {
+                String conflict = globalModMap.get(mod);
+                if (conflict != null) {
+                    String msg = "Individual stage '" + iStageId + "' mod '" + mod + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Overlap Detection", msg);
+                    return true;
+                }
+                return false;
+            });
+
+            iEntry.getDimensions().removeIf(dim -> {
+                String conflict = globalDimMap.get(dim);
+                if (conflict != null) {
+                    String msg = "Individual stage '" + iStageId + "' dimension '" + dim + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Overlap Detection", msg);
+                    return true;
+                }
+                return false;
+            });
+
+            iEntry.getEntities().getAttacklock().removeIf(entity -> {
+                String conflict = globalEntityMap.get(entity);
+                if (conflict != null) {
+                    String msg = "Individual stage '" + iStageId + "' entity '" + entity + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Overlap Detection", msg);
+                    return true;
+                }
+                return false;
+            });
+        }
+    }
+
+    public static Map<String, StageEntry> getIndividualStages() {
+        return INDIVIDUAL_STAGES;
+    }
+
+    public static void setIndividualStages(Map<String, StageEntry> stages) {
+        INDIVIDUAL_STAGES.clear();
+        if (stages != null) {
+            INDIVIDUAL_STAGES.putAll(stages);
+        }
+    }
+
+    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId) {
+        List<String> allFoundStages = new ArrayList<>();
+        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            String stageName = entry.getKey();
+            StageEntry data = entry.getValue();
+
+            boolean match = false;
+            if (data.getItems().contains(itemId)) match = true;
+            if (!match && data.getMods().contains(modId)) match = true;
+            if (!match && item != null && data.getTags() != null) {
+                for (String tagId : data.getTags()) {
+                    var tagKey = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, new ResourceLocation(tagId));
+                    if (item.builtInRegistryHolder().is(tagKey)) {
+                        match = true;
+                        break;
+                    }
+                }
+            }
+
+            if (match) {
+                allFoundStages.add(stageName);
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllIndividualStagesForAttackLockedEntity(String entityId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            if (entry.getValue().getEntities().getAttacklock().contains(entityId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllIndividualStagesForDimension(String dimensionId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static boolean saveIndividualStage(String stageId, StageEntry entry) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
+        if (!configDir.exists()) configDir.mkdirs();
+
+        File file = new File(configDir, stageId + ".json");
+        try (Writer writer = new FileWriter(file)) {
+            writer.write(entry.toJson());
+            INDIVIDUAL_STAGES.put(stageId, entry);
+            DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to " + file.getName());
+            return true;
+        } catch (Exception e) {
+            System.err.println("[HistoryStages] Failed to save individual stage: " + stageId + " - " + e.getMessage());
+            DebugLogger.error("Individual Stage Saving", "Failed to save individual stage '" + stageId + "': " + e.getMessage());
+            return false;
+        }
+    }
+
+    public static boolean deleteIndividualStage(String stageId) {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
+        File file = new File(configDir, stageId + ".json");
+        if (file.exists() && file.delete()) {
+            INDIVIDUAL_STAGES.remove(stageId);
+            DebugLogger.runtime("Individual Stage Delete", "Deleted individual stage '" + stageId + "'");
+            return true;
+        }
+        return false;
+    }
+
+    public static List<String> getIndividualStageOrder() {
+        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
+        if (!configDir.exists()) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
+
+        File[] files = configDir.listFiles((dir, name) ->
+                name.endsWith(".json") && !name.startsWith("_")
+        );
+        if (files == null) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
+
+        Arrays.sort(files);
+        List<String> order = new ArrayList<>();
+        for (File file : files) {
+            String id = file.getName().replace(".json", "");
+            if (INDIVIDUAL_STAGES.containsKey(id)) {
+                order.add(id);
+            }
+        }
+        for (String id : INDIVIDUAL_STAGES.keySet()) {
+            if (!order.contains(id)) {
+                order.add(id);
+            }
+        }
+        return order;
+    }
+
+    /**
+     * Returns the research time in ticks for an individual stage.
+     * Falls back to global config if stage has no custom time.
+     */
+    public static int getIndividualResearchTimeInTicks(String stageId) {
+        StageEntry entry = INDIVIDUAL_STAGES.get(stageId);
+        if (entry != null && entry.getResearchTime() > 0) {
+            return entry.getResearchTime() * 20;
+        }
+        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    /**
+     * Checks if a stage ID belongs to an individual stage.
+     */
+    public static boolean isIndividualStage(String stageId) {
+        return INDIVIDUAL_STAGES.containsKey(stageId);
+    }
 }

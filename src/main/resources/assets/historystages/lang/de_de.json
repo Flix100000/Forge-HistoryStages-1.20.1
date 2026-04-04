@@ -135,5 +135,16 @@
   "ftbquests.historystages.reward.title.unlock": "History Stage freischalten: %s",
   "ftbquests.historystages.reward.title.lock": "History Stage sperren: %s",
   "ftbquests.historystages.config.stage": "Stufen-ID",
-  "ftbquests.historystages.config.remove": "Sperren statt Freischalten"
+  "ftbquests.historystages.config.remove": "Sperren statt Freischalten",
+  "ftbquests.historystages.config.individual": "Individuelle Stufe",
+
+  "editor.historystages.config.individual_stages": "Individuelle Stufen",
+  "editor.historystages.config.showSilverLockIcons": "Silberne Schloss-Icons anzeigen",
+  "editor.historystages.config.showIndividualTooltips": "Individuelle Tooltips anzeigen",
+  "editor.historystages.config.individualLockItemPickup": "Item-Aufnahme sperren",
+  "editor.historystages.config.individualDropOnRevoke": "Items bei Entzug fallen lassen",
+  "editor.historystages.config.individualNotifyPlayer": "Spieler benachrichtigen",
+  "editor.historystages.config.individualUnlockMessageFormat": "Freischalt-Nachrichtenformat",
+
+  "editor.historystages.overlap_warning": "Mit * markierte Eintr\u00e4ge sind bereits durch eine globale Stufe gesperrt und werden ignoriert."
 }

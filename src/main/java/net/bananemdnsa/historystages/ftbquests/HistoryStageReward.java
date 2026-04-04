@@ -9,7 +9,10 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.StageUnlockedToastPacket;
+import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.util.IndividualStageData;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
@@ -26,6 +29,7 @@ import java.util.ArrayList;
 public class HistoryStageReward extends Reward {
     private String stage = "";
     private boolean remove = false;
+    private boolean individual = false;
 
     public HistoryStageReward(long id, Quest quest) {
         super(id, quest);
@@ -41,6 +45,7 @@ public class HistoryStageReward extends Reward {
         super.writeData(nbt);
         nbt.putString("stage", stage);
         nbt.putBoolean("remove", remove);
+        nbt.putBoolean("individual", individual);
     }
 
     @Override
@@ -48,6 +53,7 @@ public class HistoryStageReward extends Reward {
         super.readData(nbt);
         stage = nbt.getString("stage");
         remove = nbt.getBoolean("remove");
+        individual = nbt.getBoolean("individual");
     }
 
     @Override
@@ -55,6 +61,7 @@ public class HistoryStageReward extends Reward {
         super.writeNetData(buf);
         buf.writeUtf(stage);
         buf.writeBoolean(remove);
+        buf.writeBoolean(individual);
     }
 
     @Override
@@ -62,6 +69,7 @@ public class HistoryStageReward extends Reward {
         super.readNetData(buf);
         stage = buf.readUtf(Short.MAX_VALUE);
         remove = buf.readBoolean();
+        individual = buf.readBoolean();
     }
 
     @Override
@@ -71,12 +79,22 @@ public class HistoryStageReward extends Reward {
                 .setNameKey("ftbquests.historystages.config.stage");
         config.addBool("remove", remove, v -> remove = v, false)
                 .setNameKey("ftbquests.historystages.config.remove");
+        config.addBool("individual", individual, v -> individual = v, false)
+                .setNameKey("ftbquests.historystages.config.individual");
     }
 
     @Override
     public void claim(ServerPlayer player, boolean notify) {
         if (stage.isEmpty()) return;
 
+        if (individual) {
+            claimIndividual(player);
+        } else {
+            claimGlobal(player);
+        }
+    }
+
+    private void claimGlobal(ServerPlayer player) {
         StageData data = StageData.get(player.serverLevel());
         var entry = StageManager.getStages().get(stage);
         String displayName = entry != null ? entry.getDisplayName() : stage;
@@ -86,8 +104,6 @@ public class HistoryStageReward extends Reward {
             data.removeStage(stage);
             data.setDirty();
             MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stage, displayName));
-
-            // Broadcast lock effects (same as StageCommand)
             broadcastLockEffects(player, displayName);
         } else {
             if (data.hasStage(stage)) return;
@@ -95,22 +111,79 @@ public class HistoryStageReward extends Reward {
             data.setDirty();
             MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(stage, displayName));
 
-            // JEI hard-reload (same as Research Pedestal)
             if (player.server != null) {
                 player.server.getCommands().performPrefixedCommand(
                         player.server.createCommandSourceStack().withSuppressedOutput(),
                         "history reload"
                 );
             }
-
-            // Broadcast unlock effects (same as Research Pedestal)
             broadcastUnlockEffects(player, displayName);
         }
 
-        // Sync to all players
         StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
         PacketHandler.reloadRecipesOnly(player.server);
+    }
+
+    private void claimIndividual(ServerPlayer player) {
+        IndividualStageData data = IndividualStageData.get(player.serverLevel());
+        var entry = StageManager.getIndividualStages().get(stage);
+        String displayName = entry != null ? entry.getDisplayName() : stage;
+
+        if (remove) {
+            if (!data.hasStage(player.getUUID(), stage)) return;
+            data.removeStage(player.getUUID(), stage);
+            data.setDirty();
+            MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stage, displayName, player.getUUID()));
+
+            // Drop locked items from inventory
+            if (Config.COMMON.individualDropOnRevoke.get()) {
+                StageLockHelper.dropLockedItemsForPlayer(player, stage);
+            }
+
+            // Notify only this player
+            if (Config.COMMON.individualNotifyPlayer.get()) {
+                player.sendSystemMessage(
+                        Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
+                                .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
+                );
+            }
+        } else {
+            if (data.hasStage(player.getUUID(), stage)) return;
+            data.addStage(player.getUUID(), stage);
+            data.setDirty();
+            MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stage, displayName, player.getUUID()));
+
+            // Notify only this player
+            if (Config.COMMON.individualNotifyPlayer.get()) {
+                {
+                    String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                    String finalChat = configChat.replace("{stage}", displayName)
+                            .replace("{player}", player.getName().getString())
+                            .replace("&", "\u00a7");
+                    player.sendSystemMessage(
+                            Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GRAY)
+                                    .append(Component.literal(finalChat))
+                    );
+                }
+                if (Config.COMMON.useSounds.get()) {
+                    player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                }
+                if (Config.COMMON.useToasts.get()) {
+                    PacketHandler.INSTANCE.send(
+                            net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                            new StageUnlockedToastPacket(displayName)
+                    );
+                }
+            }
+        }
+
+        // Sync individual stages to this player only
+        PacketHandler.sendIndividualStagesToPlayer(
+                new SyncIndividualStagesPacket(data.getUnlockedStages(player.getUUID())),
+                player
+        );
+        // No recipe reload needed for individual stages
     }
 
     private void broadcastUnlockEffects(ServerPlayer source, String stageName) {

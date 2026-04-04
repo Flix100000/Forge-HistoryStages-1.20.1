@@ -4,7 +4,9 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -26,7 +28,13 @@ public class BlockLockHandler {
         ItemStack blockItem = new ItemStack(state.getBlock().asItem());
 
         boolean isClient = event.getEntity().level().isClientSide();
-        if (!blockItem.isEmpty() && StageManager.isItemLocked(blockItem, isClient)) {
+        boolean locked;
+        if (isClient) {
+            locked = StageLockHelper.isItemLockedForClient(blockItem);
+        } else {
+            locked = StageLockHelper.isItemLockedForPlayer(blockItem, event.getEntity().getUUID());
+        }
+        if (!blockItem.isEmpty() && locked) {
             float newSpeed = event.getOriginalSpeed() * Config.COMMON.lockedBlockBreakSpeedMultiplier.get().floatValue();
             event.setNewSpeed(newSpeed);
         }
@@ -40,7 +48,7 @@ public class BlockLockHandler {
         BlockState state = event.getState();
         ItemStack blockItem = new ItemStack(state.getBlock().asItem());
 
-        if (!blockItem.isEmpty() && StageManager.isItemLockedForServer(blockItem)) {
+        if (!blockItem.isEmpty() && StageLockHelper.isItemLockedForPlayer(blockItem, event.getPlayer().getUUID())) {
             event.setCanceled(true);
             DebugLogger.runtimeThrottled("Block Lock", "block_" + event.getPlayer().getUUID() + "_" + state.getBlock(),
                     "<" + event.getPlayer().getName().getString() + "> Break of locked block '" + ForgeRegistries.BLOCKS.getKey(state.getBlock()) + "' at " + event.getPos().toShortString() + " — removed without drops");

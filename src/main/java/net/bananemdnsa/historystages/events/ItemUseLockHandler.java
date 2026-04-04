@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -42,7 +43,7 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (StageManager.isItemLocked(heldItem, isClient)) {
+        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
@@ -66,7 +67,7 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (StageManager.isItemLocked(heldItem, isClient)) {
+        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
             event.setUseItem(Event.Result.DENY);
         }
     }
@@ -83,7 +84,7 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (StageManager.isItemLocked(heldItem, isClient)) {
+        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
@@ -111,7 +112,7 @@ public class ItemUseLockHandler {
         ItemStack weapon = event.getEntity().getMainHandItem();
         if (weapon.isEmpty()) return;
 
-        if (StageManager.isItemLocked(weapon, isClient)) {
+        if (isItemLockedForEntity(weapon, event.getEntity(), isClient)) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation weaponRL = ForgeRegistries.ITEMS.getKey(weapon.getItem());
@@ -141,7 +142,7 @@ public class ItemUseLockHandler {
         // Only handle armor and offhand slots — players can still hold locked items in main hand
         if (slot.getType() != EquipmentSlot.Type.ARMOR && slot != EquipmentSlot.OFFHAND) return;
 
-        if (StageManager.isItemLockedForServer(newItem)) {
+        if (StageLockHelper.isItemLockedForPlayer(newItem, player)) {
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(newItem.getItem());
             DebugLogger.runtime("Item Use Lock", player.getName().getString(),
                     "Equipped locked item '" + itemRL + "' in slot " + slot.getName() + " — removed and returned to inventory");
@@ -157,6 +158,14 @@ public class ItemUseLockHandler {
                 suppressEquipmentCheck = false;
             }
             showMessage(player);
+        }
+    }
+
+    private static boolean isItemLockedForEntity(ItemStack item, Player player, boolean isClient) {
+        if (isClient) {
+            return StageLockHelper.isItemLockedForClient(item);
+        } else {
+            return StageLockHelper.isItemLockedForPlayer(item, player.getUUID());
         }
     }
 

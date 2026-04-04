@@ -135,5 +135,16 @@
   "ftbquests.historystages.reward.title.unlock": "Unlock History Stage: %s",
   "ftbquests.historystages.reward.title.lock": "Lock History Stage: %s",
   "ftbquests.historystages.config.stage": "Stage ID",
-  "ftbquests.historystages.config.remove": "Lock instead of Unlock"
+  "ftbquests.historystages.config.remove": "Lock instead of Unlock",
+  "ftbquests.historystages.config.individual": "Individual Stage",
+
+  "editor.historystages.config.individual_stages": "Individual Stages",
+  "editor.historystages.config.showSilverLockIcons": "Show Silver Lock Icons",
+  "editor.historystages.config.showIndividualTooltips": "Show Individual Tooltips",
+  "editor.historystages.config.individualLockItemPickup": "Lock Item Pickup",
+  "editor.historystages.config.individualDropOnRevoke": "Drop Items on Revoke",
+  "editor.historystages.config.individualNotifyPlayer": "Notify Player",
+  "editor.historystages.config.individualUnlockMessageFormat": "Unlock Message Format",
+
+  "editor.historystages.overlap_warning": "Items marked with * are already locked by a global stage and will be ignored."
 }

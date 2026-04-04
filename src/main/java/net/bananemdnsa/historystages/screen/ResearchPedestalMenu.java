@@ -21,7 +21,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
         // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
-        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(3));
+        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(4));
     }
 
     // Server-Konstruktor
@@ -109,5 +109,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     public boolean isCrafting() {
         // Wir zeigen den Balken auch an, wenn wir im finishDelay (data Index 2) sind!
         return data.get(0) > 0 || data.get(2) > 0;
+    }
+
+    public boolean isIndividualMode() {
+        return data.get(3) == 1;
     }
 }

@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -28,16 +29,27 @@ public class DimensionLockHandler {
         ResourceLocation targetDim = event.getDimension().location();
         String dimId = targetDim.toString();
 
+        // Check global stages
         List<String> requiredStageIds = StageManager.getAllStagesForDimension(dimId);
-        if (requiredStageIds.isEmpty()) return;
-
-        // Alle Stages sammeln, die noch nicht freigeschaltet sind
         List<String> lockedStages = new ArrayList<>();
         for (String stageId : requiredStageIds) {
             if (!StageData.SERVER_CACHE.contains(stageId)) {
                 lockedStages.add(stageId);
             }
         }
+
+        // Check individual stages
+        List<String> individualStageIds = StageManager.getAllIndividualStagesForDimension(dimId);
+        if (!individualStageIds.isEmpty()) {
+            java.util.Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(player.getUUID(), java.util.Collections.emptySet());
+            for (String stageId : individualStageIds) {
+                if (!playerStages.contains(stageId)) {
+                    lockedStages.add(stageId);
+                }
+            }
+        }
+
+        if (requiredStageIds.isEmpty() && individualStageIds.isEmpty()) return;
 
         if (!lockedStages.isEmpty()) {
             event.setCanceled(true);

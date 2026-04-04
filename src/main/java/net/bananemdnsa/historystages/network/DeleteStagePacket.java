@@ -12,17 +12,26 @@ import java.util.function.Supplier;
 
 public class DeleteStagePacket {
     private final String stageId;
+    private final boolean individual;
 
     public DeleteStagePacket(String stageId) {
+        this(stageId, false);
+    }
+
+    public DeleteStagePacket(String stageId, boolean individual) {
         this.stageId = stageId;
+        this.individual = individual;
     }
 
     public static void encode(DeleteStagePacket msg, FriendlyByteBuf buffer) {
         buffer.writeUtf(msg.stageId);
+        buffer.writeBoolean(msg.individual);
     }
 
     public static DeleteStagePacket decode(FriendlyByteBuf buffer) {
-        return new DeleteStagePacket(buffer.readUtf());
+        String stageId = buffer.readUtf();
+        boolean individual = buffer.readBoolean();
+        return new DeleteStagePacket(stageId, individual);
     }
 
     public static void handle(DeleteStagePacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -30,14 +39,23 @@ public class DeleteStagePacket {
             ServerPlayer player = ctx.get().getSender();
             if (player == null || !player.hasPermissions(2)) return;
 
-            boolean success = StageManager.deleteStage(msg.stageId);
+            boolean success;
+            if (msg.individual) {
+                success = StageManager.deleteIndividualStage(msg.stageId);
+            } else {
+                success = StageManager.deleteStage(msg.stageId);
+            }
+
             if (success) {
                 StageManager.reloadStages();
                 StageData data = StageData.get(player.serverLevel());
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §aStage '" + msg.stageId + "' deleted."));
-                PacketHandler.reloadRecipesOnly(player.server);
+                String prefix = msg.individual ? "Individual stage" : "Stage";
+                player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' deleted."));
+                if (!msg.individual) {
+                    PacketHandler.reloadRecipesOnly(player.server);
+                }
             } else {
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to delete stage '" + msg.stageId + "'."));
             }

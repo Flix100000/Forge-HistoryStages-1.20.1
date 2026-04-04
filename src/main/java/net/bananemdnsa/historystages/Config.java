@@ -28,6 +28,10 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue mobShowChat;
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
+        // Individual Stages
+        public final ForgeConfigSpec.BooleanValue showSilverLockIcons;
+        public final ForgeConfigSpec.BooleanValue showIndividualTooltips;
+
         public Client(ForgeConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -104,6 +108,18 @@ public class Config {
                     .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
                     .define("showStagesInChat", true);
             builder.pop();
+
+            builder.comment("Individual Stage Visual Settings").push("individual_stages");
+
+            showSilverLockIcons = builder
+                    .comment("Show a silver lock icon on items locked by individual stages? [Default: true]")
+                    .define("showSilverLockIcons", true);
+
+            showIndividualTooltips = builder
+                    .comment("Show tooltip information for items locked by individual stages? [Default: true]")
+                    .define("showIndividualTooltips", true);
+
+            builder.pop();
         }
     }
 
@@ -133,6 +149,12 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue useReplacements;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementItems;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementTag;
+
+        // Individual Stages
+        public final ForgeConfigSpec.BooleanValue individualLockItemPickup;
+        public final ForgeConfigSpec.BooleanValue individualDropOnRevoke;
+        public final ForgeConfigSpec.BooleanValue individualNotifyPlayer;
+        public final ForgeConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.comment(
@@ -227,6 +249,27 @@ public class Config {
                     .comment("{ReplacementPriority:2} A list of tags (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .defineList("replacementTags", List.of(), o -> o instanceof String);
             builder.pop(); // Schließt "loot_replacements"
+
+            // --- INDIVIDUAL STAGES SECTION ---
+            builder.comment("Individual Stage Settings (per-player stages)").push("individual_stages");
+
+            individualLockItemPickup = builder
+                    .comment("Prevent players from picking up items locked by individual stages? [Default: true]")
+                    .define("lockItemPickup", true);
+
+            individualDropOnRevoke = builder
+                    .comment("Drop locked items from a player's inventory when their individual stage is revoked? [Default: true]")
+                    .define("dropOnRevoke", true);
+
+            individualNotifyPlayer = builder
+                    .comment("Send chat/sound/toast notifications to the player when their individual stage is unlocked? [Default: true]")
+                    .define("notifyPlayer", true);
+
+            individualUnlockMessageFormat = builder
+                    .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
+                    .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
+
+            builder.pop(); // Schließt "individual_stages"
         }
     }
 

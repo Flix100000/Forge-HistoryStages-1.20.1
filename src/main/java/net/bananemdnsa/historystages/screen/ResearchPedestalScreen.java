@@ -90,6 +90,12 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         }
 
         guiGraphics.drawString(this.font, displayTitle, 48, 25, textColor, false);
+
+        // Show mode label (Individual / Global)
+        if (menu.isIndividualMode()) {
+            guiGraphics.drawString(this.font, "Individual", 48, 55, 0xAAAAAA, false);
+        }
+
         guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 4210752, false);
     }
 

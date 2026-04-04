@@ -2,7 +2,9 @@ package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +18,7 @@ import java.util.List;
 public class LockDecorator implements IItemDecorator {
     // Hier definieren wir den Pfad zur Textur: assets/historystages/textures/gui/lock_overlay.png
     private static final ResourceLocation LOCK_ICON = new ResourceLocation("historystages", "textures/gui/lock_overlay.png");
+    private static final ResourceLocation SILVER_LOCK_ICON = new ResourceLocation("historystages", "textures/gui/lock_overlay_silver.png");
 
     // Performance-Check für EMI
     private static final boolean IS_EMI_INSTALLED = ModList.get().isLoaded("emi");
@@ -32,40 +35,41 @@ public class LockDecorator implements IItemDecorator {
             return false;
         }
 
-        // 3. Logik-Abfrage (Nutzt deine vorhandenen Methoden)
-        if (isLocked(stack)) {
+        // 3. Check global lock first, then individual lock
+        boolean globallyLocked = isGloballyLocked(stack);
+        boolean individuallyLocked = !globallyLocked && Config.CLIENT.showSilverLockIcons.get() && isIndividuallyLocked(stack);
+
+        if (globallyLocked || individuallyLocked) {
+            ResourceLocation icon = individuallyLocked ? SILVER_LOCK_ICON : LOCK_ICON;
+
             guiGraphics.pose().pushPose();
-
-            // Z-Achse nach vorne (250), damit es über dem Item, aber unter dem Tooltip liegt.
-            // Dann skalieren wir die 32x32 Textur auf 8x8 (oberer linker Quadrant des 16x16 Slots).
             guiGraphics.pose().translate(xOffset, yOffset, 250);
+            // Both locks are 32x32 textures, scaled to 8x8 pixels
             guiGraphics.pose().scale(0.25f, 0.25f, 1.0f);
-
-            // ZEICHNEN DER TEXTUR (Position 0,0 da Translation bereits gesetzt)
-            guiGraphics.blit(LOCK_ICON, 0, 0, 0, 0, 32, 32, 32, 32);
-
+            guiGraphics.blit(icon, 0, 0, 0, 0, 32, 32, 32, 32);
             guiGraphics.pose().popPose();
-            return false; // false, damit Haltbarkeitsbalken etc. noch gezeichnet werden
+            return false;
         }
 
         return false;
     }
 
-    private boolean isLocked(ItemStack stack) {
+    private boolean isGloballyLocked(ItemStack stack) {
         ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (res == null) return false;
 
-        // Nutzt StageManager (Logik-Prüfung)
         List<String> requiredStages = StageManager.getAllStagesForItemOrMod(res.toString(), res.getNamespace());
-
         if (requiredStages.isEmpty()) return false;
 
         for (String stage : requiredStages) {
-            // Nutzt ClientStageCache (Freischaltungs-Prüfung)
             if (!ClientStageCache.isStageUnlocked(stage)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private boolean isIndividuallyLocked(ItemStack stack) {
+        return StageLockHelper.isItemLockedByIndividualStageClient(stack);
     }
 }
