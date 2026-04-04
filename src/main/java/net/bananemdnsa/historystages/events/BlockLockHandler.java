@@ -22,33 +22,63 @@ public class BlockLockHandler {
 
     @SubscribeEvent
     public static void onBreakSpeed(PlayerEvent.BreakSpeed event) {
-        if (!Config.COMMON.lockBlockBreaking.get()) return;
-
         BlockState state = event.getState();
         ItemStack blockItem = new ItemStack(state.getBlock().asItem());
+        if (blockItem.isEmpty()) return;
 
         boolean isClient = event.getEntity().level().isClientSide();
-        boolean locked;
-        if (isClient) {
-            locked = StageLockHelper.isItemLockedForClient(blockItem);
-        } else {
-            locked = StageLockHelper.isItemLockedForPlayer(blockItem, event.getEntity().getUUID());
+
+        // Check global lock
+        if (Config.COMMON.lockBlockBreaking.get()) {
+            boolean globalLocked;
+            if (isClient) {
+                globalLocked = StageLockHelper.isItemLockedForClient(blockItem);
+            } else {
+                globalLocked = StageLockHelper.isItemLockedForPlayer(blockItem, event.getEntity().getUUID());
+            }
+            if (globalLocked) {
+                float newSpeed = event.getOriginalSpeed() * Config.COMMON.lockedBlockBreakSpeedMultiplier.get().floatValue();
+                event.setNewSpeed(newSpeed);
+                return;
+            }
         }
-        if (!blockItem.isEmpty() && locked) {
-            float newSpeed = event.getOriginalSpeed() * Config.COMMON.lockedBlockBreakSpeedMultiplier.get().floatValue();
-            event.setNewSpeed(newSpeed);
+
+        // Check individual lock
+        if (Config.COMMON.individualLockBlockBreaking.get()) {
+            boolean individualLocked;
+            if (isClient) {
+                individualLocked = StageLockHelper.isItemLockedByIndividualStageClient(blockItem);
+            } else {
+                individualLocked = StageLockHelper.isItemLockedByIndividualStage(blockItem, event.getEntity().getUUID());
+            }
+            if (individualLocked) {
+                float newSpeed = event.getOriginalSpeed() * Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().floatValue();
+                event.setNewSpeed(newSpeed);
+            }
         }
     }
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (event.getLevel().isClientSide()) return;
-        if (!Config.COMMON.lockBlockBreaking.get()) return;
 
         BlockState state = event.getState();
         ItemStack blockItem = new ItemStack(state.getBlock().asItem());
+        if (blockItem.isEmpty()) return;
 
-        if (!blockItem.isEmpty() && StageLockHelper.isItemLockedForPlayer(blockItem, event.getPlayer().getUUID())) {
+        boolean locked = false;
+
+        // Check global lock
+        if (Config.COMMON.lockBlockBreaking.get() && StageLockHelper.isItemLockedForPlayer(blockItem, event.getPlayer().getUUID())) {
+            locked = true;
+        }
+
+        // Check individual lock
+        if (!locked && Config.COMMON.individualLockBlockBreaking.get() && StageLockHelper.isItemLockedByIndividualStage(blockItem, event.getPlayer().getUUID())) {
+            locked = true;
+        }
+
+        if (locked) {
             event.setCanceled(true);
             DebugLogger.runtimeThrottled("Block Lock", "block_" + event.getPlayer().getUUID() + "_" + state.getBlock(),
                     "<" + event.getPlayer().getName().getString() + "> Break of locked block '" + ForgeRegistries.BLOCKS.getKey(state.getBlock()) + "' at " + event.getPos().toShortString() + " — removed without drops");

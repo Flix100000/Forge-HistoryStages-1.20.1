@@ -300,7 +300,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
                     // Notify the owner player
                     String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                    if (Config.COMMON.individualNotifyPlayer.get()) {
+                    if (Config.COMMON.individualBroadcastChat.get()) {
                         String configChat = Config.COMMON.individualUnlockMessageFormat.get();
                         String finalChat = configChat.replace("{stage}", stagename)
                                 .replace("{player}", ownerPlayer.getName().getString())
@@ -310,15 +310,22 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                         .withStyle(ChatFormatting.GRAY)
                                         .append(Component.literal(finalChat))
                         );
-                        if (Config.COMMON.useSounds.get()) {
-                            ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-                        }
-                        if (Config.COMMON.useToasts.get()) {
-                            PacketHandler.INSTANCE.send(
-                                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> ownerPlayer),
-                                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename)
-                            );
-                        }
+                    }
+                    if (Config.COMMON.individualUseActionbar.get()) {
+                        String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                        String finalChat = configChat.replace("{stage}", stagename)
+                                .replace("{player}", ownerPlayer.getName().getString())
+                                .replace("&", "§");
+                        ownerPlayer.displayClientMessage(Component.literal(finalChat), true);
+                    }
+                    if (Config.COMMON.individualUseSounds.get()) {
+                        ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                    }
+                    if (Config.COMMON.individualUseToasts.get()) {
+                        PacketHandler.INSTANCE.send(
+                                net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> ownerPlayer),
+                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename)
+                        );
                     }
                 }
             }

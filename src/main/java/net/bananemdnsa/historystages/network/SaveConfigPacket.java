@@ -100,8 +100,16 @@ public class SaveConfigPacket {
                 }
                 case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
                 case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));
-                case "individualNotifyPlayer" -> Config.COMMON.individualNotifyPlayer.set(Boolean.parseBoolean(value));
+                case "individualLockBlockBreaking" -> Config.COMMON.individualLockBlockBreaking.set(Boolean.parseBoolean(value));
+                case "individualLockedBlockBreakSpeedMultiplier" -> {
+                    try { Config.COMMON.individualLockedBlockBreakSpeedMultiplier.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "individualLockItemUsage" -> Config.COMMON.individualLockItemUsage.set(Boolean.parseBoolean(value));
+                case "individualBroadcastChat" -> Config.COMMON.individualBroadcastChat.set(Boolean.parseBoolean(value));
                 case "individualUnlockMessageFormat" -> Config.COMMON.individualUnlockMessageFormat.set(value);
+                case "individualUseActionbar" -> Config.COMMON.individualUseActionbar.set(Boolean.parseBoolean(value));
+                case "individualUseSounds" -> Config.COMMON.individualUseSounds.set(Boolean.parseBoolean(value));
+                case "individualUseToasts" -> Config.COMMON.individualUseToasts.set(Boolean.parseBoolean(value));
             }
         }
     }

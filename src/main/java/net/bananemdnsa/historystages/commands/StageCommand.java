@@ -432,7 +432,7 @@ public class StageCommand {
         );
 
         // Notify the target player
-        if (Config.COMMON.individualNotifyPlayer.get()) {
+        if (Config.COMMON.individualBroadcastChat.get()) {
             String configChat = Config.COMMON.individualUnlockMessageFormat.get();
             String finalChat = configChat.replace("{stage}", displayName)
                     .replace("{player}", target.getName().getString())
@@ -442,15 +442,22 @@ public class StageCommand {
                             .withStyle(ChatFormatting.GRAY)
                             .append(Component.literal(finalChat))
             );
-            if (Config.COMMON.useSounds.get()) {
-                target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-            }
-            if (Config.COMMON.useToasts.get()) {
-                PacketHandler.INSTANCE.send(
-                        net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> target),
-                        new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName)
-                );
-            }
+        }
+        if (Config.COMMON.individualUseActionbar.get()) {
+            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+            String finalChat = configChat.replace("{stage}", displayName)
+                    .replace("{player}", target.getName().getString())
+                    .replace("&", "§");
+            target.displayClientMessage(Component.literal(finalChat), true);
+        }
+        if (Config.COMMON.individualUseSounds.get()) {
+            target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+        }
+        if (Config.COMMON.individualUseToasts.get()) {
+            PacketHandler.INSTANCE.send(
+                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> target),
+                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName)
+            );
         }
 
         DebugLogger.runtime("Individual Unlock", source.getTextName(),
@@ -488,12 +495,15 @@ public class StageCommand {
         );
 
         // Notify the target player
-        if (Config.COMMON.individualNotifyPlayer.get()) {
+        if (Config.COMMON.individualBroadcastChat.get()) {
             target.sendSystemMessage(
                     Component.literal("[HistoryStages] ")
                             .withStyle(ChatFormatting.RED)
                             .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
             );
+        }
+        if (Config.COMMON.individualUseSounds.get()) {
+            target.playNotifySound(SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.MASTER, 0.75F, 0.5F);
         }
 
         DebugLogger.runtime("Individual Lock", source.getTextName(),

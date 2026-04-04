@@ -246,13 +246,31 @@ public class ConfigEditorScreen extends Screen {
         individualCommon.add(new ConfigEntry("individualDropOnRevoke", ConfigType.BOOLEAN,
                 Config.COMMON.individualDropOnRevoke.get().toString(), false, "true",
                 "Drop locked items from a player's inventory when their individual stage is revoked?"));
-        individualCommon.add(new ConfigEntry("individualNotifyPlayer", ConfigType.BOOLEAN,
-                Config.COMMON.individualNotifyPlayer.get().toString(), false, "true",
-                "Send chat/sound/toast notifications to the player when their individual stage is unlocked?"));
+        individualCommon.add(new ConfigEntry("individualLockBlockBreaking", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockBlockBreaking.get().toString(), false, "true",
+                "Make blocks locked by individual stages much harder to break and prevent their drops?"));
+        individualCommon.add(new ConfigEntry("individualLockedBlockBreakSpeedMultiplier", ConfigType.STRING,
+                Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
+                "Break speed multiplier for blocks locked by individual stages (0.001-1.0). Lower = slower."));
+        individualCommon.add(new ConfigEntry("individualLockItemUsage", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockItemUsage.get().toString(), false, "true",
+                "Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.)"));
+        individualCommon.add(new ConfigEntry("individualBroadcastChat", ConfigType.BOOLEAN,
+                Config.COMMON.individualBroadcastChat.get().toString(), false, "true",
+                "Show individual stage unlock/lock messages in the chat for the player?"));
         individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.STRING,
                 Config.COMMON.individualUnlockMessageFormat.get(), false,
                 "&fYou have unlocked &b{stage}&f!",
                 "Message format for individual unlocks. Use {stage} for the name, {player} for the player, and & for colors."));
+        individualCommon.add(new ConfigEntry("individualUseActionbar", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseActionbar.get().toString(), false, "false",
+                "Show individual stage messages in the actionbar?"));
+        individualCommon.add(new ConfigEntry("individualUseSounds", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseSounds.get().toString(), false, "true",
+                "Play notification sounds for individual stage unlocks?"));
+        individualCommon.add(new ConfigEntry("individualUseToasts", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseToasts.get().toString(), false, "true",
+                "Show an advancement-style toast popup when an individual stage is unlocked?"));
         commonSections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");

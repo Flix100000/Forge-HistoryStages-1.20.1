@@ -151,11 +151,19 @@ public class Config {
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementItems;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementTag;
 
-        // Individual Stages
+        // Individual Stages - Gameplay
         public final ForgeConfigSpec.BooleanValue individualLockItemPickup;
         public final ForgeConfigSpec.BooleanValue individualDropOnRevoke;
-        public final ForgeConfigSpec.BooleanValue individualNotifyPlayer;
+        public final ForgeConfigSpec.BooleanValue individualLockBlockBreaking;
+        public final ForgeConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
+        public final ForgeConfigSpec.BooleanValue individualLockItemUsage;
+
+        // Individual Stages - Notifications
+        public final ForgeConfigSpec.BooleanValue individualBroadcastChat;
         public final ForgeConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
+        public final ForgeConfigSpec.BooleanValue individualUseActionbar;
+        public final ForgeConfigSpec.BooleanValue individualUseSounds;
+        public final ForgeConfigSpec.BooleanValue individualUseToasts;
 
         public Common(ForgeConfigSpec.Builder builder) {
             builder.comment(
@@ -266,13 +274,37 @@ public class Config {
                     .comment("Drop locked items from a player's inventory when their individual stage is revoked? [Default: true]")
                     .define("dropOnRevoke", true);
 
-            individualNotifyPlayer = builder
-                    .comment("Send chat/sound/toast notifications to the player when their individual stage is unlocked? [Default: true]")
-                    .define("notifyPlayer", true);
+            individualLockBlockBreaking = builder
+                    .comment("Make blocks locked by individual stages much harder to break and prevent their drops? [Default: true]")
+                    .define("lockBlockBreaking", true);
+
+            individualLockedBlockBreakSpeedMultiplier = builder
+                    .comment("Break speed multiplier for blocks locked by individual stages. Lower = slower. 0.05 = 20x slower. [Default: 0.05]")
+                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
+
+            individualLockItemUsage = builder
+                    .comment("Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
+                    .define("lockItemUsage", true);
+
+            individualBroadcastChat = builder
+                    .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")
+                    .define("broadcastChat", true);
 
             individualUnlockMessageFormat = builder
                     .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
                     .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
+
+            individualUseActionbar = builder
+                    .comment("Show individual stage messages in the actionbar? [Default: false]")
+                    .define("useActionbar", false);
+
+            individualUseSounds = builder
+                    .comment("Play notification sounds for individual stage unlocks? [Default: true]")
+                    .define("useSounds", true);
+
+            individualUseToasts = builder
+                    .comment("Show an advancement-style toast popup when an individual stage is unlocked? [Default: true]")
+                    .define("useToasts", true);
 
             builder.pop(); // Schließt "individual_stages"
         }

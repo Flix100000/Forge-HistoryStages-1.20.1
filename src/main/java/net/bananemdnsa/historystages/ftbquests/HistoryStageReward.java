@@ -142,11 +142,14 @@ public class HistoryStageReward extends Reward {
             }
 
             // Notify only this player
-            if (Config.COMMON.individualNotifyPlayer.get()) {
+            if (Config.COMMON.individualBroadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
                                 .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
                 );
+            }
+            if (Config.COMMON.individualUseSounds.get()) {
+                player.playNotifySound(SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.MASTER, 0.75F, 0.5F);
             }
         } else {
             if (data.hasStage(player.getUUID(), stage)) return;
@@ -155,26 +158,31 @@ public class HistoryStageReward extends Reward {
             MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stage, displayName, player.getUUID()));
 
             // Notify only this player
-            if (Config.COMMON.individualNotifyPlayer.get()) {
-                {
-                    String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-                    String finalChat = configChat.replace("{stage}", displayName)
-                            .replace("{player}", player.getName().getString())
-                            .replace("&", "\u00a7");
-                    player.sendSystemMessage(
-                            Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GRAY)
-                                    .append(Component.literal(finalChat))
-                    );
-                }
-                if (Config.COMMON.useSounds.get()) {
-                    player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-                }
-                if (Config.COMMON.useToasts.get()) {
-                    PacketHandler.INSTANCE.send(
-                            net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
-                            new StageUnlockedToastPacket(displayName)
-                    );
-                }
+            if (Config.COMMON.individualBroadcastChat.get()) {
+                String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                String finalChat = configChat.replace("{stage}", displayName)
+                        .replace("{player}", player.getName().getString())
+                        .replace("&", "\u00a7");
+                player.sendSystemMessage(
+                        Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GRAY)
+                                .append(Component.literal(finalChat))
+                );
+            }
+            if (Config.COMMON.individualUseActionbar.get()) {
+                String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                String finalChat = configChat.replace("{stage}", displayName)
+                        .replace("{player}", player.getName().getString())
+                        .replace("&", "\u00a7");
+                player.displayClientMessage(Component.literal(finalChat), true);
+            }
+            if (Config.COMMON.individualUseSounds.get()) {
+                player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+            }
+            if (Config.COMMON.individualUseToasts.get()) {
+                PacketHandler.INSTANCE.send(
+                        net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
+                        new StageUnlockedToastPacket(displayName)
+                );
             }
         }
 

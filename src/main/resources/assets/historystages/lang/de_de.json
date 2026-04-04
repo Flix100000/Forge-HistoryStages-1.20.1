@@ -146,8 +146,14 @@
   "editor.historystages.config.showIndividualTooltips": "Individuelle Tooltips anzeigen",
   "editor.historystages.config.individualLockItemPickup": "Item-Aufnahme sperren",
   "editor.historystages.config.individualDropOnRevoke": "Items bei Entzug fallen lassen",
-  "editor.historystages.config.individualNotifyPlayer": "Spieler benachrichtigen",
+  "editor.historystages.config.individualLockBlockBreaking": "Block-Abbau sperren",
+  "editor.historystages.config.individualLockedBlockBreakSpeedMultiplier": "Gesperrte Block-Abbaugeschwindigkeit",
+  "editor.historystages.config.individualLockItemUsage": "Item-Nutzung sperren",
+  "editor.historystages.config.individualBroadcastChat": "Chat-Nachricht",
   "editor.historystages.config.individualUnlockMessageFormat": "Freischalt-Nachrichtenformat",
+  "editor.historystages.config.individualUseActionbar": "Aktionsleiste nutzen",
+  "editor.historystages.config.individualUseSounds": "Sounds abspielen",
+  "editor.historystages.config.individualUseToasts": "Toasts anzeigen",
 
   "editor.historystages.overlap_warning": "Mit * markierte Eintr\u00e4ge sind bereits durch eine globale Stufe gesperrt und werden ignoriert."
 }

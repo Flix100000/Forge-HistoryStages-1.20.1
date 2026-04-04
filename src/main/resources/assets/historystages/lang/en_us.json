@@ -146,8 +146,14 @@
   "editor.historystages.config.showIndividualTooltips": "Show Individual Tooltips",
   "editor.historystages.config.individualLockItemPickup": "Lock Item Pickup",
   "editor.historystages.config.individualDropOnRevoke": "Drop Items on Revoke",
-  "editor.historystages.config.individualNotifyPlayer": "Notify Player",
+  "editor.historystages.config.individualLockBlockBreaking": "Lock Block Breaking",
+  "editor.historystages.config.individualLockedBlockBreakSpeedMultiplier": "Locked Block Break Speed",
+  "editor.historystages.config.individualLockItemUsage": "Lock Item Usage",
+  "editor.historystages.config.individualBroadcastChat": "Broadcast Chat",
   "editor.historystages.config.individualUnlockMessageFormat": "Unlock Message Format",
+  "editor.historystages.config.individualUseActionbar": "Use Actionbar",
+  "editor.historystages.config.individualUseSounds": "Use Sounds",
+  "editor.historystages.config.individualUseToasts": "Use Toasts",
 
   "editor.historystages.overlap_warning": "Items marked with * are already locked by a global stage and will be ignored."
 }
