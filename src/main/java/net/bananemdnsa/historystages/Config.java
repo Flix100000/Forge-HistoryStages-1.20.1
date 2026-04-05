@@ -134,6 +134,7 @@ public class Config {
         public final ForgeConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
         public final ForgeConfigSpec.BooleanValue lockItemUsage;
         public final ForgeConfigSpec.BooleanValue lockEntityItems;
+        public final ForgeConfigSpec.BooleanValue lockBlockInteraction;
         public final ForgeConfigSpec.BooleanValue lockContainerInteraction;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
@@ -157,6 +158,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue individualLockBlockBreaking;
         public final ForgeConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
         public final ForgeConfigSpec.BooleanValue individualLockItemUsage;
+        public final ForgeConfigSpec.BooleanValue individualLockBlockInteraction;
 
         // Individual Stages - Notifications
         public final ForgeConfigSpec.BooleanValue individualBroadcastChat;
@@ -208,6 +210,10 @@ public class Config {
             lockEntityItems = builder
                     .comment("Prevent interacting with or breaking armor stands and item frames that contain locked items? [Default: true]")
                     .define("lockEntityItems", true);
+
+            lockBlockInteraction = builder
+                    .comment("Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.) [Default: true]")
+                    .define("lockBlockInteraction", true);
 
             lockContainerInteraction = builder
                     .comment("Prevent moving individually-locked items in containers? (Blocks taking items from chests, machines, etc.) [Default: true]")
@@ -285,6 +291,10 @@ public class Config {
             individualLockItemUsage = builder
                     .comment("Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
                     .define("lockItemUsage", true);
+
+            individualLockBlockInteraction = builder
+                    .comment("Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.) [Default: true]")
+                    .define("lockBlockInteraction", true);
 
             individualBroadcastChat = builder
                     .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")

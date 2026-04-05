@@ -100,16 +100,16 @@ public class StageManager {
 
     private static void validateFileName(String id, String fileName) {
         if (!id.equals(id.toLowerCase())) {
-            addMessage(MessageLevel.WARN, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
-            DebugLogger.warn("File Names", "'" + fileName + "' contains uppercase letters. Use lowercase for consistency (e.g. '" + id.toLowerCase() + ".json').");
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
+            DebugLogger.info("File Names", "'" + fileName + "' contains uppercase letters. Use lowercase for consistency (e.g. '" + id.toLowerCase() + ".json').");
         }
         if (id.contains(" ")) {
-            addMessage(MessageLevel.WARN, "File '" + fileName + "' contains spaces. Use underscores instead.");
-            DebugLogger.warn("File Names", "'" + fileName + "' contains spaces. Use underscores instead (e.g. '" + id.replace(" ", "_") + ".json').");
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains spaces. Use underscores instead.");
+            DebugLogger.info("File Names", "'" + fileName + "' contains spaces. Use underscores instead (e.g. '" + id.replace(" ", "_") + ".json').");
         }
         if (!id.matches("[a-zA-Z0-9_\\-]+")) {
-            addMessage(MessageLevel.WARN, "File '" + fileName + "' contains special characters.");
-            DebugLogger.warn("File Names", "'" + fileName + "' contains special characters. Only use a-z, 0-9, _ and -.");
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains special characters.");
+            DebugLogger.info("File Names", "'" + fileName + "' contains special characters. Only use a-z, 0-9, _ and -.");
         }
     }
 

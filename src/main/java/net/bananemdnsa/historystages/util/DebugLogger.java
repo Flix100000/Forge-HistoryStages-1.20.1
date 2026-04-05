@@ -252,6 +252,7 @@ public class DebugLogger {
                     pw.println("    lockBlockBreakSpeed  = " + Config.COMMON.lockedBlockBreakSpeedMultiplier.get());
                     pw.println("    lockItemUsage        = " + Config.COMMON.lockItemUsage.get());
                     pw.println("    lockEntityItems      = " + Config.COMMON.lockEntityItems.get());
+                    pw.println("    lockBlockInteraction = " + Config.COMMON.lockBlockInteraction.get());
                     pw.println("    researchTimeSeconds  = " + Config.COMMON.researchTimeInSeconds.get());
                     pw.println("    useReplacements      = " + Config.COMMON.useReplacements.get());
                     pw.println("    broadcastChat        = " + Config.COMMON.broadcastChat.get());

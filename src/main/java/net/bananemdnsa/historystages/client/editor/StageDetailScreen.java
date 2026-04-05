@@ -1142,6 +1142,7 @@ public class StageDetailScreen extends Screen {
         int gridY = contentY;
 
         // Ingredient grid
+        ItemStack hoveredIngredient = ItemStack.EMPTY;
         if (isCrafting) {
             // Crafting grid: render all slots in grid pattern
             int gridCols = isShaped ? craftW : 3;
@@ -1157,6 +1158,9 @@ public class StageDetailScreen extends Screen {
                         ItemStack[] items = rawIngredients.get(idx).getItems();
                         if (items.length > 0) {
                             guiGraphics.renderItem(items[0], sx + 4, sy + 4);
+                            if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy && mouseY < sy + slotSize - 1) {
+                                hoveredIngredient = items[0];
+                            }
                         }
                     }
                 }
@@ -1187,6 +1191,10 @@ public class StageDetailScreen extends Screen {
                 guiGraphics.fill(sx, sy, sx + slotSize - 1, sy + slotSize - 1, 0xFF2A2A2A);
                 guiGraphics.fill(sx + 1, sy + 1, sx + slotSize - 2, sy + slotSize - 2, 0xFF1E1E1E);
                 guiGraphics.renderItem(stack, sx + 4, sy + 4);
+                if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy && mouseY < sy + slotSize - 1
+                        && sy >= gridY && sy + slotSize - 1 <= gridY + gridH) {
+                    hoveredIngredient = stack;
+                }
 
                 if (count > 1) {
                     String cs = count + "x";
@@ -1268,6 +1276,11 @@ public class StageDetailScreen extends Screen {
             guiGraphics.fill(addBtnX, btnY + btnH - 2, addBtnX + btnW, btnY + btnH, aHov ? 0xD0FFCC00 : 0x70FFCC00);
             String aLabel = Component.translatable("editor.historystages.add").getString();
             guiGraphics.drawCenteredString(this.font, aLabel, addBtnX + btnW / 2, btnY + 5, aHov ? 0xFFFFFF : 0xDDDDDD);
+        }
+
+        // Ingredient tooltip
+        if (!hoveredIngredient.isEmpty()) {
+            guiGraphics.renderTooltip(this.font, hoveredIngredient, mouseX, mouseY);
         }
     }
 

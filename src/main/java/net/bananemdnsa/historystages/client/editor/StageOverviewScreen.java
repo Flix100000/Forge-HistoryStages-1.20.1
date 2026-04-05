@@ -31,6 +31,10 @@ public class StageOverviewScreen extends Screen {
 
     private List<String> stageOrder;
     private List<String> individualStageOrder;
+    private List<String> filteredStageOrder = new ArrayList<>();
+    private List<String> filteredIndividualStageOrder = new ArrayList<>();
+    private EditBox searchBox;
+    private String searchFilter = "";
     private int lastKnownStageCount = -1;
     private int lastKnownIndividualCount = -1;
     private double scrollOffset = 0;
@@ -60,6 +64,19 @@ public class StageOverviewScreen extends Screen {
         stageOrder = StageManager.getStageOrder();
         individualStageOrder = StageManager.getIndividualStageOrder();
 
+        searchFilter = "";
+        int searchW = 120;
+        searchBox = new EditBox(this.font, 12, 8, searchW - 4, 14,
+                Component.translatable("editor.historystages.search"));
+        searchBox.setMaxLength(128);
+        searchBox.setBordered(false);
+        searchBox.setValue(searchFilter);
+        searchBox.setResponder(val -> {
+            searchFilter = val;
+            applyFilter();
+        });
+        this.addRenderableWidget(searchBox);
+
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.new_stage"),
                 btn -> openStageIdInputDialog(null, false),
@@ -71,14 +88,41 @@ public class StageOverviewScreen extends Screen {
                 this.width - 30, 5, 20, 20));
 
         contextMenu = new ContextMenu();
+        applyFilter();
+    }
+
+    private void applyFilter() {
+        String query = searchFilter.toLowerCase().trim();
+        Map<String, StageEntry> stages = StageManager.getStages();
+        Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
+
+        filteredStageOrder = new ArrayList<>();
+        for (String id : stageOrder) {
+            if (query.isEmpty() || matchesFilter(id, stages.get(id), query)) {
+                filteredStageOrder.add(id);
+            }
+        }
+        filteredIndividualStageOrder = new ArrayList<>();
+        for (String id : individualStageOrder) {
+            if (query.isEmpty() || matchesFilter(id, individualStages.get(id), query)) {
+                filteredIndividualStageOrder.add(id);
+            }
+        }
         updateMaxScroll();
+        scrollOffset = Math.min(scrollOffset, maxScroll);
+    }
+
+    private boolean matchesFilter(String stageId, StageEntry entry, String query) {
+        if (stageId.toLowerCase().contains(query)) return true;
+        if (entry != null && entry.getDisplayName().toLowerCase().contains(query)) return true;
+        return false;
     }
 
     private void updateMaxScroll() {
         int listHeight = this.height - HEADER_HEIGHT - LIST_PADDING - 40;
-        int contentHeight = SECTION_HEADER_HEIGHT + stageOrder.size() * ENTRY_HEIGHT;
-        if (!individualStageOrder.isEmpty()) {
-            contentHeight += SECTION_HEADER_HEIGHT + individualStageOrder.size() * ENTRY_HEIGHT;
+        int contentHeight = SECTION_HEADER_HEIGHT + filteredStageOrder.size() * ENTRY_HEIGHT;
+        if (!filteredIndividualStageOrder.isEmpty()) {
+            contentHeight += SECTION_HEADER_HEIGHT + filteredIndividualStageOrder.size() * ENTRY_HEIGHT;
         }
         maxScroll = Math.max(0, contentHeight - listHeight);
     }
@@ -94,7 +138,7 @@ public class StageOverviewScreen extends Screen {
             individualStageOrder = StageManager.getIndividualStageOrder();
             lastKnownStageCount = currentCount;
             lastKnownIndividualCount = currentIndividualCount;
-            updateMaxScroll();
+            applyFilter();
         }
 
         // Smooth scroll
@@ -103,6 +147,17 @@ public class StageOverviewScreen extends Screen {
 
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+
+        // Search bar (left side, same row as title)
+        int searchW = 120;
+        int searchX = 10;
+        guiGraphics.fill(searchX, 5, searchX + searchW, 23, 0x25FFFFFF);
+        guiGraphics.fill(searchX, 23, searchX + searchW, 24, searchBox.isFocused() ? 0xFFFFCC00 : 0xFF555555);
+        if (searchFilter.isEmpty() && !searchBox.isFocused()) {
+            guiGraphics.drawString(this.font, Component.translatable("editor.historystages.search").getString(),
+                    searchX + 4, 10, 0x888888, false);
+        }
+
         guiGraphics.fill(10, HEADER_HEIGHT, this.width - 10, HEADER_HEIGHT + 1, 0xFF555555);
 
         int listTop = HEADER_HEIGHT + 5;
@@ -127,7 +182,7 @@ public class StageOverviewScreen extends Screen {
         int globalHeaderY = y;
         if (globalHeaderY + SECTION_HEADER_HEIGHT > listTop && globalHeaderY < listBottom) {
             guiGraphics.fill(listLeft, globalHeaderY + 8, listRight, globalHeaderY + 9, 0xFF555555);
-            String globalLabel = "\u00A78Global Stages (" + stageOrder.size() + ")";
+            String globalLabel = "\u00A78Global Stages (" + filteredStageOrder.size() + ")";
             int glLabelW = this.font.width(globalLabel);
             int glLabelX = listLeft + 5;
             guiGraphics.fill(glLabelX - 2, globalHeaderY + 3, glLabelX + glLabelW + 2, globalHeaderY + 15, 0xE0101010);
@@ -136,8 +191,8 @@ public class StageOverviewScreen extends Screen {
         y += SECTION_HEADER_HEIGHT;
 
         // --- Global Stages ---
-        for (int i = 0; i < stageOrder.size(); i++) {
-            String stageId = stageOrder.get(i);
+        for (int i = 0; i < filteredStageOrder.size(); i++) {
+            String stageId = filteredStageOrder.get(i);
             StageEntry entry = stages.get(stageId);
             if (entry == null) continue;
 
@@ -238,13 +293,13 @@ public class StageOverviewScreen extends Screen {
         }
 
         // --- Individual Stages Section ---
-        if (!individualStageOrder.isEmpty()) {
-            int sectionY = y + stageOrder.size() * ENTRY_HEIGHT; // y already includes global header offset
+        if (!filteredIndividualStageOrder.isEmpty()) {
+            int sectionY = y + filteredStageOrder.size() * ENTRY_HEIGHT; // y already includes global header offset
 
             // Section header
             if (sectionY + SECTION_HEADER_HEIGHT > listTop && sectionY < listBottom) {
                 guiGraphics.fill(listLeft, sectionY + 8, listRight, sectionY + 9, 0xFF555555);
-                String sectionLabel = "\u00A78Individual Stages (" + individualStageOrder.size() + ")";
+                String sectionLabel = "\u00A78Individual Stages (" + filteredIndividualStageOrder.size() + ")";
                 int labelW = this.font.width(sectionLabel);
                 int labelX = listLeft + 5;
                 guiGraphics.fill(labelX - 2, sectionY + 3, labelX + labelW + 2, sectionY + 15, 0xE0101010);
@@ -252,8 +307,8 @@ public class StageOverviewScreen extends Screen {
             }
 
             int indY = sectionY + SECTION_HEADER_HEIGHT;
-            for (int i = 0; i < individualStageOrder.size(); i++) {
-                String stageId = individualStageOrder.get(i);
+            for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
+                String stageId = filteredIndividualStageOrder.get(i);
                 StageEntry entry = individualStages.get(stageId);
                 if (entry == null) continue;
 
@@ -355,6 +410,11 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Unfocus search box when clicking outside it
+        if (searchBox.isFocused() && !(mouseX >= 10 && mouseX <= 130 && mouseY >= 5 && mouseY <= 24)) {
+            searchBox.setFocused(false);
+        }
+
         if (contextMenu.isVisible()) {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
@@ -381,8 +441,8 @@ public class StageOverviewScreen extends Screen {
         int y = listTop - (int) scrollOffset + SECTION_HEADER_HEIGHT; // skip global header
 
         // Global stages
-        for (int i = 0; i < stageOrder.size(); i++) {
-            String stageId = stageOrder.get(i);
+        for (int i = 0; i < filteredStageOrder.size(); i++) {
+            String stageId = filteredStageOrder.get(i);
             StageEntry entry = stages.get(stageId);
             if (entry == null) continue;
 
@@ -415,7 +475,7 @@ public class StageOverviewScreen extends Screen {
                         this.minecraft.setScreen(new ConfirmDialog(this,
                                 Component.translatable("editor.historystages.confirm_delete_title"),
                                 Component.translatable("editor.historystages.confirm_delete", stageId),
-                                () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, false)); stageOrder.remove(stageId); updateMaxScroll(); Minecraft.getInstance().setScreen(self); }));
+                                () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, false)); stageOrder.remove(stageId); applyFilter(); Minecraft.getInstance().setScreen(self); }));
                     });
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     contextMenu.show((int) mouseX, (int) mouseY, this.font);
@@ -430,10 +490,10 @@ public class StageOverviewScreen extends Screen {
         }
 
         // Individual stages
-        if (!individualStageOrder.isEmpty()) {
-            int indY = y + stageOrder.size() * ENTRY_HEIGHT + SECTION_HEADER_HEIGHT;
-            for (int i = 0; i < individualStageOrder.size(); i++) {
-                String stageId = individualStageOrder.get(i);
+        if (!filteredIndividualStageOrder.isEmpty()) {
+            int indY = y + filteredStageOrder.size() * ENTRY_HEIGHT + SECTION_HEADER_HEIGHT;
+            for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
+                String stageId = filteredIndividualStageOrder.get(i);
                 StageEntry entry = individualStages.get(stageId);
                 if (entry == null) continue;
 
@@ -454,7 +514,7 @@ public class StageOverviewScreen extends Screen {
                             this.minecraft.setScreen(new ConfirmDialog(this,
                                     Component.translatable("editor.historystages.confirm_delete_title"),
                                     Component.translatable("editor.historystages.confirm_delete", stageId),
-                                    () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, true)); individualStageOrder.remove(stageId); updateMaxScroll(); Minecraft.getInstance().setScreen(self); }));
+                                    () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, true)); individualStageOrder.remove(stageId); applyFilter(); Minecraft.getInstance().setScreen(self); }));
                         });
                         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         contextMenu.show((int) mouseX, (int) mouseY, this.font);
