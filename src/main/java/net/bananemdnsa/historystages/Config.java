@@ -136,6 +136,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue lockEntityItems;
         public final ForgeConfigSpec.BooleanValue lockBlockInteraction;
         public final ForgeConfigSpec.BooleanValue lockContainerInteraction;
+        public final ForgeConfigSpec.BooleanValue lockEnchanting;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -159,6 +160,7 @@ public class Config {
         public final ForgeConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
         public final ForgeConfigSpec.BooleanValue individualLockItemUsage;
         public final ForgeConfigSpec.BooleanValue individualLockBlockInteraction;
+        public final ForgeConfigSpec.BooleanValue individualLockEnchanting;
 
         // Individual Stages - Notifications
         public final ForgeConfigSpec.BooleanValue individualBroadcastChat;
@@ -218,6 +220,10 @@ public class Config {
             lockContainerInteraction = builder
                     .comment("Prevent moving individually-locked items in containers? (Blocks taking items from chests, machines, etc.) [Default: true]")
                     .define("lockContainerInteraction", true);
+
+            lockEnchanting = builder
+                    .comment("Prevent applying locked enchantments via anvil (locked enchanted books) and enchanting table? [Default: true]")
+                    .define("lockEnchanting", true);
 
             builder.pop(); // gameplay
 
@@ -295,6 +301,10 @@ public class Config {
             individualLockBlockInteraction = builder
                     .comment("Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.) [Default: true]")
                     .define("lockBlockInteraction", true);
+
+            individualLockEnchanting = builder
+                    .comment("Prevent applying enchantments locked by individual stages via anvil and enchanting table? [Default: true]")
+                    .define("lockEnchanting", true);
 
             individualBroadcastChat = builder
                     .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")

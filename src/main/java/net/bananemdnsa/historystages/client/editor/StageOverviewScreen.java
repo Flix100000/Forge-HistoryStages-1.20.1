@@ -270,7 +270,7 @@ public class StageOverviewScreen extends Screen {
             }
 
             // Item count info
-            int itemCount = entry.getItems().size() + entry.getTags().size() + entry.getMods().size()
+            int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                     + entry.getRecipes().size() + entry.getDimensions().size()
                     + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
             String info = itemCount + " entries";
@@ -375,7 +375,7 @@ public class StageOverviewScreen extends Screen {
                 }
 
                 // Item count info
-                int itemCount = entry.getItems().size() + entry.getTags().size() + entry.getMods().size()
+                int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                         + entry.getDimensions().size()
                         + entry.getEntities().getAttacklock().size();
                 String info = itemCount + " entries";

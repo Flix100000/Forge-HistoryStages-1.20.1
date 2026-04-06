@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.util;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.resources.ResourceLocation;
@@ -45,10 +49,10 @@ public class StageLockHelper {
         String modId = res.getNamespace();
 
         // Check global stages first
-        if (isGlobalItemLocked(itemId, modId)) return true;
+        if (isGlobalItemLocked(itemId, modId, stack)) return true;
 
         // Check individual stages
-        if (isIndividualItemLocked(itemId, modId, playerUuid)) return true;
+        if (isIndividualItemLocked(itemId, modId, stack, playerUuid)) return true;
 
         return false;
     }
@@ -62,11 +66,11 @@ public class StageLockHelper {
         ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (res == null) return false;
 
-        return isIndividualItemLocked(res.toString(), res.getNamespace(), playerUuid);
+        return isIndividualItemLocked(res.toString(), res.getNamespace(), stack, playerUuid);
     }
 
-    private static boolean isGlobalItemLocked(String itemId, String modId) {
-        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(itemId, modId);
+    private static boolean isGlobalItemLocked(String itemId, String modId, ItemStack stack) {
+        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
         for (String stage : requiredStages) {
             if (!StageData.SERVER_CACHE.contains(stage)) {
                 return true;
@@ -75,8 +79,8 @@ public class StageLockHelper {
         return false;
     }
 
-    private static boolean isIndividualItemLocked(String itemId, String modId, UUID playerUuid) {
-        List<String> requiredStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId);
+    private static boolean isIndividualItemLocked(String itemId, String modId, ItemStack stack, UUID playerUuid) {
+        List<String> requiredStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
         if (requiredStages.isEmpty()) return false;
 
         Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
@@ -158,7 +162,7 @@ public class StageLockHelper {
         String modId = res.getNamespace();
 
         // Check global stages
-        List<String> globalStages = StageManager.getAllStagesForItemOrMod(itemId, modId);
+        List<String> globalStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
         for (String stage : globalStages) {
             if (!ClientStageCache.isStageUnlocked(stage)) {
                 return true;
@@ -166,7 +170,7 @@ public class StageLockHelper {
         }
 
         // Check individual stages
-        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId);
+        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
         for (String stage : individualStages) {
             if (!ClientIndividualStageCache.isStageUnlocked(stage)) {
                 return true;
@@ -185,7 +189,7 @@ public class StageLockHelper {
         ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (res == null) return false;
 
-        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(res.toString(), res.getNamespace());
+        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
         for (String stage : individualStages) {
             if (!ClientIndividualStageCache.isStageUnlocked(stage)) {
                 return true;
@@ -220,11 +224,11 @@ public class StageLockHelper {
             String modId = res.getNamespace();
 
             // Check if this item is covered by the revoked stage
-            if (!isItemInStage(itemId, modId, stack.getItem(), entry)) continue;
+            if (!isItemInStage(itemId, modId, stack, entry)) continue;
 
             // Check if this item is STILL locked for this player after the revocation
             // (another individual stage might still cover it)
-            if (isIndividualItemLocked(itemId, modId, player.getUUID())) {
+            if (isIndividualItemLocked(itemId, modId, stack, player.getUUID())) {
                 player.drop(stack.copy(), false);
                 inv.setItem(i, ItemStack.EMPTY);
                 dropped = true;
@@ -236,10 +240,88 @@ public class StageLockHelper {
         }
     }
 
-    private static boolean isItemInStage(String itemId, String modId, net.minecraft.world.item.Item item, StageEntry entry) {
-        if (entry.getItems().contains(itemId)) return true;
+    // =============================================
+    // ENCHANTMENT LOCK CHECKS
+    // =============================================
+
+    /**
+     * Checks if a specific enchantment is locked for a player.
+     * Iterates all stages looking for locked enchanted book entries
+     * whose StoredEnchantments NBT criteria match the given enchantment.
+     */
+    public static boolean isEnchantmentLockedForPlayer(String enchantmentId, int level, UUID playerUuid) {
+        // Check global stages
+        for (var entry : StageManager.getStages().entrySet()) {
+            if (StageData.SERVER_CACHE.contains(entry.getKey())) continue;
+            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
+        }
+
+        // Check individual stages
+        Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
+        for (var entry : StageManager.getIndividualStages().entrySet()) {
+            if (playerStages.contains(entry.getKey())) continue;
+            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if a stage entry locks a specific enchantment via enchanted book NBT criteria.
+     */
+    private static boolean stageLocksEnchantment(StageEntry stage, String enchantmentId, int level) {
+        for (ItemEntry itemEntry : stage.getItemEntries()) {
+            if (!itemEntry.hasNbt()) continue;
+            // Only check enchanted book entries
+            if (!itemEntry.getId().equals("minecraft:enchanted_book")) continue;
+
+            JsonObject nbt = itemEntry.getNbt();
+            if (!nbt.has("StoredEnchantments") || !nbt.get("StoredEnchantments").isJsonArray()) continue;
+
+            JsonArray enchantments = nbt.getAsJsonArray("StoredEnchantments");
+            for (JsonElement el : enchantments) {
+                if (!el.isJsonObject()) continue;
+                JsonObject enchObj = el.getAsJsonObject();
+                if (!enchObj.has("id")) continue;
+
+                String lockedId = enchObj.get("id").getAsString();
+                if (!lockedId.equals(enchantmentId)) continue;
+
+                // Check level match
+                if (!enchObj.has("lvl")) return true; // no level restriction = all levels locked
+
+                JsonElement lvlEl = enchObj.get("lvl");
+                if (lvlEl.isJsonPrimitive()) {
+                    if (lvlEl.getAsJsonPrimitive().isNumber()) {
+                        if (lvlEl.getAsInt() == level) return true;
+                    } else if (lvlEl.getAsJsonPrimitive().isString()) {
+                        String lvlStr = lvlEl.getAsString();
+                        if (lvlStr.matches("\\d+-\\d+")) {
+                            String[] parts = lvlStr.split("-");
+                            int min = Integer.parseInt(parts[0]);
+                            int max = Integer.parseInt(parts[1]);
+                            if (level >= min && level <= max) return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageEntry entry) {
+        for (net.bananemdnsa.historystages.data.ItemEntry itemEntry : entry.getItemEntries()) {
+            if (itemEntry.getId().equals(itemId)) {
+                if (itemEntry.hasNbt()) {
+                    if (net.bananemdnsa.historystages.data.NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
+                } else {
+                    return true;
+                }
+            }
+        }
         if (entry.getMods().contains(modId)) return true;
 
+        net.minecraft.world.item.Item item = stack.getItem();
         if (item != null && entry.getTags() != null) {
             for (String tagId : entry.getTags()) {
                 var tagKey = net.minecraft.tags.TagKey.create(

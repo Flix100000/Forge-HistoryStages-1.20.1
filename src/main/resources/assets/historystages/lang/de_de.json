@@ -100,6 +100,7 @@
   "message.historystages.item_locked": "??? Dieser Gegenstand ist dir noch unbekannt ???",
   "message.historystages.block_locked": "??? Dieser Block ist dir noch unbekannt ???",
   "message.historystages.entity_item_locked": "??? Diese Auslage enth\u00e4lt Gegenst\u00e4nde, die dir noch unbekannt sind ???",
+  "message.historystages.enchantment_locked": "??? Diese Verzauberung ist dir noch unbekannt ???",
   "editor.historystages.config.broadcastChat": "Chat-Broadcast",
   "editor.historystages.config.unlockMessageFormat": "Freischalt-Nachrichtenformat",
   "editor.historystages.config.useActionbar": "Aktionsleiste nutzen",

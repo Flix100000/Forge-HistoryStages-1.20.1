@@ -146,7 +146,7 @@ public class StageManager {
         }
 
         // --- Empty strings & duplicates helper ---
-        removeEmptyStrings(entry.getItems(), stageId, "items");
+        removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
         removeEmptyStrings(entry.getMods(), stageId, "mods");
         removeEmptyStrings(entry.getRecipes(), stageId, "recipes");
@@ -154,7 +154,7 @@ public class StageManager {
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         removeEmptyStrings(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
 
-        checkDuplicates(entry.getItems(), stageId, "items");
+        checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
         checkDuplicates(entry.getMods(), stageId, "mods");
         checkDuplicates(entry.getRecipes(), stageId, "recipes");
@@ -163,7 +163,8 @@ public class StageManager {
         checkDuplicates(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
 
         // --- Items: format validation only (registries not yet available at load time) ---
-        entry.getItems().removeIf(itemId -> {
+        entry.getItemEntries().removeIf(item -> {
+            String itemId = item.getId();
             if (!ResourceLocation.isValidResourceLocation(itemId)) {
                 addMessage(MessageLevel.WARN, "Item '" + itemId + "' invalid format (Stage: " + stageId + "). Removed.");
                 DebugLogger.warn("Invalid Items", "Item '" + itemId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
@@ -251,7 +252,7 @@ public class StageManager {
         }
 
         // --- Empty stage check ---
-        int totalEntries = entry.getItems().size() + entry.getTags().size() + entry.getMods().size()
+        int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                 + entry.getRecipes().size() + entry.getDimensions().size()
                 + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
         if (totalEntries == 0) {
@@ -261,6 +262,32 @@ public class StageManager {
 
         STAGES.put(stageId, entry);
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
+    }
+
+    private static void removeEmptyItemEntries(List<ItemEntry> list, String stageId) {
+        int removed = 0;
+        var it = list.iterator();
+        while (it.hasNext()) {
+            ItemEntry entry = it.next();
+            if (entry.getId() == null || entry.getId().isBlank()) {
+                it.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            addMessage(MessageLevel.WARN, "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
+            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
+        }
+    }
+
+    private static void checkDuplicateItems(List<ItemEntry> list, String stageId) {
+        Set<String> seen = new HashSet<>();
+        for (ItemEntry entry : list) {
+            if (!seen.add(entry.getId())) {
+                addMessage(MessageLevel.INFO, "Duplicate '" + entry.getId() + "' in 'items' (Stage: " + stageId + ").");
+                DebugLogger.info("Duplicates", "Duplicate entry '" + entry.getId() + "' in 'items' (Stage: " + stageId + ").");
+            }
+        }
     }
 
     private static void removeEmptyStrings(List<String> list, String stageId, String field) {
@@ -314,7 +341,7 @@ public class StageManager {
             StageEntry entry = stageEntry.getValue();
 
             // Validate items exist in registry
-            for (String itemId : entry.getItems()) {
+            for (String itemId : entry.getAllItemIds()) {
                 if (!ResourceLocation.isValidResourceLocation(itemId)) continue; // already handled by format check
                 ResourceLocation rl = new ResourceLocation(itemId);
                 if (!ForgeRegistries.ITEMS.containsKey(rl)) {
@@ -347,7 +374,7 @@ public class StageManager {
             String indId = indEntry.getKey();
             StageEntry indData = indEntry.getValue();
 
-            for (String itemId : indData.getItems()) {
+            for (String itemId : indData.getAllItemIds()) {
                 if (!ResourceLocation.isValidResourceLocation(itemId)) continue;
                 ResourceLocation rl = new ResourceLocation(itemId);
                 if (!ForgeRegistries.ITEMS.containsKey(rl)) {
@@ -446,6 +473,10 @@ public class StageManager {
     }
 
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
+        return getAllStagesForItemOrMod(itemId, modId, null);
+    }
+
+    public static List<String> getAllStagesForItemOrMod(String itemId, String modId, net.minecraft.world.item.ItemStack stack) {
         List<String> allFoundStages = new ArrayList<>();
         Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
 
@@ -454,8 +485,21 @@ public class StageManager {
             StageEntry data = entry.getValue();
 
             boolean match = false;
-            // Check Item ID
-            if (data.getItems().contains(itemId)) match = true;
+            // Check Item ID (with NBT matching)
+            for (ItemEntry itemEntry : data.getItemEntries()) {
+                if (itemEntry.getId().equals(itemId)) {
+                    if (itemEntry.hasNbt()) {
+                        // NBT matching requires an ItemStack
+                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
+                            match = true;
+                            break;
+                        }
+                    } else {
+                        match = true;
+                        break;
+                    }
+                }
+            }
             // Check Mod ID
             if (!match && data.getMods().contains(modId)) match = true;
             // Check Tags
@@ -575,7 +619,7 @@ public class StageManager {
         if (res == null) return false;
 
         // Wir holen uns ALLE Stages, die für dieses Item registriert sind
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace());
+        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
 
         if (requiredStages.isEmpty()) return false;
 
@@ -599,7 +643,7 @@ public class StageManager {
         ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (res == null) return false;
 
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace());
+        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
         if (requiredStages.isEmpty()) return false;
 
         for (String stage : requiredStages) {
@@ -695,21 +739,21 @@ public class StageManager {
         }
 
         // Reuse global validation (empty strings, duplicates, format checks)
-        removeEmptyStrings(entry.getItems(), stageId, "items");
+        removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
         removeEmptyStrings(entry.getMods(), stageId, "mods");
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
-        checkDuplicates(entry.getItems(), stageId, "items");
+        checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
         checkDuplicates(entry.getMods(), stageId, "mods");
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
-        entry.getItems().removeIf(itemId -> {
-            if (!ResourceLocation.isValidResourceLocation(itemId)) {
-                addMessage(MessageLevel.WARN, "Item '" + itemId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+        entry.getItemEntries().removeIf(item -> {
+            if (!ResourceLocation.isValidResourceLocation(item.getId())) {
+                addMessage(MessageLevel.WARN, "Item '" + item.getId() + "' invalid format (Individual Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -773,7 +817,7 @@ public class StageManager {
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
             StageEntry gEntry = entry.getValue();
-            for (String item : gEntry.getItems()) globalItemMap.put(item, gStageId);
+            for (String item : gEntry.getAllItemIds()) globalItemMap.put(item, gStageId);
             for (String tag : gEntry.getTags()) globalTagMap.put(tag, gStageId);
             for (String mod : gEntry.getMods()) globalModMap.put(mod, gStageId);
         }
@@ -782,10 +826,10 @@ public class StageManager {
             String iStageId = entry.getKey();
             StageEntry iEntry = entry.getValue();
 
-            iEntry.getItems().removeIf(item -> {
-                String conflict = globalItemMap.get(item);
+            iEntry.getItemEntries().removeIf(itemEntry -> {
+                String conflict = globalItemMap.get(itemEntry.getId());
                 if (conflict != null) {
-                    String msg = "Individual stage '" + iStageId + "' item '" + item + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
+                    String msg = "Individual stage '" + iStageId + "' item '" + itemEntry.getId() + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
                     addMessage(MessageLevel.ERROR, msg);
                     DebugLogger.error("Overlap Detection", msg);
                     return true;
@@ -829,6 +873,10 @@ public class StageManager {
     }
 
     public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId) {
+        return getAllIndividualStagesForItemOrMod(itemId, modId, null);
+    }
+
+    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, net.minecraft.world.item.ItemStack stack) {
         List<String> allFoundStages = new ArrayList<>();
         Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
 
@@ -837,7 +885,19 @@ public class StageManager {
             StageEntry data = entry.getValue();
 
             boolean match = false;
-            if (data.getItems().contains(itemId)) match = true;
+            for (ItemEntry itemEntry : data.getItemEntries()) {
+                if (itemEntry.getId().equals(itemId)) {
+                    if (itemEntry.hasNbt()) {
+                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
+                            match = true;
+                            break;
+                        }
+                    } else {
+                        match = true;
+                        break;
+                    }
+                }
+            }
             if (!match && data.getMods().contains(modId)) match = true;
             if (!match && item != null && data.getTags() != null) {
                 for (String tagId : data.getTags()) {

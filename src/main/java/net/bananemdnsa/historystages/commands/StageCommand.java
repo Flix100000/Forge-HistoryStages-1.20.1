@@ -145,9 +145,9 @@ public class StageCommand {
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
         }
 
-        if (!entry.getItems().isEmpty()) {
+        if (!entry.getAllItemIds().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
-            entry.getItems().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
+            entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
         }
         if (!entry.getMods().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);
@@ -319,9 +319,9 @@ public class StageCommand {
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
         }
 
-        if (!entry.getItems().isEmpty()) {
+        if (!entry.getAllItemIds().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
-            entry.getItems().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
+            entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
         }
         if (!entry.getMods().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);

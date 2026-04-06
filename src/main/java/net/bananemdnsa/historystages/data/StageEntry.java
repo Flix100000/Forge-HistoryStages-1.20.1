@@ -1,10 +1,13 @@
 package net.bananemdnsa.historystages.data;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class StageEntry {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -15,7 +18,8 @@ public class StageEntry {
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
 
-    private List<String> items;
+    @JsonAdapter(ItemEntryListAdapter.class)
+    private List<ItemEntry> items;
     private List<String> tags;
     private List<String> mods;
     private List<String> recipes;
@@ -39,7 +43,26 @@ public class StageEntry {
         return researchTime; // 0 means "use global default from config"
     }
 
-    public List<String> getItems() { return items != null ? items : new ArrayList<>(); }
+    /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
+    public List<String> getItems() {
+        if (items == null) return new ArrayList<>();
+        return items.stream()
+                .filter(e -> !e.hasNbt())
+                .map(ItemEntry::getId)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns ALL item IDs (with and without NBT) — for display/counting only. */
+    public List<String> getAllItemIds() {
+        if (items == null) return new ArrayList<>();
+        return items.stream().map(ItemEntry::getId).collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns the full item entries with NBT data. */
+    public List<ItemEntry> getItemEntries() {
+        return items != null ? items : new ArrayList<>();
+    }
+
     public List<String> getTags() { return tags != null ? tags : new ArrayList<>(); }
     public List<String> getMods() { return mods != null ? mods : new ArrayList<>(); }
     public List<String> getRecipes() { return recipes != null ? recipes : new ArrayList<>(); }
@@ -62,7 +85,19 @@ public class StageEntry {
         this.researchTime = researchTime;
     }
 
+    /** Sets items from simple string IDs (no NBT). */
     public void setItems(List<String> items) {
+        if (items == null) {
+            this.items = new ArrayList<>();
+        } else {
+            this.items = items.stream()
+                    .map(ItemEntry::new)
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+    }
+
+    /** Sets items from full ItemEntry list (with NBT support). */
+    public void setItemEntries(List<ItemEntry> items) {
         this.items = items != null ? new ArrayList<>(items) : new ArrayList<>();
     }
 
@@ -90,7 +125,7 @@ public class StageEntry {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
         copy.setResearchTime(researchTime);
-        copy.setItems(getItems());
+        copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTags(getTags());
         copy.setMods(getMods());
         copy.setRecipes(getRecipes());

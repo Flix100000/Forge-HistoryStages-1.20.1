@@ -61,6 +61,7 @@ public class StageDetailScreen extends Screen {
     private String editDisplayName;
     private int editResearchTime;
     private final List<String> editItems;
+    private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
     private final List<String> editTags;
     private final List<String> editMods;
     private final List<String> editRecipes;
@@ -203,7 +204,15 @@ public class StageDetailScreen extends Screen {
         this.editStageId = stageId != null ? stageId : "";
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get() : e.getResearchTime();
-        this.editItems = new ArrayList<>(e.getItems());
+        this.editItems = new ArrayList<>(e.getAllItemIds());
+        this.editItemNbt = new HashMap<>();
+        List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = e.getItemEntries();
+        for (int idx = 0; idx < itemEntries.size(); idx++) {
+            net.bananemdnsa.historystages.data.ItemEntry ie = itemEntries.get(idx);
+            if (ie.hasNbt()) {
+                editItemNbt.put(idx, ie.getNbt().deepCopy());
+            }
+        }
         this.editTags = new ArrayList<>(e.getTags());
         this.editMods = new ArrayList<>(e.getMods());
         this.editRecipes = new ArrayList<>(e.getRecipes());
@@ -515,7 +524,7 @@ public class StageDetailScreen extends Screen {
             java.util.Set<String> globalLocked = new java.util.HashSet<>();
             for (StageEntry gEntry : StageManager.getStages().values()) {
                 switch (activeTab) {
-                    case 0 -> globalLocked.addAll(gEntry.getItems());
+                    case 0 -> globalLocked.addAll(gEntry.getAllItemIds());
                     case 1 -> globalLocked.addAll(gEntry.getTags());
                     case 2 -> globalLocked.addAll(gEntry.getMods());
                 }
@@ -585,7 +594,7 @@ public class StageDetailScreen extends Screen {
                     String entry = list.get(i);
                     for (StageEntry gEntry : StageManager.getStages().values()) {
                         boolean found = switch (activeTab) {
-                            case 0 -> gEntry.getItems().contains(entry);
+                            case 0 -> gEntry.getAllItemIds().contains(entry);
                             case 1 -> gEntry.getTags().contains(entry);
                             case 2 -> gEntry.getMods().contains(entry);
                             default -> false;
@@ -643,8 +652,15 @@ public class StageDetailScreen extends Screen {
                     textOffsetX = 22;
                 }
 
-                // Mod badge for entity tabs: show tag if entity was added via mod popup
+                // NBT badge for items tab
                 int badgeW = 0;
+                if (isItemsTab && editItemNbt.containsKey(i)) {
+                    String badge = "\u00A76[NBT]";
+                    badgeW = this.font.width(badge) + 4;
+                    guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0xFFCC00, false);
+                }
+
+                // Mod badge for entity tabs: show tag if entity was added via mod popup
                 if (isEntityTab && editModLinked.contains(list.get(i))) {
                     String badge = "\u00A77[mod]";
                     badgeW = this.font.width(badge) + 4;
@@ -1350,7 +1366,7 @@ public class StageDetailScreen extends Screen {
             java.util.Set<String> globalLocked = new java.util.HashSet<>();
             for (StageEntry gEntry : StageManager.getStages().values()) {
                 switch (activeTab) {
-                    case 0 -> globalLocked.addAll(gEntry.getItems());
+                    case 0 -> globalLocked.addAll(gEntry.getAllItemIds());
                     case 1 -> globalLocked.addAll(gEntry.getTags());
                     case 2 -> globalLocked.addAll(gEntry.getMods());
                 }
@@ -1377,10 +1393,23 @@ public class StageDetailScreen extends Screen {
                     final String entryValue = list.get(i);
                     final int tabIdx = activeTab;
                     contextMenu = new ContextMenu();
-                    contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openEditDialog(tabIdx, entryIdx, entryValue));
+                    if (tabIdx == 0) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openNbtEditScreen(entryIdx, entryValue));
+                    }
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).remove(entryIdx);
+                        // When removing an item, shift NBT indices
+                        if (tabIdx == 0) {
+                            editItemNbt.remove(entryIdx);
+                            Map<Integer, com.google.gson.JsonObject> shifted = new HashMap<>();
+                            for (var e : editItemNbt.entrySet()) {
+                                int key = e.getKey();
+                                shifted.put(key > entryIdx ? key - 1 : key, e.getValue());
+                            }
+                            editItemNbt.clear();
+                            editItemNbt.putAll(shifted);
+                        }
                         // When removing a mod, also remove mod-linked entities
                         if (tabIdx == 2 && removedValue != null) {
                             String prefix = removedValue + ":";
@@ -1466,6 +1495,18 @@ public class StageDetailScreen extends Screen {
         } else {
             this.minecraft.setScreen(new AddEntryScreen(this, tabIdx, entryIdx, currentValue));
         }
+    }
+
+    private void openNbtEditScreen(int entryIdx, String itemId) {
+        com.google.gson.JsonObject currentNbt = editItemNbt.get(entryIdx);
+        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, currentNbt, nbt -> {
+            if (nbt != null) {
+                editItemNbt.put(entryIdx, nbt);
+            } else {
+                editItemNbt.remove(entryIdx);
+            }
+            hasChanges = true;
+        }));
     }
 
     @Override
@@ -1585,7 +1626,12 @@ public class StageDetailScreen extends Screen {
         StageEntry newEntry = new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
-        newEntry.setItems(editItems);
+        List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
+        for (int idx = 0; idx < editItems.size(); idx++) {
+            com.google.gson.JsonObject nbt = editItemNbt.get(idx);
+            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editItems.get(idx), nbt));
+        }
+        newEntry.setItemEntries(itemEntries);
         newEntry.setTags(editTags);
         newEntry.setMods(editMods);
         newEntry.setRecipes(editRecipes);

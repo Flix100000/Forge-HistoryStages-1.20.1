@@ -58,7 +58,7 @@ public class LockDecorator implements IItemDecorator {
         ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (res == null) return false;
 
-        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(res.toString(), res.getNamespace());
+        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
         if (requiredStages.isEmpty()) return false;
 
         for (String stage : requiredStages) {

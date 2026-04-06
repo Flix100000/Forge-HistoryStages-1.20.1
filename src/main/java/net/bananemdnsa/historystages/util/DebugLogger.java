@@ -126,7 +126,7 @@ public class DebugLogger {
             int totalItems = 0, totalTags = 0, totalMods = 0, totalRecipes = 0;
             int totalDimensions = 0, totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
-                totalItems += entry.getItems().size();
+                totalItems += entry.getAllItemIds().size();
                 totalTags += entry.getTags().size();
                 totalMods += entry.getMods().size();
                 totalRecipes += entry.getRecipes().size();
@@ -189,7 +189,7 @@ public class DebugLogger {
                     StageEntry s = stageEntry.getValue();
                     EntityLocks ent = s.getEntities();
 
-                    int entryCount = s.getItems().size() + s.getTags().size() + s.getMods().size()
+                    int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
                             + s.getRecipes().size() + s.getDimensions().size()
                             + ent.getAttacklock().size() + ent.getSpawnlock().size();
 
@@ -197,7 +197,7 @@ public class DebugLogger {
                     pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
                     pw.println("  Total entries: " + entryCount);
 
-                    printList(pw, "Items", s.getItems());
+                    printList(pw, "Items", s.getAllItemIds());
                     printList(pw, "Tags", s.getTags());
                     printList(pw, "Mods", s.getMods());
                     printList(pw, "Recipes", s.getRecipes());
@@ -220,7 +220,7 @@ public class DebugLogger {
                         StageEntry s = stageEntry.getValue();
                         EntityLocks ent = s.getEntities();
 
-                        int entryCount = s.getItems().size() + s.getTags().size() + s.getMods().size()
+                        int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
                                 + s.getRecipes().size() + s.getDimensions().size()
                                 + ent.getAttacklock().size() + ent.getSpawnlock().size();
 
@@ -228,7 +228,7 @@ public class DebugLogger {
                         pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
                         pw.println("  Total entries: " + entryCount);
 
-                        printList(pw, "Items", s.getItems());
+                        printList(pw, "Items", s.getAllItemIds());
                         printList(pw, "Tags", s.getTags());
                         printList(pw, "Mods", s.getMods());
                         printList(pw, "Recipes", s.getRecipes());

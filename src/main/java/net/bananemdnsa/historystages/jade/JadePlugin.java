@@ -2,6 +2,8 @@ package net.bananemdnsa.historystages.jade;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
@@ -64,6 +66,7 @@ public class JadePlugin implements IWailaPlugin {
 
                 boolean isListed = stage.getMods().contains(modID) ||
                         stage.getItems().contains(itemID) ||
+                        matchesNbtItem(stage, itemID, blockItem) ||
                         blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
                 if (isListed) {
@@ -87,6 +90,7 @@ public class JadePlugin implements IWailaPlugin {
                 String stageID = entry.getKey();
 
                 boolean isListed = stage.getItems().contains(itemID) ||
+                        matchesNbtItem(stage, itemID, blockItem) ||
                         blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
                 if (isListed) {
@@ -147,6 +151,7 @@ public class JadePlugin implements IWailaPlugin {
 
                     boolean isListed = stage.getMods().contains(modID) ||
                             stage.getItems().contains(itemID) ||
+                            matchesNbtItem(stage, itemID, stack) ||
                             stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
                     if (isListed && !totalRequiredStages.contains(stage)) {
@@ -177,6 +182,7 @@ public class JadePlugin implements IWailaPlugin {
                     String stageID = entry.getKey();
 
                     boolean isListed = stage.getItems().contains(indItemID) ||
+                            matchesNbtItem(stage, indItemID, stack) ||
                             stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
                     if (isListed && !individualRequiredStages.contains(stage)) {
@@ -234,5 +240,14 @@ public class JadePlugin implements IWailaPlugin {
             tooltip.add(Component.literal("This contains locked items!")
                     .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
         }
+    }
+
+    private static boolean matchesNbtItem(StageEntry stage, String itemID, ItemStack stack) {
+        for (ItemEntry itemEntry : stage.getItemEntries()) {
+            if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
+                if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
+            }
+        }
+        return false;
     }
 }

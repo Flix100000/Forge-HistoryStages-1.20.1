@@ -2,6 +2,8 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
@@ -84,6 +86,7 @@ public class TooltipEventHandler {
 
             boolean isListed = stage.getMods().contains(modID) ||
                     stage.getItems().contains(itemID) ||
+                    matchesNbtItem(stage, itemID, stack) ||
                     stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
             if (isListed) {
@@ -134,6 +137,7 @@ public class TooltipEventHandler {
 
             boolean isListed = stage.getMods().contains(modID) ||
                     stage.getItems().contains(itemID) ||
+                    matchesNbtItem(stage, itemID, stack) ||
                     stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
             if (isListed) {
@@ -173,5 +177,14 @@ public class TooltipEventHandler {
                         .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
             }
         }
+    }
+
+    private static boolean matchesNbtItem(StageEntry stage, String itemID, ItemStack stack) {
+        for (ItemEntry itemEntry : stage.getItemEntries()) {
+            if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
+                if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
+            }
+        }
+        return false;
     }
 }

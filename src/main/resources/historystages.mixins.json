@@ -6,7 +6,8 @@
   "refmap": "historystages.refmap.json",
   "mixins": [
     "RecipeManagerMixin",
-    "ContainerClickMixin"
+    "ContainerClickMixin",
+    "EnchantmentMenuMixin"
   ],
   "client": [
     "jei.RecipeLayoutMixin"
