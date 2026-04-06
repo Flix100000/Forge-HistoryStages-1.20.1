@@ -1,11 +1,12 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.jei.JEIPlugin; // Import für JEI Refresh
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public class SyncStagesPacket {
@@ -35,35 +36,30 @@ public class SyncStagesPacket {
 
     public static void handle(SyncStagesPacket msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
+            Set<String> oldStages = ClientStageCache.snapshot();
+
             // 1. Client-Speicher aktualisieren
             ClientStageCache.setUnlockedStages(msg.unlockedStages);
+            Set<String> newStages = ClientStageCache.snapshot();
+            Set<String> changedStages = new HashSet<>(oldStages);
+            changedStages.addAll(newStages);
+            Set<String> intersection = new HashSet<>(oldStages);
+            intersection.retainAll(newStages);
+            changedStages.removeAll(intersection);
 
             if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
                     try {
-                        // --- NEU: GRAFIK-REFRESH FÜR SCHLÖSSER (JEI/EMI/Inventar) ---
-                        // Das zwingt den LevelRenderer, alle sichtbaren Elemente neu zu berechnen.
-                        if (mc.levelRenderer != null) {
-                            mc.levelRenderer.allChanged();
-                        }
-
-                        // Rezept-Resync wird durch reloadResources() auf dem Server ausgelöst,
-                        // das schickt automatisch ClientboundUpdateRecipesPacket an alle Clients.
-                        // replaceRecipes(emptyList()) wurde entfernt, da es Mod-Maschinen
-                        // (z.B. SewingKit) kaputt macht, die die leere Liste cachen.
-
-                        // --- MOD-SPEZIFISCHE UPDATES ---
-                        // Wir rufen diese jetzt über die sichere Hilfsklasse auf
                         if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
-                            ExternalMods.refreshJEI();
+                            ExternalMods.refreshJEI(changedStages);
                         }
 
                         if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
                             ExternalMods.refreshEMI();
                         }
 
-                        System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
+                        System.out.println("[HistoryStages] Stage sync completed.");
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
@@ -74,10 +70,9 @@ public class SyncStagesPacket {
     }
 
     private static class ExternalMods {
-        private static void refreshJEI() {
+        private static void refreshJEI(Set<String> changedStages) {
             try {
-                // Dein bestehender JEI-Refresh
-                net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
+                net.bananemdnsa.historystages.jei.JEIPlugin.refreshJeiForStageChanges(changedStages);
             } catch (Throwable ignored) {}
         }
 

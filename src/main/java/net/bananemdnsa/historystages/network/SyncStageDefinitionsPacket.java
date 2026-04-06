@@ -42,6 +42,13 @@ public class SyncStageDefinitionsPacket {
         ctx.get().enqueueWork(() -> {
             // Replace client-side stage definitions with the server's data
             StageManager.setStages(msg.stages);
+            if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+                try {
+                    net.bananemdnsa.historystages.jei.JEIPlugin.clearStageItemCache();
+                    net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
+                } catch (Throwable ignored) {
+                }
+            }
             // Keep editor cache in sync so open editors always show current data
             EditorDataCache.setStages(new HashMap<>(msg.stages));
             System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions from server.");

@@ -95,14 +95,6 @@ public class HistoryStageReward extends Reward {
             data.setDirty();
             MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(stage, displayName));
 
-            // JEI hard-reload (same as Research Pedestal)
-            if (player.server != null) {
-                player.server.getCommands().performPrefixedCommand(
-                        player.server.createCommandSourceStack().withSuppressedOutput(),
-                        "history reload"
-                );
-            }
-
             // Broadcast unlock effects (same as Research Pedestal)
             broadcastUnlockEffects(player, displayName);
         }
@@ -110,7 +102,6 @@ public class HistoryStageReward extends Reward {
         // Sync to all players
         StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-        PacketHandler.reloadRecipesOnly(player.server);
     }
 
     private void broadcastUnlockEffects(ServerPlayer source, String stageName) {

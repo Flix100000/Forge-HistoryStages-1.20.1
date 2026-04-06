@@ -172,13 +172,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
                         new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
 
-                // 2. DEN BEFEHL LEISE AUSFÜHREN (Erzwingt JEI Hard-Reload auf allen Clients)
-                if (level.getServer() != null) {
-                    level.getServer().getCommands().performPrefixedCommand(
-                            level.getServer().createCommandSourceStack().withSuppressedOutput(),
-                            "history reload"
-                    );
-                }
+                // 2. Stage-Cache und Clients synchronisieren (kein schwerer globaler Reload)
+                StageData.refreshCache(data.getUnlockedStages());
+                PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
                 // 3. Deine individuellen Nachrichten & Sounds (Old Logic)
                 String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;

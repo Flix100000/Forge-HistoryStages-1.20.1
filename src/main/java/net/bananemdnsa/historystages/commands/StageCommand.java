@@ -122,7 +122,7 @@ public class StageCommand {
                         .executes(ctx -> {
                             StageManager.reloadStages();
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
-                            return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!");
+                            return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", true);
                         }))
         );
     }
@@ -147,7 +147,7 @@ public class StageCommand {
             }
             DebugLogger.runtime("Stage Unlock", executor, "Unlocked ALL stages (" + StageManager.getStages().size() + " total)");
             broadcastEffect(source, "*", true);
-            return syncAndReload(source, d, "All stages unlocked.");
+            return syncAndReload(source, d, "All stages unlocked.", false);
         } else {
             if (!StageManager.getStages().containsKey(s)) return 0;
             d.addStage(s);
@@ -156,7 +156,7 @@ public class StageCommand {
             MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
             DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
             broadcastEffect(source, s, true);
-            return syncAndReload(source, d, "Unlocked: " + s);
+            return syncAndReload(source, d, "Unlocked: " + s, false);
         }
     }
 
@@ -184,7 +184,7 @@ public class StageCommand {
 
             DebugLogger.runtime("Stage Lock", executor, "Locked ALL stages (" + count + " total)");
             broadcastEffect(source, "*", false);
-            return syncAndReload(source, d, "All stages locked.");
+            return syncAndReload(source, d, "All stages locked.", false);
         } else {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
@@ -193,7 +193,7 @@ public class StageCommand {
             MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
             DebugLogger.runtime("Stage Lock", executor, "Locked stage '" + s + "' (" + lockDisplayName + ")");
             broadcastEffect(source, s, false);
-            return syncAndReload(source, d, "Locked: " + s);
+            return syncAndReload(source, d, "Locked: " + s, false);
         }
     }
 
@@ -244,13 +244,15 @@ public class StageCommand {
         }
     }
 
-    private static int syncAndReload(CommandSourceStack source, StageData data, String msg) {
+    private static int syncAndReload(CommandSourceStack source, StageData data, String msg, boolean reloadRecipes) {
         data.setDirty();
         StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
         source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);
-        PacketHandler.reloadRecipesOnly(source.getServer());
+        if (reloadRecipes) {
+            PacketHandler.reloadRecipesOnly(source.getServer());
+        }
 
         return 1;
     }
