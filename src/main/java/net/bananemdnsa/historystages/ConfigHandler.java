@@ -16,7 +16,7 @@ import java.nio.file.Path;
 
 public class ConfigHandler {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = FMLPaths.CONFIGDIR.get().resolve("historystages");
+    private static final Path CONFIG_PATH = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global");
 
     public static void setupConfig() {
         try {
@@ -63,6 +63,12 @@ public class ConfigHandler {
         mods.add("lootr");
         mods.add("mekanism");
         json.add("mods", mods);
+
+        // Mod Exceptions Category (items excluded from mod locking)
+        JsonArray modExceptions = new JsonArray();
+        modExceptions.add("mekanism:creative_energy_cube");
+        modExceptions.add("lootr:lootr_chest");
+        json.add("mod_exceptions", modExceptions);
 
         // Recipes Category
         JsonArray recipes = new JsonArray();

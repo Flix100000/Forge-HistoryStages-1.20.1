@@ -89,9 +89,10 @@ public class DebugLogger {
      * Only creates a file when there are issues (errors/warnings/info).
      * Includes: issues, successfully loaded stages with full contents, config snapshot, and summary.
      *
-     * @param stages the loaded stage map (pass StageManager.getStages())
+     * @param stages the loaded global stage map (pass StageManager.getStages())
+     * @param individualStages the loaded individual stage map (pass StageManager.getIndividualStages())
      */
-    public static void writeLogFile(Map<String, StageEntry> stages) {
+    public static void writeLogFile(Map<String, StageEntry> stages, Map<String, StageEntry> individualStages) {
         if (CATEGORIES.isEmpty()) return;
 
         try {
@@ -125,7 +126,7 @@ public class DebugLogger {
             int totalItems = 0, totalTags = 0, totalMods = 0, totalRecipes = 0;
             int totalDimensions = 0, totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
-                totalItems += entry.getItems().size();
+                totalItems += entry.getAllItemIds().size();
                 totalTags += entry.getTags().size();
                 totalMods += entry.getMods().size();
                 totalRecipes += entry.getRecipes().size();
@@ -146,11 +147,12 @@ public class DebugLogger {
                 pw.println();
 
                 // ── Summary ──
-                pw.println("  Stages loaded:    " + stagesLoaded);
-                pw.println("  Total issues:     " + getTotalEntries()
+                pw.println("  Global stages loaded:     " + stagesLoaded);
+                pw.println("  Individual stages loaded: " + (individualStages != null ? individualStages.size() : 0));
+                pw.println("  Total issues:             " + getTotalEntries()
                         + "  (Errors: " + errorCount + "  |  Warnings: " + warnCount + "  |  Info: " + infoCount + ")");
                 pw.println();
-                pw.println("  Total entries across all stages:");
+                pw.println("  Total entries across global stages:");
                 pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods);
                 pw.println("    Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions);
                 pw.println("    Entities (attacklock): " + totalAttacklock + "  |  Entities (spawnlock): " + totalSpawnlock);
@@ -176,9 +178,9 @@ public class DebugLogger {
                     pw.println();
                 }
 
-                // ── Loaded Stages ──
+                // ── Loaded Global Stages ──
                 pw.println("================================================================");
-                pw.println("  LOADED STAGES (" + stagesLoaded + ")");
+                pw.println("  LOADED GLOBAL STAGES (" + stagesLoaded + ")");
                 pw.println("================================================================");
                 pw.println();
 
@@ -187,7 +189,7 @@ public class DebugLogger {
                     StageEntry s = stageEntry.getValue();
                     EntityLocks ent = s.getEntities();
 
-                    int entryCount = s.getItems().size() + s.getTags().size() + s.getMods().size()
+                    int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
                             + s.getRecipes().size() + s.getDimensions().size()
                             + ent.getAttacklock().size() + ent.getSpawnlock().size();
 
@@ -195,7 +197,7 @@ public class DebugLogger {
                     pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
                     pw.println("  Total entries: " + entryCount);
 
-                    printList(pw, "Items", s.getItems());
+                    printList(pw, "Items", s.getAllItemIds());
                     printList(pw, "Tags", s.getTags());
                     printList(pw, "Mods", s.getMods());
                     printList(pw, "Recipes", s.getRecipes());
@@ -204,6 +206,38 @@ public class DebugLogger {
                     printList(pw, "Entities (spawnlock)", ent.getSpawnlock());
 
                     pw.println();
+                }
+
+                // ── Loaded Individual Stages ──
+                if (individualStages != null && !individualStages.isEmpty()) {
+                    pw.println("================================================================");
+                    pw.println("  LOADED INDIVIDUAL STAGES (" + individualStages.size() + ")");
+                    pw.println("================================================================");
+                    pw.println();
+
+                    for (Map.Entry<String, StageEntry> stageEntry : individualStages.entrySet()) {
+                        String id = stageEntry.getKey();
+                        StageEntry s = stageEntry.getValue();
+                        EntityLocks ent = s.getEntities();
+
+                        int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
+                                + s.getRecipes().size() + s.getDimensions().size()
+                                + ent.getAttacklock().size() + ent.getSpawnlock().size();
+
+                        pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
+                        pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
+                        pw.println("  Total entries: " + entryCount);
+
+                        printList(pw, "Items", s.getAllItemIds());
+                        printList(pw, "Tags", s.getTags());
+                        printList(pw, "Mods", s.getMods());
+                        printList(pw, "Recipes", s.getRecipes());
+                        printList(pw, "Dimensions", s.getDimensions());
+                        printList(pw, "Entities (attacklock)", ent.getAttacklock());
+                        printList(pw, "Entities (spawnlock)", ent.getSpawnlock());
+
+                        pw.println();
+                    }
                 }
 
                 // ── Config Snapshot ──
@@ -218,6 +252,7 @@ public class DebugLogger {
                     pw.println("    lockBlockBreakSpeed  = " + Config.COMMON.lockedBlockBreakSpeedMultiplier.get());
                     pw.println("    lockItemUsage        = " + Config.COMMON.lockItemUsage.get());
                     pw.println("    lockEntityItems      = " + Config.COMMON.lockEntityItems.get());
+                    pw.println("    lockBlockInteraction = " + Config.COMMON.lockBlockInteraction.get());
                     pw.println("    researchTimeSeconds  = " + Config.COMMON.researchTimeInSeconds.get());
                     pw.println("    useReplacements      = " + Config.COMMON.useReplacements.get());
                     pw.println("    broadcastChat        = " + Config.COMMON.broadcastChat.get());
@@ -236,7 +271,9 @@ public class DebugLogger {
                 pw.println("  It is created when issues are found during stage loading.");
                 pw.println("  Share this file when reporting bugs.");
                 pw.println();
-                pw.println("  Location: config/historystages/logs/");
+                pw.println("  Global stages:     config/historystages/global/");
+                pw.println("  Individual stages: config/historystages/individual/");
+                pw.println("  Log files:         config/historystages/logs/");
                 pw.println("  Disable chat debug messages: showDebugErrors=false");
                 pw.println("  in historystages-common.toml");
                 pw.println("================================================================");

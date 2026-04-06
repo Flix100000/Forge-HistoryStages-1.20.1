@@ -34,5 +34,13 @@ public class FTBQuestsIntegration {
         MinecraftForge.EVENT_BUS.addListener((StageEvent.Unlocked event) ->
                 HistoryStageTask.onStageUnlocked(event.getStageId())
         );
+
+        MinecraftForge.EVENT_BUS.addListener((StageEvent.IndividualUnlocked event) -> {
+            net.minecraft.server.level.ServerPlayer player = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()
+                    .getPlayerList().getPlayer(event.getPlayerUUID());
+            if (player != null) {
+                HistoryStageTask.onIndividualStageUnlocked(event.getStageId(), player);
+            }
+        });
     }
 }

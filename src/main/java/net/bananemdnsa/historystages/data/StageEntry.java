@@ -1,10 +1,13 @@
 package net.bananemdnsa.historystages.data;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class StageEntry {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -15,9 +18,15 @@ public class StageEntry {
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
 
-    private List<String> items;
+    @JsonAdapter(ItemEntryListAdapter.class)
+    private List<ItemEntry> items;
     private List<String> tags;
     private List<String> mods;
+
+    @SerializedName("mod_exceptions")
+    @JsonAdapter(ItemEntryListAdapter.class)
+    private List<ItemEntry> modExceptions;
+
     private List<String> recipes;
     private List<String> dimensions;
     private EntityLocks entities;
@@ -26,6 +35,7 @@ public class StageEntry {
         this.items = new ArrayList<>();
         this.tags = new ArrayList<>();
         this.mods = new ArrayList<>();
+        this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
         this.entities = new EntityLocks();
@@ -39,9 +49,69 @@ public class StageEntry {
         return researchTime; // 0 means "use global default from config"
     }
 
-    public List<String> getItems() { return items != null ? items : new ArrayList<>(); }
+    /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
+    public List<String> getItems() {
+        if (items == null) return new ArrayList<>();
+        return items.stream()
+                .filter(e -> !e.hasNbt())
+                .map(ItemEntry::getId)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns ALL item IDs (with and without NBT) — for display/counting only. */
+    public List<String> getAllItemIds() {
+        if (items == null) return new ArrayList<>();
+        return items.stream().map(ItemEntry::getId).collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns the full item entries with NBT data. */
+    public List<ItemEntry> getItemEntries() {
+        return items != null ? items : new ArrayList<>();
+    }
+
     public List<String> getTags() { return tags != null ? tags : new ArrayList<>(); }
     public List<String> getMods() { return mods != null ? mods : new ArrayList<>(); }
+
+    /** Returns item IDs of mod exception entries WITHOUT NBT criteria. */
+    public List<String> getModExceptions() {
+        if (modExceptions == null) return new ArrayList<>();
+        return modExceptions.stream()
+                .filter(e -> !e.hasNbt())
+                .map(ItemEntry::getId)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns ALL mod exception item IDs (with and without NBT) — for display/counting only. */
+    public List<String> getAllModExceptionIds() {
+        if (modExceptions == null) return new ArrayList<>();
+        return modExceptions.stream().map(ItemEntry::getId).collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** Returns the full mod exception entries with NBT data. */
+    public List<ItemEntry> getModExceptionEntries() {
+        return modExceptions != null ? modExceptions : new ArrayList<>();
+    }
+
+    /**
+     * Checks if a specific item is excepted from mod locking in this stage.
+     * Returns true if the item should NOT be locked even though its mod is in the mods list.
+     */
+    public boolean isModExcepted(String itemId, net.minecraft.world.item.ItemStack stack) {
+        if (modExceptions == null || modExceptions.isEmpty()) return false;
+        for (ItemEntry exEntry : modExceptions) {
+            if (exEntry.getId().equals(itemId)) {
+                if (exEntry.hasNbt()) {
+                    if (stack != null && NbtMatcher.matches(stack, exEntry.getNbt())) {
+                        return true;
+                    }
+                } else {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public List<String> getRecipes() { return recipes != null ? recipes : new ArrayList<>(); }
 
     public List<String> getDimensions() {
@@ -62,7 +132,19 @@ public class StageEntry {
         this.researchTime = researchTime;
     }
 
+    /** Sets items from simple string IDs (no NBT). */
     public void setItems(List<String> items) {
+        if (items == null) {
+            this.items = new ArrayList<>();
+        } else {
+            this.items = items.stream()
+                    .map(ItemEntry::new)
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+    }
+
+    /** Sets items from full ItemEntry list (with NBT support). */
+    public void setItemEntries(List<ItemEntry> items) {
         this.items = items != null ? new ArrayList<>(items) : new ArrayList<>();
     }
 
@@ -72,6 +154,22 @@ public class StageEntry {
 
     public void setMods(List<String> mods) {
         this.mods = mods != null ? new ArrayList<>(mods) : new ArrayList<>();
+    }
+
+    /** Sets mod exceptions from simple string IDs (no NBT). */
+    public void setModExceptions(List<String> modExceptions) {
+        if (modExceptions == null) {
+            this.modExceptions = new ArrayList<>();
+        } else {
+            this.modExceptions = modExceptions.stream()
+                    .map(ItemEntry::new)
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+    }
+
+    /** Sets mod exceptions from full ItemEntry list (with NBT support). */
+    public void setModExceptionEntries(List<ItemEntry> modExceptions) {
+        this.modExceptions = modExceptions != null ? new ArrayList<>(modExceptions) : new ArrayList<>();
     }
 
     public void setRecipes(List<String> recipes) {
@@ -90,9 +188,10 @@ public class StageEntry {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
         copy.setResearchTime(researchTime);
-        copy.setItems(getItems());
+        copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTags(getTags());
         copy.setMods(getMods());
+        copy.setModExceptionEntries(getModExceptionEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setRecipes(getRecipes());
         copy.setDimensions(getDimensions());
         EntityLocks locksCopy = new EntityLocks();

@@ -17,7 +17,10 @@ import java.util.Map;
 public class EMIPlugin implements EmiPlugin {
     @Override
     public void register(EmiRegistry registry) {
-        // Nutzt dieselbe Config-Option wie JEI
+        // Locked recipe overlay (always active, works for all recipe categories)
+        registry.addRecipeDecorator(new LockedEmiRecipeDecorator());
+
+        // Item hiding (optional, controlled by config)
         if (!Config.CLIENT.hideInJei.get()) return;
 
         for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {
@@ -31,12 +34,15 @@ public class EMIPlugin implements EmiPlugin {
                     if (item != null) registry.removeEmiStacks(EmiStack.of(item));
                 }
 
-                // 2. Mods verstecken
+                // 2. Mods verstecken (respecting mod exceptions)
                 for (String modId : stageData.getMods()) {
                     for (Item item : ForgeRegistries.ITEMS) {
                         ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
                         if (res != null && res.getNamespace().equals(modId)) {
-                            registry.removeEmiStacks(EmiStack.of(item));
+                            ItemStack stack = new ItemStack(item);
+                            if (!stageData.isModExcepted(res.toString(), stack)) {
+                                registry.removeEmiStacks(EmiStack.of(item));
+                            }
                         }
                     }
                 }

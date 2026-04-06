@@ -38,8 +38,7 @@ public class ConfigEditorScreen extends Screen {
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
 
-    // Unsaved changes tracking
-    private boolean hasChanges = false;
+    // Unsaved changes tracking - computed by comparing current values to initial values
 
     // Config entries grouped by section
     private List<ConfigSection> clientSections;
@@ -154,6 +153,15 @@ public class ConfigEditorScreen extends Screen {
                 "If a block is in multiple stages, show all of them until all are unlocked?"));
         clientSections.add(jade);
 
+        ConfigSection individualClient = new ConfigSection("editor.historystages.config.individual_stages");
+        individualClient.add(new ConfigEntry("showSilverLockIcons", ConfigType.BOOLEAN,
+                Config.CLIENT.showSilverLockIcons.get().toString(), true, "true",
+                "Show a silver lock icon on items locked by individual stages?"));
+        individualClient.add(new ConfigEntry("showIndividualTooltips", ConfigType.BOOLEAN,
+                Config.CLIENT.showIndividualTooltips.get().toString(), true, "true",
+                "Show tooltip information for items locked by individual stages?"));
+        clientSections.add(individualClient);
+
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
                 Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
@@ -209,6 +217,9 @@ public class ConfigEditorScreen extends Screen {
         gameplay.add(new ConfigEntry("lockEntityItems", ConfigType.BOOLEAN,
                 Config.COMMON.lockEntityItems.get().toString(), false, "true",
                 "Prevent interacting with or breaking armor stands and item frames that contain locked items?"));
+        gameplay.add(new ConfigEntry("lockBlockInteraction", ConfigType.BOOLEAN,
+                Config.COMMON.lockBlockInteraction.get().toString(), false, "true",
+                "Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.)"));
         commonSections.add(gameplay);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
@@ -229,6 +240,43 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.useToasts.get().toString(), false, "true",
                 "Show an advancement-style toast popup when a stage is unlocked?"));
         commonSections.add(notifications);
+
+        ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
+        individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockItemPickup.get().toString(), false, "true",
+                "Prevent players from picking up items locked by individual stages?"));
+        individualCommon.add(new ConfigEntry("individualDropOnRevoke", ConfigType.BOOLEAN,
+                Config.COMMON.individualDropOnRevoke.get().toString(), false, "true",
+                "Drop locked items from a player's inventory when their individual stage is revoked?"));
+        individualCommon.add(new ConfigEntry("individualLockBlockBreaking", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockBlockBreaking.get().toString(), false, "true",
+                "Make blocks locked by individual stages much harder to break and prevent their drops?"));
+        individualCommon.add(new ConfigEntry("individualLockedBlockBreakSpeedMultiplier", ConfigType.STRING,
+                Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
+                "Break speed multiplier for blocks locked by individual stages (0.001-1.0). Lower = slower."));
+        individualCommon.add(new ConfigEntry("individualLockItemUsage", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockItemUsage.get().toString(), false, "true",
+                "Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.)"));
+        individualCommon.add(new ConfigEntry("individualLockBlockInteraction", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockBlockInteraction.get().toString(), false, "true",
+                "Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.)"));
+        individualCommon.add(new ConfigEntry("individualBroadcastChat", ConfigType.BOOLEAN,
+                Config.COMMON.individualBroadcastChat.get().toString(), false, "true",
+                "Show individual stage unlock/lock messages in the chat for the player?"));
+        individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.STRING,
+                Config.COMMON.individualUnlockMessageFormat.get(), false,
+                "&fYou have unlocked &b{stage}&f!",
+                "Message format for individual unlocks. Use {stage} for the name, {player} for the player, and & for colors."));
+        individualCommon.add(new ConfigEntry("individualUseActionbar", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseActionbar.get().toString(), false, "false",
+                "Show individual stage messages in the actionbar?"));
+        individualCommon.add(new ConfigEntry("individualUseSounds", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseSounds.get().toString(), false, "true",
+                "Play notification sounds for individual stage unlocks?"));
+        individualCommon.add(new ConfigEntry("individualUseToasts", ConfigType.BOOLEAN,
+                Config.COMMON.individualUseToasts.get().toString(), false, "true",
+                "Show an advancement-style toast popup when an individual stage is unlocked?"));
+        commonSections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
@@ -259,7 +307,18 @@ public class ConfigEditorScreen extends Screen {
                 entry.value = entry.defaultValue;
             }
         }
-        hasChanges = true;
+    }
+
+    private boolean hasChanges() {
+        List<ConfigSection> allSections = new ArrayList<>();
+        if (clientSections != null) allSections.addAll(clientSections);
+        if (commonSections != null) allSections.addAll(commonSections);
+        for (ConfigSection section : allSections) {
+            for (ConfigEntry entry : section.entries) {
+                if (!entry.value.equals(entry.initialValue)) return true;
+            }
+        }
+        return false;
     }
 
     private List<ConfigSection> getActiveSections() {
@@ -379,7 +438,7 @@ public class ConfigEditorScreen extends Screen {
         }
 
         // Unsaved changes indicator — yellow dot + text
-        if (hasChanges) {
+        if (hasChanges()) {
             int dotX = this.width / 2 + 55;
             guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, 0xFFFFCC00);
             drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9, this.height - 24, 0xFFCC00);
@@ -578,7 +637,6 @@ public class ConfigEditorScreen extends Screen {
             case BOOLEAN -> {
                 boolean current = Boolean.parseBoolean(entry.value);
                 entry.value = String.valueOf(!current);
-                hasChanges = true;
             }
             case INTEGER -> this.minecraft.setScreen(new ValueInputScreen(this, entry, true));
             case STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry, false));
@@ -632,7 +690,7 @@ public class ConfigEditorScreen extends Screen {
     }
 
     private void tryClose() {
-        if (hasChanges) {
+        if (hasChanges()) {
             this.minecraft.setScreen(new ConfirmDialog(
                     parent,
                     Component.translatable("editor.historystages.unsaved_warning_title"),
@@ -663,7 +721,15 @@ public class ConfigEditorScreen extends Screen {
         }
         PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
 
-        hasChanges = false;
+        // Update initial values so hasChanges() returns false
+        List<ConfigSection> allSections = new ArrayList<>();
+        allSections.addAll(clientSections);
+        allSections.addAll(commonSections);
+        for (ConfigSection section : allSections) {
+            for (ConfigEntry entry : section.entries) {
+                entry.initialValue = entry.value;
+            }
+        }
     }
 
     private void applyClientConfig(Map<String, String> values) {
@@ -685,6 +751,8 @@ public class ConfigEditorScreen extends Screen {
                 case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
                 case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
+                case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
+                case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
             }
         }
     }
@@ -709,6 +777,7 @@ public class ConfigEditorScreen extends Screen {
         final String key;
         final ConfigType type;
         String value;
+        String initialValue;
         final boolean isClient;
         final String defaultValue;
         final String description;
@@ -717,6 +786,7 @@ public class ConfigEditorScreen extends Screen {
             this.key = key;
             this.type = type;
             this.value = value;
+            this.initialValue = value;
             this.isClient = isClient;
             this.defaultValue = defaultValue;
             this.description = description;
@@ -798,7 +868,7 @@ public class ConfigEditorScreen extends Screen {
 
         private void saveAndClose() {
             entry.value = String.join(",", items);
-            parent.hasChanges = true;
+
             this.minecraft.setScreen(parent);
         }
 
@@ -1037,7 +1107,7 @@ public class ConfigEditorScreen extends Screen {
 
         private void saveAndClose() {
             entry.value = String.join(",", tags);
-            parent.hasChanges = true;
+
             this.minecraft.setScreen(parent);
         }
 
@@ -1257,7 +1327,7 @@ public class ConfigEditorScreen extends Screen {
                 }
             }
             entry.value = value;
-            parent.hasChanges = true;
+
             this.minecraft.setScreen(parent);
         }
 

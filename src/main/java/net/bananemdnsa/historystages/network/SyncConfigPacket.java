@@ -67,6 +67,16 @@ public class SyncConfigPacket {
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         values.put("replacementTag", Config.COMMON.replacementTag.get().stream().map(Object::toString).collect(Collectors.joining(",")));
+        values.put("individualLockItemPickup", Config.COMMON.individualLockItemPickup.get().toString());
+        values.put("individualDropOnRevoke", Config.COMMON.individualDropOnRevoke.get().toString());
+        values.put("individualLockBlockBreaking", Config.COMMON.individualLockBlockBreaking.get().toString());
+        values.put("individualLockedBlockBreakSpeedMultiplier", Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().toString());
+        values.put("individualLockItemUsage", Config.COMMON.individualLockItemUsage.get().toString());
+        values.put("individualBroadcastChat", Config.COMMON.individualBroadcastChat.get().toString());
+        values.put("individualUnlockMessageFormat", Config.COMMON.individualUnlockMessageFormat.get());
+        values.put("individualUseActionbar", Config.COMMON.individualUseActionbar.get().toString());
+        values.put("individualUseSounds", Config.COMMON.individualUseSounds.get().toString());
+        values.put("individualUseToasts", Config.COMMON.individualUseToasts.get().toString());
         return new SyncConfigPacket(values);
     }
 }

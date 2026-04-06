@@ -2,6 +2,11 @@ package net.bananemdnsa.historystages.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.init.ModItems;
+import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -15,82 +20,109 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
     private static final ResourceLocation TEXTURE =
             new ResourceLocation(HistoryStages.MOD_ID, "textures/gui/research_pedestal_gui.png");
 
+    // Unified color palette
+    private static final int COLOR_PRIMARY = 0x404040;    // Main text (stage name, labels)
+    private static final int COLOR_SECONDARY = 0x707070;  // Secondary info (time, searching, idle states)
+    private static final int COLOR_ACCENT = 0x2E8B57;     // Active state (progress, finalizing)
+    private static final int COLOR_ERROR = 0xAA3333;      // Warnings (already learned, invalid)
+
     public ResearchPedestalScreen(ResearchPedestalMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);
     }
 
     @Override
     protected void renderLabels(GuiGraphics guiGraphics, int pMouseX, int pMouseY) {
-        // 1. Titel oben links
-        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
+        // Line 1: "Research Pedestal"
+        guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, COLOR_PRIMARY, false);
 
-        // 2. Dynamischer Forschungs-Status
         ItemStack stack = menu.getSlot(36).getItem();
-        String displayTitle = "";
-        int textColor = 0x404040;
 
-        if (!stack.isEmpty()) {
-            if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                String stageId = stack.getTag().getString("StageResearch");
-                var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
-                boolean alreadyUnlocked = net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stageId);
-                int finishDelay = this.menu.data.get(2);
+        if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+            String stageId = stack.getTag().getString("StageResearch");
+            boolean isCreative = ModItems.CREATIVE_STAGE_ID.equals(stageId);
+            boolean isIndividual = !isCreative && StageManager.isIndividualStage(stageId);
 
-                // FALL A: Stage ist bereits bekannt
-                if (alreadyUnlocked && finishDelay == 0) {
-                    displayTitle = "Research: " + (entry != null ? entry.getDisplayName() : stageId);
-                    textColor = 0x707070;
+            // Resolve stage entry and display name
+            String stageName;
+            boolean alreadyUnlocked;
 
-                    Component alreadyLearnedText = Component.translatable("screen.historystages.already_learned");
-                    int textWidth = this.font.width(alreadyLearnedText);
-                    guiGraphics.drawString(this.font, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55, 0xFF5555, false);
-                }
-                // FALL B: Stage wird gerade erforscht (oder ist in der Finalisierung)
-                else {
-                    if (finishDelay > 0) {
-                        displayTitle = "Finalizing: " + (entry != null ? entry.getDisplayName() : stageId);
-                        textColor = 0x2E8B57;
-                    } else {
-                        displayTitle = "Researching: " + (entry != null ? entry.getDisplayName() : stageId);
-                        textColor = 0x707070;
-                    }
-
-                    // Fortschritt und Zeit nur anzeigen, wenn nicht "Already Learned" steht
-                    if (stack.getTag().contains("ResearchProgress")) {
-                        int currentProgress = stack.getTag().getInt("ResearchProgress");
-                        int maxProgress = stack.getTag().contains("MaxProgress") ? stack.getTag().getInt("MaxProgress") : 400;
-
-                        int percent = (int) (((double) currentProgress / maxProgress) * 100);
-                        String progressText = "Progress: " + Math.min(100, percent) + "%";
-                        guiGraphics.drawString(this.font, progressText, 48, 52, 0x2E8B57, false);
-
-                        int remainingTicks = Math.max(0, maxProgress - currentProgress);
-                        int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
-                        if (percent >= 100) remainingSeconds = 0;
-
-                        String timeText;
-                        if (remainingSeconds >= 60) {
-                            int mins = remainingSeconds / 60;
-                            int secs = remainingSeconds % 60;
-                            timeText = "Remaining Time: " + mins + "min " + secs + "s";
-                        } else {
-                            timeText = "Remaining Time: " + remainingSeconds + "s";
-                        }
-                        guiGraphics.drawString(this.font, timeText, 48, 62, 0x707070, false);
-                    }
-                }
+            if (isCreative) {
+                stageName = "Creative";
+                alreadyUnlocked = false;
             } else {
-                displayTitle = "Invalid Book!";
-                textColor = 0xFF5555;
+                StageEntry entry;
+                if (isIndividual) {
+                    entry = StageManager.getIndividualStages().get(stageId);
+                    alreadyUnlocked = ClientIndividualStageCache.isStageUnlocked(stageId);
+                } else {
+                    entry = StageManager.getStages().get(stageId);
+                    alreadyUnlocked = ClientStageCache.isStageUnlocked(stageId);
+                }
+                stageName = entry != null ? entry.getDisplayName() : stageId;
             }
+
+            int finishDelay = this.menu.data.get(2);
+
+            // Line 2: Stage name with status prefix
+            if (alreadyUnlocked && finishDelay == 0) {
+                guiGraphics.drawString(this.font, "Research: " + stageName, 8, 18, COLOR_SECONDARY, false);
+
+                Component alreadyLearnedText = Component.translatable("screen.historystages.already_learned");
+                int textWidth = this.font.width(alreadyLearnedText);
+                guiGraphics.drawString(this.font, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55, COLOR_ERROR, false);
+            } else {
+                String prefix;
+                int nameColor;
+                if (finishDelay > 0) {
+                    prefix = "Finalizing: ";
+                    nameColor = COLOR_ACCENT;
+                } else {
+                    prefix = "Researching: ";
+                    nameColor = COLOR_SECONDARY;
+                }
+                guiGraphics.drawString(this.font, prefix + stageName, 8, 18, nameColor, false);
+
+                // Lines 3-4: Progress + Time
+                if (stack.getTag().contains("ResearchProgress")) {
+                    int currentProgress = stack.getTag().getInt("ResearchProgress");
+                    int maxProgress = stack.getTag().contains("MaxProgress") ? stack.getTag().getInt("MaxProgress") : 400;
+
+                    int percent = (int) (((double) currentProgress / maxProgress) * 100);
+                    guiGraphics.drawString(this.font, "Progress: " + Math.min(100, percent) + "%", 48, 52, COLOR_ACCENT, false);
+
+                    int remainingTicks = Math.max(0, maxProgress - currentProgress);
+                    int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
+                    if (percent >= 100) remainingSeconds = 0;
+
+                    String timeText;
+                    if (remainingSeconds >= 60) {
+                        int mins = remainingSeconds / 60;
+                        int secs = remainingSeconds % 60;
+                        timeText = "Remaining Time: " + mins + "min " + secs + "s";
+                    } else {
+                        timeText = "Remaining Time: " + remainingSeconds + "s";
+                    }
+                    guiGraphics.drawString(this.font, timeText, 48, 62, COLOR_SECONDARY, false);
+                }
+            }
+
+            // Line 5: Owner (only for individual stages)
+            if (isIndividual && stack.getTag().contains("OwnerName")) {
+                String ownerName = stack.getTag().getString("OwnerName");
+                guiGraphics.drawString(this.font, "Owner: " + ownerName, 68, 72, COLOR_SECONDARY, false);
+            }
+
+        } else if (!stack.isEmpty()) {
+            // Invalid book - above progress bar
+            guiGraphics.drawString(this.font, "Invalid Book!", 48, 28, COLOR_ERROR, false);
         } else {
+            // Empty slot - searching animation above progress bar
             int ticks = (int) (Minecraft.getInstance().level.getGameTime() / 10) % 4;
-            displayTitle = "Searching" + ".".repeat(ticks);
-            textColor = 0x707070;
+            guiGraphics.drawString(this.font, "Searching" + ".".repeat(ticks), 48, 28, COLOR_SECONDARY, false);
         }
 
-        guiGraphics.drawString(this.font, displayTitle, 48, 25, textColor, false);
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, 4210752, false);
+        // Inventory label
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, COLOR_PRIMARY, false);
     }
 
     @Override
@@ -103,14 +135,12 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
         guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
 
-        // Fortschrittsbalken nur zeichnen, wenn wirklich gearbeitet wird
+        // Progress bar
         if (menu.isCrafting()) {
             int progressWidth = menu.getScaledProgress();
             int startX = x + 57;
             int startY = y + 40;
             int barHeight = 7;
-
-            // Zeichnet einen grünen Balken
             guiGraphics.fill(startX, startY, startX + progressWidth, startY + barHeight, 0xFF00FF00);
         }
     }
@@ -119,6 +149,25 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
         renderBackground(guiGraphics);
         super.render(guiGraphics, mouseX, mouseY, delta);
+
+        // Gray overlay on individual scroll slot - always visible when scroll is locked
+        if (menu.isIndividualMode()) {
+            ItemStack stack = menu.getSlot(36).getItem();
+            if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+                String stageId = stack.getTag().getString("StageResearch");
+                if (!ClientIndividualStageCache.isStageUnlocked(stageId)) {
+                    int x = (width - imageWidth) / 2;
+                    int y = (height - imageHeight) / 2;
+                    int slotX = x + 26;
+                    int slotY = y + 35;
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(0, 0, 200);
+                    guiGraphics.fill(slotX, slotY, slotX + 16, slotY + 16, 0x80808080);
+                    guiGraphics.pose().popPose();
+                }
+            }
+        }
+
         renderTooltip(guiGraphics, mouseX, mouseY);
     }
 }

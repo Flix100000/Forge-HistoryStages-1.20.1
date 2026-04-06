@@ -7,10 +7,12 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncConfigPacket;
+import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
@@ -99,15 +101,18 @@ public class HistoryStages {
             event.accept(ModItems.RESEARCH_PEDESTAL_ITEM);
         }
 
-        // Das Besondere: Wir generieren für JEDE Stage aus deinen JSONs ein eigenes Buch!
+        // Generate a research scroll for every stage (global + individual)
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             for (String stageId : StageManager.getStages().keySet()) {
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-
-                // Wir speichern die Stage-ID im Buch, damit es weiß, was es freischaltet
                 CompoundTag nbt = book.getOrCreateTag();
                 nbt.putString("StageResearch", stageId);
-
+                event.accept(book);
+            }
+            for (String stageId : StageManager.getIndividualStages().keySet()) {
+                ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+                CompoundTag nbt = book.getOrCreateTag();
+                nbt.putString("StageResearch", stageId);
                 event.accept(book);
             }
         }
@@ -132,8 +137,17 @@ public class HistoryStages {
             StageData data = StageData.get(player.serverLevel());
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
             PacketHandler.sendConfigToPlayer(SyncConfigPacket.fromServerConfig(), player);
+
+            // Sync individual stages for this player
+            IndividualStageData individualData = IndividualStageData.get(player.serverLevel());
+            PacketHandler.sendIndividualStagesToPlayer(
+                    new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
+                    player
+            );
+
             DebugLogger.runtime("Player Login", player.getName().getString(),
-                    "Synced " + StageManager.getStages().size() + " stage definitions, " + data.getUnlockedStages().size() + " unlocked stages");
+                    "Synced " + StageManager.getStages().size() + " stage definitions, " + data.getUnlockedStages().size() + " unlocked stages"
+                    + ", " + individualData.getUnlockedStages(player.getUUID()).size() + " individual stages");
 
             // Log locked items in player inventory
             logLockedInventoryItems(player);
@@ -203,6 +217,10 @@ public class HistoryStages {
             StageData data = StageData.get(sl);
             StageData.refreshCache(data.getUnlockedStages());
 
+            // Initialize individual stage cache
+            IndividualStageData individualData = IndividualStageData.get(sl);
+            individualData.refreshCache();
+
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {
                 serverInitialized = true;
@@ -210,7 +228,7 @@ public class HistoryStages {
 
                 // Registry validation (registries are now fully loaded)
                 StageManager.validateAgainstRegistries();
-                DebugLogger.writeLogFile(StageManager.getStages());
+                DebugLogger.writeLogFile(StageManager.getStages(), StageManager.getIndividualStages());
 
                 DebugLogger.initRuntimeSession();
                 DebugLogger.runtime("Server", "Server started — cache initialized with " + data.getUnlockedStages().size() + " unlocked stages, " + StageManager.getStages().size() + " stages loaded");
@@ -248,11 +266,23 @@ public class HistoryStages {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         ItemStack stack = event.getItem().getItem();
-        if (stack.isEmpty() || !StageManager.isItemLockedForServer(stack)) return;
+        if (stack.isEmpty()) return;
 
-        ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
-                "<" + player.getName().getString() + "> Picked up locked item: " + itemRL + " x" + stack.getCount());
+        // Individual stages: prevent pickup of individually-locked items
+        if (net.bananemdnsa.historystages.util.StageLockHelper.isItemLockedByIndividualStage(stack, player.getUUID())) {
+            event.setCanceled(true);
+            ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
+            DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_" + player.getUUID() + "_" + itemRL,
+                    "<" + player.getName().getString() + "> Pickup of individually-locked item blocked: " + itemRL);
+            return;
+        }
+
+        // Global stages: log only (existing behavior)
+        if (StageManager.isItemLockedForServer(stack)) {
+            ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
+            DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
+                    "<" + player.getName().getString() + "> Picked up locked item: " + itemRL + " x" + stack.getCount());
+        }
     }
 
     private static void logLockedInventoryItems(ServerPlayer player) {

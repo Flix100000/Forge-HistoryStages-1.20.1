@@ -29,5 +29,5 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: History-Stages-${{ github.run_number }}
+          name: History-Stages-${{ github.event.pull_request.number && format('PR-{0}', github.event.pull_request.number) || github.ref_name }}
           path: build/libs/*.jar

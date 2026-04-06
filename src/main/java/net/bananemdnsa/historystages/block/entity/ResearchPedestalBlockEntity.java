@@ -5,8 +5,11 @@ import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
+import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -33,6 +36,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProvider {
 
@@ -42,13 +46,44 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             ItemStack stack = getStackInSlot(slot);
             if (!stack.isEmpty()) {
                 loadProgressFromItem(stack);
+                // Set owner UUID for individual stages
+                if (isCurrentScrollIndividual() && lastInteractingPlayer != null) {
+                    ownerUUID = lastInteractingPlayer;
+                    stack.getOrCreateTag().putUUID("OwnerUUID", ownerUUID);
+                    // Store owner name for client-side display
+                    if (level != null && level.getServer() != null) {
+                        net.minecraft.server.level.ServerPlayer ownerPlayer =
+                                level.getServer().getPlayerList().getPlayer(ownerUUID);
+                        if (ownerPlayer != null) {
+                            stack.getOrCreateTag().putString("OwnerName", ownerPlayer.getName().getString());
+                        }
+                    }
+                }
+            } else {
+                ownerUUID = null;
             }
             setChanged();
         }
 
         @Override
         public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return stack.is(ModItems.RESEARCH_SCROLL.get());
+            return stack.is(ModItems.RESEARCH_SCROLL.get()) || stack.is(ModItems.CREATIVE_SCROLL.get());
+        }
+
+        @Override
+        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
+            // Prevent extraction of individual scrolls during research
+            if (isCurrentScrollIndividual()) {
+                ItemStack current = getStackInSlot(slot);
+                if (!current.isEmpty() && current.hasTag() && current.getTag().contains("StageResearch")) {
+                    String stageId = current.getTag().getString("StageResearch");
+                    // Allow extraction only if the stage is already unlocked for the owner
+                    if (ownerUUID != null && !IndividualStageData.hasStageCached(ownerUUID, stageId)) {
+                        return ItemStack.EMPTY;
+                    }
+                }
+            }
+            return super.extractItem(slot, amount, simulate);
         }
     };
 
@@ -56,7 +91,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     protected final ContainerData data;
     private int progress = 0;
     private int finishDelay = 0;
-    private int syncTickDelay = -1; // Neu: Delay-Timer
+    private int syncTickDelay = -1;
+    private UUID ownerUUID = null;
+    private UUID lastInteractingPlayer = null;
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.RESEARCH_PEDESTAL_BE.get(), pPos, pBlockState);
@@ -67,6 +104,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 0 -> ResearchPedestalBlockEntity.this.progress;
                     case 1 -> ResearchPedestalBlockEntity.this.getMaxProgressForCurrentStage();
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay;
+                    case 3 -> ResearchPedestalBlockEntity.this.isCurrentScrollIndividual() ? 1 : 0;
                     default -> 0;
                 };
             }
@@ -81,7 +119,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             @Override
             public int getCount() {
-                return 3;
+                return 4;
             }
         };
     }
@@ -102,6 +140,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int pContainerId, Inventory pPlayerInventory, Player pPlayer) {
+        this.lastInteractingPlayer = pPlayer.getUUID();
         return new ResearchPedestalMenu(pContainerId, pPlayerInventory, this, this.data);
     }
 
@@ -124,8 +163,25 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         if (hasValidBook) {
             String stageId = stack.getTag().getString("StageResearch");
-            StageData data = StageData.get(level);
-            boolean alreadyUnlocked = data.getUnlockedStages().contains(stageId);
+            boolean isCreative = ModItems.CREATIVE_STAGE_ID.equals(stageId);
+            boolean isIndividual = !isCreative && StageManager.isIndividualStage(stageId);
+            boolean alreadyUnlocked;
+
+            if (isCreative) {
+                // Creative scroll: never "already unlocked"
+                alreadyUnlocked = false;
+            } else if (isIndividual) {
+                // Individual: check if the owner has this stage
+                UUID owner = entity.ownerUUID;
+                if (owner == null && stack.hasTag() && stack.getTag().hasUUID("OwnerUUID")) {
+                    owner = stack.getTag().getUUID("OwnerUUID");
+                    entity.ownerUUID = owner;
+                }
+                alreadyUnlocked = owner != null && IndividualStageData.hasStageCached(owner, stageId);
+            } else {
+                StageData data = StageData.get(level);
+                alreadyUnlocked = data.getUnlockedStages().contains(stageId);
+            }
 
             if (!alreadyUnlocked) {
                 isResearching = true;
@@ -159,68 +215,198 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private void finishResearch(ItemStack stack) {
         if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
-            var stageEntry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
-            net.bananemdnsa.historystages.util.StageData data = net.bananemdnsa.historystages.util.StageData.get(level);
 
-            if (!data.getUnlockedStages().contains(stageId)) {
-                // 1. In der Welt-Datei speichern
-                data.addStage(stageId);
-                data.setDirty();
-
-                // Fire custom Forge event for KubeJS/CraftTweaker
-                String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
-                        new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
-
-                // 2. DEN BEFEHL LEISE AUSFÜHREN (Erzwingt JEI Hard-Reload auf allen Clients)
-                if (level.getServer() != null) {
-                    level.getServer().getCommands().performPrefixedCommand(
-                            level.getServer().createCommandSourceStack().withSuppressedOutput(),
-                            "history reload"
-                    );
-                }
-
-                // 3. Deine individuellen Nachrichten & Sounds (Old Logic)
-                String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                String configChat = Config.COMMON.unlockMessageFormat.get();
-                String finalChat = configChat.replace("{stage}", stagename).replace("&", "§");
-
-                level.getServer().getPlayerList().getPlayers().forEach(player -> {
-                    // Chat Nachricht senden
-                    if (Config.COMMON.broadcastChat.get()) {
-                        player.sendSystemMessage(
-                                Component.literal("[HistoryStages] ")
-                                        .withStyle(ChatFormatting.GRAY)
-                                        .append(Component.literal(finalChat))
-                        );
-                    }
-                    // Sound abspielen
-                    if (Config.COMMON.useSounds.get()) {
-                        player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-                    }
-                });
-
-                // Toast notification
-                if (Config.COMMON.useToasts.get()) {
-                    PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
-                }
+            if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                finishCreativeResearch();
+            } else if (StageManager.isIndividualStage(stageId)) {
+                finishIndividualResearch(stack, stageId);
+            } else {
+                finishGlobalResearch(stack, stageId);
             }
         }
 
-        // 4. Station zurücksetzen und Buch verbrauchen
+        // Station zurücksetzen und Buch verbrauchen
         this.progress = 0;
         this.finishDelay = 0;
         stack.shrink(1);
         setChanged();
     }
 
+    private void finishGlobalResearch(ItemStack stack, String stageId) {
+        var stageEntry = StageManager.getStages().get(stageId);
+        StageData data = StageData.get(level);
+
+        if (!data.getUnlockedStages().contains(stageId)) {
+            data.addStage(stageId);
+            data.setDirty();
+
+            String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                    new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
+
+            if (level.getServer() != null) {
+                level.getServer().getCommands().performPrefixedCommand(
+                        level.getServer().createCommandSourceStack().withSuppressedOutput(),
+                        "history reload"
+                );
+            }
+
+            String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+            String configChat = Config.COMMON.unlockMessageFormat.get();
+            String finalChat = configChat.replace("{stage}", stagename).replace("&", "§");
+
+            level.getServer().getPlayerList().getPlayers().forEach(player -> {
+                if (Config.COMMON.broadcastChat.get()) {
+                    player.sendSystemMessage(
+                            Component.literal("[HistoryStages] ")
+                                    .withStyle(ChatFormatting.GRAY)
+                                    .append(Component.literal(finalChat))
+                    );
+                }
+                if (Config.COMMON.useSounds.get()) {
+                    player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                }
+            });
+
+            if (Config.COMMON.useToasts.get()) {
+                PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
+            }
+        }
+    }
+
+    private void finishIndividualResearch(ItemStack stack, String stageId) {
+        if (ownerUUID == null) return;
+
+        var stageEntry = StageManager.getIndividualStages().get(stageId);
+        IndividualStageData data = IndividualStageData.get(level);
+
+        if (!data.hasStage(ownerUUID, stageId)) {
+            data.addStage(ownerUUID, stageId);
+            data.setDirty();
+
+            String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
+                    new net.bananemdnsa.historystages.events.StageEvent.IndividualUnlocked(stageId, eventDisplayName, ownerUUID));
+
+            // Sync individual stages to the owner player only
+            if (level.getServer() != null) {
+                net.minecraft.server.level.ServerPlayer ownerPlayer =
+                        level.getServer().getPlayerList().getPlayer(ownerUUID);
+                if (ownerPlayer != null) {
+                    PacketHandler.sendIndividualStagesToPlayer(
+                            new SyncIndividualStagesPacket(data.getUnlockedStages(ownerUUID)),
+                            ownerPlayer
+                    );
+
+                    // Notify the owner player
+                    String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
+                    if (Config.COMMON.individualBroadcastChat.get()) {
+                        String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                        String finalChat = configChat.replace("{stage}", stagename)
+                                .replace("{player}", ownerPlayer.getName().getString())
+                                .replace("&", "§");
+                        ownerPlayer.sendSystemMessage(
+                                Component.literal("[HistoryStages] ")
+                                        .withStyle(ChatFormatting.GRAY)
+                                        .append(Component.literal(finalChat))
+                        );
+                    }
+                    if (Config.COMMON.individualUseActionbar.get()) {
+                        String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                        String finalChat = configChat.replace("{stage}", stagename)
+                                .replace("{player}", ownerPlayer.getName().getString())
+                                .replace("&", "§");
+                        ownerPlayer.displayClientMessage(Component.literal(finalChat), true);
+                    }
+                    if (Config.COMMON.individualUseSounds.get()) {
+                        ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                    }
+                    if (Config.COMMON.individualUseToasts.get()) {
+                        PacketHandler.INSTANCE.send(
+                                net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> ownerPlayer),
+                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename)
+                        );
+                    }
+                }
+            }
+            // No recipe reload needed for individual stages
+        }
+    }
+
+    private void finishCreativeResearch() {
+        if (level.getServer() == null) return;
+
+        // Unlock all global stages
+        StageData stageData = StageData.get(level);
+        for (String id : StageManager.getStages().keySet()) {
+            if (!stageData.getUnlockedStages().contains(id)) {
+                stageData.addStage(id);
+            }
+        }
+        stageData.setDirty();
+
+        // Reload recipes
+        level.getServer().getCommands().performPrefixedCommand(
+                level.getServer().createCommandSourceStack().withSuppressedOutput(),
+                "history reload"
+        );
+
+        // Unlock all individual stages for all online players
+        IndividualStageData individualData = IndividualStageData.get(level);
+        for (net.minecraft.server.level.ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            for (String id : StageManager.getIndividualStages().keySet()) {
+                if (!individualData.hasStage(player.getUUID(), id)) {
+                    individualData.addStage(player.getUUID(), id);
+                }
+            }
+            // Sync individual stages to each player
+            PacketHandler.sendIndividualStagesToPlayer(
+                    new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
+                    player
+            );
+        }
+        individualData.setDirty();
+
+        // Sync global stages and notify
+        PacketHandler.sendToAll(new SyncStagesPacket(new java.util.ArrayList<>(StageData.SERVER_CACHE)));
+
+        level.getServer().getPlayerList().getPlayers().forEach(player -> {
+            if (Config.COMMON.broadcastChat.get()) {
+                player.sendSystemMessage(
+                        Component.literal("[HistoryStages] ")
+                                .withStyle(ChatFormatting.GRAY)
+                                .append(Component.translatable("command.historystages.unlocked_all")
+                                        .withStyle(ChatFormatting.GREEN))
+                );
+            }
+            if (Config.COMMON.useSounds.get()) {
+                player.playNotifySound(net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
+                        net.minecraft.sounds.SoundSource.MASTER, 0.75F, 1.0F);
+            }
+        });
+    }
+
     private int getMaxProgressForCurrentStage() {
         ItemStack stack = this.itemHandler.getStackInSlot(0);
         if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
-            return net.bananemdnsa.historystages.data.StageManager.getResearchTimeInTicks(stageId);
+            if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                return Config.COMMON.researchTimeInSeconds.get() * 20;
+            }
+            if (StageManager.isIndividualStage(stageId)) {
+                return StageManager.getIndividualResearchTimeInTicks(stageId);
+            }
+            return StageManager.getResearchTimeInTicks(stageId);
         }
         return Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    private boolean isCurrentScrollIndividual() {
+        ItemStack stack = this.itemHandler.getStackInSlot(0);
+        if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+            return StageManager.isIndividualStage(stack.getTag().getString("StageResearch"));
+        }
+        return false;
     }
 
     private void performGlobalSync() {
@@ -252,6 +438,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         nbt.put("inventory", itemHandler.serializeNBT());
         nbt.putInt("research.progress", progress);
         nbt.putInt("research.finishDelay", finishDelay);
+        if (ownerUUID != null) {
+            nbt.putUUID("research.ownerUUID", ownerUUID);
+        }
         super.saveAdditional(nbt);
     }
 
@@ -261,5 +450,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         itemHandler.deserializeNBT(nbt.getCompound("inventory"));
         progress = nbt.getInt("research.progress");
         finishDelay = nbt.getInt("research.finishDelay");
+        if (nbt.hasUUID("research.ownerUUID")) {
+            ownerUUID = nbt.getUUID("research.ownerUUID");
+        }
     }
 }

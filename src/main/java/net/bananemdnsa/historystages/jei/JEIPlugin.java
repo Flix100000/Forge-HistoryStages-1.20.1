@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.jei;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
@@ -30,21 +31,32 @@ public class JEIPlugin implements IModPlugin {
         return new ResourceLocation(HistoryStages.MOD_ID, "jei_plugin");
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Override
+    public void registerAdvanced(IAdvancedRegistration registration) {
+        // Register decorator for ALL recipe types (vanilla + modded)
+        registration.getJeiHelpers().getAllRecipeTypes().forEach(recipeType -> {
+            registration.addRecipeCategoryDecorator((mezz.jei.api.recipe.RecipeType) recipeType, new LockedRecipeDecorator<>());
+        });
+        LOGGER.info("[HistoryStages] Registered locked recipe decorators for all JEI recipe types.");
+    }
+
     @Override
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         jeiRuntime = runtime;
+        LOGGER.info("[HistoryStages] JEI onRuntimeAvailable called — refreshing items.");
         refreshJei();
     }
 
     /**
-     * Aktualisiert die Sichtbarkeit von Items in JEI basierend auf den freigeschalteten Stages.
+     * Aktualisiert die Sichtbarkeit von Items UND Rezepten in JEI basierend auf den freigeschalteten Stages.
      */
     public static void refreshJei() {
-        // KORREKTUR: Zugriff über Config.CLIENT und .get()
         if (jeiRuntime == null || !Config.CLIENT.hideInJei.get()) {
             return;
         }
 
+        // --- Item-Sichtbarkeit ---
         List<ItemStack> toHide = new ArrayList<>();
         List<ItemStack> toShow = new ArrayList<>();
 
@@ -54,7 +66,6 @@ public class JEIPlugin implements IModPlugin {
 
             List<ItemStack> stageItems = getItemsForStage(entry);
 
-            // Nutzt deine Methode isStageUnlocked aus dem ClientStageCache
             if (!ClientStageCache.isStageUnlocked(stageId)) {
                 toHide.addAll(stageItems);
             } else {
@@ -62,7 +73,6 @@ public class JEIPlugin implements IModPlugin {
             }
         }
 
-        // Änderungen live an JEI übertragen
         if (!toHide.isEmpty()) {
             jeiRuntime.getIngredientManager().removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK, toHide);
         }
@@ -86,13 +96,16 @@ public class JEIPlugin implements IModPlugin {
             }
         }
 
-        // 2. Ganze Mods
+        // 2. Ganze Mods (respecting mod exceptions)
         if (entry.getMods() != null) {
             for (String modId : entry.getMods()) {
                 for (Item item : ForgeRegistries.ITEMS) {
                     ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
                     if (res != null && res.getNamespace().equals(modId)) {
-                        items.add(new ItemStack(item));
+                        ItemStack stack = new ItemStack(item);
+                        if (!entry.isModExcepted(res.toString(), stack)) {
+                            items.add(stack);
+                        }
                     }
                 }
             }

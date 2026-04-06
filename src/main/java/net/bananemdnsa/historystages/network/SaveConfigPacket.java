@@ -75,6 +75,7 @@ public class SaveConfigPacket {
                 }
                 case "lockItemUsage" -> Config.COMMON.lockItemUsage.set(Boolean.parseBoolean(value));
                 case "lockEntityItems" -> Config.COMMON.lockEntityItems.set(Boolean.parseBoolean(value));
+                case "lockBlockInteraction" -> Config.COMMON.lockBlockInteraction.set(Boolean.parseBoolean(value));
                 case "broadcastChat" -> Config.COMMON.broadcastChat.set(Boolean.parseBoolean(value));
                 case "unlockMessageFormat" -> Config.COMMON.unlockMessageFormat.set(value);
                 case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));
@@ -98,6 +99,19 @@ public class SaveConfigPacket {
                             .collect(Collectors.toList());
                     Config.COMMON.replacementTag.set(tagList);
                 }
+                case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
+                case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));
+                case "individualLockBlockBreaking" -> Config.COMMON.individualLockBlockBreaking.set(Boolean.parseBoolean(value));
+                case "individualLockedBlockBreakSpeedMultiplier" -> {
+                    try { Config.COMMON.individualLockedBlockBreakSpeedMultiplier.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "individualLockItemUsage" -> Config.COMMON.individualLockItemUsage.set(Boolean.parseBoolean(value));
+                case "individualLockBlockInteraction" -> Config.COMMON.individualLockBlockInteraction.set(Boolean.parseBoolean(value));
+                case "individualBroadcastChat" -> Config.COMMON.individualBroadcastChat.set(Boolean.parseBoolean(value));
+                case "individualUnlockMessageFormat" -> Config.COMMON.individualUnlockMessageFormat.set(value);
+                case "individualUseActionbar" -> Config.COMMON.individualUseActionbar.set(Boolean.parseBoolean(value));
+                case "individualUseSounds" -> Config.COMMON.individualUseSounds.set(Boolean.parseBoolean(value));
+                case "individualUseToasts" -> Config.COMMON.individualUseToasts.set(Boolean.parseBoolean(value));
             }
         }
     }

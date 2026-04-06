@@ -2,18 +2,16 @@ package net.bananemdnsa.historystages.util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ClientStageCache {
-    private static List<String> unlockedStages = new ArrayList<>();
+    private static volatile List<String> unlockedStages = new CopyOnWriteArrayList<>();
 
     public static void setUnlockedStages(List<String> stages) {
-        unlockedStages = stages;
+        unlockedStages = new CopyOnWriteArrayList<>(stages);
     }
 
-    // Diese Methode wird jetzt vom Screen aufgerufen
     public static boolean isStageUnlocked(String stage) {
         return unlockedStages.contains(stage);
     }
-
-
 }

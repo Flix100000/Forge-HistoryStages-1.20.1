@@ -21,6 +21,8 @@ public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(ForgeRegistries.ITEMS, HistoryStages.MOD_ID);
 
+    public static final String CREATIVE_STAGE_ID = "_creative";
+
     public static final RegistryObject<Item> RESEARCH_SCROLL = ITEMS.register("research_scroll",
             () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
 
@@ -29,6 +31,9 @@ public class ModItems {
                     if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
                         String stageId = stack.getTag().getString("StageResearch");
                         var stage = StageManager.getStages().get(stageId);
+                        if (stage == null) {
+                            stage = StageManager.getIndividualStages().get(stageId);
+                        }
                         if (stage != null) {
                             return Component.literal(stage.getDisplayName() + " Research Scroll")
                                     .withStyle(ChatFormatting.AQUA);
@@ -39,14 +44,41 @@ public class ModItems {
 
                 @Override
                 public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
-                    // Nutzt jetzt die Keys aus der Sprachdatei
+                    // Show individual mode and owner name
+                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
+                        String stageId = stack.getTag().getString("StageResearch");
+                        if (StageManager.isIndividualStage(stageId)) {
+                            tooltip.add(Component.literal("Individual")
+                                    .withStyle(ChatFormatting.LIGHT_PURPLE));
+                            if (stack.getTag().contains("OwnerName")) {
+                                tooltip.add(Component.literal("Owner: " + stack.getTag().getString("OwnerName"))
+                                        .withStyle(ChatFormatting.GRAY));
+                            }
+                        }
+                    }
+
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info1")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                }
+            });
 
-                    // DER FORTSCHRITTS-CODE BLEIBT ENTFERNT (ist im TooltipEventHandler)
+    public static final RegistryObject<Item> CREATIVE_SCROLL = ITEMS.register("creative_scroll",
+            () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
+
+                @Override
+                public boolean isFoil(ItemStack stack) {
+                    return true;
+                }
+
+                @Override
+                public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
+                    tooltip.add(Component.translatable("tooltip.historystages.creative_scroll.info1")
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                    tooltip.add(Component.translatable("tooltip.historystages.creative_scroll.info2")
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
                 }
             });
 
