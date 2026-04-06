@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / Support
+    url: https://github.com/Flix100000/History-Stages/discussions/new?category=q-a
+    about: Ask a question about configuring or using History Stages.
+  - name: Feature Request / Idea
+    url: https://github.com/Flix100000/History-Stages/discussions/new?category=ideas
+    about: Suggest a new feature or improvement for History Stages.
