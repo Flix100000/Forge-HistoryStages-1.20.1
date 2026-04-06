@@ -2,25 +2,46 @@
 
 History Stages is a progression and gatekeeping mod for
 Minecraft 1.20.1 (Forge). It allows modpack creators to
-implement a global "Era" system by locking items, recipes,
-dimensions, mobs, and mod content behind custom research stages.
+implement a global "Era" system and per-player progression
+by locking items, recipes, dimensions, mobs, and mod content
+behind custom research stages.
 
 ----------------------------------------------------------------
 1. KEY FEATURES
 ----------------------------------------------------------------
 
-- Global Progression: When a stage is unlocked, it is
-  available for everyone on the server.
+PROGRESSION MODES:
+- Global Stages: When a stage is unlocked, it is available
+  for everyone on the server.
+- Individual Stages: Per-player progression with UUID-based
+  persistence. Each player can have their own unlocked stages
+  independently from global progression.
+
+CONTENT LOCKING:
 - Deep Gating: Lock content by Item ID, Recipe ID, Tags,
   or entire Mod IDs.
-- Recipe Locking: Hide specific crafting recipes from
-  crafting menus by recipe ID.
+- NBT Item Locking: Lock items by specific NBT criteria
+  (e.g., only Sharpness 1-4 enchanted books instead of all
+  enchanted books). Includes a visual NBT editor with property
+  tree, autocomplete, and validation warnings.
+- Mod Exceptions: Exclude specific items from mod-wide locking
+  using the mod_exceptions field, with full NBT support.
+- Recipe Locking: Locked recipes show a visual "Locked" overlay
+  in JEI/EMI instead of being hidden, working universally
+  across all recipe types (vanilla and modded).
 - Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
+  Dimensions can overlap between global and individual stages.
 - Item Usage Lock: Prevent players from using locked items
   (equipping armor, using weapons, eating food, etc.).
 - Block Breaking Lock: Locked blocks are much harder to break
   (configurable speed multiplier) and drop nothing.
+- Block GUI Lock: Prevent opening the GUI of locked blocks
+  (chests, furnaces, etc.) for both global and individual stages.
+- Container Interaction Lock: Prevent moving individually-locked
+  items in containers.
+- Enchantment Lock: Prevent applying locked enchantments via
+  anvil and enchanting table.
 - Entity Control: Two lock modes for entities:
   - Attacklock: Prevent players from damaging specific mobs.
   - Spawnlock: Prevent entities from spawning entirely.
@@ -28,36 +49,73 @@ dimensions, mobs, and mod content behind custom research stages.
 - Smart Loot: Locked items are removed from chests or replaced
   with configurable items.
 - Mob Loot Lock: Locked items are removed from mob drops.
-- Lock Icon Overlay: Locked items show a lock icon in
-  inventories and JEI (auto-disabled with EMI).
-- Research System: Uses a Research Pedestal and Research Scrolls
-  with configurable research time per stage.
+- Entity Item Protection: Prevent interacting with or breaking
+  armor stands and item frames containing locked items.
+
+RESEARCH SYSTEM:
+- Research Pedestal and Research Scrolls with configurable
+  research time per stage.
+- Creative Scroll: Unlocks all stages when researched in the
+  pedestal.
+- Individual stage scrolls show owner name in tooltip and
+  pedestal GUI.
+
+EDITOR & UI:
 - In-Game Stage Editor: Full GUI for creating, editing,
   duplicating, and deleting stages without leaving the game.
+  Supports both global and individual stages with overlay
+  creation dialog and global overlap warnings.
+- Search Bar: Filterable stage overview by display name and
+  stage ID.
+- Inventory Mode: Item and entity pickers support both
+  registry browsing and player inventory selection.
+- NBT Editor: Visual editor for NBT-based item locking with
+  autocomplete and validation.
 - In-Game Config Editor: Modify all mod settings from within
   the game with organized categories and reset-to-defaults.
-- JEI/EMI Support: Automatically hides or marks locked items.
-- Jade Support: Shows stage information on locked blocks in
-  the Jade block overlay.
+- Lock Icon Overlay: Locked items show a lock icon in
+  inventories and JEI. Gold icon for global stages, silver
+  icon for individual stages (auto-disabled with EMI).
+
+INTEGRATIONS:
+- JEI/EMI Support: Locked items are marked and locked recipes
+  show a visual overlay across all recipe types.
+- Jade Support: Shows stage information on locked blocks,
+  armor stands, and item frames. Supports both global and
+  individual stages.
+- FTB Quests Support: Custom task type (check if a stage is
+  unlocked) and reward type (unlock/lock a stage) for both
+  global and individual stages. Event-driven task completion.
+- Forge Events: Fires StageEvent.Unlocked/Locked events for
+  KubeJS, CraftTweaker, and other mod integrations.
+
+OTHER:
+- Toast Notifications: Advancement-style popup notifications
+  when stages are unlocked.
 - Debug Logging: Comprehensive diagnostic reports with
   config validation, registry checks, and stage content
   overview. Runtime event logging for tracking stage
   changes, blocked actions, and inventory issues.
-- FTB Quests Support: Custom task type (check if a stage is
-  unlocked) and reward type (unlock/lock a stage) for seamless
-  quest-based progression.
-- Forge Events: Fires StageEvent.Unlocked/Locked events for
-  KubeJS, CraftTweaker, and other mod integrations.
-- Toast Notifications: Advancement-style popup notifications
-  when stages are unlocked.
+- Multiplayer Stability: Thread-safe caching, editor sync
+  across admins, and config persistence with client sync.
 - Localization: English and German translations included.
 
 ----------------------------------------------------------------
 2. HOW TO USE
 ----------------------------------------------------------------
 
-STAGES:
-Stages are defined via JSON files in: /config/historystages/
+GLOBAL STAGES:
+Global stages are defined via JSON files in:
+  /config/historystages/global/
+When a global stage is unlocked, it applies to all players.
+
+INDIVIDUAL STAGES:
+Individual (per-player) stages are defined via JSON files in:
+  /config/historystages/individual/
+Each player unlocks individual stages independently.
+Dimensions and entities can overlap between global and
+individual stages.
+
 Example format:
 {
   "display_name": "Bronze Age",
@@ -65,6 +123,7 @@ Example format:
   "items": ["minecraft:iron_ingot"],
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
+  "mod_exceptions": ["mekanism:configurator"],
   "recipes": ["minecraft:iron_pickaxe"],
   "dimensions": ["minecraft:the_nether"],
   "entities": {
@@ -73,14 +132,32 @@ Example format:
   }
 }
 
+Items can also be specified with NBT criteria:
+{
+  "items": [
+    "minecraft:diamond_sword",
+    {
+      "id": "minecraft:enchanted_book",
+      "nbt": {
+        "StoredEnchantments": [
+          {"id": "minecraft:sharpness", "lvl": "1-4"}
+        ]
+      }
+    }
+  ]
+}
+
 FIELDS:
 - display_name: Human-readable name shown in messages and tooltips.
 - research_time: (Optional) Research duration in seconds for this
   stage. If omitted or 0, uses the global config default.
-- items: List of item IDs to lock (e.g. "minecraft:diamond").
+- items: List of item IDs or objects with id+nbt to lock.
+  Supports NBT-based matching for granular item control.
 - tags: List of item tags to lock (e.g. "forge:ores/iron").
 - mods: List of mod IDs to lock all items from (e.g. "mekanism").
-- recipes: List of recipe IDs to hide from crafting menus.
+- mod_exceptions: List of item IDs to exclude from mod-wide
+  locking (with full NBT support).
+- recipes: List of recipe IDs to lock (shown with overlay).
 - dimensions: List of dimension IDs to block access to.
 - entities: Object with two optional subcategories:
   - attacklock: Entities that cannot be attacked by players.
@@ -94,10 +171,17 @@ RESEARCH SCROLLS & PEDESTAL:
 1. Place a Research Pedestal.
 2. Put a Research Scroll into the input slot.
 3. Wait for the research process to finish.
-4. The stage is now unlocked globally.
+4. The stage is now unlocked (globally or for the player,
+   depending on the scroll type).
 
 The pedestal emits light (level 13) while actively researching
 and progress is saved in the scroll item's NBT data.
+
+Special scrolls:
+- Creative Scroll: Unlocks all stages when researched.
+- Individual scrolls show the owner's name in the tooltip
+  and pedestal GUI. Locked individual scroll slots are
+  grayed out for other players.
 
 IMPORTANT: This mod does NOT include default crafting recipes
 for the pedestal or scrolls. You MUST add them yourself using
@@ -116,10 +200,22 @@ mod settings can be managed directly from within the GUI.
 4. ADMIN COMMANDS (Permission Level 2)
 ----------------------------------------------------------------
 
-/history unlock <stage>  - Unlocks a stage. Use '*' for all.
-/history lock <stage>    - Relocks a stage. Use '*' for all.
-/history list            - Shows all registered stages.
-/history info <stage>    - Shows details (items, mods, dims, entities).
+GLOBAL STAGE COMMANDS:
+/history global unlock <stage>  - Unlocks a global stage. '*' for all.
+/history global lock <stage>    - Relocks a global stage. '*' for all.
+/history global list            - Shows all global stages.
+/history global info <stage>    - Shows stage details.
+
+INDIVIDUAL STAGE COMMANDS:
+/history individual unlock <player> <stage>  - Unlocks for a player.
+/history individual lock <player> <stage>    - Relocks for a player.
+/history individual list <player>            - Shows player's stages.
+/history individual info <stage>             - Shows stage details.
+
+Supports multi-player selectors (@a, @p, etc.) and '*' wildcard
+for stages.
+
+GENERAL COMMANDS:
 /history reload          - Reloads JSONs and syncs players.
 
 ----------------------------------------------------------------
@@ -157,9 +253,17 @@ COMMON CONFIG (server-side):
 - lockItemUsage: Prevent using locked items (default: true).
 - lockEntityItems: Prevent interacting with or breaking armor
   stands and item frames containing locked items (default: true).
+- lockBlockGUI: Prevent opening GUI of locked blocks like
+  chests and furnaces (default: true).
+- lockContainerInteraction: Prevent moving individually-locked
+  items in containers (default: true).
+- lockEnchanting: Prevent applying locked enchantments via
+  anvil and enchanting table (default: true).
 - broadcastChat: Broadcast unlock/lock messages to all players.
 - unlockMessageFormat: Customize the unlock message text
   (supports {stage} placeholder and & color codes).
+- individualUnlockMessageFormat: Customize the individual unlock
+  message text (supports {stage} and {player} placeholders).
 - useActionbar: Show messages in actionbar.
 - useSounds: Play notification sounds.
 - useToasts: Show advancement-style toast popups.
@@ -169,6 +273,10 @@ COMMON CONFIG (server-side):
 - useReplacements: Replace locked loot with alternative items.
 - replacementItems: List of replacement item IDs.
 - replacementTag: List of item tags for replacement fallback.
+
+Individual stages have their own independent config toggles for
+block breaking (with separate speed multiplier), item usage,
+and notification options (chat, actionbar, sounds, toasts).
 
 Config files are located at:
 - Client: /config/historystages-client.toml
@@ -182,15 +290,16 @@ If FTB Quests is installed, History Stages adds two new types
 to the FTB Quests editor:
 
 TASK - "History Stage":
-  Checks if a specific History Stage is globally unlocked.
-  The task auto-completes once the stage is unlocked (checks
-  every second). Configure the Stage ID in the quest editor.
+  Checks if a specific History Stage is unlocked (global or
+  individual). Event-driven: auto-completes when the stage is
+  unlocked, and checks on player login for already-unlocked
+  stages. Configure the Stage ID in the quest editor.
 
 REWARD - "History Stage":
   Unlocks (or locks) a History Stage when the quest reward is
-  claimed. Uses the same broadcast effects as the Research
-  Pedestal (chat messages, actionbar, sounds, toasts) based
-  on your mod config settings.
+  claimed. Supports both global and individual stages. Uses
+  the same broadcast effects as the Research Pedestal (chat
+  messages, actionbar, sounds, toasts) based on your config.
   - Stage ID: The stage to unlock/lock.
   - Lock instead of Unlock: If enabled, locks the stage instead.
 
