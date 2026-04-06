@@ -1,12 +1,10 @@
-name: Feature Request
-description: Suggest a new feature or improvement
-title: "[Feature] "
-labels: ["enhancement"]
+title: "[Idea] "
+labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        Before submitting, please check if a similar request already exists.
+        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists.
         Note: Per-player stage unlocking is a known limitation and will not be implemented,
         as global locking via the RecipeManager Mixin cannot operate on a per-player basis.
 
