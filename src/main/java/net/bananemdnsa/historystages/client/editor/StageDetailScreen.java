@@ -64,6 +64,8 @@ public class StageDetailScreen extends Screen {
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
     private final List<String> editTags;
     private final List<String> editMods;
+    private final List<String> editModExceptions;
+    private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
     private final List<String> editRecipes;
     private final List<String> editDimensions;
     private final List<String> editAttacklock;
@@ -89,6 +91,7 @@ public class StageDetailScreen extends Screen {
 
     // Widgets
     private SearchableItemList itemSearch;
+    private SearchableItemList modExceptionSearch;
     private SearchableModList modSearch;
     private SearchableEntityList entitySearch;
     private SearchableTagList tagSearch;
@@ -141,6 +144,7 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.section.items",
             "editor.historystages.section.tags",
             "editor.historystages.section.mods",
+            "editor.historystages.section.mod_exceptions",
             "editor.historystages.section.recipes",
             "editor.historystages.section.dimensions",
             "editor.historystages.section.entities_attack",
@@ -152,6 +156,7 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tab.items",
             "editor.historystages.tab.tags",
             "editor.historystages.tab.mods",
+            "editor.historystages.tab.exceptions",
             "editor.historystages.tab.recipes",
             "editor.historystages.tab.dimensions",
             "editor.historystages.tab.attack",
@@ -163,6 +168,7 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tooltip.items",
             "editor.historystages.tooltip.tags",
             "editor.historystages.tooltip.mods",
+            "editor.historystages.tooltip.exceptions",
             "editor.historystages.tooltip.recipes",
             "editor.historystages.tooltip.dimensions",
             "editor.historystages.tooltip.attack",
@@ -173,6 +179,9 @@ public class StageDetailScreen extends Screen {
     private int[] tabX;
     private int[] tabW;
     private int tabY;
+    private int tabScrollOffset = 0;
+    private int maxTabScroll = 0;
+    private static final int TAB_ARROW_WIDTH = 12;
 
     // Layout constants
     private static final int HEADER_HEIGHT = 104;
@@ -186,9 +195,9 @@ public class StageDetailScreen extends Screen {
 
     private final boolean isIndividual;
 
-    // Tabs that are disabled for individual stages (Recipes=3, Spawnlock=6)
+    // Tabs that are disabled for individual stages (Recipes=4, Spawnlock=7)
     private boolean isTabDisabled(int tab) {
-        return isIndividual && (tab == 3 || tab == 6);
+        return isIndividual && (tab == 4 || tab == 7);
     }
 
     public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual) {
@@ -215,6 +224,15 @@ public class StageDetailScreen extends Screen {
         }
         this.editTags = new ArrayList<>(e.getTags());
         this.editMods = new ArrayList<>(e.getMods());
+        this.editModExceptions = new ArrayList<>(e.getAllModExceptionIds());
+        this.editModExceptionNbt = new HashMap<>();
+        List<net.bananemdnsa.historystages.data.ItemEntry> modExEntries = e.getModExceptionEntries();
+        for (int idx = 0; idx < modExEntries.size(); idx++) {
+            net.bananemdnsa.historystages.data.ItemEntry me = modExEntries.get(idx);
+            if (me.hasNbt()) {
+                editModExceptionNbt.put(idx, me.getNbt().deepCopy());
+            }
+        }
         this.editRecipes = new ArrayList<>(e.getRecipes());
         this.editDimensions = new ArrayList<>(e.getDimensions());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
@@ -275,13 +293,40 @@ public class StageDetailScreen extends Screen {
         int tabMargin = 20;
         int totalAvail = this.width - tabMargin * 2;
         int gap = 2;
-        int totalGaps = (TAB_KEYS.length - 1) * gap;
-        int tabWidthEach = (totalAvail - totalGaps) / TAB_KEYS.length;
-        int x = tabMargin;
+
+        // Compute natural width for each tab based on its text content (label + count)
+        int[] naturalW = new int[TAB_KEYS.length];
+        int totalNaturalW = 0;
         for (int i = 0; i < TAB_KEYS.length; i++) {
-            tabX[i] = x;
-            tabW[i] = (i == TAB_KEYS.length - 1) ? (tabMargin + totalAvail - x) : tabWidthEach;
-            x += tabW[i] + gap;
+            String label = Component.translatable(TAB_KEYS[i]).getString();
+            int count = getListForSection(i).size();
+            String tabText = label + " (" + count + ")";
+            naturalW[i] = (int)(this.font.width(tabText) * SMALL_SCALE) + TAB_PAD * 2;
+            totalNaturalW += naturalW[i];
+        }
+        int totalGaps = (TAB_KEYS.length - 1) * gap;
+
+        if (totalNaturalW + totalGaps <= totalAvail) {
+            // All tabs fit without scrolling - use natural widths
+            int x = tabMargin;
+            for (int i = 0; i < TAB_KEYS.length; i++) {
+                tabX[i] = x;
+                tabW[i] = naturalW[i];
+                x += tabW[i] + gap;
+            }
+            maxTabScroll = 0;
+        } else {
+            // Tabs need scrolling - use natural widths, offset by arrow width
+            int scrollAreaAvail = totalAvail - TAB_ARROW_WIDTH * 2;
+            int x = tabMargin + TAB_ARROW_WIDTH;
+            for (int i = 0; i < TAB_KEYS.length; i++) {
+                tabX[i] = x;
+                tabW[i] = naturalW[i];
+                x += naturalW[i] + gap;
+            }
+            int totalTabsWidth = x - gap - (tabMargin + TAB_ARROW_WIDTH);
+            maxTabScroll = Math.max(0, totalTabsWidth - scrollAreaAvail);
+            tabScrollOffset = Math.min(tabScrollOffset, maxTabScroll);
         }
 
         this.addRenderableWidget(StyledButton.of(
@@ -297,6 +342,8 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         });
+
+        modExceptionSearch = createModExceptionSearch();
 
         modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
             for (String id : spawnlockIds) {
@@ -352,7 +399,7 @@ public class StageDetailScreen extends Screen {
     }
 
     private boolean isAnyOverlayVisible() {
-        return itemSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
+        return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible || modEntityPopup.isVisible();
     }
@@ -378,10 +425,11 @@ public class StageDetailScreen extends Screen {
             case 0 -> editItems;
             case 1 -> editTags;
             case 2 -> editMods;
-            case 3 -> editRecipes;
-            case 4 -> editDimensions;
-            case 5 -> editAttacklock;
-            case 6 -> editSpawnlock;
+            case 3 -> editModExceptions;
+            case 4 -> editRecipes;
+            case 5 -> editDimensions;
+            case 6 -> editAttacklock;
+            case 7 -> editSpawnlock;
             default -> new ArrayList<>();
         };
     }
@@ -447,11 +495,11 @@ public class StageDetailScreen extends Screen {
 
         // Animated tab indicator - smoothly slide to active tab
         if (!tabIndicatorInit) {
-            tabIndicatorX = tabX[activeTab];
+            tabIndicatorX = tabX[activeTab] - tabScrollOffset;
             tabIndicatorW = tabW[activeTab];
             tabIndicatorInit = true;
         }
-        float targetX = tabX[activeTab];
+        float targetX = tabX[activeTab] - tabScrollOffset;
         float targetW = tabW[activeTab];
         tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
         tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
@@ -463,11 +511,43 @@ public class StageDetailScreen extends Screen {
         int effectiveMouseX = overlayOpen ? -1 : mouseX;
         int effectiveMouseY = overlayOpen ? -1 : mouseY;
 
+        // Tab scroll arrows
+        int tabAreaLeft = 20;
+        int tabAreaRight = this.width - 20;
+        boolean hasTabScroll = maxTabScroll > 0;
+        if (hasTabScroll) {
+            // Left arrow
+            if (tabScrollOffset > 0) {
+                boolean leftHovered = !overlayOpen && mouseX >= tabAreaLeft && mouseX < tabAreaLeft + TAB_ARROW_WIDTH
+                        && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
+                guiGraphics.fill(tabAreaLeft, tabY, tabAreaLeft + TAB_ARROW_WIDTH, tabY + TAB_HEIGHT,
+                        leftHovered ? 0x40FFFFFF : 0x20FFFFFF);
+                drawSmallText(guiGraphics, "\u25C0", tabAreaLeft + 2, tabY + 4, leftHovered ? 0xFFFFFF : 0x999999);
+            }
+            // Right arrow
+            if (tabScrollOffset < maxTabScroll) {
+                boolean rightHovered = !overlayOpen && mouseX >= tabAreaRight - TAB_ARROW_WIDTH && mouseX < tabAreaRight
+                        && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
+                guiGraphics.fill(tabAreaRight - TAB_ARROW_WIDTH, tabY, tabAreaRight, tabY + TAB_HEIGHT,
+                        rightHovered ? 0x40FFFFFF : 0x20FFFFFF);
+                drawSmallText(guiGraphics, "\u25B6", tabAreaRight - TAB_ARROW_WIDTH + 2, tabY + 4, rightHovered ? 0xFFFFFF : 0x999999);
+            }
+        }
+
+        // Clip tab area for scrolling (only when scroll is active)
+        int tabClipLeft = hasTabScroll ? tabAreaLeft + TAB_ARROW_WIDTH : 0;
+        int tabClipRight = hasTabScroll ? tabAreaRight - TAB_ARROW_WIDTH : this.width;
+        if (hasTabScroll) {
+            guiGraphics.enableScissor(tabClipLeft, tabY, tabClipRight, tabY + TAB_HEIGHT);
+        }
+
         // Render tabs
         for (int i = 0; i < TAB_KEYS.length; i++) {
+            int scrolledTabX = tabX[i] - tabScrollOffset;
             boolean disabled = isTabDisabled(i);
             boolean active = (i == activeTab);
-            boolean hovered = !overlayOpen && !disabled && mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
+            boolean hovered = !overlayOpen && !disabled && mouseX >= Math.max(scrolledTabX, tabClipLeft)
+                    && mouseX < Math.min(scrolledTabX + tabW[i], tabClipRight)
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
 
             int bg;
@@ -476,7 +556,7 @@ public class StageDetailScreen extends Screen {
             } else {
                 bg = active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF);
             }
-            guiGraphics.fill(tabX[i], tabY, tabX[i] + tabW[i], tabY + TAB_HEIGHT, bg);
+            guiGraphics.fill(scrolledTabX, tabY, scrolledTabX + tabW[i], tabY + TAB_HEIGHT, bg);
 
             String label = Component.translatable(TAB_KEYS[i]).getString();
             int entryCount = getListForSection(i).size();
@@ -487,12 +567,13 @@ public class StageDetailScreen extends Screen {
             } else {
                 textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
             }
-            drawSmallText(guiGraphics, tabText, tabX[i] + TAB_PAD, tabY + 4, textColor);
+            drawSmallText(guiGraphics, tabText, scrolledTabX + TAB_PAD, tabY + 4, textColor);
 
             if (hovered) {
                 currentTooltipKey = "tab." + i;
                 currentTooltipText = Component.translatable(TAB_TOOLTIPS[i]).getString();
-            } else if (disabled && !overlayOpen && mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
+            } else if (disabled && !overlayOpen && mouseX >= Math.max(scrolledTabX, tabClipLeft)
+                    && mouseX < Math.min(scrolledTabX + tabW[i], tabClipRight)
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
                 currentTooltipKey = "tab.disabled." + i;
                 currentTooltipText = "Not available for individual stages";
@@ -501,6 +582,10 @@ public class StageDetailScreen extends Screen {
 
         // Sliding gold underline indicator
         guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+
+        if (hasTabScroll) {
+            guiGraphics.disableScissor();
+        }
 
         guiGraphics.fill(10, HEADER_HEIGHT - 2, this.width - 10, HEADER_HEIGHT - 1, 0xFF555555);
 
@@ -518,6 +603,7 @@ public class StageDetailScreen extends Screen {
         List<String> list = getActiveList();
         int y = listTop - (int) smoothScrollOffset + CARD_GAP;
         boolean isItemsTab = (activeTab == 0);
+        boolean isExceptionsTab = (activeTab == 3);
 
         // Overlap warning for individual stages (items/tags/mods tabs)
         if (isIndividual && (activeTab == 0 || activeTab == 1 || activeTab == 2)) {
@@ -616,9 +702,9 @@ public class StageDetailScreen extends Screen {
                 }
 
                 int textOffsetX = 8;
-                boolean isEntityTab = (activeTab == 5 || activeTab == 6);
+                boolean isEntityTab = (activeTab == 6 || activeTab == 7);
                 int renderLeft = contentLeft + slideOffsetX;
-                if (isItemsTab) {
+                if (isItemsTab || isExceptionsTab) {
                     ItemStack stack = getItemStack(list.get(i));
                     if (!stack.isEmpty()) {
                         guiGraphics.pose().pushPose();
@@ -628,7 +714,7 @@ public class StageDetailScreen extends Screen {
                         guiGraphics.pose().popPose();
                     }
                     textOffsetX = 20;
-                } else if (activeTab == 3) {
+                } else if (activeTab == 4) {
                     ItemStack[] info = getRecipeInfo(list.get(i));
                     if (info != null && info.length > 1 && !info[1].isEmpty()) {
                         guiGraphics.pose().pushPose();
@@ -652,9 +738,9 @@ public class StageDetailScreen extends Screen {
                     textOffsetX = 22;
                 }
 
-                // NBT badge for items tab
+                // NBT badge for items tab and exceptions tab
                 int badgeW = 0;
-                if (isItemsTab && editItemNbt.containsKey(i)) {
+                if (isItemsTab && editItemNbt.containsKey(i) || isExceptionsTab && editModExceptionNbt.containsKey(i)) {
                     String badge = "\u00A76[NBT]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0xFFCC00, false);
@@ -765,6 +851,7 @@ public class StageDetailScreen extends Screen {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
         itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        modExceptionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         modSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         tagSearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -1338,6 +1425,7 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible()) { if (itemSearch.mouseClicked(mouseX, mouseY)) return true; }
+        if (modExceptionSearch.isVisible()) { if (modExceptionSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (modSearch.isVisible()) { if (modSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (tagSearch.isVisible()) { if (tagSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -1345,8 +1433,22 @@ public class StageDetailScreen extends Screen {
         if (recipeSearch.isVisible()) { if (recipeSearch.mouseClicked(mouseX, mouseY)) return true; }
 
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
+            // Tab scroll arrow clicks
+            if (maxTabScroll > 0) {
+                int tabAreaLeft = 20;
+                int tabAreaRight = this.width - 20;
+                if (tabScrollOffset > 0 && mouseX >= tabAreaLeft && mouseX < tabAreaLeft + TAB_ARROW_WIDTH) {
+                    tabScrollOffset = Math.max(0, tabScrollOffset - 40);
+                    return true;
+                }
+                if (tabScrollOffset < maxTabScroll && mouseX >= tabAreaRight - TAB_ARROW_WIDTH && mouseX < tabAreaRight) {
+                    tabScrollOffset = Math.min(maxTabScroll, tabScrollOffset + 40);
+                    return true;
+                }
+            }
             for (int i = 0; i < TAB_KEYS.length; i++) {
-                if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); switchTab(i); return true; }
+                int scrolledTabX = tabX[i] - tabScrollOffset;
+                if (mouseX >= scrolledTabX && mouseX < scrolledTabX + tabW[i]) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); switchTab(i); return true; }
             }
         }
 
@@ -1378,7 +1480,7 @@ public class StageDetailScreen extends Screen {
 
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
-                if (button == 0 && activeTab == 3) {
+                if (button == 0 && activeTab == 4) {
                     // Left-click on recipe card: show recipe detail popup (view-only)
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     recipePopupId = list.get(i);
@@ -1396,6 +1498,9 @@ public class StageDetailScreen extends Screen {
                     if (tabIdx == 0) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openNbtEditScreen(entryIdx, entryValue));
                     }
+                    if (tabIdx == 3) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
+                    }
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).remove(entryIdx);
@@ -1410,12 +1515,38 @@ public class StageDetailScreen extends Screen {
                             editItemNbt.clear();
                             editItemNbt.putAll(shifted);
                         }
-                        // When removing a mod, also remove mod-linked entities
+                        // When removing a mod exception, shift NBT indices
+                        if (tabIdx == 3) {
+                            editModExceptionNbt.remove(entryIdx);
+                            Map<Integer, com.google.gson.JsonObject> shifted = new HashMap<>();
+                            for (var e : editModExceptionNbt.entrySet()) {
+                                int key = e.getKey();
+                                shifted.put(key > entryIdx ? key - 1 : key, e.getValue());
+                            }
+                            editModExceptionNbt.clear();
+                            editModExceptionNbt.putAll(shifted);
+                        }
+                        // When removing a mod, also remove mod-linked entities and exceptions from that mod
                         if (tabIdx == 2 && removedValue != null) {
                             String prefix = removedValue + ":";
                             editSpawnlock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
                             editAttacklock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
                             editModLinked.removeIf(id -> id.startsWith(prefix));
+                            // Remove mod exceptions belonging to this mod
+                            for (int j = editModExceptions.size() - 1; j >= 0; j--) {
+                                if (editModExceptions.get(j).startsWith(prefix)) {
+                                    editModExceptions.remove(j);
+                                    editModExceptionNbt.remove(j);
+                                    // Shift remaining NBT indices
+                                    Map<Integer, com.google.gson.JsonObject> shiftedEx = new HashMap<>();
+                                    for (var ex : editModExceptionNbt.entrySet()) {
+                                        int key = ex.getKey();
+                                        shiftedEx.put(key > j ? key - 1 : key, ex.getValue());
+                                    }
+                                    editModExceptionNbt.clear();
+                                    editModExceptionNbt.putAll(shiftedEx);
+                                }
+                            }
                         }
                         hasChanges = true; updateMaxScroll();
                     });
@@ -1442,9 +1573,10 @@ public class StageDetailScreen extends Screen {
         if (activeTab == 0) { itemSearch.setFilter(""); itemSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 1) { tagSearch.setFilter(""); tagSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 2) { modSearch.setFilter(""); modSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 3) { recipeSearch.setFilter(""); recipeSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 4) { dimensionSearch.setFilter(""); dimensionSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 5 || activeTab == 6) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
+        else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
+        else if (activeTab == 4) { recipeSearch.setFilter(""); recipeSearch.show(this.width / 2, this.height / 2, cw); }
+        else if (activeTab == 5) { dimensionSearch.setFilter(""); dimensionSearch.show(this.width / 2, this.height / 2, cw); }
+        else if (activeTab == 6 || activeTab == 7) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
     }
 
     private void openEditDialog(int tabIdx, int entryIdx, String currentValue) {
@@ -1472,6 +1604,13 @@ public class StageDetailScreen extends Screen {
             });
             modSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 3) {
+            modExceptionSearch = createModExceptionSearch();
+            // Replace callback for edit mode
+            modExceptionSearch = new SearchableItemList(itemId -> { getListForSection(tabIdx).set(entryIdx, itemId); hasChanges = true;
+                modExceptionSearch = createModExceptionSearch(); });
+            modExceptionSearch.setModFilter(new java.util.HashSet<>(editMods));
+            modExceptionSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (tabIdx == 4) {
             recipeSearch = new SearchableRecipeList(recipeId -> {
                 showRecipePreview(recipeId, () -> {
                     getListForSection(tabIdx).set(entryIdx, recipeId);
@@ -1484,11 +1623,11 @@ public class StageDetailScreen extends Screen {
             });
             recipeSearch.setKeepVisibleOnSelect(true);
             recipeSearch.show(this.width / 2, this.height / 2, cw);
-        } else if (tabIdx == 4) {
+        } else if (tabIdx == 5) {
             dimensionSearch = new SearchableDimensionList(dimId -> { getListForSection(tabIdx).set(entryIdx, dimId); hasChanges = true;
                 dimensionSearch = new SearchableDimensionList(id -> { editDimensions.add(id); hasChanges = true; updateMaxScroll(); }); });
             dimensionSearch.show(this.width / 2, this.height / 2, cw);
-        } else if (tabIdx == 5 || tabIdx == 6) {
+        } else if (tabIdx == 6 || tabIdx == 7) {
             entitySearch = new SearchableEntityList(entityId -> { getListForSection(tabIdx).set(entryIdx, entityId); hasChanges = true;
                 entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); }); });
             entitySearch.show(this.width / 2, this.height / 2, cw);
@@ -1509,10 +1648,33 @@ public class StageDetailScreen extends Screen {
         }));
     }
 
+    private void openModExceptionNbtEditScreen(int entryIdx, String itemId) {
+        com.google.gson.JsonObject currentNbt = editModExceptionNbt.get(entryIdx);
+        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, currentNbt, nbt -> {
+            if (nbt != null) {
+                editModExceptionNbt.put(entryIdx, nbt);
+            } else {
+                editModExceptionNbt.remove(entryIdx);
+            }
+            hasChanges = true;
+        }));
+    }
+
+    private SearchableItemList createModExceptionSearch() {
+        SearchableItemList search = new SearchableItemList(itemId -> {
+            editModExceptions.add(itemId);
+            hasChanges = true;
+            updateMaxScroll();
+        });
+        search.setModFilter(new java.util.HashSet<>(editMods));
+        return search;
+    }
+
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseDragged(mouseX, mouseY)) return true;
         if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY)) return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseDragged(mouseX, mouseY)) return true;
         if (modSearch.isVisible() && modSearch.mouseDragged(mouseX, mouseY)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY)) return true;
         if (tagSearch.isVisible() && tagSearch.mouseDragged(mouseX, mouseY)) return true;
@@ -1525,6 +1687,7 @@ public class StageDetailScreen extends Screen {
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased()) return true;
         if (itemSearch.isVisible() && itemSearch.mouseReleased()) return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseReleased()) return true;
         if (modSearch.isVisible() && modSearch.mouseReleased()) return true;
         if (entitySearch.isVisible() && entitySearch.mouseReleased()) return true;
         if (tagSearch.isVisible() && tagSearch.mouseReleased()) return true;
@@ -1541,11 +1704,19 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (modSearch.isVisible() && modSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
+
+        // Tab area mouse scroll
+        if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
+            tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int)(delta * 30)));
+            return true;
+        }
+
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
         return true;
     }
@@ -1558,6 +1729,7 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode)) return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.keyPressed(keyCode)) return true;
         if (modSearch.isVisible() && modSearch.keyPressed(keyCode)) return true;
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode)) return true;
@@ -1598,6 +1770,7 @@ public class StageDetailScreen extends Screen {
     @Override
     public boolean charTyped(char c, int modifiers) {
         if (itemSearch.isVisible() && itemSearch.charTyped(c)) return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c)) return true;
         if (modSearch.isVisible() && modSearch.charTyped(c)) return true;
         if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (tagSearch.isVisible() && tagSearch.charTyped(c)) return true;
@@ -1634,6 +1807,12 @@ public class StageDetailScreen extends Screen {
         newEntry.setItemEntries(itemEntries);
         newEntry.setTags(editTags);
         newEntry.setMods(editMods);
+        List<net.bananemdnsa.historystages.data.ItemEntry> modExceptionEntries = new ArrayList<>();
+        for (int idx = 0; idx < editModExceptions.size(); idx++) {
+            com.google.gson.JsonObject nbt = editModExceptionNbt.get(idx);
+            modExceptionEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editModExceptions.get(idx), nbt));
+        }
+        newEntry.setModExceptionEntries(modExceptionEntries);
         newEntry.setRecipes(editRecipes);
         newEntry.setDimensions(editDimensions);
         EntityLocks locks = new EntityLocks();
@@ -1681,8 +1860,8 @@ public class StageDetailScreen extends Screen {
 
             String hint = switch (sectionIndex) {
                 case 1 -> "forge:ingots";
-                case 3 -> "minecraft:stone";
-                case 4 -> "minecraft:the_nether";
+                case 4 -> "minecraft:stone";
+                case 5 -> "minecraft:the_nether";
                 default -> "";
             };
             if (!hint.isEmpty()) inputField.setHint(Component.literal("\u00A77" + hint));

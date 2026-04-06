@@ -84,7 +84,7 @@ public class TooltipEventHandler {
             StageEntry stage = entry.getValue();
             String stageID = entry.getKey();
 
-            boolean isListed = stage.getMods().contains(modID) ||
+            boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
                     stage.getItems().contains(itemID) ||
                     matchesNbtItem(stage, itemID, stack) ||
                     stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
@@ -135,7 +135,7 @@ public class TooltipEventHandler {
             StageEntry stage = entry.getValue();
             String stageID = entry.getKey();
 
-            boolean isListed = stage.getMods().contains(modID) ||
+            boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
                     stage.getItems().contains(itemID) ||
                     matchesNbtItem(stage, itemID, stack) ||
                     stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));

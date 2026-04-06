@@ -34,12 +34,15 @@ public class EMIPlugin implements EmiPlugin {
                     if (item != null) registry.removeEmiStacks(EmiStack.of(item));
                 }
 
-                // 2. Mods verstecken
+                // 2. Mods verstecken (respecting mod exceptions)
                 for (String modId : stageData.getMods()) {
                     for (Item item : ForgeRegistries.ITEMS) {
                         ResourceLocation res = ForgeRegistries.ITEMS.getKey(item);
                         if (res != null && res.getNamespace().equals(modId)) {
-                            registry.removeEmiStacks(EmiStack.of(item));
+                            ItemStack stack = new ItemStack(item);
+                            if (!stageData.isModExcepted(res.toString(), stack)) {
+                                registry.removeEmiStacks(EmiStack.of(item));
+                            }
                         }
                     }
                 }

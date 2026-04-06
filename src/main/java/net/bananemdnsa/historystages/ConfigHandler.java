@@ -64,6 +64,12 @@ public class ConfigHandler {
         mods.add("mekanism");
         json.add("mods", mods);
 
+        // Mod Exceptions Category (items excluded from mod locking)
+        JsonArray modExceptions = new JsonArray();
+        modExceptions.add("mekanism:creative_energy_cube");
+        modExceptions.add("lootr:lootr_chest");
+        json.add("mod_exceptions", modExceptions);
+
         // Recipes Category
         JsonArray recipes = new JsonArray();
         recipes.add("minecraft:iron_sword");

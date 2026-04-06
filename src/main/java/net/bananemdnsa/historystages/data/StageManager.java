@@ -43,7 +43,7 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "recipes", "dimensions", "entities"
+            "mod_exceptions", "recipes", "dimensions", "entities"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -149,6 +149,7 @@ public class StageManager {
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
         removeEmptyStrings(entry.getMods(), stageId, "mods");
+        removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getRecipes(), stageId, "recipes");
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
@@ -157,6 +158,7 @@ public class StageManager {
         checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
         checkDuplicates(entry.getMods(), stageId, "mods");
+        checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getRecipes(), stageId, "recipes");
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
@@ -193,6 +195,24 @@ public class StageManager {
             if (!ModList.get().isLoaded(modId)) {
                 addMessage(MessageLevel.INFO, "Mod '" + modId + "' not installed (Stage: " + stageId + "). Entry kept.");
                 DebugLogger.info("Missing Mods", "Mod '" + modId + "' is not installed (Stage: " + stageId + "). Entry kept — will apply if mod is added later.");
+            }
+            return false;
+        });
+
+        // --- Mod Exceptions: format validation + must belong to a locked mod ---
+        Set<String> lockedMods = new HashSet<>(entry.getMods());
+        entry.getModExceptionEntries().removeIf(exceptionEntry -> {
+            String exItemId = exceptionEntry.getId();
+            if (!ResourceLocation.isValidResourceLocation(exItemId)) {
+                addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Mod Exceptions", "Mod exception '" + exItemId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            ResourceLocation rl = new ResourceLocation(exItemId);
+            if (!lockedMods.contains(rl.getNamespace())) {
+                addMessage(MessageLevel.ERROR, "Mod exception '" + exItemId + "' does not belong to a locked mod (Stage: " + stageId + "). Removed.");
+                DebugLogger.error("Invalid Mod Exceptions", "Mod exception '" + exItemId + "' belongs to mod '" + rl.getNamespace() + "' which is not in the 'mods' list (Stage: " + stageId + "). Removed.");
+                return true;
             }
             return false;
         });
@@ -253,7 +273,7 @@ public class StageManager {
 
         // --- Empty stage check ---
         int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                + entry.getRecipes().size() + entry.getDimensions().size()
+                + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
                 + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
         if (totalEntries == 0) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
@@ -350,6 +370,16 @@ public class StageManager {
                 }
             }
 
+            // Validate mod exceptions exist in registry
+            for (String exItemId : entry.getAllModExceptionIds()) {
+                if (!ResourceLocation.isValidResourceLocation(exItemId)) continue;
+                ResourceLocation rl = new ResourceLocation(exItemId);
+                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' does not exist in registry (Stage: " + stageId + ").");
+                    DebugLogger.warn("Unknown Mod Exceptions", "Mod exception '" + exItemId + "' does not exist in the item registry (Stage: " + stageId + "). Typo or missing mod?");
+                }
+            }
+
             // Validate entity types exist in registry
             for (String entityId : entry.getEntities().getAttacklock()) {
                 if (!ResourceLocation.isValidResourceLocation(entityId)) continue;
@@ -380,6 +410,15 @@ public class StageManager {
                 if (!ForgeRegistries.ITEMS.containsKey(rl)) {
                     addMessage(MessageLevel.WARN, "Item '" + itemId + "' does not exist in registry (Individual Stage: " + indId + ").");
                     DebugLogger.warn("Unknown Items", "Item '" + itemId + "' does not exist in the item registry (Individual Stage: " + indId + "). Typo or missing mod?");
+                }
+            }
+
+            for (String exItemId : indData.getAllModExceptionIds()) {
+                if (!ResourceLocation.isValidResourceLocation(exItemId)) continue;
+                ResourceLocation rl = new ResourceLocation(exItemId);
+                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' does not exist in registry (Individual Stage: " + indId + ").");
+                    DebugLogger.warn("Unknown Mod Exceptions", "Mod exception '" + exItemId + "' does not exist in the item registry (Individual Stage: " + indId + "). Typo or missing mod?");
                 }
             }
 
@@ -415,7 +454,8 @@ public class StageManager {
             StageEntry data = entry.getValue();
 
             if (data.getItems() != null && data.getItems().contains(itemId)) return stageName;
-            if (data.getMods() != null && data.getMods().contains(modId)) return stageName;
+            if (data.getMods() != null && data.getMods().contains(modId)
+                    && !isModException(itemId, null, data)) return stageName;
 
             if (data.getTags() != null) {
                 Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
@@ -500,8 +540,13 @@ public class StageManager {
                     }
                 }
             }
-            // Check Mod ID
-            if (!match && data.getMods().contains(modId)) match = true;
+            // Check Mod ID (with exception check)
+            if (!match && data.getMods().contains(modId)) {
+                // Check if item is in mod exceptions
+                if (!isModException(itemId, stack, data)) {
+                    match = true;
+                }
+            }
             // Check Tags
             if (!match && item != null && data.getTags() != null) {
                 for (String tagId : data.getTags()) {
@@ -518,6 +563,11 @@ public class StageManager {
             }
         }
         return allFoundStages;
+    }
+
+    /** Delegates to StageEntry.isModExcepted for consistency. */
+    private static boolean isModException(String itemId, net.minecraft.world.item.ItemStack stack, StageEntry data) {
+        return data.isModExcepted(itemId, stack);
     }
 
     /**
@@ -742,12 +792,14 @@ public class StageManager {
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
         removeEmptyStrings(entry.getMods(), stageId, "mods");
+        removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
         checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
         checkDuplicates(entry.getMods(), stageId, "mods");
+        checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
@@ -770,6 +822,22 @@ public class StageManager {
         entry.getMods().removeIf(modId -> {
             if (modId == null || modId.isEmpty() || modId.contains(" ")) {
                 addMessage(MessageLevel.WARN, "Mod ID '" + modId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Mod Exceptions: format validation + must belong to a locked mod ---
+        Set<String> indLockedMods = new HashSet<>(entry.getMods());
+        entry.getModExceptionEntries().removeIf(exceptionEntry -> {
+            String exItemId = exceptionEntry.getId();
+            if (!ResourceLocation.isValidResourceLocation(exItemId)) {
+                addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            ResourceLocation rl = new ResourceLocation(exItemId);
+            if (!indLockedMods.contains(rl.getNamespace())) {
+                addMessage(MessageLevel.ERROR, "Mod exception '" + exItemId + "' does not belong to a locked mod (Individual Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -898,7 +966,12 @@ public class StageManager {
                     }
                 }
             }
-            if (!match && data.getMods().contains(modId)) match = true;
+            // Check Mod ID (with exception check)
+            if (!match && data.getMods().contains(modId)) {
+                if (!isModException(itemId, stack, data)) {
+                    match = true;
+                }
+            }
             if (!match && item != null && data.getTags() != null) {
                 for (String tagId : data.getTags()) {
                     var tagKey = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, new ResourceLocation(tagId));

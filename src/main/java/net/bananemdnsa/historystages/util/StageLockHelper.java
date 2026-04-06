@@ -319,7 +319,7 @@ public class StageLockHelper {
                 }
             }
         }
-        if (entry.getMods().contains(modId)) return true;
+        if (entry.getMods().contains(modId) && !entry.isModExcepted(itemId, stack)) return true;
 
         net.minecraft.world.item.Item item = stack.getItem();
         if (item != null && entry.getTags() != null) {

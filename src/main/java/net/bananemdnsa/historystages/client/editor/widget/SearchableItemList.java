@@ -7,6 +7,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.Item;
@@ -15,6 +16,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -56,6 +58,9 @@ public class SearchableItemList {
     // Add button hover animation
     private float addHoverProgress = 0.0f;
 
+    // Mod filter: if set, only items from these mods are shown
+    private Set<String> modFilterSet = null;
+
     public SearchableItemList(Consumer<String> onSelect) {
         this.onSelect = onSelect;
 
@@ -75,14 +80,11 @@ public class SearchableItemList {
         this.centerY = centerY;
         this.visible = true;
         this.scrollRow = 0;
-        this.filter = "";
         this.searchFocused = true;
         this.inventoryMode = false;
         this.selectedInventorySlot = -1;
         this.tabIndicatorInit = false;
-        filteredItems.clear();
-        filteredItems.addAll(allItems);
-        updateMaxScroll();
+        setFilter("");
         recalcPanelSize();
     }
 
@@ -130,22 +132,44 @@ public class SearchableItemList {
         return visible;
     }
 
+    /**
+     * Sets a mod filter so only items from the given mod IDs are shown.
+     * Pass null to clear the filter.
+     */
+    public void setModFilter(Set<String> modIds) {
+        this.modFilterSet = modIds;
+        setFilter(this.filter);
+    }
+
     public void setFilter(String filter) {
         this.filter = filter.toLowerCase();
         this.scrollRow = 0;
         filteredItems.clear();
+
+        // Base list: either all items or mod-filtered items
+        List<ItemEntry> baseItems = allItems;
+        if (modFilterSet != null && !modFilterSet.isEmpty()) {
+            baseItems = new ArrayList<>();
+            for (ItemEntry entry : allItems) {
+                String modId = entry.id.contains(":") ? entry.id.substring(0, entry.id.indexOf(':')) : "";
+                if (modFilterSet.contains(modId)) {
+                    baseItems.add(entry);
+                }
+            }
+        }
+
         if (this.filter.isEmpty()) {
-            filteredItems.addAll(allItems);
+            filteredItems.addAll(baseItems);
         } else if (this.filter.startsWith("@")) {
             String modFilter = this.filter.substring(1);
-            for (ItemEntry entry : allItems) {
+            for (ItemEntry entry : baseItems) {
                 String modId = entry.id.contains(":") ? entry.id.substring(0, entry.id.indexOf(':')) : "";
                 if (modId.contains(modFilter)) {
                     filteredItems.add(entry);
                 }
             }
         } else {
-            for (ItemEntry entry : allItems) {
+            for (ItemEntry entry : baseItems) {
                 if (entry.id.contains(this.filter) || entry.searchName.contains(this.filter)) {
                     filteredItems.add(entry);
                 }
@@ -230,6 +254,35 @@ public class SearchableItemList {
 
     private void renderRegistryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int topOffset = PADDING + TAB_HEIGHT + 4;
+
+        // Empty state: mod filter set but no mods locked
+        if (modFilterSet != null && modFilterSet.isEmpty()) {
+            String msg = Component.translatable("editor.historystages.no_mods_locked").getString();
+            int msgY = panelY + topOffset + (panelH - topOffset) / 2 - 4;
+            // Word-wrap the message if it's too wide
+            int maxW = panelW - PADDING * 4;
+            List<String> lines = new ArrayList<>();
+            StringBuilder line = new StringBuilder();
+            for (String word : msg.split(" ")) {
+                if (line.length() > 0 && font.width(line + " " + word) > maxW) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    if (line.length() > 0) line.append(" ");
+                    line.append(word);
+                }
+            }
+            if (line.length() > 0) lines.add(line.toString());
+
+            int totalH = lines.size() * 10;
+            int startY = panelY + topOffset + (panelH - topOffset - totalH) / 2;
+            for (int i = 0; i < lines.size(); i++) {
+                String l = lines.get(i);
+                int lw = font.width(l);
+                guiGraphics.drawString(font, l, panelX + (panelW - lw) / 2, startY + i * 10, 0xFF888888, false);
+            }
+            return;
+        }
 
         // Search bar
         int searchX = panelX + PADDING;
@@ -325,9 +378,45 @@ public class SearchableItemList {
         return new int[]{gridX, topY, mainY, hotbarY};
     }
 
+    private boolean isItemAllowedByModFilter(ItemStack stack) {
+        if (modFilterSet == null) return true;
+        if (stack.isEmpty()) return false;
+        ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (key == null) return false;
+        return modFilterSet.contains(key.getNamespace());
+    }
+
     private void renderInventoryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) return;
+
+        // Empty state: mod filter set but no mods locked
+        if (modFilterSet != null && modFilterSet.isEmpty()) {
+            int topOffset = PADDING + TAB_HEIGHT + 4;
+            String msg = Component.translatable("editor.historystages.no_mods_locked").getString();
+            int maxW = panelW - PADDING * 4;
+            List<String> lines = new ArrayList<>();
+            StringBuilder line = new StringBuilder();
+            for (String word : msg.split(" ")) {
+                if (line.length() > 0 && font.width(line + " " + word) > maxW) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    if (line.length() > 0) line.append(" ");
+                    line.append(word);
+                }
+            }
+            if (line.length() > 0) lines.add(line.toString());
+
+            int totalH = lines.size() * 10;
+            int startY = panelY + topOffset + (panelH - topOffset - totalH) / 2;
+            for (int i = 0; i < lines.size(); i++) {
+                String l = lines.get(i);
+                int lw = font.width(l);
+                guiGraphics.drawString(font, l, panelX + (panelW - lw) / 2, startY + i * 10, 0xFF888888, false);
+            }
+            return;
+        }
 
         int[] layout = getInvLayout();
         int gridX = layout[0];
@@ -424,8 +513,9 @@ public class SearchableItemList {
     private void renderInventorySlot(GuiGraphics guiGraphics, Font font, int x, int y,
                                       ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
         boolean isEmpty = stack.isEmpty();
+        boolean isAllowed = isEmpty || isItemAllowedByModFilter(stack);
         boolean isSelected = selectedInventorySlot == slotIndex;
-        boolean isHovered = !isEmpty && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
+        boolean isHovered = !isEmpty && isAllowed && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
 
         // Slot background — gold tint when selected (matching editor theme)
         int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
@@ -446,6 +536,10 @@ public class SearchableItemList {
             // Gold highlight overlay for selected slot
             if (isSelected) {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x40FFCC00);
+            }
+            // Dark overlay for items not in mod filter (not selectable)
+            if (!isAllowed) {
+                guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0xC0000000);
             }
         } else if (placeholder != null) {
             guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444, false);
@@ -622,7 +716,7 @@ public class SearchableItemList {
         int clickedSlot = getInventorySlotAt(mouseX, mouseY);
         if (clickedSlot >= 0) {
             ItemStack stack = player.getInventory().getItem(clickedSlot);
-            if (!stack.isEmpty()) {
+            if (!stack.isEmpty() && isItemAllowedByModFilter(stack)) {
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 selectedInventorySlot = (selectedInventorySlot == clickedSlot) ? -1 : clickedSlot;
             }
@@ -720,7 +814,7 @@ public class SearchableItemList {
                 LocalPlayer player = Minecraft.getInstance().player;
                 if (player != null) {
                     ItemStack stack = player.getInventory().getItem(selectedInventorySlot);
-                    if (!stack.isEmpty()) {
+                    if (!stack.isEmpty() && isItemAllowedByModFilter(stack)) {
                         ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (key != null) {
                             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
