@@ -1,13 +1,11 @@
-name: Question / Support
-description: Ask a question about configuring or using History Stages.
 title: "[Question] "
-labels: ["question"]
+labels: []
 body:
   - type: markdown
     attributes:
       value: |
-        For quick questions, you can also check the README or ask on Reddit (r/feedthebeast).
-        Please do not use this template for bug reports or feature requests.
+        Thanks for asking! Please provide as much detail as possible so we can help you quickly.
+        For bug reports, please use the [Issues](https://github.com/Flix100000/History-Stages/issues/new/choose) section instead.
 
   - type: input
     id: mod_version
