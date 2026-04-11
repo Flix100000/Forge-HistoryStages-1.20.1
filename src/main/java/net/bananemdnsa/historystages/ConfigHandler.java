@@ -18,14 +18,20 @@ public class ConfigHandler {
 
     public static void setupConfig() {
         try {
-            // 1. Create directory if not exists
-            if (!Files.exists(CONFIG_PATH)) {
-                Files.createDirectories(CONFIG_PATH);
+            // Create global stages directory
+            Path globalPath = CONFIG_PATH.resolve("global");
+            if (!Files.exists(globalPath)) {
+                Files.createDirectories(globalPath);
             }
 
-            // 2. Create _exampleStage.json
-            // The underscore ensures that the StageManager ignores this file during loading
-            File exampleFile = new File(CONFIG_PATH.toFile(), "_exampleStage.json");
+            // Create individual stages directory
+            Path individualPath = CONFIG_PATH.resolve("individual");
+            if (!Files.exists(individualPath)) {
+                Files.createDirectories(individualPath);
+            }
+
+            // Create _exampleStage.json in global directory
+            File exampleFile = new File(globalPath.toFile(), "_exampleStage.json");
             if (!exampleFile.exists()) {
                 createExampleJson(exampleFile);
             }
@@ -51,7 +57,7 @@ public class ConfigHandler {
 
         // Tags Category
         JsonArray tags = new JsonArray();
-        tags.add("forge:ores/iron");
+        tags.add("c:ores/iron");
         tags.add("minecraft:logs");
         json.add("tags", tags);
 
@@ -61,7 +67,17 @@ public class ConfigHandler {
         mods.add("mekanism");
         json.add("mods", mods);
 
-        // Dimensions Category (NEW)
+        // Mod Exceptions Category
+        JsonArray modExceptions = new JsonArray();
+        modExceptions.add("mekanism:creative_energy_cube");
+        json.add("mod_exceptions", modExceptions);
+
+        // Recipes Category
+        JsonArray recipes = new JsonArray();
+        recipes.add("minecraft:diamond_sword");
+        json.add("recipes", recipes);
+
+        // Dimensions Category
         JsonArray dimensions = new JsonArray();
         dimensions.add("minecraft:the_nether");
         dimensions.add("minecraft:the_end");

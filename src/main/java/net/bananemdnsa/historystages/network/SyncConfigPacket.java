@@ -66,7 +66,7 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("researchTimeInSeconds", Config.COMMON.researchTimeInSeconds.get().toString());
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
-        values.put("replacementTag", Config.COMMON.replacementTag.get());
+        values.put("replacementTags", Config.COMMON.replacementTags.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         return new SyncConfigPacket(values);
     }
 

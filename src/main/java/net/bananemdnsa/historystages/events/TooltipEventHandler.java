@@ -2,8 +2,11 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
@@ -80,8 +83,9 @@ public class TooltipEventHandler {
             StageEntry stage = entry.getValue();
             String stageID = entry.getKey();
 
-            boolean isListed = stage.getMods().contains(modID) ||
+            boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
                     stage.getItems().contains(itemID) ||
+                    matchesNbtItem(stage, itemID, stack) ||
                     stack.getItem().builtInRegistryHolder().tags()
                             .anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
@@ -122,5 +126,66 @@ public class TooltipEventHandler {
                         .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
             }
         }
+
+        // --- INDIVIDUAL STAGES TOOLTIP ---
+        List<StageEntry> individualRequiredStages = new ArrayList<>();
+        boolean isIndividuallyLocked = false;
+
+        for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
+            StageEntry stage = entry.getValue();
+            String stageID = entry.getKey();
+
+            boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
+                    stage.getItems().contains(itemID) ||
+                    matchesNbtItem(stage, itemID, stack) ||
+                    stack.getItem().builtInRegistryHolder().tags()
+                            .anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+
+            if (isListed) {
+                individualRequiredStages.add(stage);
+                if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
+                    isIndividuallyLocked = true;
+                }
+            }
+        }
+
+        if (isIndividuallyLocked && Config.CLIENT.showIndividualTooltips.get()) {
+            if (Config.CLIENT.showStageName.get()) {
+                event.getToolTip().add(Component.literal("Required Individual Progress:").withStyle(ChatFormatting.DARK_RED));
+
+                for (StageEntry stage : individualRequiredStages) {
+                    String stageID = StageManager.getIndividualStages().entrySet().stream()
+                            .filter(e -> e.getValue().equals(stage))
+                            .map(Map.Entry::getKey).findFirst().orElse("");
+
+                    boolean unlocked = ClientIndividualStageCache.isStageUnlocked(stageID);
+                    boolean showAll = Config.CLIENT.showAllUntilComplete.get();
+
+                    if (individualRequiredStages.size() > 1 && showAll) {
+                        ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
+                        String statusText = unlocked ? " (Unlocked)" : " (Locked)";
+
+                        event.getToolTip().add(Component.literal(" • ")
+                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GRAY))
+                                .append(Component.literal(statusText).withStyle(statusColor)));
+                    } else if (!unlocked) {
+                        event.getToolTip().add(Component.literal(" • ")
+                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GRAY)));
+                    }
+                }
+            } else {
+                event.getToolTip().add(Component.literal("This item is individually locked!")
+                        .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
+            }
+        }
+    }
+
+    private static boolean matchesNbtItem(StageEntry stage, String itemID, ItemStack stack) {
+        for (ItemEntry itemEntry : stage.getItemEntries()) {
+            if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
+                if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
+            }
+        }
+        return false;
     }
 }

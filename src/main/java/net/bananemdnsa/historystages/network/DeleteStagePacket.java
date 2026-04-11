@@ -13,7 +13,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 
-public record DeleteStagePacket(String stageId) implements CustomPacketPayload {
+public record DeleteStagePacket(String stageId, boolean individual) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<DeleteStagePacket> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "delete_stage"));
@@ -21,12 +21,19 @@ public record DeleteStagePacket(String stageId) implements CustomPacketPayload {
     public static final StreamCodec<FriendlyByteBuf, DeleteStagePacket> STREAM_CODEC =
             StreamCodec.of(DeleteStagePacket::encode, DeleteStagePacket::decode);
 
+    public DeleteStagePacket(String stageId) {
+        this(stageId, false);
+    }
+
     private static void encode(FriendlyByteBuf buffer, DeleteStagePacket msg) {
         buffer.writeUtf(msg.stageId);
+        buffer.writeBoolean(msg.individual);
     }
 
     private static DeleteStagePacket decode(FriendlyByteBuf buffer) {
-        return new DeleteStagePacket(buffer.readUtf());
+        String stageId = buffer.readUtf();
+        boolean individual = buffer.readBoolean();
+        return new DeleteStagePacket(stageId, individual);
     }
 
     public static void handle(DeleteStagePacket msg, IPayloadContext ctx) {
@@ -34,13 +41,20 @@ public record DeleteStagePacket(String stageId) implements CustomPacketPayload {
             if (!(ctx.player() instanceof ServerPlayer player)) return;
             if (!player.hasPermissions(2)) return;
 
-            boolean success = StageManager.deleteStage(msg.stageId);
+            boolean success;
+            if (msg.individual) {
+                success = StageManager.deleteIndividualStage(msg.stageId);
+            } else {
+                success = StageManager.deleteStage(msg.stageId);
+            }
+
             if (success) {
                 StageManager.reloadStages();
                 StageData data = StageData.get(player.serverLevel());
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §aStage '" + msg.stageId + "' deleted."));
+                String prefix = msg.individual ? "Individual stage" : "Stage";
+                player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' deleted."));
                 PacketHandler.reloadRecipesOnly(player.server);
             } else {
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to delete stage '" + msg.stageId + "'."));

@@ -5,7 +5,10 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "historystages.refmap.json",
   "mixins": [
-    "RecipeManagerMixin"
+    "RecipeManagerMixin",
+    "ContainerClickMixin",
+    "EnchantmentMenuMixin",
+    "jei.RecipeLayoutMixin"
   ],
   "injectors": {
     "defaultRequire": 1

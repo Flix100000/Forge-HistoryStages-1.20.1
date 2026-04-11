@@ -15,7 +15,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 
-public record SaveStagePacket(String stageId, String stageJson) implements CustomPacketPayload {
+public record SaveStagePacket(String stageId, String stageJson, boolean individual) implements CustomPacketPayload {
     private static final Gson GSON = new Gson();
 
     public static final CustomPacketPayload.Type<SaveStagePacket> TYPE =
@@ -25,18 +25,24 @@ public record SaveStagePacket(String stageId, String stageJson) implements Custo
             StreamCodec.of(SaveStagePacket::encode, SaveStagePacket::decode);
 
     public SaveStagePacket(String stageId, StageEntry entry) {
-        this(stageId, entry.toJson());
+        this(stageId, entry.toJson(), false);
+    }
+
+    public SaveStagePacket(String stageId, StageEntry entry, boolean individual) {
+        this(stageId, entry.toJson(), individual);
     }
 
     private static void encode(FriendlyByteBuf buffer, SaveStagePacket msg) {
         buffer.writeUtf(msg.stageId);
         buffer.writeUtf(msg.stageJson, 65536);
+        buffer.writeBoolean(msg.individual);
     }
 
     private static SaveStagePacket decode(FriendlyByteBuf buffer) {
         String stageId = buffer.readUtf();
         String stageJson = buffer.readUtf(65536);
-        return new SaveStagePacket(stageId, stageJson);
+        boolean individual = buffer.readBoolean();
+        return new SaveStagePacket(stageId, stageJson, individual);
     }
 
     public static void handle(SaveStagePacket msg, IPayloadContext ctx) {
@@ -47,13 +53,20 @@ public record SaveStagePacket(String stageId, String stageJson) implements Custo
             StageEntry entry = GSON.fromJson(msg.stageJson, StageEntry.class);
             if (entry == null) return;
 
-            boolean success = StageManager.saveStage(msg.stageId, entry);
+            boolean success;
+            if (msg.individual) {
+                success = StageManager.saveIndividualStage(msg.stageId, entry);
+            } else {
+                success = StageManager.saveStage(msg.stageId, entry);
+            }
+
             if (success) {
                 StageManager.reloadStages();
                 StageData data = StageData.get(player.serverLevel());
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §aStage '" + msg.stageId + "' saved successfully."));
+                String prefix = msg.individual ? "Individual stage" : "Stage";
+                player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' saved successfully."));
                 PacketHandler.reloadRecipesOnly(player.server);
             } else {
                 player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to save stage '" + msg.stageId + "'."));

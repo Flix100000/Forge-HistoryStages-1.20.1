@@ -87,7 +87,13 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                             .collect(Collectors.toList());
                     Config.COMMON.replacementItems.set(itemList);
                 }
-                case "replacementTag" -> Config.COMMON.replacementTag.set(value);
+                case "replacementTags" -> {
+                    List<String> tagList = Arrays.stream(value.split(","))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toList());
+                    Config.COMMON.replacementTags.set(tagList);
+                }
             }
         }
     }

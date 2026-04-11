@@ -29,6 +29,20 @@ repositories {
         name = "TerraformersMC"
         url "https://maven.terraformersmc.com/"
     }
+    maven {
+        name = "FTB Mods"
+        url "https://maven.ftb.dev/releases"
+        content {
+            includeGroup "dev.ftb.mods"
+        }
+    }
+    maven {
+        name = "Architectury"
+        url "https://maven.architectury.dev/"
+        content {
+            includeGroup "dev.architectury"
+        }
+    }
 }
 
 base {
@@ -141,6 +155,12 @@ dependencies {
 
     // Jade
     implementation "curse.maven:jade-324717:6855440"
+
+    // FTB Quests (optional integration) — compileOnly so users don't need it at runtime
+    compileOnly("dev.ftb.mods:ftb-library-neoforge:2100.1.2") { transitive = false }
+    compileOnly("dev.ftb.mods:ftb-teams-neoforge:2100.1.0")   { transitive = false }
+    compileOnly("dev.ftb.mods:ftb-quests-neoforge:2100.1.4")  { transitive = false }
+    compileOnly("dev.architectury:architectury-neoforge:13.0.2") { transitive = false }
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar

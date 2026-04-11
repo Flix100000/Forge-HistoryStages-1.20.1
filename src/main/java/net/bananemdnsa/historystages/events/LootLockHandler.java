@@ -56,24 +56,29 @@ public class LootLockHandler {
     }
 
     private static ItemStack getReplacement(int count) {
-        String tagStr = Config.COMMON.replacementTag.get();
-        if (tagStr != null && !tagStr.isEmpty()) {
-            try {
-                TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
-                List<Item> tagItems = new ArrayList<>();
-                Optional<? extends Iterable<Holder<Item>>> tagOptional = BuiltInRegistries.ITEM.getTag(tagKey);
-                tagOptional.ifPresent(holders -> {
-                    for (Holder<Item> holder : holders) {
-                        tagItems.add(holder.value());
-                    }
-                });
+        // Try replacement tags first (higher priority)
+        List<? extends String> tagList = Config.COMMON.replacementTags.get();
+        if (tagList != null && !tagList.isEmpty()) {
+            for (String tagStr : tagList) {
+                if (tagStr == null || tagStr.isEmpty()) continue;
+                try {
+                    TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
+                    List<Item> tagItems = new ArrayList<>();
+                    Optional<? extends Iterable<Holder<Item>>> tagOptional = BuiltInRegistries.ITEM.getTag(tagKey);
+                    tagOptional.ifPresent(holders -> {
+                        for (Holder<Item> holder : holders) {
+                            tagItems.add(holder.value());
+                        }
+                    });
 
-                if (!tagItems.isEmpty()) {
-                    return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
-                }
-            } catch (Exception ignored) {}
+                    if (!tagItems.isEmpty()) {
+                        return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
+                    }
+                } catch (Exception ignored) {}
+            }
         }
 
+        // Fall back to replacement items
         List<? extends String> list = Config.COMMON.replacementItems.get();
         if (list != null && !list.isEmpty()) {
             try {

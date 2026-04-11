@@ -17,7 +17,10 @@ import java.util.Map;
 public class EMIPlugin implements EmiPlugin {
     @Override
     public void register(EmiRegistry registry) {
-        // Nutzt dieselbe Config-Option wie JEI
+        // Register the locked recipe decorator globally for all categories
+        registry.addRecipeDecorator(new LockedEmiRecipeDecorator());
+
+        // Item hiding (optional, controlled by config)
         if (!Config.CLIENT.hideInJei.get()) return;
 
         for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {

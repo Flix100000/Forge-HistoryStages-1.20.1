@@ -28,7 +28,7 @@ side="BOTH"
 
 [[dependencies.${mod_id}]]
 modId="lootr"
-type="required"
+type="optional"
 versionRange="[0.4,)"
 ordering="AFTER"
 side="BOTH"
@@ -51,5 +51,12 @@ side="BOTH"
 modId="jade"
 type="optional"
 versionRange="[15,)"
+ordering="AFTER"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="ftbquests"
+type="optional"
+versionRange="[2100,)"
 ordering="AFTER"
 side="BOTH"

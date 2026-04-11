@@ -27,6 +27,7 @@ public class PacketHandler {
         registrar.playToClient(EditorSyncPacket.TYPE, EditorSyncPacket.STREAM_CODEC, EditorSyncPacket::handle);
         registrar.playToClient(SyncStageDefinitionsPacket.TYPE, SyncStageDefinitionsPacket.STREAM_CODEC, SyncStageDefinitionsPacket::handle);
         registrar.playToClient(SyncConfigPacket.TYPE, SyncConfigPacket.STREAM_CODEC, SyncConfigPacket::handle);
+        registrar.playToClient(SyncIndividualStagesPacket.TYPE, SyncIndividualStagesPacket.STREAM_CODEC, SyncIndividualStagesPacket::handle);
 
         // Client → Server
         registrar.playToServer(RequestEditorDataPacket.TYPE, RequestEditorDataPacket.STREAM_CODEC, RequestEditorDataPacket::handle);
@@ -48,6 +49,10 @@ public class PacketHandler {
         PacketDistributor.sendToAllPlayers(packet);
     }
 
+    public static void sendToastToPlayer(StageUnlockedToastPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
     public static void sendDefinitionsToPlayer(SyncStageDefinitionsPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
@@ -62,6 +67,10 @@ public class PacketHandler {
 
     public static void sendConfigToAll(SyncConfigPacket packet) {
         PacketDistributor.sendToAllPlayers(packet);
+    }
+
+    public static void sendIndividualStagesToPlayer(SyncIndividualStagesPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
     }
 
     public static void sendToServer(Object packet) {

@@ -25,6 +25,10 @@ public class Config {
         public final ModConfigSpec.BooleanValue mobShowChat;
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
 
+        // Individual Stages
+        public final ModConfigSpec.BooleanValue showSilverLockIcons;
+        public final ModConfigSpec.BooleanValue showIndividualTooltips;
+
         public Client(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -102,6 +106,18 @@ public class Config {
                     .define("showStagesInChat", true);
 
             builder.pop();
+
+            builder.comment("Individual Stage Visual Settings").push("individual_stages");
+
+            showSilverLockIcons = builder
+                    .comment("Show a silver lock icon on items locked by individual stages? [Default: true]")
+                    .define("showSilverLockIcons", true);
+
+            showIndividualTooltips = builder
+                    .comment("Show tooltip information for items locked by individual stages? [Default: true]")
+                    .define("showIndividualTooltips", true);
+
+            builder.pop();
         }
     }
 
@@ -109,11 +125,16 @@ public class Config {
     public static class Common {
         public final ModConfigSpec.BooleanValue showWelcomeMessage;
         public final ModConfigSpec.BooleanValue showDebugErrors;
+        public final ModConfigSpec.BooleanValue enableRuntimeLogging;
 
         public final ModConfigSpec.BooleanValue lockMobLoot;
         public final ModConfigSpec.BooleanValue lockBlockBreaking;
         public final ModConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
         public final ModConfigSpec.BooleanValue lockItemUsage;
+        public final ModConfigSpec.BooleanValue lockEntityItems;
+        public final ModConfigSpec.BooleanValue lockBlockInteraction;
+        public final ModConfigSpec.BooleanValue lockContainerInteraction;
+        public final ModConfigSpec.BooleanValue lockEnchanting;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ModConfigSpec.BooleanValue broadcastChat;
@@ -128,7 +149,23 @@ public class Config {
         // Loot-Ersetzungen
         public final ModConfigSpec.BooleanValue useReplacements;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementItems;
-        public final ModConfigSpec.ConfigValue<String> replacementTag;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> replacementTags;
+
+        // Individual Stages - Gameplay
+        public final ModConfigSpec.BooleanValue individualLockItemPickup;
+        public final ModConfigSpec.BooleanValue individualDropOnRevoke;
+        public final ModConfigSpec.BooleanValue individualLockBlockBreaking;
+        public final ModConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
+        public final ModConfigSpec.BooleanValue individualLockItemUsage;
+        public final ModConfigSpec.BooleanValue individualLockBlockInteraction;
+        public final ModConfigSpec.BooleanValue individualLockEnchanting;
+
+        // Individual Stages - Notifications
+        public final ModConfigSpec.BooleanValue individualBroadcastChat;
+        public final ModConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
+        public final ModConfigSpec.BooleanValue individualUseActionbar;
+        public final ModConfigSpec.BooleanValue individualUseSounds;
+        public final ModConfigSpec.BooleanValue individualUseToasts;
 
         public Common(ModConfigSpec.Builder builder) {
             builder.comment(
@@ -146,6 +183,10 @@ public class Config {
                     .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
                     .define("showDebugErrors", true);
 
+            enableRuntimeLogging = builder
+                    .comment("Log runtime events (stage unlock/lock, blocked actions, loot replacements) to config/historystages/logs/runtime-*.log? [Default: false]")
+                    .define("enableRuntimeLogging", false);
+
             builder.pop(); // messages
 
             builder.comment("Gameplay and Server-side settings").push("gameplay");
@@ -155,16 +196,32 @@ public class Config {
                     .define("lockMobLoot", true);
 
             lockBlockBreaking = builder
-                    .comment("Prevent normal breaking of blocks whose item form is locked? The block is removed without drops. [Default: true]")
+                    .comment("Make locked blocks much harder to break and prevent their drops? [Default: true]")
                     .define("lockBlockBreaking", true);
 
             lockedBlockBreakSpeedMultiplier = builder
-                    .comment("Break speed multiplier for locked blocks (0.0 = impossible, 1.0 = normal). [Default: 0.05]")
-                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.0, 1.0);
+                    .comment("Break speed multiplier for locked blocks. Lower = slower. 0.05 = 20x slower (like using wrong tool). [Default: 0.05]")
+                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
 
             lockItemUsage = builder
-                    .comment("Prevent using, placing, or equipping locked items? [Default: true]")
+                    .comment("Prevent using locked items? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
                     .define("lockItemUsage", true);
+
+            lockEntityItems = builder
+                    .comment("Prevent interacting with or breaking armor stands and item frames that contain locked items? [Default: true]")
+                    .define("lockEntityItems", true);
+
+            lockBlockInteraction = builder
+                    .comment("Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.) [Default: true]")
+                    .define("lockBlockInteraction", true);
+
+            lockContainerInteraction = builder
+                    .comment("Prevent moving individually-locked items in containers? (Blocks taking items from chests, machines, etc.) [Default: true]")
+                    .define("lockContainerInteraction", true);
+
+            lockEnchanting = builder
+                    .comment("Prevent applying locked enchantments via anvil (locked enchanted books) and enchanting table? [Default: true]")
+                    .define("lockEnchanting", true);
 
             builder.pop(); // gameplay
 
@@ -191,14 +248,14 @@ public class Config {
                     .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
                     .define("useToasts", true);
 
-            builder.pop(); // Schließt "notifications"
+            builder.pop(); // notifications
 
             // --- RESEARCH Pedestal SECTION ---
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
-            builder.pop(); // Schließt "research"
+            builder.pop(); // research
 
             // --- LOOT REPLACEMENTS SECTION ---
             builder.comment("Settings for replacing locked loot with alternatives").push("loot_replacements");
@@ -208,13 +265,66 @@ public class Config {
                     .define("useReplacements", false);
 
             replacementItems = builder
-                    .comment("{ReplacementPriority:2} A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
+                    .comment("{ReplacementPriority:1} A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
                     .defineList("replacementItems", List.of("minecraft:cobblestone", "minecraft:dirt"), o -> o instanceof String);
 
-            replacementTag = builder
-                    .comment("{ReplacementPriority:1} A tag (e.g. 'c:dusts') to pick a random replacement from. [Default: empty]")
-                    .define("replacementTag", "");
-            builder.pop(); // Schließt "loot_replacements"
+            replacementTags = builder
+                    .comment("{ReplacementPriority:2} A list of tags (e.g. 'c:dusts') to pick a random replacement from. [Default: empty]")
+                    .defineList("replacementTags", List.of(), o -> o instanceof String);
+            builder.pop(); // loot_replacements
+
+            // --- INDIVIDUAL STAGES SECTION ---
+            builder.comment("Individual Stage Settings (per-player stages)").push("individual_stages");
+
+            individualLockItemPickup = builder
+                    .comment("Prevent players from picking up items locked by individual stages? [Default: true]")
+                    .define("lockItemPickup", true);
+
+            individualDropOnRevoke = builder
+                    .comment("Drop locked items from a player's inventory when their individual stage is revoked? [Default: true]")
+                    .define("dropOnRevoke", true);
+
+            individualLockBlockBreaking = builder
+                    .comment("Make blocks locked by individual stages much harder to break and prevent their drops? [Default: true]")
+                    .define("lockBlockBreaking", true);
+
+            individualLockedBlockBreakSpeedMultiplier = builder
+                    .comment("Break speed multiplier for blocks locked by individual stages. Lower = slower. 0.05 = 20x slower. [Default: 0.05]")
+                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
+
+            individualLockItemUsage = builder
+                    .comment("Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
+                    .define("lockItemUsage", true);
+
+            individualLockBlockInteraction = builder
+                    .comment("Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.) [Default: true]")
+                    .define("lockBlockInteraction", true);
+
+            individualLockEnchanting = builder
+                    .comment("Prevent applying enchantments locked by individual stages via anvil and enchanting table? [Default: true]")
+                    .define("lockEnchanting", true);
+
+            individualBroadcastChat = builder
+                    .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")
+                    .define("broadcastChat", true);
+
+            individualUnlockMessageFormat = builder
+                    .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
+                    .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
+
+            individualUseActionbar = builder
+                    .comment("Show individual stage messages in the actionbar? [Default: false]")
+                    .define("useActionbar", false);
+
+            individualUseSounds = builder
+                    .comment("Play notification sounds for individual stage unlocks? [Default: true]")
+                    .define("useSounds", true);
+
+            individualUseToasts = builder
+                    .comment("Show an advancement-style toast popup when an individual stage is unlocked? [Default: true]")
+                    .define("useToasts", true);
+
+            builder.pop(); // individual_stages
         }
     }
 

@@ -1,0 +1,88 @@
+name: Bug Report
+description: Report a bug or crash
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the information below so we can reproduce and fix the issue.
+        Before submitting, please check if this issue has already been reported.
+
+  - type: input
+    id: version
+    attributes:
+      label: History Stages Version
+      placeholder: "e.g. 3.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: mc-version
+    attributes:
+      label: Minecraft / NeoForge Version
+      placeholder: "e.g. 1.21 / NeoForge 21.0.167"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Singleplayer (integrated server)
+        - Dedicated Server + Client
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened? What did you expect to happen?
+      placeholder: Describe the bug clearly...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Install mod X and Y
+        2. Join a world
+        3. Do this...
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: stage-config
+    attributes:
+      label: Relevant Stage JSON (if applicable)
+      description: Paste the stage JSON file(s) related to the bug.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log / Crash Report
+      description: "Paste the relevant error from your latest.log or crash report. Use a paste site (e.g. https://mclo.gs) for full logs."
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: modlist
+    attributes:
+      label: Other Mods Installed
+      description: List other mods that might be relevant, or share your full mod list.
+      placeholder: |
+        - JEI
+        - Create
+        - ...
+    validations:
+      required: false

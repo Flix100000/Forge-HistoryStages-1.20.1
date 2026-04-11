@@ -1,0 +1,12 @@
+name: Other
+description: Anything that doesn't fit the other categories
+title: "[Other] "
+labels: ["other"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What's on your mind?
+    validations:
+      required: true

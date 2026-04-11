@@ -45,9 +45,11 @@ jobs:
           loaders: neoforge
           version-type: release
           dependencies: |
-            lootr(required)
+            lootr(optional)
             jei(optional)
             emi(optional)
+            jade(optional)
+            ftb-quests(optional)
           curseforge-environment: both
           modrinth-environment: both
           java: 21
