@@ -18,9 +18,13 @@ import java.util.Map;
  * Syncs all stage definitions (not just unlocked stages) from server to client.
  * Sent on player login so the client knows which items/blocks/entities are locked.
  */
-public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages) implements CustomPacketPayload {
+public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages, Map<String, StageEntry> individualStages) implements CustomPacketPayload {
     private static final Gson GSON = new Gson();
     private static final java.lang.reflect.Type MAP_TYPE = new TypeToken<Map<String, StageEntry>>() {}.getType();
+
+    public SyncStageDefinitionsPacket(Map<String, StageEntry> stages) {
+        this(stages, StageManager.getIndividualStages());
+    }
 
     public static final CustomPacketPayload.Type<SyncStageDefinitionsPacket> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "sync_stage_definitions"));
@@ -31,20 +35,27 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages) impleme
     private static void encode(FriendlyByteBuf buffer, SyncStageDefinitionsPacket msg) {
         String json = GSON.toJson(msg.stages);
         buffer.writeUtf(json, 262144);
+        String individualJson = GSON.toJson(msg.individualStages);
+        buffer.writeUtf(individualJson, 262144);
     }
 
     private static SyncStageDefinitionsPacket decode(FriendlyByteBuf buffer) {
         String json = buffer.readUtf(262144);
         Map<String, StageEntry> stages = GSON.fromJson(json, MAP_TYPE);
         if (stages == null) stages = new HashMap<>();
-        return new SyncStageDefinitionsPacket(stages);
+        String individualJson = buffer.readUtf(262144);
+        Map<String, StageEntry> individualStages = GSON.fromJson(individualJson, MAP_TYPE);
+        if (individualStages == null) individualStages = new HashMap<>();
+        return new SyncStageDefinitionsPacket(stages, individualStages);
     }
 
     public static void handle(SyncStageDefinitionsPacket msg, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
             StageManager.setStages(msg.stages);
+            StageManager.setIndividualStages(msg.individualStages);
             EditorDataCache.setStages(new HashMap<>(msg.stages));
-            System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions from server.");
+            System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions + "
+                    + msg.individualStages.size() + " individual stage definitions from server.");
         });
     }
 

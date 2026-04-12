@@ -64,12 +64,26 @@ public class RecipeManagerMixin {
     }
 
     /**
-     * Filter cached recipe lookups (4-arg with ResourceLocation) - used by furnace, smoker, blast furnace.
+     * Filter cached recipe lookups (4-arg with ResourceLocation) - used by CachedCheck (furnace, smoker, blast furnace).
      */
     @Inject(method = "getRecipeFor(Lnet/minecraft/world/item/crafting/RecipeType;Lnet/minecraft/world/item/crafting/RecipeInput;Lnet/minecraft/world/level/Level;Lnet/minecraft/resources/ResourceLocation;)Ljava/util/Optional;",
             at = @At("RETURN"), cancellable = true, remap = true)
     private <I extends RecipeInput, T extends Recipe<I>> void filterGetRecipeForCached(
             RecipeType<T> type, I input, Level level, @Nullable ResourceLocation lastRecipe,
+            CallbackInfoReturnable<Optional<RecipeHolder<T>>> cir) {
+        Optional<RecipeHolder<T>> result = cir.getReturnValue();
+        if (result.isPresent() && isRecipeLocked(result.get(), level.isClientSide())) {
+            cir.setReturnValue(Optional.empty());
+        }
+    }
+
+    /**
+     * Filter cached recipe lookups (4-arg with RecipeHolder) - the core overload called by CraftingMenu and others.
+     */
+    @Inject(method = "getRecipeFor(Lnet/minecraft/world/item/crafting/RecipeType;Lnet/minecraft/world/item/crafting/RecipeInput;Lnet/minecraft/world/level/Level;Lnet/minecraft/world/item/crafting/RecipeHolder;)Ljava/util/Optional;",
+            at = @At("RETURN"), cancellable = true, remap = true)
+    private <I extends RecipeInput, T extends Recipe<I>> void filterGetRecipeForHolder(
+            RecipeType<T> type, I input, Level level, @Nullable RecipeHolder<T> lastRecipe,
             CallbackInfoReturnable<Optional<RecipeHolder<T>>> cir) {
         Optional<RecipeHolder<T>> result = cir.getReturnValue();
         if (result.isPresent() && isRecipeLocked(result.get(), level.isClientSide())) {
