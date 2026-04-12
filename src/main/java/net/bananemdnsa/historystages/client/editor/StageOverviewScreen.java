@@ -128,6 +128,11 @@ public class StageOverviewScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Refresh stage list if another admin changed definitions (broadcast via SyncStageDefinitionsPacket)
         int currentCount = StageManager.getStages().size();

@@ -351,6 +351,11 @@ public class ConfigEditorScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
+    }
+
+    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Background
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);

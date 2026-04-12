@@ -22,14 +22,31 @@ public class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.RESEARCH_SCROLL.get()))
                     .title(Component.translatable("creativetab.history_tab"))
                     .displayItems((parameters, output) -> {
+                        // 1. Research pedestal and creative scroll
                         output.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
 
+                        ItemStack creativeScroll = new ItemStack(ModItems.CREATIVE_SCROLL.get());
+                        CompoundTag creativeNbt = new CompoundTag();
+                        creativeNbt.putString("StageResearch", ModItems.CREATIVE_STAGE_ID);
+                        creativeScroll.set(DataComponents.CUSTOM_DATA, CustomData.of(creativeNbt));
+                        output.accept(creativeScroll);
+
+                        // 2. Global stage scrolls
                         for (String stageId : StageManager.getStages().keySet()) {
-                            ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = new CompoundTag();
                             nbt.putString("StageResearch", stageId);
-                            book.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
-                            output.accept(book);
+                            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+                            output.accept(scroll);
+                        }
+
+                        // 3. Individual stage scrolls
+                        for (String stageId : StageManager.getIndividualStages().keySet()) {
+                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+                            CompoundTag nbt = new CompoundTag();
+                            nbt.putString("StageResearch", stageId);
+                            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+                            output.accept(scroll);
                         }
                     })
                     .build());

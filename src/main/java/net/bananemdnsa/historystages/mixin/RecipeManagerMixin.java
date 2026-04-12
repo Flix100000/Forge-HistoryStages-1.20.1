@@ -95,36 +95,6 @@ public class RecipeManagerMixin {
         }
     }
 
-    /**
-     * Filter getAllRecipesFor - used by some mods and vanilla for recipe book lookups.
-     * No Level parameter available, defaults to server-side check.
-     */
-    @Inject(method = "getAllRecipesFor", at = @At("RETURN"), cancellable = true, remap = true)
-    private <I extends RecipeInput, T extends Recipe<I>> void filterGetAllRecipesFor(
-            RecipeType<T> type,
-            CallbackInfoReturnable<List<RecipeHolder<T>>> cir) {
-        List<RecipeHolder<T>> recipes = cir.getReturnValue();
-        List<RecipeHolder<T>> filtered = recipes.stream()
-                .filter(r -> !isRecipeLocked(r, false))
-                .collect(Collectors.toList());
-        if (filtered.size() != recipes.size()) {
-            cir.setReturnValue(filtered);
-        }
-    }
-
-    /**
-     * Filter byKey - direct recipe lookup by ResourceLocation, used by some mods.
-     * No Level parameter available, defaults to server-side check.
-     */
-    @Inject(method = "byKey", at = @At("RETURN"), cancellable = true, remap = true)
-    private void filterByKey(ResourceLocation recipeId,
-                             CallbackInfoReturnable<Optional<RecipeHolder<?>>> cir) {
-        Optional<RecipeHolder<?>> result = cir.getReturnValue();
-        if (result.isPresent() && isRecipeLocked(result.get(), false)) {
-            cir.setReturnValue(Optional.empty());
-        }
-    }
-
     private static boolean isRecipeLocked(RecipeHolder<?> holder, boolean isClientSide) {
         return RecipeHandler.isOutputLocked(holder, isClientSide) || RecipeHandler.isRecipeIdLocked(holder.id(), isClientSide);
     }

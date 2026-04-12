@@ -97,13 +97,16 @@ public class JEIPlugin implements IModPlugin {
             }
         }
 
-        // 2. Ganze Mods
+        // 2. Ganze Mods (respecting mod exceptions)
         if (entry.getMods() != null) {
             for (String modId : entry.getMods()) {
                 for (Item item : BuiltInRegistries.ITEM) {
                     ResourceLocation res = BuiltInRegistries.ITEM.getKey(item);
                     if (res != null && res.getNamespace().equals(modId)) {
-                        items.add(new ItemStack(item));
+                        ItemStack stack = new ItemStack(item);
+                        if (!entry.isModExcepted(res.toString(), stack)) {
+                            items.add(stack);
+                        }
                     }
                 }
             }
