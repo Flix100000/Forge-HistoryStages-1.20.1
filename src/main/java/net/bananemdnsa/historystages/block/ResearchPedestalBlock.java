@@ -4,10 +4,12 @@ import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -24,6 +26,7 @@ import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
@@ -74,6 +77,32 @@ public class ResearchPedestalBlock extends BaseEntityBlock {
             }
         }
         return InteractionResult.sidedSuccess(pLevel.isClientSide());
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onRemove(BlockState pState, Level pLevel, BlockPos pPos, BlockState pNewState, boolean pIsMoving) {
+        if (!pState.is(pNewState.getBlock())) {
+            BlockEntity blockEntity = pLevel.getBlockEntity(pPos);
+            if (blockEntity instanceof ResearchPedestalBlockEntity pedestal) {
+                pedestal.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
+                    ItemStack stack = handler.getStackInSlot(0);
+                    if (!stack.isEmpty()) {
+                        // Drop scroll with StageResearch intact but without progress/owner data
+                        ItemStack dropScroll = stack.copy();
+                        if (dropScroll.hasTag()) {
+                            dropScroll.getTag().remove("ResearchProgress");
+                            dropScroll.getTag().remove("MaxProgress");
+                            dropScroll.getTag().remove("OwnerUUID");
+                            dropScroll.getTag().remove("OwnerName");
+                        }
+                        Containers.dropItemStack(pLevel, pPos.getX(), pPos.getY(), pPos.getZ(),
+                                dropScroll);
+                    }
+                });
+            }
+            super.onRemove(pState, pLevel, pPos, pNewState, pIsMoving);
+        }
     }
 
     @Nullable

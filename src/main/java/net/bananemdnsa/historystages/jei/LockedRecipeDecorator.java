@@ -30,9 +30,9 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
         int width = category.getWidth();
         int height = category.getHeight();
 
-        // Push pose and translate to z=400 so overlay renders above item icons (items are ~200)
+        // Push pose and translate to z=300 so overlay renders above item icons (~200) but below tooltips (~400)
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
+        guiGraphics.pose().translate(0, 0, 300);
 
         // Semi-transparent dark overlay
         guiGraphics.fill(0, 0, width, height, 0xBB000000);
