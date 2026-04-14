@@ -26,6 +26,7 @@ body:
         - Recipe Locking
         - Commands (/history)
         - JEI / EMI Integration
+        - FTBQuests Integration
         - KubeJS / CraftTweaker
         - Loot / Drop Locking
         - Dimension / Entity Locking
