@@ -38,7 +38,8 @@ public class ConfigEditorScreen extends Screen {
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
 
-    // Unsaved changes tracking - computed by comparing current values to initial values
+    // Unsaved changes tracking - computed by comparing current values to initial
+    // values
 
     // Config entries grouped by section
     private List<ConfigSection> clientSections;
@@ -74,7 +75,8 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     protected void init() {
-        if (clientSections == null) buildConfigEntries();
+        if (clientSections == null)
+            buildConfigEntries();
 
         // Compute tab positions
         tabY = 30;
@@ -112,8 +114,7 @@ public class ConfigEditorScreen extends Screen {
                             () -> {
                                 resetToDefaults();
                                 this.minecraft.setScreen(this);
-                            }
-                    ));
+                            }));
                 }, this.width - 70, this.height - 30, 60, 20));
 
         updateMaxScroll();
@@ -161,6 +162,15 @@ public class ConfigEditorScreen extends Screen {
                 Config.CLIENT.showIndividualTooltips.get().toString(), true, "true",
                 "Show tooltip information for items locked by individual stages?"));
         clientSections.add(individualClient);
+
+        ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
+        dependenciesClient.add(new ConfigEntry("showDependenciesOnScroll", ConfigType.BOOLEAN,
+                Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true",
+                "Show dependency requirements in research scroll tooltips?"));
+        dependenciesClient.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
+                Config.CLIENT.hideFulfilledDependencies.get().toString(), true, "false",
+                "Hide already fulfilled dependencies in scroll tooltips?"));
+        clientSections.add(dependenciesClient);
 
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
@@ -282,6 +292,9 @@ public class ConfigEditorScreen extends Screen {
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
                 Config.COMMON.researchTimeInSeconds.get().toString(), false, "20",
                 "Default research time in seconds. Used as fallback if a stage does not define its own."));
+        research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
+                Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
+                "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
         commonSections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");
@@ -311,11 +324,14 @@ public class ConfigEditorScreen extends Screen {
 
     private boolean hasChanges() {
         List<ConfigSection> allSections = new ArrayList<>();
-        if (clientSections != null) allSections.addAll(clientSections);
-        if (commonSections != null) allSections.addAll(commonSections);
+        if (clientSections != null)
+            allSections.addAll(clientSections);
+        if (commonSections != null)
+            allSections.addAll(commonSections);
         for (ConfigSection section : allSections) {
             for (ConfigEntry entry : section.entries) {
-                if (!entry.value.equals(entry.initialValue)) return true;
+                if (!entry.value.equals(entry.initialValue))
+                    return true;
             }
         }
         return false;
@@ -432,7 +448,8 @@ public class ConfigEditorScreen extends Screen {
         // Scrollbar
         if (maxScroll > 0) {
             int scrollAreaHeight = listBottom - listTop;
-            int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+            int barHeight = Math.max(20,
+                    (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
             int barY = listTop + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
             guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
         }
@@ -441,7 +458,8 @@ public class ConfigEditorScreen extends Screen {
         if (hasChanges()) {
             int dotX = this.width / 2 + 55;
             guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, 0xFFFFCC00);
-            drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9, this.height - 24, 0xFFCC00);
+            drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9,
+                    this.height - 24, 0xFFCC00);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -474,11 +492,13 @@ public class ConfigEditorScreen extends Screen {
                 lines.add(line.toString());
                 line = new StringBuilder(word);
             } else {
-                if (line.length() > 0) line.append(" ");
+                if (line.length() > 0)
+                    line.append(" ");
                 line.append(word);
             }
         }
-        if (line.length() > 0) lines.add(line.toString());
+        if (line.length() > 0)
+            lines.add(line.toString());
 
         int tooltipW = 0;
         for (String l : lines) {
@@ -491,10 +511,14 @@ public class ConfigEditorScreen extends Screen {
         int tooltipY = mouseY - 4;
 
         // Keep on screen
-        if (tooltipX + tooltipW + 2 > this.width - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > this.height - 4) tooltipY = this.height - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
+        if (tooltipX + tooltipW + 2 > this.width - 4)
+            tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > this.height - 4)
+            tooltipY = this.height - tooltipH - 6;
+        if (tooltipX < 4)
+            tooltipX = 4;
+        if (tooltipY < 4)
+            tooltipY = 4;
 
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
         guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
@@ -508,7 +532,8 @@ public class ConfigEditorScreen extends Screen {
         guiGraphics.pose().popPose();
     }
 
-    private void renderConfigEntry(GuiGraphics guiGraphics, ConfigEntry entry, int left, int y, int right, int mouseX, int mouseY) {
+    private void renderConfigEntry(GuiGraphics guiGraphics, ConfigEntry entry, int left, int y, int right, int mouseX,
+            int mouseY) {
         boolean hovered = mouseX >= left && mouseX <= right && mouseY >= y && mouseY < y + ENTRY_HEIGHT;
         if (hovered) {
             guiGraphics.fill(left, y, right, y + ENTRY_HEIGHT, 0x15FFFFFF);
@@ -529,7 +554,8 @@ public class ConfigEditorScreen extends Screen {
                 int toggleColor = val ? 0x55FF55 : 0xFF5555;
                 boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
                         && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                if (toggleHovered) toggleColor = val ? 0x88FF88 : 0xFF8888;
+                if (toggleHovered)
+                    toggleColor = val ? 0x88FF88 : 0xFF8888;
                 guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
             }
             case INTEGER -> {
@@ -576,14 +602,16 @@ public class ConfigEditorScreen extends Screen {
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
                 if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     switchTab(i);
                     return true;
                 }
             }
         }
 
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+        if (super.mouseClicked(mouseX, mouseY, button))
+            return true;
 
         int listTop = HEADER_HEIGHT;
         int listBottom = this.height - 40;
@@ -614,7 +642,8 @@ public class ConfigEditorScreen extends Screen {
                     int labelWidth = this.font.width(label);
                     int controlX = contentLeft + Math.max(labelWidth + 20, 180);
                     if (mouseX >= controlX && mouseX <= contentRight - 5) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         handleEntryClick(entry);
                         return true;
                     }
@@ -664,7 +693,10 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
@@ -695,8 +727,8 @@ public class ConfigEditorScreen extends Screen {
                     parent,
                     Component.translatable("editor.historystages.unsaved_warning_title"),
                     Component.translatable("editor.historystages.unsaved_warning"),
-                    () -> {}
-            ));
+                    () -> {
+                    }));
         } else {
             this.minecraft.setScreen(parent);
         }
@@ -747,12 +779,17 @@ public class ConfigEditorScreen extends Screen {
                 case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "jadeShowInfo" -> Config.CLIENT.jadeShowInfo.set(Boolean.parseBoolean(value));
                 case "jadeStageName" -> Config.CLIENT.jadeStageName.set(Boolean.parseBoolean(value));
-                case "jadeShowAllUntilComplete" -> Config.CLIENT.jadeShowAllUntilComplete.set(Boolean.parseBoolean(value));
+                case "jadeShowAllUntilComplete" ->
+                    Config.CLIENT.jadeShowAllUntilComplete.set(Boolean.parseBoolean(value));
                 case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
                 case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
                 case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
+                case "showDependenciesOnScroll" ->
+                    Config.CLIENT.showDependenciesOnScroll.set(Boolean.parseBoolean(value));
+                case "hideFulfilledDependencies" ->
+                    Config.CLIENT.hideFulfilledDependencies.set(Boolean.parseBoolean(value));
             }
         }
     }
@@ -782,7 +819,8 @@ public class ConfigEditorScreen extends Screen {
         final String defaultValue;
         final String description;
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient, String defaultValue, String description) {
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient, String defaultValue,
+                String description) {
             this.key = key;
             this.type = type;
             this.value = value;
@@ -808,7 +846,8 @@ public class ConfigEditorScreen extends Screen {
 
     /**
      * Screen for editing an ITEM_LIST config entry (e.g. replacementItems).
-     * Shows a list of current items with remove buttons and an add button using SearchableItemList overlay.
+     * Shows a list of current items with remove buttons and an add button using
+     * SearchableItemList overlay.
      */
     static class ItemListEditorScreen extends Screen {
         private final ConfigEditorScreen parent;
@@ -829,7 +868,8 @@ public class ConfigEditorScreen extends Screen {
             if (!entry.value.isEmpty()) {
                 for (String s : entry.value.split(",")) {
                     String trimmed = s.trim();
-                    if (!trimmed.isEmpty()) items.add(trimmed);
+                    if (!trimmed.isEmpty())
+                        items.add(trimmed);
                 }
             }
         }
@@ -931,7 +971,8 @@ public class ConfigEditorScreen extends Screen {
             // Scrollbar
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
-                int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+                int barHeight = Math.max(20,
+                        (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
                 int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
             }
@@ -951,13 +992,15 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (itemOverlay != null) {
-                if (itemOverlay.mouseClicked(mouseX, mouseY)) return true;
+                if (itemOverlay.mouseClicked(mouseX, mouseY))
+                    return true;
                 // Click outside overlay closes it
                 itemOverlay = null;
                 return true;
             }
 
-            if (super.mouseClicked(mouseX, mouseY, button)) return true;
+            if (super.mouseClicked(mouseX, mouseY, button))
+                return true;
 
             int listBottom = this.height - 40;
             int contentLeft = 40;
@@ -1002,7 +1045,10 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseReleased(double mouseX, double mouseY, int button) {
-            if (draggingScrollbar) { draggingScrollbar = false; return true; }
+            if (draggingScrollbar) {
+                draggingScrollbar = false;
+                return true;
+            }
             return super.mouseReleased(mouseX, mouseY, button);
         }
 
@@ -1015,7 +1061,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-            if (itemOverlay != null) return itemOverlay.mouseScrolled(mouseX, mouseY, delta);
+            if (itemOverlay != null)
+                return itemOverlay.mouseScrolled(mouseX, mouseY, delta);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
             return true;
         }
@@ -1023,16 +1070,23 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
             if (itemOverlay != null) {
-                if (keyCode == 256) { itemOverlay = null; return true; }
+                if (keyCode == 256) {
+                    itemOverlay = null;
+                    return true;
+                }
                 return itemOverlay.keyPressed(keyCode);
             }
-            if (keyCode == 256) { saveAndClose(); return true; }
+            if (keyCode == 256) {
+                saveAndClose();
+                return true;
+            }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
         @Override
         public boolean charTyped(char c, int modifiers) {
-            if (itemOverlay != null) return itemOverlay.charTyped(c);
+            if (itemOverlay != null)
+                return itemOverlay.charTyped(c);
             return super.charTyped(c, modifiers);
         }
 
@@ -1042,12 +1096,15 @@ public class ConfigEditorScreen extends Screen {
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 
     /**
      * Screen for editing a TAG_LIST config entry (e.g. replacementTags).
-     * Shows a list of current tags with remove buttons and an add button using SearchableTagList overlay.
+     * Shows a list of current tags with remove buttons and an add button using
+     * SearchableTagList overlay.
      */
     static class TagListEditorScreen extends Screen {
         private final ConfigEditorScreen parent;
@@ -1068,7 +1125,8 @@ public class ConfigEditorScreen extends Screen {
             if (!entry.value.isEmpty()) {
                 for (String s : entry.value.split(",")) {
                     String trimmed = s.trim();
-                    if (!trimmed.isEmpty()) tags.add(trimmed);
+                    if (!trimmed.isEmpty())
+                        tags.add(trimmed);
                 }
             }
         }
@@ -1164,7 +1222,8 @@ public class ConfigEditorScreen extends Screen {
             // Scrollbar
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
-                int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+                int barHeight = Math.max(20,
+                        (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
                 int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
             }
@@ -1184,12 +1243,14 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
             if (tagOverlay != null) {
-                if (tagOverlay.mouseClicked(mouseX, mouseY)) return true;
+                if (tagOverlay.mouseClicked(mouseX, mouseY))
+                    return true;
                 tagOverlay = null;
                 return true;
             }
 
-            if (super.mouseClicked(mouseX, mouseY, button)) return true;
+            if (super.mouseClicked(mouseX, mouseY, button))
+                return true;
 
             int listBottom = this.height - 40;
             int contentLeft = 40;
@@ -1233,7 +1294,10 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseReleased(double mouseX, double mouseY, int button) {
-            if (draggingScrollbar) { draggingScrollbar = false; return true; }
+            if (draggingScrollbar) {
+                draggingScrollbar = false;
+                return true;
+            }
             return super.mouseReleased(mouseX, mouseY, button);
         }
 
@@ -1246,7 +1310,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-            if (tagOverlay != null) return tagOverlay.mouseScrolled(mouseX, mouseY, delta);
+            if (tagOverlay != null)
+                return tagOverlay.mouseScrolled(mouseX, mouseY, delta);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
             return true;
         }
@@ -1254,16 +1319,23 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
             if (tagOverlay != null) {
-                if (keyCode == 256) { tagOverlay = null; return true; }
+                if (keyCode == 256) {
+                    tagOverlay = null;
+                    return true;
+                }
                 return tagOverlay.keyPressed(keyCode);
             }
-            if (keyCode == 256) { saveAndClose(); return true; }
+            if (keyCode == 256) {
+                saveAndClose();
+                return true;
+            }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
         @Override
         public boolean charTyped(char c, int modifiers) {
-            if (tagOverlay != null) return tagOverlay.charTyped(c);
+            if (tagOverlay != null)
+                return tagOverlay.charTyped(c);
             return super.charTyped(c, modifiers);
         }
 
@@ -1273,7 +1345,9 @@ public class ConfigEditorScreen extends Screen {
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 
     /**

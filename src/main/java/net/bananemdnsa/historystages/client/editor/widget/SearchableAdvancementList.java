@@ -1,33 +1,31 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import net.minecraft.advancements.Advancement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Searchable overlay list of all registered item tags.
+ * Searchable overlay list of all known advancements.
+ * Populated from the client's advancement data.
  */
-public class SearchableTagList {
+public class SearchableAdvancementList {
     private static final int ROW_HEIGHT = 16;
     private static final int VISIBLE_ROWS = 10;
     private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
-    private static final int PANEL_WIDTH = 260;
+    private static final int PANEL_WIDTH = 300;
 
-    private final List<String> allTags = new ArrayList<>();
-    private final List<String> filteredTags = new ArrayList<>();
+    private final List<String> allAdvancements = new ArrayList<>();
+    private final List<String> filteredAdvancements = new ArrayList<>();
     private final Consumer<String> onSelect;
 
     private int panelX, panelY, panelW, panelH;
@@ -39,18 +37,35 @@ public class SearchableTagList {
     private boolean draggingScrollbar = false;
     private boolean allSelected = false;
 
-    public SearchableTagList(Consumer<String> onSelect) {
-        this.onSelect = onSelect;
+    // Marquee
+    private int hoveredRow = -1;
+    private long hoverStartTime = 0;
+    private static final long MARQUEE_DELAY_MS = 800;
+    private static final float MARQUEE_SPEED = 25.0f;
 
-        // Collect all item tag keys
-        ForgeRegistries.ITEMS.tags().getTagNames().forEach(tagKey -> {
-            allTags.add(tagKey.location().toString());
-        });
-        allTags.sort(String::compareToIgnoreCase);
-        filteredTags.addAll(allTags);
+    public SearchableAdvancementList(Consumer<String> onSelect) {
+        this.onSelect = onSelect;
+        rebuildList();
+    }
+
+    private void rebuildList() {
+        allAdvancements.clear();
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection != null) {
+            try {
+                for (Advancement adv : connection.getAdvancements().getAdvancements().getAllAdvancements()) {
+                    if (adv.getId() != null) {
+                        allAdvancements.add(adv.getId().toString());
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        allAdvancements.sort(String::compareToIgnoreCase);
     }
 
     public void show(int centerX, int centerY, int parentWidth) {
+        rebuildList();
         panelW = PANEL_WIDTH;
         panelH = SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         panelX = centerX - panelW / 2;
@@ -64,9 +79,7 @@ public class SearchableTagList {
         this.scrollRow = 0;
         this.filter = "";
         this.searchFocused = true;
-        filteredTags.clear();
-        filteredTags.addAll(allTags);
-        updateMaxScroll();
+        setFilter("");
     }
 
     public void hide() {
@@ -80,13 +93,13 @@ public class SearchableTagList {
     public void setFilter(String filter) {
         this.filter = filter.toLowerCase();
         this.scrollRow = 0;
-        filteredTags.clear();
+        filteredAdvancements.clear();
         if (this.filter.isEmpty()) {
-            filteredTags.addAll(allTags);
+            filteredAdvancements.addAll(allAdvancements);
         } else {
-            for (String tag : allTags) {
-                if (tag.toLowerCase().contains(this.filter)) {
-                    filteredTags.add(tag);
+            for (String adv : allAdvancements) {
+                if (adv.toLowerCase().contains(this.filter)) {
+                    filteredAdvancements.add(adv);
                 }
             }
         }
@@ -94,7 +107,7 @@ public class SearchableTagList {
     }
 
     private void updateMaxScroll() {
-        maxScrollRow = Math.max(0, filteredTags.size() - VISIBLE_ROWS);
+        maxScrollRow = Math.max(0, filteredAdvancements.size() - VISIBLE_ROWS);
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -112,7 +125,7 @@ public class SearchableTagList {
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "\u00A77Search tags..." : filter;
+        String displayFilter = filter.isEmpty() ? "\u00A77Search advancements..." : filter;
 
         if (allSelected && !filter.isEmpty()) {
             int textW = font.width(filter);
@@ -132,23 +145,56 @@ public class SearchableTagList {
         int listY = searchY + SEARCH_HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
+        boolean anyRowHovered = false;
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+            if (rowHovered)
+                anyRowHovered = true;
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
 
-            if (index < filteredTags.size()) {
-                String text = filteredTags.get(index);
-                if (font.width(text) > listW - 4) {
-                    text = font.plainSubstrByWidth(text, listW - 10) + "...";
+            if (index < filteredAdvancements.size()) {
+                String text = filteredAdvancements.get(index);
+                int textW = font.width(text);
+                int textAvailW = listW - 6;
+                int textColor = rowHovered ? 0xFFFFFF : 0xBBBBBB;
+
+                if (rowHovered) {
+                    if (hoveredRow != index) {
+                        hoveredRow = index;
+                        hoverStartTime = System.currentTimeMillis();
+                    }
                 }
-                guiGraphics.drawString(font, text, listX + 3, rowY + 4, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+
+                if (textW > textAvailW && rowHovered && hoveredRow == index) {
+                    long elapsed = System.currentTimeMillis() - hoverStartTime;
+                    if (elapsed > MARQUEE_DELAY_MS) {
+                        float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                        int maxMarquee = textW - textAvailW + 10;
+                        float cycle = (float) maxMarquee * 2;
+                        float pos = scrollProg % cycle;
+                        int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                        guiGraphics.enableScissor(listX, rowY, listX + listW, rowY + ROW_HEIGHT);
+                        guiGraphics.drawString(font, text, listX + 3 - scrollOff, rowY + 4, textColor, false);
+                        guiGraphics.disableScissor();
+                    } else {
+                        guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                                rowY + 4, textColor, false);
+                    }
+                } else if (textW > textAvailW) {
+                    guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                            rowY + 4, textColor, false);
+                } else {
+                    guiGraphics.drawString(font, text, listX + 3, rowY + 4, textColor, false);
+                }
             }
         }
+        if (!anyRowHovered)
+            hoveredRow = -1;
 
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -192,11 +238,11 @@ public class SearchableTagList {
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
-            if (index < filteredTags.size() && mouseX >= listX && mouseX < listX + listW
+            if (index < filteredAdvancements.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                onSelect.accept(filteredTags.get(index));
+                onSelect.accept(filteredAdvancements.get(index));
                 hide();
                 return true;
             }
@@ -285,7 +331,7 @@ public class SearchableTagList {
     public boolean charTyped(char c) {
         if (!visible || !searchFocused)
             return false;
-        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ' ' || c == '.' || c == ':' || c == '/') {
+        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':' || c == '/' || c == ' ') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
             allSelected = false;
             return true;

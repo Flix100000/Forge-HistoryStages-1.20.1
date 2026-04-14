@@ -5,7 +5,10 @@ import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
+import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
+import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -94,6 +97,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private int syncTickDelay = -1;
     private UUID ownerUUID = null;
     private UUID lastInteractingPlayer = null;
+    private boolean dependenciesMet = true; // Tracks if current stage's dependencies are fulfilled
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.RESEARCH_PEDESTAL_BE.get(), pPos, pBlockState);
@@ -105,6 +109,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 1 -> ResearchPedestalBlockEntity.this.getMaxProgressForCurrentStage();
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay;
                     case 3 -> ResearchPedestalBlockEntity.this.isCurrentScrollIndividual() ? 1 : 0;
+                    case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet ? 1 : 0;
                     default -> 0;
                 };
             }
@@ -114,12 +119,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 switch (pIndex) {
                     case 0 -> ResearchPedestalBlockEntity.this.progress = pValue;
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay = pValue;
+                    case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet = pValue == 1;
                 }
             }
 
             @Override
             public int getCount() {
-                return 4;
+                return 5;
             }
         };
     }
@@ -184,20 +190,47 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
 
             if (!alreadyUnlocked) {
-                isResearching = true;
-                if (entity.progress < maxProgress) {
-                    entity.progress++;
-                    if (entity.progress % 10 == 0) {
-                        CompoundTag nbt = stack.getOrCreateTag();
-                        nbt.putInt("ResearchProgress", entity.progress);
-                        nbt.putInt("MaxProgress", maxProgress);
-                    }
-                } else {
-                    entity.finishDelay++;
-                    if (entity.finishDelay >= 20) {
-                        entity.finishResearch(stack);
+                // Check non-item dependencies before allowing research
+                boolean dependenciesMet = true;
+                if (!isCreative) {
+                    StageEntry stageEntry = isIndividual
+                            ? StageManager.getIndividualStages().get(stageId)
+                            : StageManager.getStages().get(stageId);
+                    if (stageEntry != null && stageEntry.hasDependencies()) {
+                        // Find the researching player for dependency checks
+                        net.minecraft.server.level.ServerPlayer researchPlayer = null;
+                        UUID checkUUID = isIndividual ? entity.ownerUUID : entity.lastInteractingPlayer;
+                        if (checkUUID != null && level.getServer() != null) {
+                            researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
+                        }
+                        if (researchPlayer != null) {
+                            DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level);
+                            dependenciesMet = result.isFulfilled();
+                        } else {
+                            // No player available to check - pause research
+                            dependenciesMet = false;
+                        }
                     }
                 }
+
+                entity.dependenciesMet = dependenciesMet;
+                if (dependenciesMet) {
+                    isResearching = true;
+                    if (entity.progress < maxProgress) {
+                        entity.progress++;
+                        if (entity.progress % 10 == 0) {
+                            CompoundTag nbt = stack.getOrCreateTag();
+                            nbt.putInt("ResearchProgress", entity.progress);
+                            nbt.putInt("MaxProgress", maxProgress);
+                        }
+                    } else {
+                        entity.finishDelay++;
+                        if (entity.finishDelay >= 20) {
+                            entity.finishResearch(stack);
+                        }
+                    }
+                }
+                // If dependencies not met, research pauses (progress stays, no increment)
             } else {
                 entity.progress = 0;
             }
@@ -215,6 +248,23 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private void finishResearch(ItemStack stack) {
         if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
+
+            // Consume dependency items and XP before unlocking
+            if (!ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                StageEntry stageEntry = StageManager.isIndividualStage(stageId)
+                        ? StageManager.getIndividualStages().get(stageId)
+                        : StageManager.getStages().get(stageId);
+                if (stageEntry != null && stageEntry.hasDependencies()) {
+                    UUID consumeUUID = StageManager.isIndividualStage(stageId) ? ownerUUID : lastInteractingPlayer;
+                    if (consumeUUID != null && level.getServer() != null) {
+                        net.minecraft.server.level.ServerPlayer player = level.getServer().getPlayerList().getPlayer(consumeUUID);
+                        if (player != null) {
+                            DependencyChecker.consumeItems(player, stageEntry.getDependencies());
+                            DependencyChecker.consumeXp(player, stageEntry.getDependencies());
+                        }
+                    }
+                }
+            }
 
             if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
                 finishCreativeResearch();

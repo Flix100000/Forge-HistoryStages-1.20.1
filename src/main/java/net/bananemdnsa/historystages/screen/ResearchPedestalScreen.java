@@ -82,6 +82,11 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 }
                 guiGraphics.drawString(this.font, prefix + stageName, 8, 18, nameColor, false);
 
+                // Dependency status warning
+                if (!menu.areDependenciesMet()) {
+                    guiGraphics.drawString(this.font, "\u00A7c\u26A0 Dependencies not met", 48, 28, COLOR_ERROR, false);
+                }
+
                 // Lines 3-4: Progress + Time
                 if (stack.getTag().contains("ResearchProgress")) {
                     int currentProgress = stack.getTag().getInt("ResearchProgress");

@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +31,7 @@ public class StageEntry {
     private List<String> recipes;
     private List<String> dimensions;
     private EntityLocks entities;
+    private List<DependencyGroup> dependencies;
 
     public StageEntry() {
         this.items = new ArrayList<>();
@@ -122,6 +124,15 @@ public class StageEntry {
         return entities != null ? entities : new EntityLocks();
     }
 
+    public List<DependencyGroup> getDependencies() {
+        return dependencies != null ? dependencies : new ArrayList<>();
+    }
+
+    public boolean hasDependencies() {
+        if (dependencies == null || dependencies.isEmpty()) return false;
+        return dependencies.stream().anyMatch(g -> !g.isEmpty());
+    }
+
     // --- Setters ---
 
     public void setDisplayName(String displayName) {
@@ -184,6 +195,10 @@ public class StageEntry {
         this.entities = entities != null ? entities : new EntityLocks();
     }
 
+    public void setDependencies(List<DependencyGroup> dependencies) {
+        this.dependencies = dependencies != null ? new ArrayList<>(dependencies) : new ArrayList<>();
+    }
+
     public StageEntry copy() {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
@@ -199,6 +214,7 @@ public class StageEntry {
         locksCopy.setSpawnlock(getEntities().getSpawnlock());
         locksCopy.setModLinked(getEntities().getModLinked());
         copy.setEntities(locksCopy);
+        copy.setDependencies(getDependencies().stream().map(DependencyGroup::copy).collect(Collectors.toList()));
         return copy;
     }
 

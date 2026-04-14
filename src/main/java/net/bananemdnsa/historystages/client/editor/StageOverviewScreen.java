@@ -113,8 +113,10 @@ public class StageOverviewScreen extends Screen {
     }
 
     private boolean matchesFilter(String stageId, StageEntry entry, String query) {
-        if (stageId.toLowerCase().contains(query)) return true;
-        if (entry != null && entry.getDisplayName().toLowerCase().contains(query)) return true;
+        if (stageId.toLowerCase().contains(query))
+            return true;
+        if (entry != null && entry.getDisplayName().toLowerCase().contains(query))
+            return true;
         return false;
     }
 
@@ -129,10 +131,12 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        // Refresh stage list if another admin changed definitions (broadcast via SyncStageDefinitionsPacket)
+        // Refresh stage list if another admin changed definitions (broadcast via
+        // SyncStageDefinitionsPacket)
         int currentCount = StageManager.getStages().size();
         int currentIndividualCount = StageManager.getIndividualStages().size();
-        if (currentCount != lastKnownStageCount || !StageManager.getStages().keySet().containsAll(stageOrder) || !stageOrder.containsAll(StageManager.getStages().keySet())
+        if (currentCount != lastKnownStageCount || !StageManager.getStages().keySet().containsAll(stageOrder)
+                || !stageOrder.containsAll(StageManager.getStages().keySet())
                 || currentIndividualCount != lastKnownIndividualCount) {
             stageOrder = StageManager.getStageOrder();
             individualStageOrder = StageManager.getIndividualStageOrder();
@@ -143,7 +147,8 @@ public class StageOverviewScreen extends Screen {
 
         // Smooth scroll
         smoothScroll += ((float) scrollOffset - smoothScroll) * 0.25f;
-        if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f) smoothScroll = (float) scrollOffset;
+        if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f)
+            smoothScroll = (float) scrollOffset;
 
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
@@ -194,26 +199,35 @@ public class StageOverviewScreen extends Screen {
         for (int i = 0; i < filteredStageOrder.size(); i++) {
             String stageId = filteredStageOrder.get(i);
             StageEntry entry = stages.get(stageId);
-            if (entry == null) continue;
+            if (entry == null)
+                continue;
 
             int entryTop = y + i * ENTRY_HEIGHT;
             int entryBottom = entryTop + ENTRY_HEIGHT - 2;
 
-            if (entryBottom < listTop || entryTop > listBottom) { continue; }
+            if (entryBottom < listTop || entryTop > listBottom) {
+                continue;
+            }
 
-            // Lock button bounds (calculated early for hover exclusion)
-            int lockBtnX = listRight - 60;
+            boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
+            String lockLabel = Component
+                    .translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
+            int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
+            int lockBtnX = listRight - lockBtnW - 10;
             int lockBtnY = entryTop + 5;
-            int lockBtnW = 50;
             int lockBtnH = 16;
             boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
                     && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
 
             boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
-                    && effectiveMouseY >= Math.max(entryTop, listTop) && effectiveMouseY <= Math.min(entryBottom, listBottom)
+                    && effectiveMouseY >= Math.max(entryTop, listTop)
+                    && effectiveMouseY <= Math.min(entryBottom, listBottom)
                     && !onLockBtn;
 
-            if (hovered) { currentHovered = i; currentHoveredStage = i; }
+            if (hovered) {
+                currentHovered = i;
+                currentHoveredStage = i;
+            }
 
             // Smooth hover animation (0.0 -> 1.0)
             float progress = hoverProgress.getOrDefault(i, 0.0f);
@@ -222,8 +236,10 @@ public class StageOverviewScreen extends Screen {
             } else {
                 progress = Math.max(0.0f, progress - 0.06f);
             }
-            if (progress > 0.001f) hoverProgress.put(i, progress);
-            else hoverProgress.remove(i);
+            if (progress > 0.001f)
+                hoverProgress.put(i, progress);
+            else
+                hoverProgress.remove(i);
 
             // Animated background - subtle gold tint on hover
             int bgAlpha = (int) (0x20 + progress * 0x25);
@@ -239,16 +255,14 @@ public class StageOverviewScreen extends Screen {
             }
 
             // Lock/unlock icon
-            boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
             String icon = unlocked ? "\u2714" : "\uD83D\uDD12";
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
 
-            // Stage name with marquee for long names
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
             int nameX = listLeft + 22;
-            int nameAvailW = (listRight - 60) - nameX - 5; // account for lock button
+            int nameAvailW = (listRight - lockBtnW - 10) - nameX - 5; // account for lock button
             int nameW = this.font.width(displayText);
 
             if (nameW > nameAvailW && hovered && i == hoveredStageIndex) {
@@ -269,13 +283,19 @@ public class StageOverviewScreen extends Screen {
                 guiGraphics.drawString(this.font, displayText, nameX, entryTop + 4, nameColor, false);
             }
 
-            // Item count info
+            // Item count info + dependency badge
             int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                     + entry.getRecipes().size() + entry.getDimensions().size()
                     + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
-            guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+            guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15,
+                    (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+
+            if (entry.hasDependencies()) {
+                int depBadgeX = listLeft + 22 + this.font.width(info) + 6;
+                guiGraphics.drawString(this.font, "\u00A76[Dep]", depBadgeX, entryTop + 15, 0xFFAA55, false);
+            }
 
             // Lock/Unlock toggle button (right side) - bounds already calculated above
             boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
@@ -286,10 +306,10 @@ public class StageOverviewScreen extends Screen {
             int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
             guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
 
-            String lockLabel = Component.translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
             int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
             int textW = this.font.width(lockLabel);
-            guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor, false);
+            guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor,
+                    false);
         }
 
         // --- Individual Stages Section ---
@@ -310,20 +330,27 @@ public class StageOverviewScreen extends Screen {
             for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
                 String stageId = filteredIndividualStageOrder.get(i);
                 StageEntry entry = individualStages.get(stageId);
-                if (entry == null) continue;
+                if (entry == null)
+                    continue;
 
                 int entryTop = indY + i * ENTRY_HEIGHT;
                 int entryBottom = entryTop + ENTRY_HEIGHT - 2;
 
-                if (entryBottom < listTop || entryTop > listBottom) continue;
+                if (entryBottom < listTop || entryTop > listBottom)
+                    continue;
 
-                // Unique hover key for individual stages (offset to avoid collision with global)
+                // Unique hover key for individual stages (offset to avoid collision with
+                // global)
                 int hoverKey = 10000 + i;
 
                 boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
-                        && effectiveMouseY >= Math.max(entryTop, listTop) && effectiveMouseY <= Math.min(entryBottom, listBottom);
+                        && effectiveMouseY >= Math.max(entryTop, listTop)
+                        && effectiveMouseY <= Math.min(entryBottom, listBottom);
 
-                if (hovered) { currentHovered = hoverKey; currentHoveredStage = hoverKey; }
+                if (hovered) {
+                    currentHovered = hoverKey;
+                    currentHoveredStage = hoverKey;
+                }
 
                 float progress = hoverProgress.getOrDefault(hoverKey, 0.0f);
                 if (hovered) {
@@ -331,8 +358,10 @@ public class StageOverviewScreen extends Screen {
                 } else {
                     progress = Math.max(0.0f, progress - 0.06f);
                 }
-                if (progress > 0.001f) hoverProgress.put(hoverKey, progress);
-                else hoverProgress.remove(hoverKey);
+                if (progress > 0.001f)
+                    hoverProgress.put(hoverKey, progress);
+                else
+                    hoverProgress.remove(hoverKey);
 
                 // Animated background - subtle silver tint on hover
                 int bgAlpha = (int) (0x20 + progress * 0x25);
@@ -365,7 +394,8 @@ public class StageOverviewScreen extends Screen {
                         float pos = scrollProg % cycle;
                         int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
                         guiGraphics.enableScissor(nameX, entryTop, nameX + nameAvailW, entryBottom);
-                        guiGraphics.drawString(this.font, displayText, nameX - scrollOff, entryTop + 4, nameColor, false);
+                        guiGraphics.drawString(this.font, displayText, nameX - scrollOff, entryTop + 4, nameColor,
+                                false);
                         guiGraphics.disableScissor();
                     } else {
                         guiGraphics.drawString(this.font, displayText, nameX, entryTop + 4, nameColor, false);
@@ -374,13 +404,19 @@ public class StageOverviewScreen extends Screen {
                     guiGraphics.drawString(this.font, displayText, nameX, entryTop + 4, nameColor, false);
                 }
 
-                // Item count info
+                // Item count info + dependency badge
                 int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                         + entry.getDimensions().size()
                         + entry.getEntities().getAttacklock().size();
                 String info = itemCount + " entries";
                 int infoColor = (int) (0x88 + progress * 0x33);
-                guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+                guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15,
+                        (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+
+                if (entry.hasDependencies()) {
+                    int depBadgeX = listLeft + 22 + this.font.width(info) + 6;
+                    guiGraphics.drawString(this.font, "\u00A76[Dep]", depBadgeX, entryTop + 15, 0xFFAA55, false);
+                }
             }
         }
 
@@ -395,8 +431,10 @@ public class StageOverviewScreen extends Screen {
         guiGraphics.disableScissor();
 
         if (maxScroll > 0) {
-            int scrollBarHeight = Math.max(20, (int) ((float) (listBottom - listTop) / (maxScroll + (listBottom - listTop)) * (listBottom - listTop)));
-            int scrollBarY = listTop + (int) ((float) scrollOffset / maxScroll * (listBottom - listTop - scrollBarHeight));
+            int scrollBarHeight = Math.max(20, (int) ((float) (listBottom - listTop)
+                    / (maxScroll + (listBottom - listTop)) * (listBottom - listTop)));
+            int scrollBarY = listTop
+                    + (int) ((float) scrollOffset / maxScroll * (listBottom - listTop - scrollBarHeight));
             guiGraphics.fill(listRight + 2, scrollBarY, listRight + 5, scrollBarY + scrollBarHeight, 0x80FFFFFF);
         }
 
@@ -420,7 +458,8 @@ public class StageOverviewScreen extends Screen {
             return true;
         }
 
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+        if (super.mouseClicked(mouseX, mouseY, button))
+            return true;
 
         int listTop = HEADER_HEIGHT + 5;
         int listBottom = this.height - 40;
@@ -434,7 +473,8 @@ public class StageOverviewScreen extends Screen {
             return true;
         }
 
-        if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom) return false;
+        if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom)
+            return false;
 
         Map<String, StageEntry> stages = StageManager.getStages();
         Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
@@ -444,7 +484,8 @@ public class StageOverviewScreen extends Screen {
         for (int i = 0; i < filteredStageOrder.size(); i++) {
             String stageId = filteredStageOrder.get(i);
             StageEntry entry = stages.get(stageId);
-            if (entry == null) continue;
+            if (entry == null)
+                continue;
 
             int entryTop = y + i * ENTRY_HEIGHT;
             int entryBottom = entryTop + ENTRY_HEIGHT - 2;
@@ -452,11 +493,16 @@ public class StageOverviewScreen extends Screen {
             if (mouseY >= entryTop && mouseY <= entryBottom) {
                 // Check lock/unlock button click
                 boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
-                int lockBtnX = listRight - 60;
+                String lockLabel = Component
+                        .translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock")
+                        .getString();
+                int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
+                int lockBtnX = listRight - lockBtnW - 10;
                 int lockBtnY = entryTop + 5;
-                if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + 50
+                if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + lockBtnW
                         && mouseY >= lockBtnY && mouseY <= lockBtnY + 16) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     PacketHandler.sendToServer(new ToggleStageLockPacket(stageId, !unlocked));
                     return true;
                 }
@@ -475,15 +521,22 @@ public class StageOverviewScreen extends Screen {
                         this.minecraft.setScreen(new ConfirmDialog(this,
                                 Component.translatable("editor.historystages.confirm_delete_title"),
                                 Component.translatable("editor.historystages.confirm_delete", stageId),
-                                () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, false)); stageOrder.remove(stageId); applyFilter(); Minecraft.getInstance().setScreen(self); }));
+                                () -> {
+                                    PacketHandler.sendToServer(new DeleteStagePacket(stageId, false));
+                                    stageOrder.remove(stageId);
+                                    applyFilter();
+                                    Minecraft.getInstance().setScreen(self);
+                                }));
                     });
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     contextMenu.show((int) mouseX, (int) mouseY, this.font);
                     return true;
                 }
 
                 // Left-click on stage entry -> open detail editor
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, false));
                 return true;
             }
@@ -495,7 +548,8 @@ public class StageOverviewScreen extends Screen {
             for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
                 String stageId = filteredIndividualStageOrder.get(i);
                 StageEntry entry = individualStages.get(stageId);
-                if (entry == null) continue;
+                if (entry == null)
+                    continue;
 
                 int entryTop = indY + i * ENTRY_HEIGHT;
                 int entryBottom = entryTop + ENTRY_HEIGHT - 2;
@@ -506,23 +560,31 @@ public class StageOverviewScreen extends Screen {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
                             this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, true));
                         });
-                        contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(), () -> {
-                            openStageIdInputDialog(stageId, true);
-                        });
+                        contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(),
+                                () -> {
+                                    openStageIdInputDialog(stageId, true);
+                                });
                         contextMenu.addEntry(Component.translatable("editor.historystages.delete").getString(), () -> {
                             Screen self = this;
                             this.minecraft.setScreen(new ConfirmDialog(this,
                                     Component.translatable("editor.historystages.confirm_delete_title"),
                                     Component.translatable("editor.historystages.confirm_delete", stageId),
-                                    () -> { PacketHandler.sendToServer(new DeleteStagePacket(stageId, true)); individualStageOrder.remove(stageId); applyFilter(); Minecraft.getInstance().setScreen(self); }));
+                                    () -> {
+                                        PacketHandler.sendToServer(new DeleteStagePacket(stageId, true));
+                                        individualStageOrder.remove(stageId);
+                                        applyFilter();
+                                        Minecraft.getInstance().setScreen(self);
+                                    }));
                         });
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         contextMenu.show((int) mouseX, (int) mouseY, this.font);
                         return true;
                     }
 
                     // Left-click -> open detail editor (individual mode)
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, true));
                     return true;
                 }
@@ -555,20 +617,40 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
-        int scrollAreaHeight = listBottom - listTop;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
-        scrollOffset = Math.round(ratio * maxScroll);
-        scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        int listH = listBottom - listTop;
+        int totalH = maxScroll + listH;
+        int thumbHeight = Math.max(20, (int) ((float) listH / totalH * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listTop - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollOffset = Math.round(ratio * maxScroll);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        }
     }
 
-    @Override public boolean shouldCloseOnEsc() { return true; }
-    @Override public void onClose() { this.minecraft.setScreen(null); }
-    @Override public boolean isPauseScreen() { return true; }
+    @Override
+    public boolean shouldCloseOnEsc() {
+        return true;
+    }
+
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(null);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return true;
+    }
 
     /**
      * Dialog screen that asks for a Stage ID before creating/duplicating a stage.
@@ -624,10 +706,17 @@ public class StageOverviewScreen extends Screen {
 
         private void confirmId() {
             String id = idField.getValue().trim();
-            if (id.isEmpty()) { errorMessage = Component.translatable("editor.historystages.id_empty").getString(); return; }
-            if (!id.matches("[a-zA-Z0-9_\\-]+")) { errorMessage = Component.translatable("editor.historystages.id_invalid").getString(); return; }
+            if (id.isEmpty()) {
+                errorMessage = Component.translatable("editor.historystages.id_empty").getString();
+                return;
+            }
+            if (!id.matches("[a-zA-Z0-9_\\-]+")) {
+                errorMessage = Component.translatable("editor.historystages.id_invalid").getString();
+                return;
+            }
             if (StageManager.getStages().containsKey(id) || StageManager.getIndividualStages().containsKey(id)) {
-                errorMessage = Component.translatable("editor.historystages.id_exists").getString(); return;
+                errorMessage = Component.translatable("editor.historystages.id_exists").getString();
+                return;
             }
 
             if (duplicateFromId != null) {
@@ -638,7 +727,9 @@ public class StageOverviewScreen extends Screen {
                     StageEntry copy = source.copy();
                     PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual));
                     this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
-                } else { this.minecraft.setScreen(parent); }
+                } else {
+                    this.minecraft.setScreen(parent);
+                }
             } else {
                 this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual));
             }
@@ -646,8 +737,14 @@ public class StageOverviewScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (dropdownOpen && keyCode == 256) { dropdownOpen = false; return true; }
-            if (keyCode == 257) { confirmId(); return true; }
+            if (dropdownOpen && keyCode == 256) {
+                dropdownOpen = false;
+                return true;
+            }
+            if (keyCode == 257) {
+                confirmId();
+                return true;
+            }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
@@ -712,7 +809,8 @@ public class StageOverviewScreen extends Screen {
             guiGraphics.fill(boxX + 1, boxY + 1, boxX + boxW - 1, boxY + boxH - 1, 0xFF1A1A1A);
 
             String title = duplicateFromId != null
-                    ? Component.translatable("editor.historystages.duplicate").getString() + " \u2014 " + duplicateFromId
+                    ? Component.translatable("editor.historystages.duplicate").getString() + " \u2014 "
+                            + duplicateFromId
                     : Component.translatable("editor.historystages.new_stage").getString();
             guiGraphics.drawCenteredString(this.font, title, this.width / 2, boxY + 6, 0xFFFFFF);
 
@@ -761,8 +859,10 @@ public class StageOverviewScreen extends Screen {
                 // "Global" option
                 boolean globalHov = mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
                         && mouseY >= optY && mouseY < optY + optH;
-                if (globalHov) guiGraphics.fill(dropdownX, optY, dropdownX + dropdownW, optY + optH, 0x30FFCC00);
-                if (!individual) guiGraphics.fill(dropdownX, optY, dropdownX + 2, optY + optH, 0xFFFFCC00);
+                if (globalHov)
+                    guiGraphics.fill(dropdownX, optY, dropdownX + dropdownW, optY + optH, 0x30FFCC00);
+                if (!individual)
+                    guiGraphics.fill(dropdownX, optY, dropdownX + 2, optY + optH, 0xFFFFCC00);
                 guiGraphics.drawString(this.font, "Global", dropdownX + 6, optY + 4,
                         globalHov ? 0xFFFFFF : (!individual ? 0xFFCC00 : 0xAAAAAA), false);
 
@@ -770,8 +870,10 @@ public class StageOverviewScreen extends Screen {
                 int indOptY = optY + optH;
                 boolean indHov = mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
                         && mouseY >= indOptY && mouseY < indOptY + optH;
-                if (indHov) guiGraphics.fill(dropdownX, indOptY, dropdownX + dropdownW, indOptY + optH, 0x30BBBBBB);
-                if (individual) guiGraphics.fill(dropdownX, indOptY, dropdownX + 2, indOptY + optH, 0xFFBBBBBB);
+                if (indHov)
+                    guiGraphics.fill(dropdownX, indOptY, dropdownX + dropdownW, indOptY + optH, 0x30BBBBBB);
+                if (individual)
+                    guiGraphics.fill(dropdownX, indOptY, dropdownX + 2, indOptY + optH, 0xFFBBBBBB);
                 guiGraphics.drawString(this.font, "Individual", dropdownX + 6, indOptY + 4,
                         indHov ? 0xFFFFFF : (individual ? 0xBBBBBB : 0xAAAAAA), false);
 
@@ -779,6 +881,9 @@ public class StageOverviewScreen extends Screen {
             }
         }
 
-        @Override public void onClose() { this.minecraft.setScreen(parent); }
+        @Override
+        public void onClose() {
+            this.minecraft.setScreen(parent);
+        }
     }
 }

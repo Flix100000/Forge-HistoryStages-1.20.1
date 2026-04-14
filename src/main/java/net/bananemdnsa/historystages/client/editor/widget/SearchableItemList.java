@@ -22,7 +22,8 @@ import java.util.function.Consumer;
 /**
  * Creative menu-style item grid with search bar.
  * Rendered as an overlay panel within the parent screen.
- * Supports toggling to an inventory view that mirrors the vanilla inventory layout.
+ * Supports toggling to an inventory view that mirrors the vanilla inventory
+ * layout.
  */
 public class SearchableItemList {
     private static final int SLOT_SIZE = 18;
@@ -91,7 +92,8 @@ public class SearchableItemList {
     private void recalcPanelSize() {
         if (inventoryMode) {
             // Vanilla inventory layout:
-            // Top area: armor (1 col) + player entity + offhand (1 col)  —  spanning 9 slot-widths
+            // Top area: armor (1 col) + player entity + offhand (1 col) — spanning 9
+            // slot-widths
             // Below: 3x9 main inventory
             // Below: 1x9 hotbar
             // Below: add button
@@ -118,10 +120,14 @@ public class SearchableItemList {
     private void clampToScreen() {
         int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
-        if (panelX + panelW > screenW - 4) panelX = screenW - panelW - 4;
-        if (panelY + panelH > screenH - 4) panelY = screenH - panelH - 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
+        if (panelX + panelW > screenW - 4)
+            panelX = screenW - panelW - 4;
+        if (panelY + panelH > screenH - 4)
+            panelY = screenH - panelH - 4;
     }
 
     public void hide() {
@@ -186,7 +192,8 @@ public class SearchableItemList {
     // --- Rendering ---
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
         // Panel background
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
@@ -203,7 +210,7 @@ public class SearchableItemList {
 
     private void renderTabs(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int tabY = panelY + PADDING;
-        String[] labels = {"Registry", "Inventory"};
+        String[] labels = { "Registry", "Inventory" };
         int[] tabXs = new int[2];
         int[] tabWs = new int[2];
 
@@ -228,8 +235,10 @@ public class SearchableItemList {
         float targetW = tabWs[activeIdx];
         tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
         tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+        if (Math.abs(tabIndicatorX - targetX) < 0.5f)
+            tabIndicatorX = targetX;
+        if (Math.abs(tabIndicatorW - targetW) < 0.5f)
+            tabIndicatorW = targetW;
 
         // Render tabs
         for (int i = 0; i < 2; i++) {
@@ -249,7 +258,8 @@ public class SearchableItemList {
                 (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
 
         // Separator line
-        guiGraphics.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1, 0xFF555555);
+        guiGraphics.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1,
+                0xFF555555);
     }
 
     private void renderRegistryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -268,11 +278,13 @@ public class SearchableItemList {
                     lines.add(line.toString());
                     line = new StringBuilder(word);
                 } else {
-                    if (line.length() > 0) line.append(" ");
+                    if (line.length() > 0)
+                        line.append(" ");
                     line.append(word);
                 }
             }
-            if (line.length() > 0) lines.add(line.toString());
+            if (line.length() > 0)
+                lines.add(line.toString());
 
             int totalH = lines.size() * 10;
             int startY = panelY + topOffset + (panelH - topOffset - totalH) / 2;
@@ -300,7 +312,8 @@ public class SearchableItemList {
             guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
         }
 
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF, false);
+        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF,
+                false);
 
         if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
             int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
@@ -373,22 +386,26 @@ public class SearchableItemList {
         int gridX = panelX + PADDING + 4; // left edge of 9-col grid
         int topY = panelY + topOffset + 2; // top of the upper area
         int topAreaH = 4 * SLOT_SIZE + 4;
-        int mainY = topY + topAreaH + 4;   // top of main 3x9 grid
+        int mainY = topY + topAreaH + 4; // top of main 3x9 grid
         int hotbarY = mainY + 3 * SLOT_SIZE + 6; // top of hotbar
-        return new int[]{gridX, topY, mainY, hotbarY};
+        return new int[] { gridX, topY, mainY, hotbarY };
     }
 
     private boolean isItemAllowedByModFilter(ItemStack stack) {
-        if (modFilterSet == null) return true;
-        if (stack.isEmpty()) return false;
+        if (modFilterSet == null)
+            return true;
+        if (stack.isEmpty())
+            return false;
         ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (key == null) return false;
+        if (key == null)
+            return false;
         return modFilterSet.contains(key.getNamespace());
     }
 
     private void renderInventoryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return;
+        if (player == null)
+            return;
 
         // Empty state: mod filter set but no mods locked
         if (modFilterSet != null && modFilterSet.isEmpty()) {
@@ -402,11 +419,13 @@ public class SearchableItemList {
                     lines.add(line.toString());
                     line = new StringBuilder(word);
                 } else {
-                    if (line.length() > 0) line.append(" ");
+                    if (line.length() > 0)
+                        line.append(" ");
                     line.append(word);
                 }
             }
-            if (line.length() > 0) lines.add(line.toString());
+            if (line.length() > 0)
+                lines.add(line.toString());
 
             int totalH = lines.size() * 10;
             int startY = panelY + topOffset + (panelH - topOffset - totalH) / 2;
@@ -432,8 +451,8 @@ public class SearchableItemList {
         int offhandX = gridX + 9 * SLOT_SIZE - SLOT_SIZE;
 
         // Armor slots: vertical column on the left (Head, Chest, Legs, Feet)
-        int[] armorSlots = {39, 38, 37, 36};
-        String[] armorLabels = {"H", "C", "L", "F"};
+        int[] armorSlots = { 39, 38, 37, 36 };
+        String[] armorLabels = { "H", "C", "L", "F" };
         for (int i = 0; i < 4; i++) {
             renderInventorySlot(guiGraphics, font, armorX, topY + i * SLOT_SIZE,
                     player.getInventory().getItem(armorSlots[i]), armorSlots[i], mouseX, mouseY, armorLabels[i]);
@@ -445,7 +464,7 @@ public class SearchableItemList {
         int entityBottomY = topY + entityAreaH - 3;
         InventoryScreen.renderEntityInInventoryFollowsMouse(guiGraphics,
                 entityCenterX, entityBottomY, 25,
-                (float)(entityCenterX - mouseX), (float)(entityBottomY - 50 - mouseY), player);
+                (float) (entityCenterX - mouseX), (float) (entityBottomY - 50 - mouseY), player);
 
         // Offhand slot: vertical column on the right, bottom-aligned
         renderInventorySlot(guiGraphics, font, offhandX, topY + 3 * SLOT_SIZE,
@@ -481,7 +500,8 @@ public class SearchableItemList {
 
         boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
                 && mouseY >= addBtnY && mouseY < addBtnY + addBtnH;
-        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f) : Math.max(0.0f, addHoverProgress - 0.08f);
+        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
+                : Math.max(0.0f, addHoverProgress - 0.08f);
 
         if (canAdd) {
             renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, addBtnH, "Add Item", addHoverProgress);
@@ -511,11 +531,12 @@ public class SearchableItemList {
     }
 
     private void renderInventorySlot(GuiGraphics guiGraphics, Font font, int x, int y,
-                                      ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
+            ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
         boolean isEmpty = stack.isEmpty();
         boolean isAllowed = isEmpty || isItemAllowedByModFilter(stack);
         boolean isSelected = selectedInventorySlot == slotIndex;
-        boolean isHovered = !isEmpty && isAllowed && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
+        boolean isHovered = !isEmpty && isAllowed && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y
+                && mouseY < y + SLOT_SIZE;
 
         // Slot background — gold tint when selected (matching editor theme)
         int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
@@ -530,7 +551,8 @@ public class SearchableItemList {
                 guiGraphics.pose().pushPose();
                 guiGraphics.pose().translate(0, 0, 200);
                 String count = String.valueOf(stack.getCount());
-                guiGraphics.drawString(font, count, x + SLOT_SIZE - 1 - font.width(count), y + SLOT_SIZE - 9, 0xFFFFFF, true);
+                guiGraphics.drawString(font, count, x + SLOT_SIZE - 1 - font.width(count), y + SLOT_SIZE - 9, 0xFFFFFF,
+                        true);
                 guiGraphics.pose().popPose();
             }
             // Gold highlight overlay for selected slot
@@ -542,12 +564,13 @@ public class SearchableItemList {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0xC0000000);
             }
         } else if (placeholder != null) {
-            guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444, false);
+            guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444,
+                    false);
         }
     }
 
     private void renderStyledButton(GuiGraphics guiGraphics, Font font, int x, int y, int w, int h,
-                                     String text, float hoverProgress) {
+            String text, float hoverProgress) {
         int bgAlpha = (int) (0x30 + hoverProgress * 0x20);
         int bgR = 0xFF;
         int bgG = (int) (0xFF - hoverProgress * 0x33);
@@ -573,10 +596,14 @@ public class SearchableItemList {
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
         int tooltipX = mouseX + 12;
         int tooltipY = mouseY - 12;
-        if (tooltipX + tooltipW + 2 > screenW - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > screenH - 4) tooltipY = screenH - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
+        if (tooltipX + tooltipW + 2 > screenW - 4)
+            tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > screenH - 4)
+            tooltipY = screenH - tooltipH - 6;
+        if (tooltipX < 4)
+            tooltipX = 4;
+        if (tooltipY < 4)
+            tooltipY = 4;
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF1A1A1A);
         guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D1A);
         guiGraphics.drawString(font, text, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
@@ -586,7 +613,8 @@ public class SearchableItemList {
 
     private int getInventorySlotAt(double mouseX, double mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return -1;
+        if (player == null)
+            return -1;
 
         int[] layout = getInvLayout();
         int gridX = layout[0];
@@ -598,7 +626,7 @@ public class SearchableItemList {
         int offhandX = gridX + 9 * SLOT_SIZE - SLOT_SIZE;
 
         // Armor slots (vertical left column)
-        int[] armorSlots = {39, 38, 37, 36};
+        int[] armorSlots = { 39, 38, 37, 36 };
         for (int i = 0; i < 4; i++) {
             int slotY = topY + i * SLOT_SIZE;
             if (mouseX >= armorX && mouseX < armorX + SLOT_SIZE && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
@@ -608,7 +636,8 @@ public class SearchableItemList {
 
         // Offhand (bottom-right of top area)
         int offhandY = topY + 3 * SLOT_SIZE;
-        if (mouseX >= offhandX && mouseX < offhandX + SLOT_SIZE && mouseY >= offhandY && mouseY < offhandY + SLOT_SIZE) {
+        if (mouseX >= offhandX && mouseX < offhandX + SLOT_SIZE && mouseY >= offhandY
+                && mouseY < offhandY + SLOT_SIZE) {
             return 40;
         }
 
@@ -638,7 +667,7 @@ public class SearchableItemList {
     private int getTabAt(double mouseX, double mouseY) {
         Font font = Minecraft.getInstance().font;
         int tabY = panelY + PADDING;
-        String[] labels = {"Registry", "Inventory"};
+        String[] labels = { "Registry", "Inventory" };
         int x = panelX + PADDING;
         for (int i = 0; i < 2; i++) {
             int w = font.width(labels[i]) + TAB_PAD * 2;
@@ -653,7 +682,8 @@ public class SearchableItemList {
     // --- Input handling ---
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
@@ -666,7 +696,8 @@ public class SearchableItemList {
             inventoryMode = false;
             selectedInventorySlot = -1;
             searchFocused = true;
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             recalcPanelSize();
             return true;
         }
@@ -674,7 +705,8 @@ public class SearchableItemList {
             inventoryMode = true;
             selectedInventorySlot = -1;
             searchFocused = false;
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             recalcPanelSize();
             return true;
         }
@@ -688,7 +720,8 @@ public class SearchableItemList {
 
     private boolean handleInventoryClick(double mouseX, double mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return true;
+        if (player == null)
+            return true;
 
         // Add button
         int addBtnW = 80;
@@ -702,7 +735,8 @@ public class SearchableItemList {
                 if (!stack.isEmpty()) {
                     ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
                     if (key != null) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         onSelect.accept(key.toString());
                         hide();
                         return true;
@@ -717,7 +751,8 @@ public class SearchableItemList {
         if (clickedSlot >= 0) {
             ItemStack stack = player.getInventory().getItem(clickedSlot);
             if (!stack.isEmpty() && isItemAllowedByModFilter(stack)) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 selectedInventorySlot = (selectedInventorySlot == clickedSlot) ? -1 : clickedSlot;
             }
             return true;
@@ -755,7 +790,8 @@ public class SearchableItemList {
 
                 if (index < filteredItems.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
                         && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     onSelect.accept(filteredItems.get(index).id);
                     hide();
                     return true;
@@ -768,7 +804,8 @@ public class SearchableItemList {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar || inventoryMode) return false;
+        if (!visible || !draggingScrollbar || inventoryMode)
+            return false;
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
         int gridY = searchY + SEARCH_HEIGHT + PADDING;
@@ -786,13 +823,20 @@ public class SearchableItemList {
 
     private void updateScrollFromMouse(double mouseY, int gridY) {
         int gridH = GRID_ROWS * SLOT_SIZE;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - gridY) / (double) gridH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + GRID_ROWS;
+        int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / totalRows * gridH));
+        float usableH = gridH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - gridY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible || inventoryMode) return false;
+        if (!visible || inventoryMode)
+            return false;
 
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
@@ -802,7 +846,8 @@ public class SearchableItemList {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         if (keyCode == 256) { // ESC
             hide();
@@ -817,7 +862,8 @@ public class SearchableItemList {
                     if (!stack.isEmpty() && isItemAllowedByModFilter(stack)) {
                         ResourceLocation key = ForgeRegistries.ITEMS.getKey(stack.getItem());
                         if (key != null) {
-                            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                            Minecraft.getInstance().getSoundManager()
+                                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                             onSelect.accept(key.toString());
                             hide();
                             return true;
@@ -828,7 +874,8 @@ public class SearchableItemList {
             return true;
         }
 
-        if (!searchFocused) return false;
+        if (!searchFocused)
+            return false;
 
         if (keyCode == 259) { // BACKSPACE
             if (allSelected) {
@@ -840,7 +887,8 @@ public class SearchableItemList {
             return true;
         }
         if (Screen.hasControlDown() && keyCode == 65) { // Ctrl+A
-            if (!filter.isEmpty()) allSelected = true;
+            if (!filter.isEmpty())
+                allSelected = true;
             return true;
         }
         if (Screen.hasControlDown() && keyCode == 67) { // Ctrl+C
@@ -861,7 +909,8 @@ public class SearchableItemList {
     }
 
     public boolean charTyped(char c) {
-        if (!visible || !searchFocused || inventoryMode) return false;
+        if (!visible || !searchFocused || inventoryMode)
+            return false;
 
         if (Character.isLetterOrDigit(c) || c == '_' || c == ':' || c == '.' || c == ' ' || c == '-' || c == '@') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
@@ -871,5 +920,6 @@ public class SearchableItemList {
         return false;
     }
 
-    private record ItemEntry(String id, ItemStack stack, String searchName) {}
+    private record ItemEntry(String id, ItemStack stack, String searchName) {
+    }
 }

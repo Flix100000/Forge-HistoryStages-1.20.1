@@ -21,7 +21,7 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
         // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
-        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(4));
+        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(5));
     }
 
     // Server-Konstruktor
@@ -113,5 +113,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     public boolean isIndividualMode() {
         return data.get(3) == 1;
+    }
+
+    public boolean areDependenciesMet() {
+        return data.get(4) == 1;
     }
 }

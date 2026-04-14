@@ -1,6 +1,10 @@
 package net.bananemdnsa.historystages.init;
 
+import net.bananemdnsa.historystages.data.DependencyGroup;
+import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.dependency.*;
+import net.bananemdnsa.historystages.util.ClientDependencyCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.BlockItem;
@@ -62,6 +66,71 @@ public class ModItems {
 
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+
+                    // Show dependencies in tooltip
+                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
+                        String stageId = stack.getTag().getString("StageResearch");
+                        StageEntry entry = StageManager.getStages().get(stageId);
+                        if (entry == null) entry = StageManager.getIndividualStages().get(stageId);
+                        if (entry != null && entry.hasDependencies()) {
+                            tooltip.add(Component.empty());
+                            tooltip.add(Component.literal("Dependencies:")
+                                    .withStyle(ChatFormatting.GOLD));
+
+                            DependencyResult result = ClientDependencyCache.get(stageId);
+                            for (DependencyGroup group : entry.getDependencies()) {
+                                if (group.isEmpty()) continue;
+                                String logic = group.getLogic();
+                                // Show items
+                                for (DependencyItem item : group.getItems()) {
+                                    String icon = getDepIcon(result, "item", item.getId());
+                                    tooltip.add(Component.literal("  " + icon + " " + item.getCount() + "x " + item.getId())
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show stages
+                                for (String sid : group.getStages()) {
+                                    String icon = getDepIcon(result, "stage", sid);
+                                    var se = StageManager.getStages().get(sid);
+                                    String name = se != null ? se.getDisplayName() : sid;
+                                    tooltip.add(Component.literal("  " + icon + " " + name)
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show individual stages
+                                for (IndividualStageDep dep : group.getIndividualStages()) {
+                                    String icon = getDepIcon(result, "individual_stage", dep.getStageId());
+                                    var se = StageManager.getIndividualStages().get(dep.getStageId());
+                                    String name = se != null ? se.getDisplayName() : dep.getStageId();
+                                    tooltip.add(Component.literal("  " + icon + " " + name + (dep.isAllEver() ? " (all)" : " (online)"))
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show advancements
+                                for (String adv : group.getAdvancements()) {
+                                    tooltip.add(Component.literal("  \u2022 " + adv)
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show XP level
+                                XpLevelDep xp = group.getXpLevel();
+                                if (xp != null && xp.getLevel() > 0) {
+                                    tooltip.add(Component.literal("  \u2022 Level " + xp.getLevel())
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show entity kills
+                                for (EntityKillDep kill : group.getEntityKills()) {
+                                    tooltip.add(Component.literal("  \u2022 Kill " + kill.getCount() + "x " + kill.getEntityId())
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                // Show stats
+                                for (StatDep stat : group.getStats()) {
+                                    tooltip.add(Component.literal("  \u2022 " + stat.getStatId() + " >= " + stat.getMinValue())
+                                            .withStyle(ChatFormatting.GRAY));
+                                }
+                                if (entry.getDependencies().indexOf(group) < entry.getDependencies().size() - 1) {
+                                    tooltip.add(Component.literal("  --- " + logic + " ---")
+                                            .withStyle(ChatFormatting.DARK_GRAY));
+                                }
+                            }
+                        }
+                    }
                 }
             });
 
@@ -84,6 +153,21 @@ public class ModItems {
 
     public static final RegistryObject<Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
             () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
+
+    /**
+     * Returns a check/cross icon based on cached dependency result.
+     */
+    private static String getDepIcon(DependencyResult result, String type, String id) {
+        if (result == null) return "\u2022"; // bullet if no data yet
+        for (DependencyResult.GroupResult group : result.getGroups()) {
+            for (DependencyResult.EntryResult entry : group.getEntries()) {
+                if (entry.getType().equals(type) && entry.getDescription().contains(id)) {
+                    return entry.isFulfilled() ? "\u2714" : "\u2718";
+                }
+            }
+        }
+        return "\u2022";
+    }
 
     public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
         ITEMS.register(eventBus);

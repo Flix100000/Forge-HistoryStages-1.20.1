@@ -24,8 +24,10 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * Popup that shows all entities from a specific mod with checkboxes for spawnlock and attacklock.
- * Appears after adding a mod in the editor, allowing users to configure entity locks.
+ * Popup that shows all entities from a specific mod with checkboxes for
+ * spawnlock and attacklock.
+ * Appears after adding a mod in the editor, allowing users to configure entity
+ * locks.
  * Only one checkbox per entity can be active at a time (mutually exclusive).
  */
 public class ModEntitySelectionPopup {
@@ -94,7 +96,8 @@ public class ModEntitySelectionPopup {
             }
         }
 
-        if (entities.isEmpty()) return false;
+        if (entities.isEmpty())
+            return false;
 
         entities.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
 
@@ -104,8 +107,10 @@ public class ModEntitySelectionPopup {
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
 
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
@@ -118,7 +123,8 @@ public class ModEntitySelectionPopup {
             if (Minecraft.getInstance().level != null) {
                 Entity entity = type.create(Minecraft.getInstance().level);
                 boolean isLiving = entity instanceof LivingEntity;
-                if (entity != null) entity.discard();
+                if (entity != null)
+                    entity.discard();
                 return isLiving;
             }
             return type.getCategory() != net.minecraft.world.entity.MobCategory.MISC;
@@ -128,21 +134,27 @@ public class ModEntitySelectionPopup {
     }
 
     private LivingEntity getOrCreateEntity(String entityId) {
-        if (entityCache.containsKey(entityId)) return entityCache.get(entityId);
-        if (Minecraft.getInstance().level == null) return null;
+        if (entityCache.containsKey(entityId))
+            return entityCache.get(entityId);
+        if (Minecraft.getInstance().level == null)
+            return null;
 
         try {
             ResourceLocation rl = ResourceLocation.tryParse(entityId);
-            if (rl == null) return null;
+            if (rl == null)
+                return null;
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-            if (type == null) return null;
+            if (type == null)
+                return null;
             Entity entity = type.create(Minecraft.getInstance().level);
             if (entity instanceof LivingEntity living) {
                 entityCache.put(entityId, living);
                 return living;
             }
-            if (entity != null) entity.discard();
-        } catch (Exception ignored) {}
+            if (entity != null)
+                entity.discard();
+        } catch (Exception ignored) {
+        }
         entityCache.put(entityId, null);
         return null;
     }
@@ -171,7 +183,8 @@ public class ModEntitySelectionPopup {
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
         int visibleRows = Math.min(VISIBLE_ROWS, entities.size());
 
@@ -236,13 +249,15 @@ public class ModEntitySelectionPopup {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
-            if (index >= entities.size()) break;
+            if (index >= entities.size())
+                break;
 
             EntityRow row = entities.get(index);
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
 
-            if (rowHovered) currentHoveredRow = index;
+            if (rowHovered)
+                currentHoveredRow = index;
 
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
@@ -256,7 +271,8 @@ public class ModEntitySelectionPopup {
                     int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
                     renderSpinningEntity(guiGraphics, listX + 11, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
                     guiGraphics.disableScissor();
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
 
             // Entity name with marquee scroll
@@ -311,7 +327,8 @@ public class ModEntitySelectionPopup {
 
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
 
-            int thumbHeight = Math.max(10, (int) ((float) visibleRows / (maxScrollRow + visibleRows) * scrollBarHeight));
+            int thumbHeight = Math.max(10,
+                    (int) ((float) visibleRows / (maxScrollRow + visibleRows) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
@@ -363,10 +380,14 @@ public class ModEntitySelectionPopup {
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
         int tooltipX = mouseX + 12;
         int tooltipY = mouseY - 4;
-        if (tooltipX + tooltipW + 2 > screenW - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > screenH - 4) tooltipY = screenH - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
+        if (tooltipX + tooltipW + 2 > screenW - 4)
+            tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > screenH - 4)
+            tooltipY = screenH - tooltipH - 6;
+        if (tooltipX < 4)
+            tooltipX = 4;
+        if (tooltipY < 4)
+            tooltipY = 4;
 
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
         guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
@@ -375,7 +396,8 @@ public class ModEntitySelectionPopup {
         guiGraphics.pose().popPose();
     }
 
-    private void renderStyledButton(GuiGraphics guiGraphics, Font font, String text, int x, int y, int w, int h, float hoverProgress) {
+    private void renderStyledButton(GuiGraphics guiGraphics, Font font, String text, int x, int y, int w, int h,
+            float hoverProgress) {
         // Background: white-tint to gold-tint
         int bgAlpha = (int) (0x30 + hoverProgress * 0x20);
         int bgR = 0xFF;
@@ -398,7 +420,8 @@ public class ModEntitySelectionPopup {
         guiGraphics.drawString(font, text, x + (w - font.width(text)) / 2, y + (h - 8) / 2, textColor, false);
     }
 
-    private void renderCheckbox(GuiGraphics guiGraphics, int x, int y, boolean checked, int mouseX, int mouseY, String hoverKey) {
+    private void renderCheckbox(GuiGraphics guiGraphics, int x, int y, boolean checked, int mouseX, int mouseY,
+            String hoverKey) {
         boolean hovered = mouseX >= x && mouseX < x + CHECKBOX_SIZE && mouseY >= y && mouseY < y + CHECKBOX_SIZE;
 
         // Smooth hover transition
@@ -417,7 +440,8 @@ public class ModEntitySelectionPopup {
 
         // Bottom accent line (gold)
         int accentAlpha = (int) (0x60 + progress * 0x9F);
-        guiGraphics.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, (accentAlpha << 24) | 0xFFCC00);
+        guiGraphics.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE,
+                (accentAlpha << 24) | 0xFFCC00);
 
         // Subtle borders
         guiGraphics.fill(x, y, x + CHECKBOX_SIZE, y + 1, 0x20FFFFFF);
@@ -439,7 +463,8 @@ public class ModEntitySelectionPopup {
         }
     }
 
-    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees, LivingEntity entity) {
+    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees,
+            LivingEntity entity) {
         float origBodyRot = entity.yBodyRot;
         float origYRot = entity.getYRot();
         float origXRot = entity.getXRot();
@@ -494,7 +519,8 @@ public class ModEntitySelectionPopup {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         // Click outside panel closes it (skip)
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
@@ -516,16 +542,20 @@ public class ModEntitySelectionPopup {
                 List<String> spawnlockIds = new ArrayList<>();
                 List<String> attacklockIds = new ArrayList<>();
                 for (EntityRow row : entities) {
-                    if (row.spawnlock) spawnlockIds.add(row.id);
-                    if (row.attacklock) attacklockIds.add(row.id);
+                    if (row.spawnlock)
+                        spawnlockIds.add(row.id);
+                    if (row.attacklock)
+                        attacklockIds.add(row.id);
                 }
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onConfirm.accept(spawnlockIds, attacklockIds);
                 hide();
                 return true;
             }
             if (mouseX >= skipX && mouseX < skipX + btnW) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 hide();
                 return true;
             }
@@ -550,7 +580,8 @@ public class ModEntitySelectionPopup {
         int selectAllY = panelY + 20;
         if (mouseX >= cbSpawnX && mouseX < cbSpawnX + CHECKBOX_SIZE
                 && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allSpawn = !allSpawn;
             if (allSpawn) {
                 // ON: set all unchecked spawn to checked, clear their attacklock
@@ -570,7 +601,8 @@ public class ModEntitySelectionPopup {
         }
         if (mouseX >= cbAttackX && mouseX < cbAttackX + CHECKBOX_SIZE
                 && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allAttack = !allAttack;
             if (allAttack) {
                 // ON: set all unchecked attack to checked, clear their spawnlock
@@ -594,7 +626,8 @@ public class ModEntitySelectionPopup {
 
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
-            if (index >= entities.size()) break;
+            if (index >= entities.size())
+                break;
 
             int rowY = listY + i * ROW_HEIGHT;
             int cbY = rowY + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
@@ -602,10 +635,12 @@ public class ModEntitySelectionPopup {
             // Spawnlock checkbox
             if (mouseX >= cbSpawnX && mouseX < cbSpawnX + CHECKBOX_SIZE
                     && mouseY >= cbY && mouseY < cbY + CHECKBOX_SIZE) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newSpawn = !row.spawnlock;
-                entities.set(index, new EntityRow(row.id, row.displayName, newSpawn, newSpawn ? false : row.attacklock));
+                entities.set(index,
+                        new EntityRow(row.id, row.displayName, newSpawn, newSpawn ? false : row.attacklock));
                 allSpawn = false;
                 return true;
             }
@@ -613,10 +648,12 @@ public class ModEntitySelectionPopup {
             // Attacklock checkbox
             if (mouseX >= cbAttackX && mouseX < cbAttackX + CHECKBOX_SIZE
                     && mouseY >= cbY && mouseY < cbY + CHECKBOX_SIZE) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newAttack = !row.attacklock;
-                entities.set(index, new EntityRow(row.id, row.displayName, newAttack ? false : row.spawnlock, newAttack));
+                entities.set(index,
+                        new EntityRow(row.id, row.displayName, newAttack ? false : row.spawnlock, newAttack));
                 allAttack = false;
                 return true;
             }
@@ -626,7 +663,8 @@ public class ModEntitySelectionPopup {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar) return false;
+        if (!visible || !draggingScrollbar)
+            return false;
         int listY = panelY + HEADER_HEIGHT + PADDING;
         int visibleRows = Math.min(VISIBLE_ROWS, entities.size());
         updateScrollFromMouse(mouseY, listY, visibleRows);
@@ -643,13 +681,20 @@ public class ModEntitySelectionPopup {
 
     private void updateScrollFromMouse(double mouseY, int listY, int visibleRows) {
         int listH = visibleRows * ROW_HEIGHT;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - listY) / (double) listH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + visibleRows;
+        int thumbHeight = Math.max(10, (int) ((float) visibleRows / totalRows * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
@@ -658,7 +703,8 @@ public class ModEntitySelectionPopup {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (keyCode == 256) { // ESC
             hide();
             return true;
@@ -666,5 +712,6 @@ public class ModEntitySelectionPopup {
         return false;
     }
 
-    private record EntityRow(String id, String displayName, boolean spawnlock, boolean attacklock) {}
+    private record EntityRow(String id, String displayName, boolean spawnlock, boolean attacklock) {
+    }
 }

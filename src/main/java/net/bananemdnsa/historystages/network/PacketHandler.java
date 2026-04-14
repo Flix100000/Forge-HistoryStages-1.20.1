@@ -8,7 +8,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class PacketHandler {
-    private static final String PROTOCOL_VERSION = "6";
+    private static final String PROTOCOL_VERSION = "7";
     public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(HistoryStages.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
@@ -29,6 +29,8 @@ public class PacketHandler {
         INSTANCE.registerMessage(id++, SyncStageDefinitionsPacket.class, SyncStageDefinitionsPacket::encode, SyncStageDefinitionsPacket::decode, SyncStageDefinitionsPacket::handle);
         INSTANCE.registerMessage(id++, SyncConfigPacket.class, SyncConfigPacket::encode, SyncConfigPacket::decode, SyncConfigPacket::handle);
         INSTANCE.registerMessage(id++, SyncIndividualStagesPacket.class, SyncIndividualStagesPacket::encode, SyncIndividualStagesPacket::decode, SyncIndividualStagesPacket::handle);
+        INSTANCE.registerMessage(id++, CheckDependencyPacket.class, CheckDependencyPacket::encode, CheckDependencyPacket::decode, CheckDependencyPacket::handle);
+        INSTANCE.registerMessage(id++, SyncDependencyStatusPacket.class, SyncDependencyStatusPacket::encode, SyncDependencyStatusPacket::decode, SyncDependencyStatusPacket::handle);
     }
 
     // Hilfsmethode, um das Paket an alle Spieler zu senden

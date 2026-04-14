@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionLis
 import net.bananemdnsa.historystages.client.editor.widget.SearchableModList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
+import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
@@ -71,6 +72,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final List<String> editModLinked;
+    private List<DependencyGroup> editDependencies;
 
     // UI state
     private EditBox stageIdField;
@@ -207,12 +209,13 @@ public class StageDetailScreen extends Screen {
         this.isIndividual = isIndividual;
         this.isNewStage = (stageId == null
                 || (!StageManager.getStages().containsKey(stageId)
-                    && !StageManager.getIndividualStages().containsKey(stageId)));
+                        && !StageManager.getIndividualStages().containsKey(stageId)));
 
         StageEntry e = entry != null ? entry : new StageEntry();
         this.editStageId = stageId != null ? stageId : "";
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
-        this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get() : e.getResearchTime();
+        this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get()
+                : e.getResearchTime();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = e.getItemEntries();
@@ -238,6 +241,8 @@ public class StageDetailScreen extends Screen {
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>(e.getEntities().getSpawnlock());
         this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
+        this.editDependencies = e.getDependencies().stream()
+                .map(DependencyGroup::copy).collect(java.util.stream.Collectors.toList());
     }
 
     @Override
@@ -262,7 +267,8 @@ public class StageDetailScreen extends Screen {
         stageIdField.setEditable(isNewStage);
         stageIdField.setResponder(val -> {
             editStageId = val;
-            if (!val.equals(origStageId)) hasChanges = true;
+            if (!val.equals(origStageId))
+                hasChanges = true;
         });
         this.addRenderableWidget(stageIdField);
 
@@ -272,7 +278,8 @@ public class StageDetailScreen extends Screen {
         displayNameField.setValue(editDisplayName);
         displayNameField.setResponder(val -> {
             editDisplayName = val;
-            if (!val.equals(origDisplayName)) hasChanges = true;
+            if (!val.equals(origDisplayName))
+                hasChanges = true;
         });
         this.addRenderableWidget(displayNameField);
 
@@ -282,8 +289,12 @@ public class StageDetailScreen extends Screen {
         researchTimeField.setValue(String.valueOf(editResearchTime));
         researchTimeField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
         researchTimeField.setResponder(val -> {
-            try { editResearchTime = val.isEmpty() ? 0 : Integer.parseInt(val); } catch (NumberFormatException ignored) {}
-            if (!val.equals(origResearchTime)) hasChanges = true;
+            try {
+                editResearchTime = val.isEmpty() ? 0 : Integer.parseInt(val);
+            } catch (NumberFormatException ignored) {
+            }
+            if (!val.equals(origResearchTime))
+                hasChanges = true;
         });
         this.addRenderableWidget(researchTimeField);
 
@@ -301,7 +312,7 @@ public class StageDetailScreen extends Screen {
             String label = Component.translatable(TAB_KEYS[i]).getString();
             int count = getListForSection(i).size();
             String tabText = label + " (" + count + ")";
-            naturalW[i] = (int)(this.font.width(tabText) * SMALL_SCALE) + TAB_PAD * 2;
+            naturalW[i] = (int) (this.font.width(tabText) * SMALL_SCALE) + TAB_PAD * 2;
             totalNaturalW += naturalW[i];
         }
         int totalGaps = (TAB_KEYS.length - 1) * gap;
@@ -337,6 +348,14 @@ public class StageDetailScreen extends Screen {
                 Component.translatable("editor.historystages.save"),
                 btn -> saveStage(), this.width / 2 - 50, this.height - 30, 100, 20));
 
+        // Dependencies button (same row as research time)
+        String depLabel = Component.translatable("editor.historystages.dep.title").getString();
+        int depBtnW = this.font.width(depLabel) + 12;
+        int depBtnX = fieldX + 80 + 10; // right after the research time field
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.dep.title"),
+                btn -> openDependencyEditor(), depBtnX, 66, depBtnW, FIELD_HEIGHT));
+
         itemSearch = new SearchableItemList(itemId -> {
             getActiveList().add(itemId);
             hasChanges = true;
@@ -347,14 +366,19 @@ public class StageDetailScreen extends Screen {
 
         modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
             for (String id : spawnlockIds) {
-                if (!editSpawnlock.contains(id)) editSpawnlock.add(id);
-                if (!editModLinked.contains(id)) editModLinked.add(id);
+                if (!editSpawnlock.contains(id))
+                    editSpawnlock.add(id);
+                if (!editModLinked.contains(id))
+                    editModLinked.add(id);
             }
             for (String id : attacklockIds) {
-                if (!editAttacklock.contains(id)) editAttacklock.add(id);
-                if (!editModLinked.contains(id)) editModLinked.add(id);
+                if (!editAttacklock.contains(id))
+                    editAttacklock.add(id);
+                if (!editModLinked.contains(id))
+                    editModLinked.add(id);
             }
-            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty()) hasChanges = true;
+            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty())
+                hasChanges = true;
             updateMaxScroll();
         });
 
@@ -399,13 +423,15 @@ public class StageDetailScreen extends Screen {
     }
 
     private boolean isAnyOverlayVisible() {
-        return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
+        return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible()
+                || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible || modEntityPopup.isVisible();
     }
 
     private void switchTab(int tab) {
-        if (isTabDisabled(tab)) return;
+        if (isTabDisabled(tab))
+            return;
         if (activeTab != tab) {
             activeTab = tab;
             scrollOffset = 0;
@@ -460,14 +486,32 @@ public class StageDetailScreen extends Screen {
             boolean unlocked = ClientStageCache.isStageUnlocked(originalStageId);
             String statusIcon = unlocked ? "\u2714" : "\uD83D\uDD12";
             int statusColor = unlocked ? 0x55FF55 : 0xFF5555;
-            String statusText = Component.translatable(unlocked ? "editor.historystages.unlocked" : "editor.historystages.locked").getString();
+            String statusText = Component
+                    .translatable(unlocked ? "editor.historystages.unlocked" : "editor.historystages.locked")
+                    .getString();
             drawSmallText(guiGraphics, statusIcon + " " + statusText, this.width - 90, 8, statusColor);
         }
 
+        // Dependency indicator (under lock status, top right)
+        if (editDependencies != null && editDependencies.stream().anyMatch(g -> !g.isEmpty())) {
+            String depText = Component.translatable("editor.historystages.dep.configured").getString();
+            String[] lines = depText.split("\n");
+            int dy = 20;
+            for (String line : lines) {
+                drawSmallText(guiGraphics, line, this.width - (int) (this.font.width(line) * SMALL_SCALE) - 10, dy,
+                        0xAAAA55);
+                dy += 9;
+            }
+        }
+
         int labelX = 30;
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.stage_id").getString(), labelX, 27, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.display_name").getString(), labelX, 49, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.research_time").getString(), labelX, 71, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.stage_id").getString(),
+                labelX, 27, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.display_name").getString(),
+                labelX, 49, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font,
+                Component.translatable("editor.historystages.field.research_time").getString(), labelX, 71, 0xAAAAAA,
+                false);
 
         guiGraphics.fill(10, tabY - 2, this.width - 10, tabY - 1, 0xFF555555);
 
@@ -476,9 +520,11 @@ public class StageDetailScreen extends Screen {
         String currentTooltipText = null;
 
         // Check field label hovers for tooltips
-        int maxLabelW = Math.max(this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
+        int maxLabelW = Math.max(
+                this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
                 Math.max(this.font.width(Component.translatable("editor.historystages.field.display_name").getString()),
-                        this.font.width(Component.translatable("editor.historystages.field.research_time").getString())));
+                        this.font.width(
+                                Component.translatable("editor.historystages.field.research_time").getString())));
 
         if (mouseX >= labelX && mouseX <= labelX + maxLabelW + 5) {
             if (mouseY >= 22 && mouseY <= 40) {
@@ -503,8 +549,10 @@ public class StageDetailScreen extends Screen {
         float targetW = tabW[activeTab];
         tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
         tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+        if (Math.abs(tabIndicatorX - targetX) < 0.5f)
+            tabIndicatorX = targetX;
+        if (Math.abs(tabIndicatorW - targetW) < 0.5f)
+            tabIndicatorW = targetW;
 
         // Suppress hover when overlays are open
         boolean overlayOpen = isAnyOverlayVisible();
@@ -530,7 +578,8 @@ public class StageDetailScreen extends Screen {
                         && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
                 guiGraphics.fill(tabAreaRight - TAB_ARROW_WIDTH, tabY, tabAreaRight, tabY + TAB_HEIGHT,
                         rightHovered ? 0x40FFFFFF : 0x20FFFFFF);
-                drawSmallText(guiGraphics, "\u25B6", tabAreaRight - TAB_ARROW_WIDTH + 2, tabY + 4, rightHovered ? 0xFFFFFF : 0x999999);
+                drawSmallText(guiGraphics, "\u25B6", tabAreaRight - TAB_ARROW_WIDTH + 2, tabY + 4,
+                        rightHovered ? 0xFFFFFF : 0x999999);
             }
         }
 
@@ -581,7 +630,8 @@ public class StageDetailScreen extends Screen {
         }
 
         // Sliding gold underline indicator
-        guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+        guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW),
+                tabY + TAB_HEIGHT, 0xFFFFCC00);
 
         if (hasTabScroll) {
             guiGraphics.disableScissor();
@@ -598,7 +648,8 @@ public class StageDetailScreen extends Screen {
 
         // Smooth scroll interpolation
         smoothScrollOffset += ((float) scrollOffset - smoothScrollOffset) * 0.25f;
-        if (Math.abs(smoothScrollOffset - (float) scrollOffset) < 0.5f) smoothScrollOffset = (float) scrollOffset;
+        if (Math.abs(smoothScrollOffset - (float) scrollOffset) < 0.5f)
+            smoothScrollOffset = (float) scrollOffset;
 
         List<String> list = getActiveList();
         int y = listTop - (int) smoothScrollOffset + CARD_GAP;
@@ -645,9 +696,11 @@ public class StageDetailScreen extends Screen {
 
             if (y + CARD_HEIGHT > listTop - 20 && y < listBottom + 20) {
                 boolean entryHovered = effectiveMouseX >= contentLeft && effectiveMouseX <= contentRight
-                        && effectiveMouseY >= Math.max(y, listTop) && effectiveMouseY < Math.min(y + CARD_HEIGHT, listBottom);
+                        && effectiveMouseY >= Math.max(y, listTop)
+                        && effectiveMouseY < Math.min(y + CARD_HEIGHT, listBottom);
 
-                if (entryHovered) currentHoveredCard = i;
+                if (entryHovered)
+                    currentHoveredCard = i;
 
                 // Smooth card hover progress
                 float cardProgress = cardHoverProgress.getOrDefault(i, 0.0f);
@@ -656,8 +709,10 @@ public class StageDetailScreen extends Screen {
                 } else {
                     cardProgress = Math.max(0.0f, cardProgress - 0.07f);
                 }
-                if (cardProgress > 0.001f) cardHoverProgress.put(i, cardProgress);
-                else cardHoverProgress.remove(i);
+                if (cardProgress > 0.001f)
+                    cardHoverProgress.put(i, cardProgress);
+                else
+                    cardHoverProgress.remove(i);
 
                 // Hover lift: card moves up slightly
                 int liftY = (int) (cardProgress * -1.5f);
@@ -672,7 +727,8 @@ public class StageDetailScreen extends Screen {
                 int cardBorder = (borderAlpha << 24) | 0xFFFFFF;
                 int cardBg = (bgAlpha << 24) | 0xFFFFFF;
                 guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentRight, cardY + CARD_HEIGHT, cardBorder);
-                guiGraphics.fill(contentLeft + 1 + slideOffsetX, cardY + 1, contentRight - 1, cardY + CARD_HEIGHT - 1, cardBg);
+                guiGraphics.fill(contentLeft + 1 + slideOffsetX, cardY + 1, contentRight - 1, cardY + CARD_HEIGHT - 1,
+                        cardBg);
 
                 // Check if this entry overlaps with a global stage (individual mode only)
                 boolean isGlobalOverlap = false;
@@ -685,7 +741,10 @@ public class StageDetailScreen extends Screen {
                             case 2 -> gEntry.getMods().contains(entry);
                             default -> false;
                         };
-                        if (found) { isGlobalOverlap = true; break; }
+                        if (found) {
+                            isGlobalOverlap = true;
+                            break;
+                        }
                     }
                 }
 
@@ -693,12 +752,14 @@ public class StageDetailScreen extends Screen {
                 if (cardProgress > 0.01f) {
                     int accentAlpha = (int) (cardProgress * 0xCC);
                     int accentColor = isGlobalOverlap ? 0xFFAA00 : 0xFFCC00;
-                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX, cardY + CARD_HEIGHT, (accentAlpha << 24) | accentColor);
+                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX,
+                            cardY + CARD_HEIGHT, (accentAlpha << 24) | accentColor);
                 }
 
                 // Permanent orange left accent for overlapping entries
                 if (isGlobalOverlap && cardProgress <= 0.01f) {
-                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX, cardY + CARD_HEIGHT, 0x80FFAA00);
+                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX,
+                            cardY + CARD_HEIGHT, 0x80FFAA00);
                 }
 
                 int textOffsetX = 8;
@@ -729,11 +790,15 @@ public class StageDetailScreen extends Screen {
                     if (living != null) {
                         try {
                             float angle = (System.currentTimeMillis() % 3600) / 10.0f;
-                            guiGraphics.enableScissor(renderLeft + 1, cardY + 1, renderLeft + 20, cardY + CARD_HEIGHT - 1);
-                            int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
-                            renderSpinningEntity(guiGraphics, renderLeft + 10, cardY + CARD_HEIGHT - 2, entityScale, angle, living);
+                            guiGraphics.enableScissor(renderLeft + 1, cardY + 1, renderLeft + 20,
+                                    cardY + CARD_HEIGHT - 1);
+                            int entityScale = (int) Math.max(3,
+                                    9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
+                            renderSpinningEntity(guiGraphics, renderLeft + 10, cardY + CARD_HEIGHT - 2, entityScale,
+                                    angle, living);
                             guiGraphics.disableScissor();
-                        } catch (Exception ignored) {}
+                        } catch (Exception ignored) {
+                        }
                     }
                     textOffsetX = 22;
                 }
@@ -769,7 +834,8 @@ public class StageDetailScreen extends Screen {
                         float pos = scrollProg % cycle;
                         int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
                         guiGraphics.enableScissor(textStartX, cardY, textStartX + textAvailW, cardY + CARD_HEIGHT);
-                        guiGraphics.drawString(this.font, entryText, textStartX - scrollOff, cardY + 7, textColor, false);
+                        guiGraphics.drawString(this.font, entryText, textStartX - scrollOff, cardY + 7, textColor,
+                                false);
                         guiGraphics.disableScissor();
                     } else {
                         String truncated = this.font.plainSubstrByWidth(entryText, textAvailW - 8) + "...";
@@ -802,15 +868,20 @@ public class StageDetailScreen extends Screen {
 
             // Use index -1 for add button hover progress
             float addProgress = cardHoverProgress.getOrDefault(-1, 0.0f);
-            if (addHovered) addProgress = Math.min(1.0f, addProgress + 0.1f);
-            else addProgress = Math.max(0.0f, addProgress - 0.07f);
-            if (addProgress > 0.001f) cardHoverProgress.put(-1, addProgress);
-            else cardHoverProgress.remove(-1);
+            if (addHovered)
+                addProgress = Math.min(1.0f, addProgress + 0.1f);
+            else
+                addProgress = Math.max(0.0f, addProgress - 0.07f);
+            if (addProgress > 0.001f)
+                cardHoverProgress.put(-1, addProgress);
+            else
+                cardHoverProgress.remove(-1);
 
             int addBorderAlpha = (int) (0x25 + addProgress * 0x1B);
             int addBgAlpha = (int) (0x18 + addProgress * 0x18);
             guiGraphics.fill(contentLeft, y, addBoxRight, y + ADD_ROW_HEIGHT, (addBorderAlpha << 24) | 0xFFFFFF);
-            guiGraphics.fill(contentLeft + 1, y + 1, addBoxRight - 1, y + ADD_ROW_HEIGHT - 1, (addBgAlpha << 24) | 0xFFFFFF);
+            guiGraphics.fill(contentLeft + 1, y + 1, addBoxRight - 1, y + ADD_ROW_HEIGHT - 1,
+                    (addBgAlpha << 24) | 0xFFFFFF);
 
             if (addProgress > 0.01f) {
                 int greenAlpha = (int) (addProgress * 0xAA);
@@ -827,19 +898,20 @@ public class StageDetailScreen extends Screen {
 
         if (maxScroll > 0) {
             int scrollAreaHeight = listBottom - listTop;
-            int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+            int barHeight = Math.max(20,
+                    (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
             int barY = listTop + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
             guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
         }
 
         if (hasChanges) {
-            String unsavedText = Component.translatable("editor.historystages.unsaved").getString();
-            int dotX = this.width / 2 + 55;
-            // Pulsing dot: gentle opacity oscillation
-            float pulse = (float) (Math.sin(System.currentTimeMillis() / 400.0) * 0.3 + 0.7);
+            float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
+            pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
             int dotAlpha = (int) (pulse * 255);
-            guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, (dotAlpha << 24) | 0xFFCC00);
-            drawSmallText(guiGraphics, unsavedText, dotX + 9, this.height - 24, 0xFFCC00);
+            int dotX = this.width / 2 + 55;
+            guiGraphics.fill(dotX, this.height - 20, dotX + 6, this.height - 14, (dotAlpha << 24) | 0xFFCC00);
+            drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9,
+                    this.height - 20, 0xFFCC00);
         }
 
         if (!saveError.isEmpty()) {
@@ -859,7 +931,8 @@ public class StageDetailScreen extends Screen {
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
         modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
-        if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
+        if (recipePopupVisible)
+            renderRecipePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Tooltip rendering
@@ -890,23 +963,30 @@ public class StageDetailScreen extends Screen {
                 lines.add(line.toString());
                 line = new StringBuilder(word);
             } else {
-                if (line.length() > 0) line.append(" ");
+                if (line.length() > 0)
+                    line.append(" ");
                 line.append(word);
             }
         }
-        if (line.length() > 0) lines.add(line.toString());
+        if (line.length() > 0)
+            lines.add(line.toString());
 
         int tooltipW = 0;
-        for (String l : lines) tooltipW = Math.max(tooltipW, this.font.width(l));
+        for (String l : lines)
+            tooltipW = Math.max(tooltipW, this.font.width(l));
         tooltipW += 8;
         int tooltipH = lines.size() * 10 + 6;
 
         int tooltipX = mouseX + 12;
         int tooltipY = mouseY - 4;
-        if (tooltipX + tooltipW + 2 > this.width - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > this.height - 4) tooltipY = this.height - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
+        if (tooltipX + tooltipW + 2 > this.width - 4)
+            tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > this.height - 4)
+            tooltipY = this.height - tooltipH - 6;
+        if (tooltipX < 4)
+            tooltipX = 4;
+        if (tooltipY < 4)
+            tooltipY = 4;
 
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
         guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
@@ -920,30 +1000,39 @@ public class StageDetailScreen extends Screen {
     }
 
     private LivingEntity getOrCreateEntity(String entityId) {
-        if (entityCache.containsKey(entityId)) return entityCache.get(entityId);
-        if (Minecraft.getInstance().level == null) return null;
+        if (entityCache.containsKey(entityId))
+            return entityCache.get(entityId);
+        if (Minecraft.getInstance().level == null)
+            return null;
         try {
             ResourceLocation rl = ResourceLocation.tryParse(entityId);
-            if (rl == null) return null;
+            if (rl == null)
+                return null;
             EntityType<?> type = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-            if (type == null) return null;
+            if (type == null)
+                return null;
             Entity entity = type.create(Minecraft.getInstance().level);
             if (entity instanceof LivingEntity living) {
                 entityCache.put(entityId, living);
                 return living;
             }
-            if (entity != null) entity.discard();
-        } catch (Exception ignored) {}
+            if (entity != null)
+                entity.discard();
+        } catch (Exception ignored) {
+        }
         entityCache.put(entityId, null);
         return null;
     }
 
     /**
-     * Renders a LivingEntity spinning around its Y axis. Uses direct entity rendering
+     * Renders a LivingEntity spinning around its Y axis. Uses direct entity
+     * rendering
      * instead of InventoryScreen helper to allow full 360° rotation.
-     * Uses Z=1500 model view offset (final Z=550) to render above GUI elements at Z=400.
+     * Uses Z=1500 model view offset (final Z=550) to render above GUI elements at
+     * Z=400.
      */
-    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees, LivingEntity entity) {
+    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees,
+            LivingEntity entity) {
         float origBodyRot = entity.yBodyRot;
         float origYRot = entity.getYRot();
         float origXRot = entity.getXRot();
@@ -1024,8 +1113,9 @@ public class StageDetailScreen extends Screen {
                         String id = recipe.getId().toString();
                         ItemStack result = recipe.getResultItem(mc.level.registryAccess());
                         ItemStack workstation = getWorkstationForType(recipe.getType());
-                        recipeInfoCache.put(id, new ItemStack[]{workstation, result});
-                    } catch (Exception ignored) {}
+                        recipeInfoCache.put(id, new ItemStack[] { workstation, result });
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
@@ -1033,35 +1123,56 @@ public class StageDetailScreen extends Screen {
     }
 
     private static ItemStack getWorkstationForType(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return new ItemStack(Blocks.CRAFTING_TABLE);
-        if (type == RecipeType.SMELTING) return new ItemStack(Blocks.FURNACE);
-        if (type == RecipeType.BLASTING) return new ItemStack(Blocks.BLAST_FURNACE);
-        if (type == RecipeType.SMOKING) return new ItemStack(Blocks.SMOKER);
-        if (type == RecipeType.CAMPFIRE_COOKING) return new ItemStack(Blocks.CAMPFIRE);
-        if (type == RecipeType.STONECUTTING) return new ItemStack(Blocks.STONECUTTER);
-        if (type == RecipeType.SMITHING) return new ItemStack(Blocks.SMITHING_TABLE);
+        if (type == RecipeType.CRAFTING)
+            return new ItemStack(Blocks.CRAFTING_TABLE);
+        if (type == RecipeType.SMELTING)
+            return new ItemStack(Blocks.FURNACE);
+        if (type == RecipeType.BLASTING)
+            return new ItemStack(Blocks.BLAST_FURNACE);
+        if (type == RecipeType.SMOKING)
+            return new ItemStack(Blocks.SMOKER);
+        if (type == RecipeType.CAMPFIRE_COOKING)
+            return new ItemStack(Blocks.CAMPFIRE);
+        if (type == RecipeType.STONECUTTING)
+            return new ItemStack(Blocks.STONECUTTER);
+        if (type == RecipeType.SMITHING)
+            return new ItemStack(Blocks.SMITHING_TABLE);
         return ItemStack.EMPTY;
     }
 
     private static String getRecipeTypeName(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return "Crafting";
-        if (type == RecipeType.SMELTING) return "Smelting";
-        if (type == RecipeType.BLASTING) return "Blasting";
-        if (type == RecipeType.SMOKING) return "Smoking";
-        if (type == RecipeType.CAMPFIRE_COOKING) return "Campfire";
-        if (type == RecipeType.STONECUTTING) return "Stonecutting";
-        if (type == RecipeType.SMITHING) return "Smithing";
+        if (type == RecipeType.CRAFTING)
+            return "Crafting";
+        if (type == RecipeType.SMELTING)
+            return "Smelting";
+        if (type == RecipeType.BLASTING)
+            return "Blasting";
+        if (type == RecipeType.SMOKING)
+            return "Smoking";
+        if (type == RecipeType.CAMPFIRE_COOKING)
+            return "Campfire";
+        if (type == RecipeType.STONECUTTING)
+            return "Stonecutting";
+        if (type == RecipeType.SMITHING)
+            return "Smithing";
         return "Recipe";
     }
 
     private static int getRecipeTypeAccentColor(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return 0xFFFFCC00;
-        if (type == RecipeType.SMELTING) return 0xFFFF8800;
-        if (type == RecipeType.BLASTING) return 0xFFFF4400;
-        if (type == RecipeType.SMOKING) return 0xFF996633;
-        if (type == RecipeType.CAMPFIRE_COOKING) return 0xFFFF6600;
-        if (type == RecipeType.STONECUTTING) return 0xFF888888;
-        if (type == RecipeType.SMITHING) return 0xFF6688AA;
+        if (type == RecipeType.CRAFTING)
+            return 0xFFFFCC00;
+        if (type == RecipeType.SMELTING)
+            return 0xFFFF8800;
+        if (type == RecipeType.BLASTING)
+            return 0xFFFF4400;
+        if (type == RecipeType.SMOKING)
+            return 0xFF996633;
+        if (type == RecipeType.CAMPFIRE_COOKING)
+            return 0xFFFF6600;
+        if (type == RecipeType.STONECUTTING)
+            return 0xFF888888;
+        if (type == RecipeType.SMITHING)
+            return 0xFF6688AA;
         return 0xFF55CC55;
     }
 
@@ -1082,9 +1193,11 @@ public class StageDetailScreen extends Screen {
     }
 
     private void renderRecipePopup(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        if (recipePopupId == null) return;
+        if (recipePopupId == null)
+            return;
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
+        if (mc.level == null)
+            return;
 
         Recipe<?> recipe = null;
         Collection<Recipe<?>> allCached = AllRecipesCache.get();
@@ -1092,9 +1205,15 @@ public class StageDetailScreen extends Screen {
                 ? mc.level.getRecipeManager().getRecipes()
                 : allCached;
         for (Recipe<?> r : allRecipes) {
-            if (r.getId().toString().equals(recipePopupId)) { recipe = r; break; }
+            if (r.getId().toString().equals(recipePopupId)) {
+                recipe = r;
+                break;
+            }
         }
-        if (recipe == null) { recipePopupVisible = false; return; }
+        if (recipe == null) {
+            recipePopupVisible = false;
+            return;
+        }
 
         ItemStack result = recipe.getResultItem(mc.level.registryAccess());
         ItemStack workstation = getWorkstationForType(recipe.getType());
@@ -1120,7 +1239,8 @@ public class StageDetailScreen extends Screen {
                     ItemStack stack = items[0];
                     String key = ForgeRegistries.ITEMS.getKey(stack.getItem()) + ":" + stack.getDamageValue();
                     int count = ingredientCounts.getOrDefault(key, 0);
-                    if (count == 0) ingredients.add(stack.copy());
+                    if (count == 0)
+                        ingredients.add(stack.copy());
                     ingredientCounts.put(key, count + 1);
                 }
             }
@@ -1138,7 +1258,8 @@ public class StageDetailScreen extends Screen {
         if (isCrafting) {
             int gridCols = isShaped ? craftW : 3;
             int gridRows = isShaped ? craftH : (int) Math.ceil(rawIngredients.size() / 3.0);
-            if (!isShaped) gridRows = Math.max(gridRows, 1);
+            if (!isShaped)
+                gridRows = Math.max(gridRows, 1);
             gridW = gridCols * slotSize;
             gridH = gridRows * slotSize;
             hasScroll = false;
@@ -1195,14 +1316,15 @@ public class StageDetailScreen extends Screen {
 
         // ESC hint
         String escText = "[ESC]";
-        guiGraphics.drawString(this.font, escText, popupX + popupW - pad - this.font.width(escText), hdrY + 1, 0x444444, false);
+        guiGraphics.drawString(this.font, escText, popupX + popupW - pad - this.font.width(escText), hdrY + 1, 0x444444,
+                false);
 
         // Recipe ID (with marquee scroll on hover if too wide)
         int idMaxW = popupW - pad * 2;
-        int idTextW = (int)(this.font.width(recipePopupId) * SMALL_SCALE);
+        int idTextW = (int) (this.font.width(recipePopupId) * SMALL_SCALE);
         int idX = popupX + pad;
         int idY = hdrY + 15;
-        int idH = (int)(this.font.lineHeight * SMALL_SCALE);
+        int idH = (int) (this.font.lineHeight * SMALL_SCALE);
         boolean isIdHovered = mouseX >= idX && mouseX < idX + idMaxW && mouseY >= idY && mouseY < idY + idH + 2;
         if (idTextW <= idMaxW) {
             drawSmallText(guiGraphics, recipePopupId, idX, idY, 0x666666);
@@ -1261,7 +1383,8 @@ public class StageDetailScreen extends Screen {
                         ItemStack[] items = rawIngredients.get(idx).getItems();
                         if (items.length > 0) {
                             guiGraphics.renderItem(items[0], sx + 4, sy + 4);
-                            if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy && mouseY < sy + slotSize - 1) {
+                            if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy
+                                    && mouseY < sy + slotSize - 1) {
                                 hoveredIngredient = items[0];
                             }
                         }
@@ -1280,12 +1403,14 @@ public class StageDetailScreen extends Screen {
             int startIdx = recipePopupIngredientScroll * slotsPerRow;
             for (int idx = 0; idx < totalIngredients; idx++) {
                 int displayIdx = idx - startIdx;
-                if (displayIdx < 0) continue;
+                if (displayIdx < 0)
+                    continue;
                 int row = displayIdx / slotsPerRow;
                 int col = displayIdx % slotsPerRow;
                 int sx = gridX + col * slotSize;
                 int sy = gridY + row * slotSize;
-                if (sy >= gridY + gridH) break;
+                if (sy >= gridY + gridH)
+                    break;
 
                 ItemStack stack = ingredients.get(idx);
                 String key = ForgeRegistries.ITEMS.getKey(stack.getItem()) + ":" + stack.getDamageValue();
@@ -1302,7 +1427,8 @@ public class StageDetailScreen extends Screen {
                 if (count > 1) {
                     String cs = count + "x";
                     guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(sx + slotSize - this.font.width(cs) * 0.65f - 1, sy + slotSize - 9, 200);
+                    guiGraphics.pose().translate(sx + slotSize - this.font.width(cs) * 0.65f - 1, sy + slotSize - 9,
+                            200);
                     guiGraphics.pose().scale(0.65f, 0.65f, 1.0f);
                     guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
                     guiGraphics.pose().popPose();
@@ -1314,7 +1440,7 @@ public class StageDetailScreen extends Screen {
             if (hasScroll) {
                 int sbX = gridX + gridW + 3;
                 int thumbH = Math.max(8, gridH * 3 / ingredientRows);
-                int thumbY = gridY + (int)((float) recipePopupIngredientScroll / maxIngScroll * (gridH - thumbH));
+                int thumbY = gridY + (int) ((float) recipePopupIngredientScroll / maxIngScroll * (gridH - thumbH));
                 guiGraphics.fill(sbX, gridY, sbX + 2, gridY + gridH, 0xFF2A2A2A);
                 guiGraphics.fill(sbX, thumbY, sbX + 2, thumbY + thumbH, 0xFF666666);
             }
@@ -1340,18 +1466,20 @@ public class StageDetailScreen extends Screen {
             if (result.getCount() > 1) {
                 String cs = String.valueOf(result.getCount());
                 guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(rSlotX + resultSlotSize - this.font.width(cs) * 0.7f, rSlotY + resultSlotSize - 9, 200);
+                guiGraphics.pose().translate(rSlotX + resultSlotSize - this.font.width(cs) * 0.7f,
+                        rSlotY + resultSlotSize - 9, 200);
                 guiGraphics.pose().scale(0.7f, 0.7f, 1.0f);
                 guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
                 guiGraphics.pose().popPose();
             }
             String rName = result.getHoverName().getString();
-            int nameW = (int)(this.font.width(rName) * SMALL_SCALE);
+            int nameW = (int) (this.font.width(rName) * SMALL_SCALE);
             if (nameW > rightColW) {
-                rName = this.font.plainSubstrByWidth(rName, (int)(rightColW / SMALL_SCALE) - 6) + "...";
-                nameW = (int)(this.font.width(rName) * SMALL_SCALE);
+                rName = this.font.plainSubstrByWidth(rName, (int) (rightColW / SMALL_SCALE) - 6) + "...";
+                nameW = (int) (this.font.width(rName) * SMALL_SCALE);
             }
-            drawSmallText(guiGraphics, rName, resultAreaX + (rightColW - nameW) / 2, rSlotY + resultSlotSize + 4, 0xFFCC00);
+            drawSmallText(guiGraphics, rName, resultAreaX + (rightColW - nameW) / 2, rSlotY + resultSlotSize + 4,
+                    0xFFCC00);
         }
 
         // Workstation below result
@@ -1360,8 +1488,10 @@ public class StageDetailScreen extends Screen {
             int stationX = resultAreaX + (rightColW - stationSlot) / 2;
             int stationY = rSlotY + resultSlotSize + 18;
             if (stationY + stationSlot < contentY + contentH + 10) {
-                guiGraphics.fill(stationX, stationY, stationX + stationSlot - 1, stationY + stationSlot - 1, 0xFF2A2A2A);
-                guiGraphics.fill(stationX + 1, stationY + 1, stationX + stationSlot - 2, stationY + stationSlot - 2, 0xFF1E1E1E);
+                guiGraphics.fill(stationX, stationY, stationX + stationSlot - 1, stationY + stationSlot - 1,
+                        0xFF2A2A2A);
+                guiGraphics.fill(stationX + 1, stationY + 1, stationX + stationSlot - 2, stationY + stationSlot - 2,
+                        0xFF1E1E1E);
                 guiGraphics.renderItem(workstation, stationX + 3, stationY + 3);
                 drawSmallText(guiGraphics, "Station", stationX - 2, stationY + stationSlot + 2, 0x555555);
             }
@@ -1397,17 +1527,22 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (modEntityPopup.isVisible()) { return modEntityPopup.mouseClicked(mouseX, mouseY); }
+        if (modEntityPopup.isVisible()) {
+            return modEntityPopup.mouseClicked(mouseX, mouseY);
+        }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
                 int btnY = cachedPopupY + cachedPopupH - btnPad - btnH;
                 int addBtnX = cachedPopupX + cachedPopupW / 2 - btnW / 2;
                 if (mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    if (recipePopupAddAction != null) recipePopupAddAction.run();
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    if (recipePopupAddAction != null)
+                        recipePopupAddAction.run();
                     closeRecipePopup();
-                    if (recipeSearch.isVisible()) recipeSearch.hide();
+                    if (recipeSearch.isVisible())
+                        recipeSearch.hide();
                     return true;
                 }
             }
@@ -1415,7 +1550,8 @@ public class StageDetailScreen extends Screen {
             if (mouseX < cachedPopupX || mouseX > cachedPopupX + cachedPopupW
                     || mouseY < cachedPopupY || mouseY > cachedPopupY + cachedPopupH) {
                 closeRecipePopup();
-                if (recipeSearch.isVisible()) recipeSearch.hide();
+                if (recipeSearch.isVisible())
+                    recipeSearch.hide();
                 return true;
             }
             return true; // consume clicks inside popup
@@ -1424,13 +1560,34 @@ public class StageDetailScreen extends Screen {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
         }
-        if (itemSearch.isVisible()) { if (itemSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (modExceptionSearch.isVisible()) { if (modExceptionSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (modSearch.isVisible()) { if (modSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (tagSearch.isVisible()) { if (tagSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (dimensionSearch.isVisible()) { if (dimensionSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (recipeSearch.isVisible()) { if (recipeSearch.mouseClicked(mouseX, mouseY)) return true; }
+        if (itemSearch.isVisible()) {
+            if (itemSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (modExceptionSearch.isVisible()) {
+            if (modExceptionSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (modSearch.isVisible()) {
+            if (modSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (entitySearch.isVisible()) {
+            if (entitySearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (tagSearch.isVisible()) {
+            if (tagSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (dimensionSearch.isVisible()) {
+            if (dimensionSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (recipeSearch.isVisible()) {
+            if (recipeSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
 
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             // Tab scroll arrow clicks
@@ -1441,24 +1598,32 @@ public class StageDetailScreen extends Screen {
                     tabScrollOffset = Math.max(0, tabScrollOffset - 40);
                     return true;
                 }
-                if (tabScrollOffset < maxTabScroll && mouseX >= tabAreaRight - TAB_ARROW_WIDTH && mouseX < tabAreaRight) {
+                if (tabScrollOffset < maxTabScroll && mouseX >= tabAreaRight - TAB_ARROW_WIDTH
+                        && mouseX < tabAreaRight) {
                     tabScrollOffset = Math.min(maxTabScroll, tabScrollOffset + 40);
                     return true;
                 }
             }
             for (int i = 0; i < TAB_KEYS.length; i++) {
                 int scrolledTabX = tabX[i] - tabScrollOffset;
-                if (mouseX >= scrolledTabX && mouseX < scrolledTabX + tabW[i]) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); switchTab(i); return true; }
+                if (mouseX >= scrolledTabX && mouseX < scrolledTabX + tabW[i]) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    switchTab(i);
+                    return true;
+                }
             }
         }
 
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
+        if (super.mouseClicked(mouseX, mouseY, button))
+            return true;
 
         int listTop = HEADER_HEIGHT;
         int listBottom = this.height - 40;
         int contentLeft = 30;
         int contentRight = this.width - 30;
-        if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom) return false;
+        if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom)
+            return false;
 
         List<String> list = getActiveList();
         int y = listTop - (int) smoothScrollOffset + CARD_GAP;
@@ -1482,7 +1647,8 @@ public class StageDetailScreen extends Screen {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
                 if (button == 0 && activeTab == 4) {
                     // Left-click on recipe card: show recipe detail popup (view-only)
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     recipePopupId = list.get(i);
                     recipePopupVisible = true;
                     recipePopupAddMode = false;
@@ -1496,12 +1662,15 @@ public class StageDetailScreen extends Screen {
                     final int tabIdx = activeTab;
                     contextMenu = new ContextMenu();
                     if (tabIdx == 0) {
-                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openNbtEditScreen(entryIdx, entryValue));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
+                                () -> openNbtEditScreen(entryIdx, entryValue));
                     }
                     if (tabIdx == 3) {
-                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
+                                () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
-                    contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
+                    contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(),
+                            () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).remove(entryIdx);
                         // When removing an item, shift NBT indices
@@ -1526,7 +1695,8 @@ public class StageDetailScreen extends Screen {
                             editModExceptionNbt.clear();
                             editModExceptionNbt.putAll(shifted);
                         }
-                        // When removing a mod, also remove mod-linked entities and exceptions from that mod
+                        // When removing a mod, also remove mod-linked entities and exceptions from that
+                        // mod
                         if (tabIdx == 2 && removedValue != null) {
                             String prefix = removedValue + ":";
                             editSpawnlock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
@@ -1548,7 +1718,8 @@ public class StageDetailScreen extends Screen {
                                 }
                             }
                         }
-                        hasChanges = true; updateMaxScroll();
+                        hasChanges = true;
+                        updateMaxScroll();
                     });
                     contextMenu.show((int) mouseX, (int) mouseY, this.font);
                     return true;
@@ -1561,7 +1732,12 @@ public class StageDetailScreen extends Screen {
             String addText = "+ " + Component.translatable("editor.historystages.add").getString();
             int addTextW = this.font.width(addText);
             int addBoxRight = contentLeft + addTextW + 20;
-            if (mouseX >= contentLeft && mouseX <= addBoxRight) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); openAddDialog(); return true; }
+            if (mouseX >= contentLeft && mouseX <= addBoxRight) {
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                openAddDialog();
+                return true;
+            }
         }
         return false;
     }
@@ -1570,13 +1746,29 @@ public class StageDetailScreen extends Screen {
         int contentLeft = 30;
         int contentRight = this.width - 30;
         int cw = contentRight - contentLeft;
-        if (activeTab == 0) { itemSearch.setFilter(""); itemSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 1) { tagSearch.setFilter(""); tagSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 2) { modSearch.setFilter(""); modSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 4) { recipeSearch.setFilter(""); recipeSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 5) { dimensionSearch.setFilter(""); dimensionSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 6 || activeTab == 7) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
+        if (activeTab == 0) {
+            itemSearch.setFilter("");
+            itemSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 1) {
+            tagSearch.setFilter("");
+            tagSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 2) {
+            modSearch.setFilter("");
+            modSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 3) {
+            modExceptionSearch = createModExceptionSearch();
+            modExceptionSearch.setFilter("");
+            modExceptionSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 4) {
+            recipeSearch.setFilter("");
+            recipeSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 5) {
+            dimensionSearch.setFilter("");
+            dimensionSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 6 || activeTab == 7) {
+            entitySearch.setFilter("");
+            entitySearch.show(this.width / 2, this.height / 2, cw);
+        }
     }
 
     private void openEditDialog(int tabIdx, int entryIdx, String currentValue) {
@@ -1584,20 +1776,37 @@ public class StageDetailScreen extends Screen {
         int contentRight = this.width - 30;
         int cw = contentRight - contentLeft;
         if (tabIdx == 0) {
-            itemSearch = new SearchableItemList(itemId -> { getListForSection(tabIdx).set(entryIdx, itemId); hasChanges = true;
-                itemSearch = new SearchableItemList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); }); });
+            itemSearch = new SearchableItemList(itemId -> {
+                getListForSection(tabIdx).set(entryIdx, itemId);
+                hasChanges = true;
+                itemSearch = new SearchableItemList(id -> {
+                    getActiveList().add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
+                });
+            });
             itemSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 1) {
-            tagSearch = new SearchableTagList(tagId -> { getListForSection(tabIdx).set(entryIdx, tagId); hasChanges = true;
-                tagSearch = new SearchableTagList(id -> { editTags.add(id); hasChanges = true; updateMaxScroll(); }); });
+            tagSearch = new SearchableTagList(tagId -> {
+                getListForSection(tabIdx).set(entryIdx, tagId);
+                hasChanges = true;
+                tagSearch = new SearchableTagList(id -> {
+                    editTags.add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
+                });
+            });
             tagSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 2) {
             modSearch = new SearchableModList(modId -> {
-                getListForSection(tabIdx).set(entryIdx, modId); hasChanges = true;
+                getListForSection(tabIdx).set(entryIdx, modId);
+                hasChanges = true;
                 String displayName = modSearch.getDisplayName(modId);
                 modEntityPopup.showForMod(modId, displayName, this.width / 2, this.height / 2);
                 modSearch = new SearchableModList(id -> {
-                    editMods.add(id); hasChanges = true; updateMaxScroll();
+                    editMods.add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
                     String dn = modSearch.getDisplayName(id);
                     modEntityPopup.showForMod(id, dn, this.width / 2, this.height / 2);
                 });
@@ -1606,8 +1815,11 @@ public class StageDetailScreen extends Screen {
         } else if (tabIdx == 3) {
             modExceptionSearch = createModExceptionSearch();
             // Replace callback for edit mode
-            modExceptionSearch = new SearchableItemList(itemId -> { getListForSection(tabIdx).set(entryIdx, itemId); hasChanges = true;
-                modExceptionSearch = createModExceptionSearch(); });
+            modExceptionSearch = new SearchableItemList(itemId -> {
+                getListForSection(tabIdx).set(entryIdx, itemId);
+                hasChanges = true;
+                modExceptionSearch = createModExceptionSearch();
+            });
             modExceptionSearch.setModFilter(new java.util.HashSet<>(editMods));
             modExceptionSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 4) {
@@ -1616,7 +1828,11 @@ public class StageDetailScreen extends Screen {
                     getListForSection(tabIdx).set(entryIdx, recipeId);
                     hasChanges = true;
                     recipeSearch = new SearchableRecipeList(id -> {
-                        showRecipePreview(id, () -> { editRecipes.add(id); hasChanges = true; updateMaxScroll(); });
+                        showRecipePreview(id, () -> {
+                            editRecipes.add(id);
+                            hasChanges = true;
+                            updateMaxScroll();
+                        });
                     });
                     recipeSearch.setKeepVisibleOnSelect(true);
                 });
@@ -1624,12 +1840,26 @@ public class StageDetailScreen extends Screen {
             recipeSearch.setKeepVisibleOnSelect(true);
             recipeSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 5) {
-            dimensionSearch = new SearchableDimensionList(dimId -> { getListForSection(tabIdx).set(entryIdx, dimId); hasChanges = true;
-                dimensionSearch = new SearchableDimensionList(id -> { editDimensions.add(id); hasChanges = true; updateMaxScroll(); }); });
+            dimensionSearch = new SearchableDimensionList(dimId -> {
+                getListForSection(tabIdx).set(entryIdx, dimId);
+                hasChanges = true;
+                dimensionSearch = new SearchableDimensionList(id -> {
+                    editDimensions.add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
+                });
+            });
             dimensionSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 6 || tabIdx == 7) {
-            entitySearch = new SearchableEntityList(entityId -> { getListForSection(tabIdx).set(entryIdx, entityId); hasChanges = true;
-                entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); }); });
+            entitySearch = new SearchableEntityList(entityId -> {
+                getListForSection(tabIdx).set(entryIdx, entityId);
+                hasChanges = true;
+                entitySearch = new SearchableEntityList(id -> {
+                    getActiveList().add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
+                });
+            });
             entitySearch.show(this.width / 2, this.height / 2, cw);
         } else {
             this.minecraft.setScreen(new AddEntryScreen(this, tabIdx, entryIdx, currentValue));
@@ -1672,48 +1902,72 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (modEntityPopup.isVisible() && modEntityPopup.mouseDragged(mouseX, mouseY)) return true;
-        if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseDragged(mouseX, mouseY)) return true;
-        if (modSearch.isVisible() && modSearch.mouseDragged(mouseX, mouseY)) return true;
-        if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY)) return true;
-        if (tagSearch.isVisible() && tagSearch.mouseDragged(mouseX, mouseY)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseDragged(mouseX, mouseY)) return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY)) return true;
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseDragged(mouseX, mouseY))
+            return true;
+        if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (modSearch.isVisible() && modSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (tagSearch.isVisible() && tagSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (dimensionSearch.isVisible() && dimensionSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY))
+            return true;
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased()) return true;
-        if (itemSearch.isVisible() && itemSearch.mouseReleased()) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseReleased()) return true;
-        if (modSearch.isVisible() && modSearch.mouseReleased()) return true;
-        if (entitySearch.isVisible() && entitySearch.mouseReleased()) return true;
-        if (tagSearch.isVisible() && tagSearch.mouseReleased()) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseReleased()) return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseReleased()) return true;
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased())
+            return true;
+        if (itemSearch.isVisible() && itemSearch.mouseReleased())
+            return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseReleased())
+            return true;
+        if (modSearch.isVisible() && modSearch.mouseReleased())
+            return true;
+        if (entitySearch.isVisible() && entitySearch.mouseReleased())
+            return true;
+        if (tagSearch.isVisible() && tagSearch.mouseReleased())
+            return true;
+        if (dimensionSearch.isVisible() && dimensionSearch.mouseReleased())
+            return true;
+        if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
+            return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (modEntityPopup.isVisible() && modEntityPopup.mouseScrolled(mouseX, mouseY, delta)) return true;
+        if (modEntityPopup.isVisible() && modEntityPopup.mouseScrolled(mouseX, mouseY, delta))
+            return true;
         if (recipePopupVisible) {
             recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
             return true;
         }
-        if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (modSearch.isVisible() && modSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta)) return true;
+        if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (modSearch.isVisible() && modSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
 
         // Tab area mouse scroll
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
-            tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int)(delta * 30)));
+            tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int) (delta * 30)));
             return true;
         }
 
@@ -1723,18 +1977,26 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode)) return true;
+        if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode))
+            return true;
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
             return true;
         }
-        if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.keyPressed(keyCode)) return true;
-        if (modSearch.isVisible() && modSearch.keyPressed(keyCode)) return true;
-        if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
-        if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.keyPressed(keyCode)) return true;
-        if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode)) return true;
+        if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode))
+            return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.keyPressed(keyCode))
+            return true;
+        if (modSearch.isVisible() && modSearch.keyPressed(keyCode))
+            return true;
+        if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode))
+            return true;
+        if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode))
+            return true;
+        if (dimensionSearch.isVisible() && dimensionSearch.keyPressed(keyCode))
+            return true;
+        if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode))
+            return true;
 
         if (Screen.hasControlDown()) {
             EditBox focused = getFocusedEditBox();
@@ -1746,7 +2008,8 @@ public class StageDetailScreen extends Screen {
                 }
                 if (keyCode == 67) { // Ctrl+C
                     String selected = focused.getHighlighted();
-                    if (!selected.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(selected);
+                    if (!selected.isEmpty())
+                        Minecraft.getInstance().keyboardHandler.setClipboard(selected);
                     return true;
                 }
             }
@@ -1756,44 +2019,81 @@ public class StageDetailScreen extends Screen {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
-        if (keyCode == 256) { tryClose(); return true; }
+        if (keyCode == 256) {
+            tryClose();
+            return true;
+        }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private EditBox getFocusedEditBox() {
-        if (stageIdField != null && stageIdField.isFocused()) return stageIdField;
-        if (displayNameField != null && displayNameField.isFocused()) return displayNameField;
-        if (researchTimeField != null && researchTimeField.isFocused()) return researchTimeField;
+        if (stageIdField != null && stageIdField.isFocused())
+            return stageIdField;
+        if (displayNameField != null && displayNameField.isFocused())
+            return displayNameField;
+        if (researchTimeField != null && researchTimeField.isFocused())
+            return researchTimeField;
         return null;
     }
 
     @Override
     public boolean charTyped(char c, int modifiers) {
-        if (itemSearch.isVisible() && itemSearch.charTyped(c)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c)) return true;
-        if (modSearch.isVisible() && modSearch.charTyped(c)) return true;
-        if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
-        if (tagSearch.isVisible() && tagSearch.charTyped(c)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c)) return true;
-        if (recipeSearch.isVisible() && recipeSearch.charTyped(c)) return true;
+        if (itemSearch.isVisible() && itemSearch.charTyped(c))
+            return true;
+        if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c))
+            return true;
+        if (modSearch.isVisible() && modSearch.charTyped(c))
+            return true;
+        if (entitySearch.isVisible() && entitySearch.charTyped(c))
+            return true;
+        if (tagSearch.isVisible() && tagSearch.charTyped(c))
+            return true;
+        if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c))
+            return true;
+        if (recipeSearch.isVisible() && recipeSearch.charTyped(c))
+            return true;
         return super.charTyped(c, modifiers);
     }
 
-    @Override public boolean shouldCloseOnEsc() { return false; }
+    @Override
+    public boolean shouldCloseOnEsc() {
+        return false;
+    }
 
     private void tryClose() {
         if (hasChanges) {
             Screen overview = parent;
-            this.minecraft.setScreen(new ConfirmDialog(this, Component.translatable("editor.historystages.unsaved_warning_title"),
-                    Component.translatable("editor.historystages.unsaved_warning"), () -> Minecraft.getInstance().setScreen(overview)));
-        } else { this.minecraft.setScreen(parent); }
+            this.minecraft.setScreen(
+                    new ConfirmDialog(this, Component.translatable("editor.historystages.unsaved_warning_title"),
+                            Component.translatable("editor.historystages.unsaved_warning"),
+                            () -> Minecraft.getInstance().setScreen(overview)));
+        } else {
+            this.minecraft.setScreen(parent);
+        }
+    }
+
+    private void openDependencyEditor() {
+        this.minecraft
+                .setScreen(new DependencyEditorScreen(this, editDependencies, isIndividual, originalStageId, deps -> {
+                    this.editDependencies = deps;
+                    this.hasChanges = true;
+                }));
     }
 
     private void saveStage() {
         String id = editStageId.trim();
-        if (id.isEmpty()) { saveError = Component.translatable("editor.historystages.id_empty").getString(); return; }
-        if (!id.matches("[a-zA-Z0-9_\\-]+")) { saveError = Component.translatable("editor.historystages.id_invalid").getString(); return; }
-        if (editDisplayName.trim().isEmpty()) { saveError = Component.translatable("editor.historystages.display_name_empty").getString(); return; }
+        if (id.isEmpty()) {
+            saveError = Component.translatable("editor.historystages.id_empty").getString();
+            return;
+        }
+        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
+            saveError = Component.translatable("editor.historystages.id_invalid").getString();
+            return;
+        }
+        if (editDisplayName.trim().isEmpty()) {
+            saveError = Component.translatable("editor.historystages.display_name_empty").getString();
+            return;
+        }
         saveError = "";
 
         StageEntry newEntry = new StageEntry();
@@ -1820,12 +2120,20 @@ public class StageDetailScreen extends Screen {
         locks.setSpawnlock(editSpawnlock);
         locks.setModLinked(editModLinked);
         newEntry.setEntities(locks);
+        newEntry.setDependencies(editDependencies);
         PacketHandler.sendToServer(new SaveStagePacket(id, newEntry, isIndividual));
         hasChanges = false;
     }
 
-    @Override public void onClose() { this.minecraft.setScreen(parent); }
-    @Override public boolean isPauseScreen() { return true; }
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(parent);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return true;
+    }
 
     /**
      * Inner screen for adding or editing a text entry in a section.
@@ -1864,7 +2172,8 @@ public class StageDetailScreen extends Screen {
                 case 5 -> "minecraft:the_nether";
                 default -> "";
             };
-            if (!hint.isEmpty()) inputField.setHint(Component.literal("\u00A77" + hint));
+            if (!hint.isEmpty())
+                inputField.setHint(Component.literal("\u00A77" + hint));
 
             String buttonLabel = editIndex >= 0
                     ? Component.translatable("editor.historystages.save").getString()
@@ -1879,8 +2188,10 @@ public class StageDetailScreen extends Screen {
         private void addAndClose() {
             String value = inputField.getValue().trim();
             if (!value.isEmpty()) {
-                if (editIndex >= 0) parent.getListForSection(sectionIndex).set(editIndex, value);
-                else parent.getListForSection(sectionIndex).add(value);
+                if (editIndex >= 0)
+                    parent.getListForSection(sectionIndex).set(editIndex, value);
+                else
+                    parent.getListForSection(sectionIndex).add(value);
                 parent.hasChanges = true;
                 parent.updateMaxScroll();
             }
@@ -1889,7 +2200,10 @@ public class StageDetailScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { addAndClose(); return true; }
+            if (keyCode == 257) {
+                addAndClose();
+                return true;
+            }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
@@ -1903,11 +2217,16 @@ public class StageDetailScreen extends Screen {
             guiGraphics.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xFF2D2D2D);
             guiGraphics.fill(boxX + 1, boxY + 1, boxX + boxW - 1, boxY + boxH - 1, 0xFF1A1A1A);
             String sectionName = Component.translatable(SECTION_KEYS[sectionIndex]).getString();
-            String titleLabel = editIndex >= 0 ? Component.translatable("editor.historystages.edit").getString() : Component.translatable("editor.historystages.add").getString();
-            guiGraphics.drawCenteredString(this.font, titleLabel + " \u2014 " + sectionName, this.width / 2, boxY + 8, 0xFFFFFF);
+            String titleLabel = editIndex >= 0 ? Component.translatable("editor.historystages.edit").getString()
+                    : Component.translatable("editor.historystages.add").getString();
+            guiGraphics.drawCenteredString(this.font, titleLabel + " \u2014 " + sectionName, this.width / 2, boxY + 8,
+                    0xFFFFFF);
             super.render(guiGraphics, mouseX, mouseY, partialTick);
         }
 
-        @Override public void onClose() { this.minecraft.setScreen(parent); }
+        @Override
+        public void onClose() {
+            this.minecraft.setScreen(parent);
+        }
     }
 }

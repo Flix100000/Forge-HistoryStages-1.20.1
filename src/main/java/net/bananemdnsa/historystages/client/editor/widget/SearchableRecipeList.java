@@ -82,7 +82,8 @@ public class SearchableRecipeList {
 
     private void buildRecipeIndex() {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
+        if (mc.level == null)
+            return;
 
         RegistryAccess registryAccess = mc.level.registryAccess();
         // Use unfiltered recipes so locked recipes are still visible in the editor
@@ -94,10 +95,12 @@ public class SearchableRecipeList {
         for (Recipe<?> recipe : recipes) {
             try {
                 ItemStack result = recipe.getResultItem(registryAccess);
-                if (result.isEmpty()) continue;
+                if (result.isEmpty())
+                    continue;
 
                 ResourceLocation itemKey = ForgeRegistries.ITEMS.getKey(result.getItem());
-                if (itemKey == null) continue;
+                if (itemKey == null)
+                    continue;
 
                 String outputId = itemKey.toString();
                 ResourceLocation recipeId = recipe.getId();
@@ -112,26 +115,30 @@ public class SearchableRecipeList {
                 }
 
                 ItemStack workstation = getWorkstationForType(recipe.getType());
-                RecipeInfo info = new RecipeInfo(recipeId.toString(), result, ingredientStacks, recipe.getType().toString(), workstation);
+                RecipeInfo info = new RecipeInfo(recipeId.toString(), result, ingredientStacks,
+                        recipe.getType().toString(), workstation);
                 recipesByOutput.computeIfAbsent(outputId, k -> new ArrayList<>()).add(info);
             } catch (Exception ignored) {
                 // Skip problematic recipes
             }
         }
 
-        // Build item list from recipe outputs, sorted by registry order (like creative tabs)
+        // Build item list from recipe outputs, sorted by registry order (like creative
+        // tabs)
         Map<String, Integer> registryOrder = new HashMap<>();
         int idx = 0;
         for (Item item : ForgeRegistries.ITEMS) {
             ResourceLocation key = ForgeRegistries.ITEMS.getKey(item);
-            if (key != null) registryOrder.put(key.toString(), idx++);
+            if (key != null)
+                registryOrder.put(key.toString(), idx++);
         }
 
         Set<String> seen = new HashSet<>();
         for (Map.Entry<String, List<RecipeInfo>> entry : recipesByOutput.entrySet()) {
             if (seen.add(entry.getKey())) {
                 ItemStack stack = entry.getValue().get(0).result;
-                allRecipeItems.add(new ItemEntry(entry.getKey(), stack, entry.getValue().size(), stack.getHoverName().getString().toLowerCase()));
+                allRecipeItems.add(new ItemEntry(entry.getKey(), stack, entry.getValue().size(),
+                        stack.getHoverName().getString().toLowerCase()));
             }
         }
         allRecipeItems.sort((a, b) -> {
@@ -143,13 +150,20 @@ public class SearchableRecipeList {
     }
 
     private static ItemStack getWorkstationForType(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return new ItemStack(Blocks.CRAFTING_TABLE);
-        if (type == RecipeType.SMELTING) return new ItemStack(Blocks.FURNACE);
-        if (type == RecipeType.BLASTING) return new ItemStack(Blocks.BLAST_FURNACE);
-        if (type == RecipeType.SMOKING) return new ItemStack(Blocks.SMOKER);
-        if (type == RecipeType.CAMPFIRE_COOKING) return new ItemStack(Blocks.CAMPFIRE);
-        if (type == RecipeType.STONECUTTING) return new ItemStack(Blocks.STONECUTTER);
-        if (type == RecipeType.SMITHING) return new ItemStack(Blocks.SMITHING_TABLE);
+        if (type == RecipeType.CRAFTING)
+            return new ItemStack(Blocks.CRAFTING_TABLE);
+        if (type == RecipeType.SMELTING)
+            return new ItemStack(Blocks.FURNACE);
+        if (type == RecipeType.BLASTING)
+            return new ItemStack(Blocks.BLAST_FURNACE);
+        if (type == RecipeType.SMOKING)
+            return new ItemStack(Blocks.SMOKER);
+        if (type == RecipeType.CAMPFIRE_COOKING)
+            return new ItemStack(Blocks.CAMPFIRE);
+        if (type == RecipeType.STONECUTTING)
+            return new ItemStack(Blocks.STONECUTTER);
+        if (type == RecipeType.SMITHING)
+            return new ItemStack(Blocks.SMITHING_TABLE);
         return ItemStack.EMPTY;
     }
 
@@ -159,8 +173,10 @@ public class SearchableRecipeList {
         panelH = SEARCH_HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
@@ -172,9 +188,18 @@ public class SearchableRecipeList {
         updateMaxScroll();
     }
 
-    public void hide() { this.visible = false; this.inRecipePhase = false; }
-    public boolean isVisible() { return visible; }
-    public void setKeepVisibleOnSelect(boolean keep) { this.keepVisibleOnSelect = keep; }
+    public void hide() {
+        this.visible = false;
+        this.inRecipePhase = false;
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
+
+    public void setKeepVisibleOnSelect(boolean keep) {
+        this.keepVisibleOnSelect = keep;
+    }
 
     public void setFilter(String f) {
         this.filter = f.toLowerCase();
@@ -186,7 +211,8 @@ public class SearchableRecipeList {
             String modFilter = this.filter.substring(1);
             for (ItemEntry entry : allRecipeItems) {
                 String modId = entry.id.contains(":") ? entry.id.substring(0, entry.id.indexOf(':')) : "";
-                if (modId.contains(modFilter)) filteredItems.add(entry);
+                if (modId.contains(modFilter))
+                    filteredItems.add(entry);
             }
         } else {
             for (ItemEntry entry : allRecipeItems) {
@@ -205,7 +231,8 @@ public class SearchableRecipeList {
 
     private void showRecipesForItem(String itemId) {
         List<RecipeInfo> recipes = recipesByOutput.get(itemId);
-        if (recipes == null || recipes.isEmpty()) return;
+        if (recipes == null || recipes.isEmpty())
+            return;
 
         currentRecipes.clear();
         currentRecipes.addAll(recipes);
@@ -218,8 +245,10 @@ public class SearchableRecipeList {
         recipePanelH = 20 + PADDING * 2 + RECIPE_VISIBLE_ROWS * RECIPE_ROW_HEIGHT + PADDING + 4;
         recipePanelX = panelX + (panelW - recipePanelW) / 2;
         recipePanelY = panelY;
-        if (recipePanelX < 4) recipePanelX = 4;
-        if (recipePanelY < 4) recipePanelY = 4;
+        if (recipePanelX < 4)
+            recipePanelX = 4;
+        if (recipePanelY < 4)
+            recipePanelY = 4;
 
         recipeMaxScrollRow = Math.max(0, currentRecipes.size() - RECIPE_VISIBLE_ROWS);
     }
@@ -227,7 +256,8 @@ public class SearchableRecipeList {
     // ========== RENDERING ==========
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
         if (inRecipePhase) {
             renderRecipePhase(guiGraphics, font, mouseX, mouseY);
         } else {
@@ -254,7 +284,8 @@ public class SearchableRecipeList {
             int textW = font.width(filter);
             guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
         }
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF, false);
+        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF,
+                false);
         if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
             int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
             guiGraphics.fill(cursorX, searchY + 4, cursorX + 1, searchY + SEARCH_HEIGHT - 4, 0xFFFFFFFF);
@@ -316,12 +347,18 @@ public class SearchableRecipeList {
                     int screenH = net.minecraft.client.Minecraft.getInstance().getWindow().getGuiScaledHeight();
                     int tooltipX = mouseX + 12;
                     int tooltipY = mouseY - 12;
-                    if (tooltipX + tooltipW + 2 > screenW - 4) tooltipX = mouseX - tooltipW - 4;
-                    if (tooltipY + tooltipH + 2 > screenH - 4) tooltipY = screenH - tooltipH - 6;
-                    if (tooltipX < 4) tooltipX = 4;
-                    if (tooltipY < 4) tooltipY = 4;
-                    guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF3D3D3D);
-                    guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D0D);
+                    if (tooltipX + tooltipW + 2 > screenW - 4)
+                        tooltipX = mouseX - tooltipW - 4;
+                    if (tooltipY + tooltipH + 2 > screenH - 4)
+                        tooltipY = screenH - tooltipH - 6;
+                    if (tooltipX < 4)
+                        tooltipX = 4;
+                    if (tooltipY < 4)
+                        tooltipY = 4;
+                    guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH,
+                            0xFF3D3D3D);
+                    guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1,
+                            0xFF0D0D0D);
                     guiGraphics.drawString(font, tooltipText, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
                 }
             }
@@ -331,8 +368,10 @@ public class SearchableRecipeList {
 
     private void renderRecipePhase(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         // Panel background
-        guiGraphics.fill(recipePanelX - 2, recipePanelY - 2, recipePanelX + recipePanelW + 2, recipePanelY + recipePanelH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(recipePanelX, recipePanelY, recipePanelX + recipePanelW, recipePanelY + recipePanelH, 0xFF1A1A1A);
+        guiGraphics.fill(recipePanelX - 2, recipePanelY - 2, recipePanelX + recipePanelW + 2,
+                recipePanelY + recipePanelH + 2, 0xFF3D3D3D);
+        guiGraphics.fill(recipePanelX, recipePanelY, recipePanelX + recipePanelW, recipePanelY + recipePanelH,
+                0xFF1A1A1A);
 
         // Header with item icon and name + back hint
         int headerY = recipePanelY + PADDING;
@@ -342,7 +381,8 @@ public class SearchableRecipeList {
         // Back hint (top right)
         String backHint = "\u00A77[ESC] Back";
         int backW = font.width(backHint);
-        guiGraphics.drawString(font, backHint, recipePanelX + recipePanelW - PADDING - backW, headerY + 4, 0x888888, false);
+        guiGraphics.drawString(font, backHint, recipePanelX + recipePanelW - PADDING - backW, headerY + 4, 0x888888,
+                false);
 
         // Recipe list
         int listY = headerY + 20 + PADDING;
@@ -359,7 +399,8 @@ public class SearchableRecipeList {
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + RECIPE_ROW_HEIGHT;
 
-            if (rowHovered && index < currentRecipes.size()) currentHoveredIndex = index;
+            if (rowHovered && index < currentRecipes.size())
+                currentHoveredIndex = index;
 
             guiGraphics.fill(listX, rowY, listX + listW, rowY + RECIPE_ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
@@ -425,27 +466,37 @@ public class SearchableRecipeList {
             int scrollBarBottom = listY + RECIPE_VISIBLE_ROWS * RECIPE_ROW_HEIGHT;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-            int thumbHeight = Math.max(10, (int) ((float) RECIPE_VISIBLE_ROWS / (recipeMaxScrollRow + RECIPE_VISIBLE_ROWS) * scrollBarHeight));
-            int thumbY = scrollBarTop + (int) ((float) recipeScrollRow / recipeMaxScrollRow * (scrollBarHeight - thumbHeight));
+            int thumbHeight = Math.max(10,
+                    (int) ((float) RECIPE_VISIBLE_ROWS / (recipeMaxScrollRow + RECIPE_VISIBLE_ROWS) * scrollBarHeight));
+            int thumbY = scrollBarTop
+                    + (int) ((float) recipeScrollRow / recipeMaxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
     }
 
     private static int getRecipeTypeColor(String type) {
-        if (type.contains("crafting")) return 0xFFFFCC00;     // Gold - crafting
-        if (type.contains("smelting")) return 0xFFFF6600;     // Orange - smelting
-        if (type.contains("blasting")) return 0xFFFF3300;     // Red-orange - blasting
-        if (type.contains("smoking")) return 0xFF996633;      // Brown - smoking
-        if (type.contains("campfire")) return 0xFFFF9900;     // Warm orange - campfire
-        if (type.contains("stonecutting")) return 0xFF999999;  // Gray - stonecutting
-        if (type.contains("smithing")) return 0xFF4499CC;     // Blue - smithing
-        return 0xFF66CC66;                                     // Green - modded/unknown
+        if (type.contains("crafting"))
+            return 0xFFFFCC00; // Gold - crafting
+        if (type.contains("smelting"))
+            return 0xFFFF6600; // Orange - smelting
+        if (type.contains("blasting"))
+            return 0xFFFF3300; // Red-orange - blasting
+        if (type.contains("smoking"))
+            return 0xFF996633; // Brown - smoking
+        if (type.contains("campfire"))
+            return 0xFFFF9900; // Warm orange - campfire
+        if (type.contains("stonecutting"))
+            return 0xFF999999; // Gray - stonecutting
+        if (type.contains("smithing"))
+            return 0xFF4499CC; // Blue - smithing
+        return 0xFF66CC66; // Green - modded/unknown
     }
 
     // ========== INPUT ==========
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         if (inRecipePhase) {
             return mouseClickedRecipePhase(mouseX, mouseY);
@@ -455,7 +506,8 @@ public class SearchableRecipeList {
 
     private boolean mouseClickedItemPhase(double mouseX, double mouseY) {
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
-            hide(); return true;
+            hide();
+            return true;
         }
 
         // Scrollbar
@@ -497,7 +549,8 @@ public class SearchableRecipeList {
     private boolean mouseClickedRecipePhase(double mouseX, double mouseY) {
         if (mouseX < recipePanelX || mouseX > recipePanelX + recipePanelW
                 || mouseY < recipePanelY || mouseY > recipePanelY + recipePanelH) {
-            hide(); return true;
+            hide();
+            return true;
         }
 
         // Scrollbar
@@ -525,9 +578,11 @@ public class SearchableRecipeList {
             int rowY = listY + i * RECIPE_ROW_HEIGHT;
             if (index < currentRecipes.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + RECIPE_ROW_HEIGHT) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(currentRecipes.get(index).recipeId);
-                if (!keepVisibleOnSelect) hide();
+                if (!keepVisibleOnSelect)
+                    hide();
                 return true;
             }
         }
@@ -535,7 +590,8 @@ public class SearchableRecipeList {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (inRecipePhase && recipeDraggingScrollbar) {
             int headerY = recipePanelY + PADDING;
             int listY = headerY + 20 + PADDING;
@@ -552,16 +608,28 @@ public class SearchableRecipeList {
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
-        if (recipeDraggingScrollbar) { recipeDraggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
+        if (recipeDraggingScrollbar) {
+            recipeDraggingScrollbar = false;
+            return true;
+        }
         return false;
     }
 
     private void updateScrollFromMouse(double mouseY, int gridY) {
         int gridH = GRID_ROWS * SLOT_SIZE;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - gridY) / (double) gridH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + GRID_ROWS;
+        int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / totalRows * gridH));
+        float usableH = gridH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - gridY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     private void updateRecipeScrollFromMouse(double mouseY, int listY) {
@@ -572,7 +640,8 @@ public class SearchableRecipeList {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (inRecipePhase) {
             if (mouseX >= recipePanelX && mouseX <= recipePanelX + recipePanelW
                     && mouseY >= recipePanelY && mouseY <= recipePanelY + recipePanelH) {
@@ -589,7 +658,8 @@ public class SearchableRecipeList {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         if (keyCode == 256) { // ESC
             if (inRecipePhase) {
@@ -600,17 +670,28 @@ public class SearchableRecipeList {
             return true;
         }
 
-        if (inRecipePhase) return false; // No typing in recipe phase
+        if (inRecipePhase)
+            return false; // No typing in recipe phase
 
-        if (!searchFocused) return false;
+        if (!searchFocused)
+            return false;
         if (keyCode == 259) {
-            if (allSelected) { allSelected = false; setFilter(""); }
-            else if (!filter.isEmpty()) { setFilter(filter.substring(0, filter.length() - 1)); }
+            if (allSelected) {
+                allSelected = false;
+                setFilter("");
+            } else if (!filter.isEmpty()) {
+                setFilter(filter.substring(0, filter.length() - 1));
+            }
             return true;
         }
-        if (Screen.hasControlDown() && keyCode == 65) { if (!filter.isEmpty()) allSelected = true; return true; }
+        if (Screen.hasControlDown() && keyCode == 65) {
+            if (!filter.isEmpty())
+                allSelected = true;
+            return true;
+        }
         if (Screen.hasControlDown() && keyCode == 67) {
-            if (!filter.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(filter);
+            if (!filter.isEmpty())
+                Minecraft.getInstance().keyboardHandler.setClipboard(filter);
             return true;
         }
         if (Screen.hasControlDown() && keyCode == 86) {
@@ -625,7 +706,8 @@ public class SearchableRecipeList {
     }
 
     public boolean charTyped(char c) {
-        if (!visible || inRecipePhase || !searchFocused) return false;
+        if (!visible || inRecipePhase || !searchFocused)
+            return false;
         if (Character.isLetterOrDigit(c) || c == '_' || c == ':' || c == '.' || c == ' ' || c == '-' || c == '@') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
             allSelected = false;
@@ -635,6 +717,10 @@ public class SearchableRecipeList {
     }
 
     // ========== Data types ==========
-    private record ItemEntry(String id, ItemStack stack, int recipeCount, String searchName) {}
-    private record RecipeInfo(String recipeId, ItemStack result, List<ItemStack> ingredients, String type, ItemStack workstation) {}
+    private record ItemEntry(String id, ItemStack stack, int recipeCount, String searchName) {
+    }
+
+    private record RecipeInfo(String recipeId, ItemStack result, List<ItemStack> ingredients, String type,
+            ItemStack workstation) {
+    }
 }

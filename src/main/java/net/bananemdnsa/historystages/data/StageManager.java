@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.bananemdnsa.historystages.data.dependency.*;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -43,7 +44,7 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "entities"
+            "mod_exceptions", "recipes", "dimensions", "entities", "dependencies"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -96,6 +97,72 @@ public class StageManager {
 
         // Load individual stages after global stages
         loadIndividual();
+
+        // Check for circular dependencies across all stages
+        checkCircularDependencies();
+    }
+
+    /**
+     * Detects circular dependencies between stages.
+     * A cycle like A -> B -> A will produce an error message.
+     */
+    private static void checkCircularDependencies() {
+        Map<String, Set<String>> graph = new HashMap<>();
+
+        // Build adjacency list from all stages (global + individual)
+        for (Map.Entry<String, StageEntry> e : STAGES.entrySet()) {
+            Set<String> refs = new HashSet<>();
+            for (DependencyGroup group : e.getValue().getDependencies()) {
+                refs.addAll(group.getReferencedStageIds());
+            }
+            if (!refs.isEmpty()) graph.put(e.getKey(), refs);
+        }
+        for (Map.Entry<String, StageEntry> e : INDIVIDUAL_STAGES.entrySet()) {
+            Set<String> refs = new HashSet<>();
+            for (DependencyGroup group : e.getValue().getDependencies()) {
+                refs.addAll(group.getReferencedStageIds());
+            }
+            if (!refs.isEmpty()) graph.put(e.getKey(), refs);
+        }
+
+        // DFS cycle detection
+        Set<String> visited = new HashSet<>();
+        Set<String> inStack = new HashSet<>();
+
+        for (String node : graph.keySet()) {
+            if (!visited.contains(node)) {
+                List<String> path = new ArrayList<>();
+                if (hasCycleDFS(node, graph, visited, inStack, path)) {
+                    String cycle = String.join(" -> ", path);
+                    String msg = "Circular dependency detected: " + cycle;
+                    addMessage(MessageLevel.ERROR, msg);
+                    DebugLogger.error("Circular Dependencies", msg);
+                }
+            }
+        }
+    }
+
+    private static boolean hasCycleDFS(String node, Map<String, Set<String>> graph,
+                                       Set<String> visited, Set<String> inStack, List<String> path) {
+        visited.add(node);
+        inStack.add(node);
+        path.add(node);
+
+        Set<String> neighbors = graph.getOrDefault(node, Set.of());
+        for (String neighbor : neighbors) {
+            if (!visited.contains(neighbor)) {
+                if (hasCycleDFS(neighbor, graph, visited, inStack, path)) {
+                    return true;
+                }
+            } else if (inStack.contains(neighbor)) {
+                path.add(neighbor);
+                return true;
+            }
+        }
+
+        inStack.remove(node);
+        path.remove(path.size() - 1);
+        return false;
     }
 
     private static void validateFileName(String id, String fileName) {
@@ -262,6 +329,50 @@ public class StageManager {
             if (entry.getEntities().getAttacklock().contains(entityId)) {
                 addMessage(MessageLevel.INFO, "Entity '" + entityId + "' in both attacklock and spawnlock (Stage: " + stageId + "). Redundant.");
                 DebugLogger.info("Redundant Entities", "Entity '" + entityId + "' is in both attacklock and spawnlock (Stage: " + stageId + "). Spawnlock already implies attacklock — the attacklock entry is redundant.");
+            }
+        }
+
+        // --- Dependencies validation ---
+        if (entry.hasDependencies()) {
+            for (DependencyGroup group : entry.getDependencies()) {
+                // Validate dependency item IDs
+                group.getItems().removeIf(depItem -> {
+                    if (depItem.getId() == null || !ResourceLocation.isValidResourceLocation(depItem.getId())) {
+                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        return true;
+                    }
+                    return false;
+                });
+                // Validate entity kill IDs
+                group.getEntityKills().removeIf(kill -> {
+                    if (kill.getEntityId() == null || !ResourceLocation.isValidResourceLocation(kill.getEntityId())) {
+                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        return true;
+                    }
+                    return false;
+                });
+                // Validate stat IDs
+                group.getStats().removeIf(stat -> {
+                    if (stat.getStatId() == null || !ResourceLocation.isValidResourceLocation(stat.getStatId())) {
+                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        return true;
+                    }
+                    return false;
+                });
+                // Validate advancement IDs
+                group.getAdvancements().removeIf(adv -> {
+                    if (adv == null || !ResourceLocation.isValidResourceLocation(adv)) {
+                        addMessage(MessageLevel.WARN, "Dependency advancement '" + adv + "' invalid format (Stage: " + stageId + "). Removed.");
+                        return true;
+                    }
+                    return false;
+                });
+                // Warn about unknown stage references (non-fatal, stage might not be loaded yet)
+                for (String depStageId : group.getStages()) {
+                    if (!STAGES.containsKey(depStageId)) {
+                        addMessage(MessageLevel.INFO, "Dependency stage '" + depStageId + "' not found (Stage: " + stageId + "). May load later.");
+                    }
+                }
             }
         }
 

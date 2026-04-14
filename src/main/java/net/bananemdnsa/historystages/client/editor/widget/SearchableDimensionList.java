@@ -59,7 +59,8 @@ public class SearchableDimensionList {
     }
 
     private void addIfMissing(String dim) {
-        if (!allDimensions.contains(dim)) allDimensions.add(dim);
+        if (!allDimensions.contains(dim))
+            allDimensions.add(dim);
     }
 
     public void show(int centerX, int centerY, int parentWidth) {
@@ -67,8 +68,10 @@ public class SearchableDimensionList {
         panelH = SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
@@ -79,8 +82,13 @@ public class SearchableDimensionList {
         updateMaxScroll();
     }
 
-    public void hide() { this.visible = false; }
-    public boolean isVisible() { return visible; }
+    public void hide() {
+        this.visible = false;
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
 
     public void setFilter(String filter) {
         this.filter = filter.toLowerCase();
@@ -103,7 +111,8 @@ public class SearchableDimensionList {
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
@@ -123,7 +132,8 @@ public class SearchableDimensionList {
             guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
         }
 
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF, false);
+        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF,
+                false);
 
         if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
             int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
@@ -159,16 +169,19 @@ public class SearchableDimensionList {
             int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-            int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
+            int thumbHeight = Math.max(10,
+                    (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
-            hide(); return true;
+            hide();
+            return true;
         }
 
         if (maxScrollRow > 0) {
@@ -194,7 +207,8 @@ public class SearchableDimensionList {
             int rowY = listY + i * ROW_HEIGHT;
             if (index < filteredDimensions.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(filteredDimensions.get(index));
                 hide();
                 return true;
@@ -205,7 +219,8 @@ public class SearchableDimensionList {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar) return false;
+        if (!visible || !draggingScrollbar)
+            return false;
         int searchY = panelY + PADDING;
         int listY = searchY + SEARCH_HEIGHT + PADDING;
         updateScrollFromMouse(mouseY, listY);
@@ -213,19 +228,29 @@ public class SearchableDimensionList {
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
         return false;
     }
 
     private void updateScrollFromMouse(double mouseY, int listY) {
         int listH = VISIBLE_ROWS * ROW_HEIGHT;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - listY) / (double) listH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + VISIBLE_ROWS;
+        int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / totalRows * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
@@ -234,16 +259,29 @@ public class SearchableDimensionList {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible || !searchFocused) return false;
-        if (keyCode == 256) { hide(); return true; }
-        if (keyCode == 259) {
-            if (allSelected) { allSelected = false; setFilter(""); }
-            else if (!filter.isEmpty()) { setFilter(filter.substring(0, filter.length() - 1)); }
+        if (!visible || !searchFocused)
+            return false;
+        if (keyCode == 256) {
+            hide();
             return true;
         }
-        if (Screen.hasControlDown() && keyCode == 65) { if (!filter.isEmpty()) allSelected = true; return true; }
+        if (keyCode == 259) {
+            if (allSelected) {
+                allSelected = false;
+                setFilter("");
+            } else if (!filter.isEmpty()) {
+                setFilter(filter.substring(0, filter.length() - 1));
+            }
+            return true;
+        }
+        if (Screen.hasControlDown() && keyCode == 65) {
+            if (!filter.isEmpty())
+                allSelected = true;
+            return true;
+        }
         if (Screen.hasControlDown() && keyCode == 67) {
-            if (!filter.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(filter);
+            if (!filter.isEmpty())
+                Minecraft.getInstance().keyboardHandler.setClipboard(filter);
             return true;
         }
         if (Screen.hasControlDown() && keyCode == 86) {
@@ -258,7 +296,8 @@ public class SearchableDimensionList {
     }
 
     public boolean charTyped(char c) {
-        if (!visible || !searchFocused) return false;
+        if (!visible || !searchFocused)
+            return false;
         if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ' ' || c == '.' || c == ':') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
             allSelected = false;

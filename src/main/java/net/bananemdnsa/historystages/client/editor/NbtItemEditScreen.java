@@ -105,6 +105,11 @@ public class NbtItemEditScreen extends Screen {
         updateMaxScroll();
     }
 
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(parent);
+    }
+
     private void buildPropertyTree() {
         properties.clear();
 
@@ -134,7 +139,8 @@ public class NbtItemEditScreen extends Screen {
     }
 
     private void loadCurrentValues() {
-        if (currentNbt == null) return;
+        if (currentNbt == null)
+            return;
 
         // Collect known property keys
         java.util.Set<String> knownKeys = new java.util.HashSet<>();
@@ -200,7 +206,8 @@ public class NbtItemEditScreen extends Screen {
                     }
                 }
             }
-            default -> {}
+            default -> {
+            }
         }
     }
 
@@ -315,7 +322,8 @@ public class NbtItemEditScreen extends Screen {
                     if (child.type == NbtType.STRING_LIST && child.enabled) {
                         for (int si = 0; si < child.stringListValues.size(); si++) {
                             if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
-                                renderStringListEntry(g, child, si, contentLeft + INDENT * 2, y, contentRight, mouseX, mouseY);
+                                renderStringListEntry(g, child, si, contentLeft + INDENT * 2, y, contentRight, mouseX,
+                                        mouseY);
                             }
                             y += ROW_HEIGHT;
                         }
@@ -388,7 +396,8 @@ public class NbtItemEditScreen extends Screen {
             int btnSaveX = this.width / 2 - 70;
             int btnCancelX = this.width / 2 + 10;
             boolean saveHover = mouseX >= btnSaveX && mouseX < btnSaveX + 60 && mouseY >= btnY && mouseY < btnY + 18;
-            boolean cancelHover = mouseX >= btnCancelX && mouseX < btnCancelX + 60 && mouseY >= btnY && mouseY < btnY + 18;
+            boolean cancelHover = mouseX >= btnCancelX && mouseX < btnCancelX + 60 && mouseY >= btnY
+                    && mouseY < btnY + 18;
             g.fill(btnSaveX, btnY, btnSaveX + 60, btnY + 18, saveHover ? 0x80FF6600 : 0x40FF6600);
             g.drawString(this.font, "Save", btnSaveX + 18, btnY + 5, 0xFFFFFF);
             g.fill(btnCancelX, btnY, btnCancelX + 60, btnY + 18, cancelHover ? 0x80FFFFFF : 0x40FFFFFF);
@@ -428,8 +437,9 @@ public class NbtItemEditScreen extends Screen {
             int fieldX = right - fieldW - 10;
             int fieldY = y + 2;
             boolean fieldHovered = mx >= fieldX && mx < fieldX + fieldW && my >= fieldY && my < fieldY + ROW_HEIGHT - 4;
-            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + ROW_HEIGHT - 4, fieldHovered ? 0x50FFFFFF : 0x40FFFFFF);
-            g.fill(fieldX + 1, fieldY + 1, fieldX + fieldW - 1, fieldY + ROW_HEIGHT - 5, 0xE0101010);
+            int borderColor = fieldHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + ROW_HEIGHT - 3, borderColor);
+            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + ROW_HEIGHT - 4, 0xFF0D0D0D);
             String displayVal = prop.value != null ? prop.value : "";
             if (displayVal.isEmpty()) {
                 g.drawString(this.font, "click to edit...", fieldX + 4, fieldY + 4, 0x555555);
@@ -446,7 +456,8 @@ public class NbtItemEditScreen extends Screen {
         }
     }
 
-    private void renderEnchantmentEntry(GuiGraphics g, NbtProperty prop, int idx, int x, int y, int right, int mx, int my) {
+    private void renderEnchantmentEntry(GuiGraphics g, NbtProperty prop, int idx, int x, int y, int right, int mx,
+            int my) {
         EnchantmentEntry ench = prop.enchantments.get(idx);
 
         // Remove button [X]
@@ -460,9 +471,11 @@ public class NbtItemEditScreen extends Screen {
         int idX = x + 16;
         int fieldW = (right - idX - 80) / 2;
         boolean idHovered = mx >= idX && mx < idX + fieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
-        g.fill(idX, y + 2, idX + fieldW, y + ROW_HEIGHT - 4, idHovered ? 0x50FFFFFF : 0x40FFFFFF);
-        g.fill(idX + 1, y + 3, idX + fieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
-        g.drawString(this.font, ench.id.isEmpty() ? "enchantment id..." : ench.id, idX + 4, y + 6, ench.id.isEmpty() ? 0x555555 : 0xCCCCCC);
+        int idBorder = idHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(idX - 1, y + 1, idX + fieldW + 1, y + ROW_HEIGHT - 3, idBorder);
+        g.fill(idX, y + 2, idX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
+        g.drawString(this.font, ench.id.isEmpty() ? "enchantment id..." : ench.id, idX + 4, y + 6,
+                ench.id.isEmpty() ? 0x555555 : 0xCCCCCC);
 
         // Level label + field
         int lvlLabelX = idX + fieldW + 8;
@@ -470,12 +483,15 @@ public class NbtItemEditScreen extends Screen {
         int lvlFieldX = lvlLabelX + this.font.width("lvl:") + 4;
         int lvlFieldW = 50;
         boolean lvlHovered = mx >= lvlFieldX && mx < lvlFieldX + lvlFieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
-        g.fill(lvlFieldX, y + 2, lvlFieldX + lvlFieldW, y + ROW_HEIGHT - 4, lvlHovered ? 0x50FFFFFF : 0x40FFFFFF);
-        g.fill(lvlFieldX + 1, y + 3, lvlFieldX + lvlFieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
-        g.drawString(this.font, ench.level.isEmpty() ? "1" : ench.level, lvlFieldX + 4, y + 6, ench.level.isEmpty() ? 0x555555 : 0xCCCCCC);
+        int lvlBorder = lvlHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(lvlFieldX - 1, y + 1, lvlFieldX + lvlFieldW + 1, y + ROW_HEIGHT - 3, lvlBorder);
+        g.fill(lvlFieldX, y + 2, lvlFieldX + lvlFieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
+        g.drawString(this.font, ench.level.isEmpty() ? "1" : ench.level, lvlFieldX + 4, y + 6,
+                ench.level.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 
-    private void renderStringListEntry(GuiGraphics g, NbtProperty prop, int idx, int x, int y, int right, int mx, int my) {
+    private void renderStringListEntry(GuiGraphics g, NbtProperty prop, int idx, int x, int y, int right, int mx,
+            int my) {
         String val = prop.stringListValues.get(idx);
 
         // Remove button
@@ -488,9 +504,12 @@ public class NbtItemEditScreen extends Screen {
         // Value field
         int fieldX = x + 16;
         int fieldW = right - fieldX - 10;
-        g.fill(fieldX, y + 2, fieldX + fieldW, y + ROW_HEIGHT - 4, 0x40FFFFFF);
-        g.fill(fieldX + 1, y + 3, fieldX + fieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
-        g.drawString(this.font, val.isEmpty() ? "click to edit..." : val, fieldX + 4, y + 6, val.isEmpty() ? 0x555555 : 0xCCCCCC);
+        boolean fieldHovered = mx >= fieldX && mx < fieldX + fieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
+        int fieldBorder = fieldHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(fieldX - 1, y + 1, fieldX + fieldW + 1, y + ROW_HEIGHT - 3, fieldBorder);
+        g.fill(fieldX, y + 2, fieldX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
+        g.drawString(this.font, val.isEmpty() ? "click to edit..." : val, fieldX + 4, y + 6,
+                val.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 
     private void renderAddButton(GuiGraphics g, int x, int y, String label, int mx, int my) {
@@ -527,8 +546,10 @@ public class NbtItemEditScreen extends Screen {
             return true; // consume all clicks while overlay is shown
         }
 
-        if (super.mouseClicked(mouseX, mouseY, button)) return true;
-        if (button != 0) return false;
+        if (super.mouseClicked(mouseX, mouseY, button))
+            return true;
+        if (button != 0)
+            return false;
 
         int listTop = HEADER_HEIGHT;
         int listBottom = this.height - 40;
@@ -544,24 +565,29 @@ public class NbtItemEditScreen extends Screen {
             }
         }
 
-        if (mouseY < listTop || mouseY > listBottom) return false;
+        if (mouseY < listTop || mouseY > listBottom)
+            return false;
 
         int y = listTop - (int) scrollOffset;
         int contentLeft = PADDING;
         int contentRight = this.width - PADDING;
 
         for (NbtProperty prop : properties) {
-            if (handlePropertyClick(prop, contentLeft, y, contentRight, mouseX, mouseY)) return true;
+            if (handlePropertyClick(prop, contentLeft, y, contentRight, mouseX, mouseY))
+                return true;
             y += ROW_HEIGHT;
 
             if (prop.type == NbtType.ENCHANTMENT_LIST && prop.enabled) {
                 for (int ei = 0; ei < prop.enchantments.size(); ei++) {
-                    if (handleEnchantmentClick(prop, ei, contentLeft + INDENT, y, contentRight, mouseX, mouseY)) return true;
+                    if (handleEnchantmentClick(prop, ei, contentLeft + INDENT, y, contentRight, mouseX, mouseY))
+                        return true;
                     y += ROW_HEIGHT;
                 }
                 int addW = this.font.width("+ Add Enchantment") + 12;
-                if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y
+                        && mouseY < y + ROW_HEIGHT) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     prop.enchantments.add(new EnchantmentEntry("", "1"));
                     updateMaxScroll();
                     return true;
@@ -571,17 +597,22 @@ public class NbtItemEditScreen extends Screen {
 
             if (prop.type == NbtType.COMPOUND) {
                 for (NbtProperty child : prop.children) {
-                    if (handlePropertyClick(child, contentLeft + INDENT, y, contentRight, mouseX, mouseY)) return true;
+                    if (handlePropertyClick(child, contentLeft + INDENT, y, contentRight, mouseX, mouseY))
+                        return true;
                     y += ROW_HEIGHT;
 
                     if (child.type == NbtType.STRING_LIST && child.enabled) {
                         for (int si = 0; si < child.stringListValues.size(); si++) {
-                            if (handleStringListClick(child, si, contentLeft + INDENT * 2, y, contentRight, mouseX, mouseY)) return true;
+                            if (handleStringListClick(child, si, contentLeft + INDENT * 2, y, contentRight, mouseX,
+                                    mouseY))
+                                return true;
                             y += ROW_HEIGHT;
                         }
                         int addW = this.font.width("+ Add Entry") + 12;
-                        if (mouseX >= contentLeft + INDENT * 2 && mouseX < contentLeft + INDENT * 2 + addW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
-                            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        if (mouseX >= contentLeft + INDENT * 2 && mouseX < contentLeft + INDENT * 2 + addW
+                                && mouseY >= y && mouseY < y + ROW_HEIGHT) {
+                            Minecraft.getInstance().getSoundManager()
+                                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                             child.stringListValues.add("");
                             updateMaxScroll();
                             return true;
@@ -593,12 +624,15 @@ public class NbtItemEditScreen extends Screen {
 
             if (prop.type == NbtType.STRING_LIST && prop.enabled && prop.children.isEmpty()) {
                 for (int si = 0; si < prop.stringListValues.size(); si++) {
-                    if (handleStringListClick(prop, si, contentLeft + INDENT, y, contentRight, mouseX, mouseY)) return true;
+                    if (handleStringListClick(prop, si, contentLeft + INDENT, y, contentRight, mouseX, mouseY))
+                        return true;
                     y += ROW_HEIGHT;
                 }
                 int addW = this.font.width("+ Add Entry") + 12;
-                if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y
+                        && mouseY < y + ROW_HEIGHT) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     prop.stringListValues.add("");
                     updateMaxScroll();
                     return true;
@@ -610,7 +644,8 @@ public class NbtItemEditScreen extends Screen {
         // Custom NBT add
         int addW = this.font.width("+ Custom NBT Key") + 12;
         if (mouseX >= contentLeft && mouseX < contentLeft + addW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             openCustomNbtDialog();
             return true;
         }
@@ -622,7 +657,8 @@ public class NbtItemEditScreen extends Screen {
         int cbX = x;
         int cbY = y + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
         if (mx >= cbX && mx < cbX + CHECKBOX_SIZE && my >= cbY && my < cbY + CHECKBOX_SIZE) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             prop.enabled = !prop.enabled;
             if (!prop.enabled) {
                 prop.value = null;
@@ -660,7 +696,8 @@ public class NbtItemEditScreen extends Screen {
         int removeX = x;
         int removeY = y + (ROW_HEIGHT - 10) / 2;
         if (mx >= removeX && mx < removeX + 10 && my >= removeY && my < removeY + 10) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             prop.enchantments.remove(idx);
             updateMaxScroll();
             return true;
@@ -681,7 +718,8 @@ public class NbtItemEditScreen extends Screen {
         int lvlFieldX = lvlLabelX + this.font.width("lvl:") + 4;
         int lvlFieldW = 50;
         if (mx >= lvlFieldX && mx < lvlFieldX + lvlFieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4) {
-            openSuggestingInput("Level (or range, e.g. 1-4)", ench.level, Collections.emptyList(), val -> ench.level = val);
+            openSuggestingInput("Level (or range, e.g. 1-4)", ench.level, Collections.emptyList(),
+                    val -> ench.level = val);
             return true;
         }
 
@@ -692,7 +730,8 @@ public class NbtItemEditScreen extends Screen {
         int removeX = x;
         int removeY = y + (ROW_HEIGHT - 10) / 2;
         if (mx >= removeX && mx < removeX + 10 && my >= removeY && my < removeY + 10) {
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             prop.stringListValues.remove(idx);
             updateMaxScroll();
             return true;
@@ -700,7 +739,8 @@ public class NbtItemEditScreen extends Screen {
 
         int fieldX = x + 16;
         if (mx >= fieldX && mx < right - 10 && my >= y + 2 && my < y + ROW_HEIGHT - 4) {
-            openSuggestingInput("Value", prop.stringListValues.get(idx), Collections.emptyList(), val -> prop.stringListValues.set(idx, val));
+            openSuggestingInput("Value", prop.stringListValues.get(idx), Collections.emptyList(),
+                    val -> prop.stringListValues.set(idx, val));
             return true;
         }
 
@@ -714,12 +754,15 @@ public class NbtItemEditScreen extends Screen {
     private void openValueEditor(NbtProperty prop) {
         String title = prop.key;
         List<String> suggestions = Collections.emptyList();
-        if (prop.type == NbtType.INTEGER) title += " (number or range, e.g. 42 or 1-4)";
-        if ("Potion".equals(prop.key)) suggestions = getPotionSuggestions();
+        if (prop.type == NbtType.INTEGER)
+            title += " (number or range, e.g. 42 or 1-4)";
+        if ("Potion".equals(prop.key))
+            suggestions = getPotionSuggestions();
         openSuggestingInput(title, prop.value != null ? prop.value : "", suggestions, val -> prop.value = val);
     }
 
-    private void openSuggestingInput(String title, String currentValue, List<String> suggestions, Consumer<String> onDone) {
+    private void openSuggestingInput(String title, String currentValue, List<String> suggestions,
+            Consumer<String> onDone) {
         this.minecraft.setScreen(new SuggestingInputScreen(this, title, currentValue, suggestions, onDone));
     }
 
@@ -777,10 +820,12 @@ public class NbtItemEditScreen extends Screen {
     private List<String> validateNbt() {
         List<String> warnings = new ArrayList<>();
         for (NbtProperty prop : properties) {
-            if (!prop.enabled) continue;
+            if (!prop.enabled)
+                continue;
             if (prop.type == NbtType.ENCHANTMENT_LIST) {
                 for (EnchantmentEntry ench : prop.enchantments) {
-                    if (ench.id.isEmpty()) continue;
+                    if (ench.id.isEmpty())
+                        continue;
                     ResourceLocation enchRL = ResourceLocation.tryParse(ench.id);
                     Enchantment enchObj = enchRL != null ? ForgeRegistries.ENCHANTMENTS.getValue(enchRL) : null;
                     if (enchObj == null) {
@@ -816,7 +861,8 @@ public class NbtItemEditScreen extends Screen {
         JsonObject nbt = new JsonObject();
 
         for (NbtProperty prop : properties) {
-            if (!prop.enabled) continue;
+            if (!prop.enabled)
+                continue;
 
             switch (prop.type) {
                 case INTEGER -> {
@@ -826,7 +872,8 @@ public class NbtItemEditScreen extends Screen {
                         } else {
                             try {
                                 nbt.addProperty(prop.key, Integer.parseInt(prop.value));
-                            } catch (NumberFormatException ignored) {}
+                            } catch (NumberFormatException ignored) {
+                            }
                         }
                     }
                 }
@@ -854,19 +901,23 @@ public class NbtItemEditScreen extends Screen {
                             arr.add(obj);
                         }
                     }
-                    if (arr.size() > 0) nbt.add(prop.key, arr);
+                    if (arr.size() > 0)
+                        nbt.add(prop.key, arr);
                 }
                 case STRING_LIST -> {
                     JsonArray arr = new JsonArray();
                     for (String val : prop.stringListValues) {
-                        if (!val.isEmpty()) arr.add(val);
+                        if (!val.isEmpty())
+                            arr.add(val);
                     }
-                    if (arr.size() > 0) nbt.add(prop.key, arr);
+                    if (arr.size() > 0)
+                        nbt.add(prop.key, arr);
                 }
                 case COMPOUND -> {
                     JsonObject compound = new JsonObject();
                     for (NbtProperty child : prop.children) {
-                        if (!child.enabled) continue;
+                        if (!child.enabled)
+                            continue;
                         switch (child.type) {
                             case STRING -> {
                                 if (child.value != null && !child.value.isEmpty()) {
@@ -876,14 +927,18 @@ public class NbtItemEditScreen extends Screen {
                             case STRING_LIST -> {
                                 JsonArray arr = new JsonArray();
                                 for (String val : child.stringListValues) {
-                                    if (!val.isEmpty()) arr.add(val);
+                                    if (!val.isEmpty())
+                                        arr.add(val);
                                 }
-                                if (arr.size() > 0) compound.add(child.key, arr);
+                                if (arr.size() > 0)
+                                    compound.add(child.key, arr);
                             }
-                            default -> {}
+                            default -> {
+                            }
                         }
                     }
-                    if (compound.size() > 0) nbt.add(prop.key, compound);
+                    if (compound.size() > 0)
+                        nbt.add(prop.key, compound);
                 }
             }
         }
@@ -924,7 +979,9 @@ public class NbtItemEditScreen extends Screen {
     }
 
     @Override
-    public boolean isPauseScreen() { return true; }
+    public boolean isPauseScreen() {
+        return true;
+    }
 
     // ==========================================
     // Data types
@@ -977,7 +1034,8 @@ public class NbtItemEditScreen extends Screen {
         private static final int MAX_VISIBLE_SUGGESTIONS = 6;
         private static final int SUGGESTION_HEIGHT = 14;
 
-        SuggestingInputScreen(Screen parent, String title, String currentValue, List<String> suggestions, Consumer<String> onDone) {
+        SuggestingInputScreen(Screen parent, String title, String currentValue, List<String> suggestions,
+                Consumer<String> onDone) {
             super(Component.literal(title));
             this.parent = parent;
             this.title = title;
@@ -994,6 +1052,7 @@ public class NbtItemEditScreen extends Screen {
             inputField = new EditBox(this.font, centerX - 120, centerY, 240, 20, Component.literal(title));
             inputField.setMaxLength(512);
             inputField.setValue(currentValue);
+            inputField.setBordered(false);
             inputField.setResponder(val -> {
                 updateSuggestions(val);
                 suggestionScroll = 0;
@@ -1004,14 +1063,19 @@ public class NbtItemEditScreen extends Screen {
             this.addRenderableWidget(StyledButton.of(
                     Component.literal("OK"),
                     btn -> confirm(),
-                    centerX - 50, centerY + 26 + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT + 6, 100, 20));
+                    centerX - 50,
+                    centerY + 26
+                            + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT
+                            + 6,
+                    100, 20));
 
             updateSuggestions(currentValue);
         }
 
         private void updateSuggestions(String input) {
             if (allSuggestions.isEmpty() || input.isEmpty()) {
-                filteredSuggestions = allSuggestions.isEmpty() ? Collections.emptyList() : new ArrayList<>(allSuggestions);
+                filteredSuggestions = allSuggestions.isEmpty() ? Collections.emptyList()
+                        : new ArrayList<>(allSuggestions);
                 return;
             }
             String lower = input.toLowerCase();
@@ -1040,6 +1104,14 @@ public class NbtItemEditScreen extends Screen {
 
             g.drawString(this.font, title, dlgX + 10, dlgY + 8, 0xFFCC00);
 
+            // Input field background
+            int fieldX = centerX - 120;
+            int fieldY = centerY;
+            int fieldW = 240;
+            int fieldH = 20;
+            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + fieldH + 1, 0xFF4A4A4A);
+            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, 0xFF0D0D0D);
+
             // Suggestions list
             if (!filteredSuggestions.isEmpty() && !allSuggestions.isEmpty()) {
                 int sugY = centerY + 24;
@@ -1053,10 +1125,12 @@ public class NbtItemEditScreen extends Screen {
 
                 for (int i = 0; i < visibleSuggestions; i++) {
                     int idx = i + suggestionScroll;
-                    if (idx >= filteredSuggestions.size()) break;
+                    if (idx >= filteredSuggestions.size())
+                        break;
                     String suggestion = filteredSuggestions.get(idx);
                     int itemY = sugY + i * SUGGESTION_HEIGHT;
-                    boolean hovered = mouseX >= sugX && mouseX < sugX + sugW && mouseY >= itemY && mouseY < itemY + SUGGESTION_HEIGHT;
+                    boolean hovered = mouseX >= sugX && mouseX < sugX + sugW && mouseY >= itemY
+                            && mouseY < itemY + SUGGESTION_HEIGHT;
 
                     if (hovered) {
                         g.fill(sugX, itemY, sugX + sugW, itemY + SUGGESTION_HEIGHT, 0x40FFCC00);
@@ -1095,7 +1169,8 @@ public class NbtItemEditScreen extends Screen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (super.mouseClicked(mouseX, mouseY, button)) return true;
+            if (super.mouseClicked(mouseX, mouseY, button))
+                return true;
 
             // Check if clicking on a suggestion
             if (!filteredSuggestions.isEmpty() && !allSuggestions.isEmpty()) {
@@ -1106,10 +1181,12 @@ public class NbtItemEditScreen extends Screen {
                 int sugW = 240;
                 int visibleSuggestions = Math.min(MAX_VISIBLE_SUGGESTIONS, filteredSuggestions.size());
 
-                if (mouseX >= sugX && mouseX < sugX + sugW && mouseY >= sugY && mouseY < sugY + visibleSuggestions * SUGGESTION_HEIGHT) {
+                if (mouseX >= sugX && mouseX < sugX + sugW && mouseY >= sugY
+                        && mouseY < sugY + visibleSuggestions * SUGGESTION_HEIGHT) {
                     int idx = (int) ((mouseY - sugY) / SUGGESTION_HEIGHT) + suggestionScroll;
                     if (idx >= 0 && idx < filteredSuggestions.size()) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         inputField.setValue(filteredSuggestions.get(idx));
                         return true;
                     }
@@ -1136,13 +1213,21 @@ public class NbtItemEditScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { confirm(); return true; } // Enter
-            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; } // Escape
+            if (keyCode == 257) {
+                confirm();
+                return true;
+            } // Enter
+            if (keyCode == 256) {
+                this.minecraft.setScreen(parent);
+                return true;
+            } // Escape
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 
     // ==========================================
@@ -1169,12 +1254,14 @@ public class NbtItemEditScreen extends Screen {
             keyField = new EditBox(this.font, centerX - 120, centerY - 24, 240, 20, Component.literal("Key"));
             keyField.setMaxLength(128);
             keyField.setHint(Component.literal("NBT Key..."));
+            keyField.setBordered(false);
             this.addRenderableWidget(keyField);
             this.setFocused(keyField);
 
             valueField = new EditBox(this.font, centerX - 120, centerY + 2, 240, 20, Component.literal("Value"));
             valueField.setMaxLength(512);
             valueField.setHint(Component.literal("Value..."));
+            valueField.setBordered(false);
             this.addRenderableWidget(valueField);
 
             this.addRenderableWidget(StyledButton.of(
@@ -1198,6 +1285,16 @@ public class NbtItemEditScreen extends Screen {
 
             g.drawString(this.font, "Custom NBT Key", dlgX + 10, dlgY + 8, 0xFFCC00);
 
+            // keyField background
+            int kx = centerX - 120, ky = centerY - 24, kw = 240, kh = 20;
+            g.fill(kx - 1, ky - 1, kx + kw + 1, ky + kh + 1, 0xFF4A4A4A);
+            g.fill(kx, ky, kx + kw, ky + kh, 0xFF0D0D0D);
+
+            // valueField background
+            int vx = centerX - 120, vy = centerY + 2, vw = 240, vh = 20;
+            g.fill(vx - 1, vy - 1, vx + vw + 1, vy + vh + 1, 0xFF4A4A4A);
+            g.fill(vx, vy, vx + vw, vy + vh, 0xFF0D0D0D);
+
             super.render(g, mouseX, mouseY, partialTick);
         }
 
@@ -1212,12 +1309,20 @@ public class NbtItemEditScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { confirm(); return true; }
-            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; }
+            if (keyCode == 257) {
+                confirm();
+                return true;
+            }
+            if (keyCode == 256) {
+                this.minecraft.setScreen(parent);
+                return true;
+            }
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
         @Override
-        public boolean isPauseScreen() { return true; }
+        public boolean isPauseScreen() {
+            return true;
+        }
     }
 }

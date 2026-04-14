@@ -1,33 +1,32 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
-import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
- * Searchable overlay list of all registered item tags.
+ * Searchable overlay list of all registered stages (global or individual).
+ * Allows selecting a stage by clicking on it.
  */
-public class SearchableTagList {
+public class SearchableStageList {
     private static final int ROW_HEIGHT = 16;
     private static final int VISIBLE_ROWS = 10;
     private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
     private static final int PANEL_WIDTH = 260;
 
-    private final List<String> allTags = new ArrayList<>();
-    private final List<String> filteredTags = new ArrayList<>();
+    private final List<StageListEntry> allStages = new ArrayList<>();
+    private final List<StageListEntry> filteredStages = new ArrayList<>();
     private final Consumer<String> onSelect;
 
     private int panelX, panelY, panelW, panelH;
@@ -39,18 +38,41 @@ public class SearchableTagList {
     private boolean draggingScrollbar = false;
     private boolean allSelected = false;
 
-    public SearchableTagList(Consumer<String> onSelect) {
-        this.onSelect = onSelect;
+    // Marquee
+    private int hoveredRow = -1;
+    private long hoverStartTime = 0;
+    private static final long MARQUEE_DELAY_MS = 800;
+    private static final float MARQUEE_SPEED = 25.0f;
 
-        // Collect all item tag keys
-        ForgeRegistries.ITEMS.tags().getTagNames().forEach(tagKey -> {
-            allTags.add(tagKey.location().toString());
-        });
-        allTags.sort(String::compareToIgnoreCase);
-        filteredTags.addAll(allTags);
+    // If set, this stage ID is excluded from the list (to prevent self-dependency)
+    private String excludeStageId = null;
+
+    // Mode: true = show individual stages, false = show global stages
+    private boolean showIndividual;
+
+    public SearchableStageList(Consumer<String> onSelect, boolean showIndividual) {
+        this.onSelect = onSelect;
+        this.showIndividual = showIndividual;
+        rebuildList();
+    }
+
+    public void setExcludeStageId(String stageId) {
+        this.excludeStageId = stageId;
+    }
+
+    private void rebuildList() {
+        allStages.clear();
+        Map<String, StageEntry> stages = showIndividual
+                ? StageManager.getIndividualStages()
+                : StageManager.getStages();
+        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+            allStages.add(new StageListEntry(entry.getKey(), entry.getValue().getDisplayName()));
+        }
+        allStages.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
     }
 
     public void show(int centerX, int centerY, int parentWidth) {
+        rebuildList();
         panelW = PANEL_WIDTH;
         panelH = SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         panelX = centerX - panelW / 2;
@@ -64,9 +86,7 @@ public class SearchableTagList {
         this.scrollRow = 0;
         this.filter = "";
         this.searchFocused = true;
-        filteredTags.clear();
-        filteredTags.addAll(allTags);
-        updateMaxScroll();
+        setFilter("");
     }
 
     public void hide() {
@@ -80,21 +100,21 @@ public class SearchableTagList {
     public void setFilter(String filter) {
         this.filter = filter.toLowerCase();
         this.scrollRow = 0;
-        filteredTags.clear();
-        if (this.filter.isEmpty()) {
-            filteredTags.addAll(allTags);
-        } else {
-            for (String tag : allTags) {
-                if (tag.toLowerCase().contains(this.filter)) {
-                    filteredTags.add(tag);
-                }
+        filteredStages.clear();
+        for (StageListEntry entry : allStages) {
+            if (excludeStageId != null && entry.id.equals(excludeStageId))
+                continue;
+            if (this.filter.isEmpty()
+                    || entry.id.toLowerCase().contains(this.filter)
+                    || entry.displayName.toLowerCase().contains(this.filter)) {
+                filteredStages.add(entry);
             }
         }
         updateMaxScroll();
     }
 
     private void updateMaxScroll() {
-        maxScrollRow = Math.max(0, filteredTags.size() - VISIBLE_ROWS);
+        maxScrollRow = Math.max(0, filteredStages.size() - VISIBLE_ROWS);
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -112,7 +132,7 @@ public class SearchableTagList {
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "\u00A77Search tags..." : filter;
+        String displayFilter = filter.isEmpty() ? "\u00A77Search stages..." : filter;
 
         if (allSelected && !filter.isEmpty()) {
             int textW = font.width(filter);
@@ -132,23 +152,57 @@ public class SearchableTagList {
         int listY = searchY + SEARCH_HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
+        boolean anyRowHovered = false;
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+            if (rowHovered)
+                anyRowHovered = true;
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
 
-            if (index < filteredTags.size()) {
-                String text = filteredTags.get(index);
-                if (font.width(text) > listW - 4) {
-                    text = font.plainSubstrByWidth(text, listW - 10) + "...";
+            if (index < filteredStages.size()) {
+                StageListEntry entry = filteredStages.get(index);
+                String text = entry.displayName + " \u00A77(" + entry.id + ")";
+                int textW = font.width(text);
+                int textAvailW = listW - 6;
+                int textColor = rowHovered ? 0xFFFFFF : 0xBBBBBB;
+
+                if (rowHovered) {
+                    if (hoveredRow != index) {
+                        hoveredRow = index;
+                        hoverStartTime = System.currentTimeMillis();
+                    }
                 }
-                guiGraphics.drawString(font, text, listX + 3, rowY + 4, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+
+                if (textW > textAvailW && rowHovered && hoveredRow == index) {
+                    long elapsed = System.currentTimeMillis() - hoverStartTime;
+                    if (elapsed > MARQUEE_DELAY_MS) {
+                        float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                        int maxMarquee = textW - textAvailW + 10;
+                        float cycle = (float) maxMarquee * 2;
+                        float pos = scrollProg % cycle;
+                        int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                        guiGraphics.enableScissor(listX, rowY, listX + listW, rowY + ROW_HEIGHT);
+                        guiGraphics.drawString(font, text, listX + 3 - scrollOff, rowY + 4, textColor, false);
+                        guiGraphics.disableScissor();
+                    } else {
+                        guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                                rowY + 4, textColor, false);
+                    }
+                } else if (textW > textAvailW) {
+                    guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                            rowY + 4, textColor, false);
+                } else {
+                    guiGraphics.drawString(font, text, listX + 3, rowY + 4, textColor, false);
+                }
             }
         }
+        if (!anyRowHovered)
+            hoveredRow = -1;
 
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -192,11 +246,11 @@ public class SearchableTagList {
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
-            if (index < filteredTags.size() && mouseX >= listX && mouseX < listX + listW
+            if (index < filteredStages.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                onSelect.accept(filteredTags.get(index));
+                onSelect.accept(filteredStages.get(index).id);
                 hide();
                 return true;
             }
@@ -285,11 +339,14 @@ public class SearchableTagList {
     public boolean charTyped(char c) {
         if (!visible || !searchFocused)
             return false;
-        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ' ' || c == '.' || c == ':' || c == '/') {
+        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':' || c == ' ') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
             allSelected = false;
             return true;
         }
         return false;
+    }
+
+    private record StageListEntry(String id, String displayName) {
     }
 }

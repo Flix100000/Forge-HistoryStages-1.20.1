@@ -120,7 +120,22 @@ public class Config {
                     .define("showIndividualTooltips", true);
 
             builder.pop();
+
+            builder.comment("Dependency Display Settings").push("dependencies");
+
+            showDependenciesOnScroll = builder
+                    .comment("Show dependency requirements in research scroll tooltips? [Default: true]")
+                    .define("showDependenciesOnScroll", true);
+
+            hideFulfilledDependencies = builder
+                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
+                    .define("hideFulfilledDependencies", false);
+
+            builder.pop();
         }
+
+        public final ForgeConfigSpec.BooleanValue showDependenciesOnScroll;
+        public final ForgeConfigSpec.BooleanValue hideFulfilledDependencies;
     }
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
@@ -147,6 +162,7 @@ public class Config {
 
         // Forschungsstation
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
+        public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
 
         // Loot-Ersetzungen
         public final ForgeConfigSpec.BooleanValue useReplacements;
@@ -257,6 +273,11 @@ public class Config {
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
+
+            showDependencyScreenInPedestal = builder
+                    .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
+                    .define("showDependencyScreenInPedestal", true);
+
             builder.pop(); // Schließt "research"
 
             // --- LOOT REPLACEMENTS SECTION ---
