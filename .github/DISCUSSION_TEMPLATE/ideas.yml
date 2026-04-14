@@ -4,9 +4,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists.
-        Note: Per-player stage unlocking is a known limitation and will not be implemented,
-        as global locking via the RecipeManager Mixin cannot operate on a per-player basis.
+        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists!
 
   - type: textarea
     id: description
@@ -46,6 +44,7 @@ body:
         - Recipe Locking
         - Commands
         - JEI / EMI Integration
+        - FTBQuests Integration
         - Loot / Mob Drop Locking
         - Dimension Locking
         - Entity Locking
