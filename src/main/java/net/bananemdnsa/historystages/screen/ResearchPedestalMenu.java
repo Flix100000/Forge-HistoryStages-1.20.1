@@ -21,7 +21,8 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
         // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
-        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(5));
+        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()),
+                new SimpleContainerData(5));
     }
 
     // Server-Konstruktor
@@ -55,9 +56,18 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         return maxProgress != 0 && progress != 0 ? progress * progressArrowSize / maxProgress : 0;
     }
 
+    public ResearchPedestalBlockEntity getBlockEntity() {
+        return this.blockEntity;
+    }
+
+    public net.minecraft.core.BlockPos getBlockPos() {
+        return this.blockEntity.getBlockPos();
+    }
+
     @Override
     public boolean stillValid(Player pPlayer) {
-        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer, ModBlocks.RESEARCH_PEDESTAL.get());
+        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer,
+                ModBlocks.RESEARCH_PEDESTAL.get());
     }
 
     private void addPlayerInventory(Inventory playerInventory) {

@@ -55,8 +55,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     stack.getOrCreateTag().putUUID("OwnerUUID", ownerUUID);
                     // Store owner name for client-side display
                     if (level != null && level.getServer() != null) {
-                        net.minecraft.server.level.ServerPlayer ownerPlayer =
-                                level.getServer().getPlayerList().getPlayer(ownerUUID);
+                        net.minecraft.server.level.ServerPlayer ownerPlayer = level.getServer().getPlayerList()
+                                .getPlayer(ownerUUID);
                         if (ownerPlayer != null) {
                             stack.getOrCreateTag().putString("OwnerName", ownerPlayer.getName().getString());
                         }
@@ -143,6 +143,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return Component.translatable("block.historystages.research_pedestal");
     }
 
+    public ItemStack getScrollStack() {
+        return this.itemHandler.getStackInSlot(0);
+    }
+
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int pContainerId, Inventory pPlayerInventory, Player pPlayer) {
@@ -151,7 +155,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestalBlockEntity entity) {
-        if (level.isClientSide) return;
+        if (level.isClientSide)
+            return;
 
         // Neu: Warte kurz, bevor das Sync-Paket gesendet wird (Timing-Fix)
         if (entity.syncTickDelay > 0) {
@@ -204,7 +209,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                             researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
                         }
                         if (researchPlayer != null) {
-                            DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level);
+                            CompoundTag depositedTag = stack.hasTag()
+                                    && stack.getTag().contains("DepositedDependencies")
+                                            ? stack.getTag().getCompound("DepositedDependencies")
+                                            : null;
+                            DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
+                                    depositedTag);
                             dependenciesMet = result.isFulfilled();
                         } else {
                             // No player available to check - pause research
@@ -239,8 +249,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             entity.finishDelay = 0;
         }
 
-        if (state.getValue(ResearchPedestalBlock.WORKING) != hasValidBook || state.getValue(ResearchPedestalBlock.LIT) != isResearching) {
-            level.setBlock(pos, state.setValue(ResearchPedestalBlock.WORKING, hasValidBook).setValue(ResearchPedestalBlock.LIT, isResearching), 3);
+        if (state.getValue(ResearchPedestalBlock.WORKING) != hasValidBook
+                || state.getValue(ResearchPedestalBlock.LIT) != isResearching) {
+            level.setBlock(pos, state.setValue(ResearchPedestalBlock.WORKING, hasValidBook)
+                    .setValue(ResearchPedestalBlock.LIT, isResearching), 3);
         }
         setChanged(level, pos, state);
     }
@@ -249,22 +261,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
 
-            // Consume dependency items and XP before unlocking
-            if (!ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
-                StageEntry stageEntry = StageManager.isIndividualStage(stageId)
-                        ? StageManager.getIndividualStages().get(stageId)
-                        : StageManager.getStages().get(stageId);
-                if (stageEntry != null && stageEntry.hasDependencies()) {
-                    UUID consumeUUID = StageManager.isIndividualStage(stageId) ? ownerUUID : lastInteractingPlayer;
-                    if (consumeUUID != null && level.getServer() != null) {
-                        net.minecraft.server.level.ServerPlayer player = level.getServer().getPlayerList().getPlayer(consumeUUID);
-                        if (player != null) {
-                            DependencyChecker.consumeItems(player, stageEntry.getDependencies());
-                            DependencyChecker.consumeXp(player, stageEntry.getDependencies());
-                        }
-                    }
-                }
-            }
+            // Consuming items and XP is now handled when depositing into the scroll
+            // so we don't need to do it here anymore.
 
             if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
                 finishCreativeResearch();
@@ -297,8 +295,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (level.getServer() != null) {
                 level.getServer().getCommands().performPrefixedCommand(
                         level.getServer().createCommandSourceStack().withSuppressedOutput(),
-                        "history reload"
-                );
+                        "history reload");
             }
 
             String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
@@ -310,8 +307,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     player.sendSystemMessage(
                             Component.literal("[HistoryStages] ")
                                     .withStyle(ChatFormatting.GRAY)
-                                    .append(Component.literal(finalChat))
-                    );
+                                    .append(Component.literal(finalChat)));
                 }
                 if (Config.COMMON.useSounds.get()) {
                     player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
@@ -319,13 +315,15 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             });
 
             if (Config.COMMON.useToasts.get()) {
-                PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
+                PacketHandler
+                        .sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
             }
         }
     }
 
     private void finishIndividualResearch(ItemStack stack, String stageId) {
-        if (ownerUUID == null) return;
+        if (ownerUUID == null)
+            return;
 
         var stageEntry = StageManager.getIndividualStages().get(stageId);
         IndividualStageData data = IndividualStageData.get(level);
@@ -336,17 +334,17 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
-                    new net.bananemdnsa.historystages.events.StageEvent.IndividualUnlocked(stageId, eventDisplayName, ownerUUID));
+                    new net.bananemdnsa.historystages.events.StageEvent.IndividualUnlocked(stageId, eventDisplayName,
+                            ownerUUID));
 
             // Sync individual stages to the owner player only
             if (level.getServer() != null) {
-                net.minecraft.server.level.ServerPlayer ownerPlayer =
-                        level.getServer().getPlayerList().getPlayer(ownerUUID);
+                net.minecraft.server.level.ServerPlayer ownerPlayer = level.getServer().getPlayerList()
+                        .getPlayer(ownerUUID);
                 if (ownerPlayer != null) {
                     PacketHandler.sendIndividualStagesToPlayer(
                             new SyncIndividualStagesPacket(data.getUnlockedStages(ownerUUID)),
-                            ownerPlayer
-                    );
+                            ownerPlayer);
 
                     // Notify the owner player
                     String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
@@ -358,8 +356,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         ownerPlayer.sendSystemMessage(
                                 Component.literal("[HistoryStages] ")
                                         .withStyle(ChatFormatting.GRAY)
-                                        .append(Component.literal(finalChat))
-                        );
+                                        .append(Component.literal(finalChat)));
                     }
                     if (Config.COMMON.individualUseActionbar.get()) {
                         String configChat = Config.COMMON.individualUnlockMessageFormat.get();
@@ -369,13 +366,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         ownerPlayer.displayClientMessage(Component.literal(finalChat), true);
                     }
                     if (Config.COMMON.individualUseSounds.get()) {
-                        ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
+                        ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F,
+                                1.0F);
                     }
                     if (Config.COMMON.individualUseToasts.get()) {
                         PacketHandler.INSTANCE.send(
                                 net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> ownerPlayer),
-                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename)
-                        );
+                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
                     }
                 }
             }
@@ -384,7 +381,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     private void finishCreativeResearch() {
-        if (level.getServer() == null) return;
+        if (level.getServer() == null)
+            return;
 
         // Unlock all global stages
         StageData stageData = StageData.get(level);
@@ -398,8 +396,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         // Reload recipes
         level.getServer().getCommands().performPrefixedCommand(
                 level.getServer().createCommandSourceStack().withSuppressedOutput(),
-                "history reload"
-        );
+                "history reload");
 
         // Unlock all individual stages for all online players
         IndividualStageData individualData = IndividualStageData.get(level);
@@ -412,8 +409,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             // Sync individual stages to each player
             PacketHandler.sendIndividualStagesToPlayer(
                     new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
-                    player
-            );
+                    player);
         }
         individualData.setDirty();
 
@@ -426,8 +422,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         Component.literal("[HistoryStages] ")
                                 .withStyle(ChatFormatting.GRAY)
                                 .append(Component.translatable("command.historystages.unlocked_all")
-                                        .withStyle(ChatFormatting.GREEN))
-                );
+                                        .withStyle(ChatFormatting.GREEN)));
             }
             if (Config.COMMON.useSounds.get()) {
                 player.playNotifySound(net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
@@ -467,7 +462,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
     @Override
     public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @Nullable Direction side) {
-        if (cap == ForgeCapabilities.ITEM_HANDLER) return lazyItemHandler.cast();
+        if (cap == ForgeCapabilities.ITEM_HANDLER)
+            return lazyItemHandler.cast();
         return super.getCapability(cap, side);
     }
 

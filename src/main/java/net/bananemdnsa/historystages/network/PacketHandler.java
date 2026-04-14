@@ -13,24 +13,38 @@ public class PacketHandler {
             new ResourceLocation(HistoryStages.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
             PROTOCOL_VERSION::equals,
-            PROTOCOL_VERSION::equals
-    );
+            PROTOCOL_VERSION::equals);
 
     public static void register() {
         int id = 0;
-        INSTANCE.registerMessage(id++, SyncStagesPacket.class, SyncStagesPacket::encode, SyncStagesPacket::decode, SyncStagesPacket::handle);
-        INSTANCE.registerMessage(id++, StageUnlockedToastPacket.class, StageUnlockedToastPacket::encode, StageUnlockedToastPacket::decode, StageUnlockedToastPacket::handle);
-        INSTANCE.registerMessage(id++, RequestEditorDataPacket.class, RequestEditorDataPacket::encode, RequestEditorDataPacket::decode, RequestEditorDataPacket::handle);
-        INSTANCE.registerMessage(id++, EditorSyncPacket.class, EditorSyncPacket::encode, EditorSyncPacket::decode, EditorSyncPacket::handle);
-        INSTANCE.registerMessage(id++, SaveStagePacket.class, SaveStagePacket::encode, SaveStagePacket::decode, SaveStagePacket::handle);
-        INSTANCE.registerMessage(id++, DeleteStagePacket.class, DeleteStagePacket::encode, DeleteStagePacket::decode, DeleteStagePacket::handle);
-        INSTANCE.registerMessage(id++, ToggleStageLockPacket.class, ToggleStageLockPacket::encode, ToggleStageLockPacket::decode, ToggleStageLockPacket::handle);
-        INSTANCE.registerMessage(id++, SaveConfigPacket.class, SaveConfigPacket::encode, SaveConfigPacket::decode, SaveConfigPacket::handle);
-        INSTANCE.registerMessage(id++, SyncStageDefinitionsPacket.class, SyncStageDefinitionsPacket::encode, SyncStageDefinitionsPacket::decode, SyncStageDefinitionsPacket::handle);
-        INSTANCE.registerMessage(id++, SyncConfigPacket.class, SyncConfigPacket::encode, SyncConfigPacket::decode, SyncConfigPacket::handle);
-        INSTANCE.registerMessage(id++, SyncIndividualStagesPacket.class, SyncIndividualStagesPacket::encode, SyncIndividualStagesPacket::decode, SyncIndividualStagesPacket::handle);
-        INSTANCE.registerMessage(id++, CheckDependencyPacket.class, CheckDependencyPacket::encode, CheckDependencyPacket::decode, CheckDependencyPacket::handle);
-        INSTANCE.registerMessage(id++, SyncDependencyStatusPacket.class, SyncDependencyStatusPacket::encode, SyncDependencyStatusPacket::decode, SyncDependencyStatusPacket::handle);
+        INSTANCE.registerMessage(id++, SyncStagesPacket.class, SyncStagesPacket::encode, SyncStagesPacket::decode,
+                SyncStagesPacket::handle);
+        INSTANCE.registerMessage(id++, StageUnlockedToastPacket.class, StageUnlockedToastPacket::encode,
+                StageUnlockedToastPacket::decode, StageUnlockedToastPacket::handle);
+        INSTANCE.registerMessage(id++, RequestEditorDataPacket.class, RequestEditorDataPacket::encode,
+                RequestEditorDataPacket::decode, RequestEditorDataPacket::handle);
+        INSTANCE.registerMessage(id++, EditorSyncPacket.class, EditorSyncPacket::encode, EditorSyncPacket::decode,
+                EditorSyncPacket::handle);
+        INSTANCE.registerMessage(id++, SaveStagePacket.class, SaveStagePacket::encode, SaveStagePacket::decode,
+                SaveStagePacket::handle);
+        INSTANCE.registerMessage(id++, DeleteStagePacket.class, DeleteStagePacket::encode, DeleteStagePacket::decode,
+                DeleteStagePacket::handle);
+        INSTANCE.registerMessage(id++, ToggleStageLockPacket.class, ToggleStageLockPacket::encode,
+                ToggleStageLockPacket::decode, ToggleStageLockPacket::handle);
+        INSTANCE.registerMessage(id++, SaveConfigPacket.class, SaveConfigPacket::encode, SaveConfigPacket::decode,
+                SaveConfigPacket::handle);
+        INSTANCE.registerMessage(id++, SyncStageDefinitionsPacket.class, SyncStageDefinitionsPacket::encode,
+                SyncStageDefinitionsPacket::decode, SyncStageDefinitionsPacket::handle);
+        INSTANCE.registerMessage(id++, SyncConfigPacket.class, SyncConfigPacket::encode, SyncConfigPacket::decode,
+                SyncConfigPacket::handle);
+        INSTANCE.registerMessage(id++, SyncIndividualStagesPacket.class, SyncIndividualStagesPacket::encode,
+                SyncIndividualStagesPacket::decode, SyncIndividualStagesPacket::handle);
+        INSTANCE.registerMessage(id++, CheckDependencyPacket.class, CheckDependencyPacket::encode,
+                CheckDependencyPacket::decode, CheckDependencyPacket::handle);
+        INSTANCE.registerMessage(id++, SyncDependencyStatusPacket.class, SyncDependencyStatusPacket::encode,
+                SyncDependencyStatusPacket::decode, SyncDependencyStatusPacket::handle);
+        INSTANCE.registerMessage(id++, DepositDependencyPacket.class, DepositDependencyPacket::toBytes,
+                DepositDependencyPacket::new, DepositDependencyPacket::handle);
     }
 
     // Hilfsmethode, um das Paket an alle Spieler zu senden
@@ -38,7 +52,8 @@ public class PacketHandler {
         INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
     }
 
-    // Hilfsmethode, um das Paket an einen bestimmten Spieler zu senden (z.B. beim Login)
+    // Hilfsmethode, um das Paket an einen bestimmten Spieler zu senden (z.B. beim
+    // Login)
     public static void sendToPlayer(SyncStagesPacket packet, ServerPlayer player) {
         INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
     }
@@ -57,7 +72,6 @@ public class PacketHandler {
     public static void sendDefinitionsToAll(SyncStageDefinitionsPacket packet) {
         INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
     }
-
 
     // Send config to a specific player (e.g. on login)
     public static void sendConfigToPlayer(SyncConfigPacket packet, ServerPlayer player) {

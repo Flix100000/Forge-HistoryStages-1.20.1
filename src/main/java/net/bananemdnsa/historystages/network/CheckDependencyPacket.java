@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
@@ -35,19 +36,20 @@ public class CheckDependencyPacket {
     public static void handle(CheckDependencyPacket packet, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             ServerPlayer player = ctx.get().getSender();
-            if (player == null) return;
+            if (player == null)
+                return;
 
             StageEntry entry = packet.isIndividual
                     ? StageManager.getIndividualStages().get(packet.stageId)
                     : StageManager.getStages().get(packet.stageId);
 
-            if (entry == null) return;
+            if (entry == null)
+                return;
 
-            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level());
+            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), null);
             PacketHandler.INSTANCE.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
-                    new SyncDependencyStatusPacket(packet.stageId, result)
-            );
+                    new SyncDependencyStatusPacket(packet.stageId, result));
         });
         ctx.get().setPacketHandled(true);
     }

@@ -27,3 +27,6 @@ forge*changelog.txt
 # Claude Code
 .claude/worktrees/
 CLAUDE.md
+
+# VSCode
+.vscode/

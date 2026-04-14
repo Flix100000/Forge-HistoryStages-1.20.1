@@ -14,6 +14,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.nbt.CompoundTag;
 
 import java.util.*;
 
@@ -21,12 +22,15 @@ public class DependencyChecker {
 
     /**
      * Check all dependency groups for a stage. Groups are AND-connected.
-     * @param entry The stage entry
-     * @param player The player (null for global-only checks)
-     * @param level The server level
+     * 
+     * @param entry         The stage entry
+     * @param player        The player (null for global-only checks)
+     * @param level         The server level
+     * @param depositedData The tracking NBT from the scroll, if applicable
      * @return DependencyResult with per-group and per-entry details
      */
-    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level) {
+    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
+            CompoundTag depositedData) {
         List<DependencyGroup> groups = entry.getDependencies();
         if (groups == null || groups.isEmpty()) {
             return DependencyResult.noDependencies();
@@ -35,8 +39,8 @@ public class DependencyChecker {
         List<DependencyResult.GroupResult> groupResults = new ArrayList<>();
         boolean allFulfilled = true;
 
-        for (DependencyGroup group : groups) {
-            DependencyResult.GroupResult result = checkGroup(group, player, level);
+        for (int i = 0; i < groups.size(); i++) {
+            DependencyResult.GroupResult result = checkGroup(groups.get(i), i, player, level, depositedData);
             groupResults.add(result);
             if (!result.isFulfilled()) {
                 allFulfilled = false;
@@ -47,18 +51,23 @@ public class DependencyChecker {
     }
 
     /**
-     * Check a single dependency group. Entries within are connected by the group's logic (AND/OR).
+     * Check a single dependency group. Entries within are connected by the group's
+     * logic (AND/OR).
      */
-    public static DependencyResult.GroupResult checkGroup(DependencyGroup group, ServerPlayer player, Level level) {
+    public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex, ServerPlayer player,
+            Level level, CompoundTag depositedData) {
         List<DependencyResult.EntryResult> entries = new ArrayList<>();
         boolean isOr = group.isOr();
 
         // Items
         for (DependencyItem item : group.getItems()) {
-            int current = player != null ? countItemInInventory(player, item.getId()) : 0;
+            int current = (depositedData != null)
+                    ? depositedData.getInt("Group_" + groupIndex + "_Item_" + item.getId())
+                    : 0;
             boolean met = current >= item.getCount();
             String itemName = getItemDisplayName(item.getId());
-            entries.add(new DependencyResult.EntryResult("item", item.getCount() + "x " + itemName, met, current, item.getCount()));
+            entries.add(new DependencyResult.EntryResult("item", item.getCount() + "x " + itemName, met, current,
+                    item.getCount()));
         }
 
         // Global Stages
@@ -91,8 +100,14 @@ public class DependencyChecker {
         // XP Level
         XpLevelDep xpLevel = group.getXpLevel();
         if (xpLevel != null && xpLevel.getLevel() > 0) {
+            boolean met = false;
             int currentLevel = player != null ? player.experienceLevel : 0;
-            boolean met = currentLevel >= xpLevel.getLevel();
+            if (xpLevel.isConsume() && depositedData != null) {
+                met = depositedData.getBoolean("Group_" + groupIndex + "_XP");
+                currentLevel = met ? xpLevel.getLevel() : currentLevel; // Show maxed if consumed
+            } else {
+                met = currentLevel >= xpLevel.getLevel();
+            }
             String desc = "Level " + xpLevel.getLevel() + (xpLevel.isConsume() ? " (consumed)" : "");
             entries.add(new DependencyResult.EntryResult("xp_level", desc, met, currentLevel, xpLevel.getLevel()));
         }
@@ -102,14 +117,16 @@ public class DependencyChecker {
             int current = player != null ? getKillCount(player, kill.getEntityId()) : 0;
             boolean met = current >= kill.getCount();
             String entityName = getEntityDisplayName(kill.getEntityId());
-            entries.add(new DependencyResult.EntryResult("entity_kill", kill.getCount() + "x " + entityName, met, current, kill.getCount()));
+            entries.add(new DependencyResult.EntryResult("entity_kill", kill.getCount() + "x " + entityName, met,
+                    current, kill.getCount()));
         }
 
         // Stats
         for (StatDep stat : group.getStats()) {
             int current = player != null ? getStatValue(player, stat.getStatId()) : 0;
             boolean met = current >= stat.getMinValue();
-            entries.add(new DependencyResult.EntryResult("stat", stat.getStatId() + " >= " + stat.getMinValue(), met, current, stat.getMinValue()));
+            entries.add(new DependencyResult.EntryResult("stat", stat.getStatId() + " >= " + stat.getMinValue(), met,
+                    current, stat.getMinValue()));
         }
 
         // Determine group fulfillment based on logic
@@ -129,9 +146,11 @@ public class DependencyChecker {
 
     private static int countItemInInventory(ServerPlayer player, String itemId) {
         ResourceLocation rl = ResourceLocation.tryParse(itemId);
-        if (rl == null) return 0;
+        if (rl == null)
+            return 0;
         var item = ForgeRegistries.ITEMS.getValue(rl);
-        if (item == null) return 0;
+        if (item == null)
+            return 0;
 
         int count = 0;
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
@@ -145,7 +164,8 @@ public class DependencyChecker {
     }
 
     private static boolean checkIndividualStageDep(IndividualStageDep dep, Level level) {
-        if (level == null || level.isClientSide() || level.getServer() == null) return false;
+        if (level == null || level.isClientSide() || level.getServer() == null)
+            return false;
 
         IndividualStageData data = IndividualStageData.get(level);
 
@@ -153,7 +173,8 @@ public class DependencyChecker {
             // Check all players who ever joined (stored in IndividualStageData)
             // Every player in the data must have this stage
             Set<UUID> allPlayers = getAllKnownPlayers(data);
-            if (allPlayers.isEmpty()) return false;
+            if (allPlayers.isEmpty())
+                return false;
             for (UUID uuid : allPlayers) {
                 if (!data.hasStage(uuid, dep.getStageId())) {
                     return false;
@@ -163,7 +184,8 @@ public class DependencyChecker {
         } else {
             // Check all currently online players
             var players = level.getServer().getPlayerList().getPlayers();
-            if (players.isEmpty()) return false;
+            if (players.isEmpty())
+                return false;
             for (var player : players) {
                 if (!data.hasStage(player.getUUID(), dep.getStageId())) {
                     return false;
@@ -180,24 +202,29 @@ public class DependencyChecker {
 
     private static boolean checkAdvancement(ServerPlayer player, String advancementId) {
         ResourceLocation rl = ResourceLocation.tryParse(advancementId);
-        if (rl == null) return false;
+        if (rl == null)
+            return false;
         Advancement advancement = player.getServer().getAdvancements().getAdvancement(rl);
-        if (advancement == null) return false;
+        if (advancement == null)
+            return false;
         return player.getAdvancements().getOrStartProgress(advancement).isDone();
     }
 
     private static int getKillCount(ServerPlayer player, String entityId) {
         ResourceLocation rl = ResourceLocation.tryParse(entityId);
-        if (rl == null) return 0;
+        if (rl == null)
+            return 0;
         EntityType<?> entityType = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-        if (entityType == null) return 0;
+        if (entityType == null)
+            return 0;
         ServerStatsCounter stats = player.getStats();
         return stats.getValue(Stats.ENTITY_KILLED.get(entityType));
     }
 
     private static int getStatValue(ServerPlayer player, String statId) {
         ResourceLocation rl = ResourceLocation.tryParse(statId);
-        if (rl == null) return 0;
+        if (rl == null)
+            return 0;
         try {
             return player.getStats().getValue(Stats.CUSTOM.get(rl));
         } catch (Exception e) {
@@ -207,56 +234,23 @@ public class DependencyChecker {
 
     private static String getItemDisplayName(String itemId) {
         ResourceLocation rl = ResourceLocation.tryParse(itemId);
-        if (rl == null) return itemId;
+        if (rl == null)
+            return itemId;
         var item = ForgeRegistries.ITEMS.getValue(rl);
-        if (item == null) return itemId;
+        if (item == null)
+            return itemId;
         return item.getDescription().getString();
     }
 
     private static String getEntityDisplayName(String entityId) {
         ResourceLocation rl = ResourceLocation.tryParse(entityId);
-        if (rl == null) return entityId;
+        if (rl == null)
+            return entityId;
         EntityType<?> entityType = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-        if (entityType == null) return entityId;
+        if (entityType == null)
+            return entityId;
         return entityType.getDescription().getString();
     }
 
-    /**
-     * Consume item dependencies from a player's inventory.
-     * Call ONLY after verifying all items are present.
-     */
-    public static void consumeItems(ServerPlayer player, List<DependencyGroup> groups) {
-        for (DependencyGroup group : groups) {
-            for (DependencyItem depItem : group.getItems()) {
-                consumeItem(player, depItem.getId(), depItem.getCount());
-            }
-        }
-    }
-
-    private static void consumeItem(ServerPlayer player, String itemId, int count) {
-        ResourceLocation rl = ResourceLocation.tryParse(itemId);
-        if (rl == null) return;
-
-        int remaining = count;
-        for (int i = 0; i < player.getInventory().getContainerSize() && remaining > 0; i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (!stack.isEmpty() && rl.equals(ForgeRegistries.ITEMS.getKey(stack.getItem()))) {
-                int toRemove = Math.min(remaining, stack.getCount());
-                stack.shrink(toRemove);
-                remaining -= toRemove;
-            }
-        }
-    }
-
-    /**
-     * Consume XP levels if any group has a consume XP dependency.
-     */
-    public static void consumeXp(ServerPlayer player, List<DependencyGroup> groups) {
-        for (DependencyGroup group : groups) {
-            XpLevelDep xp = group.getXpLevel();
-            if (xp != null && xp.isConsume() && xp.getLevel() > 0) {
-                player.giveExperienceLevels(-xp.getLevel());
-            }
-        }
-    }
+    // --- Consume Methods removed, handled via packet on deposit ---
 }

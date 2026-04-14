@@ -4,9 +4,15 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.init.ModItems;
+import net.bananemdnsa.historystages.network.CheckDependencyPacket;
+import net.bananemdnsa.historystages.network.DepositDependencyPacket;
+import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.util.ClientDependencyCache;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -15,16 +21,27 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.registries.ForgeRegistries;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPedestalMenu> {
-    private static final ResourceLocation TEXTURE =
-            new ResourceLocation(HistoryStages.MOD_ID, "textures/gui/research_pedestal_gui.png");
+    private static final ResourceLocation TEXTURE = new ResourceLocation(HistoryStages.MOD_ID,
+            "textures/gui/research_pedestal_gui.png");
 
     // Unified color palette
-    private static final int COLOR_PRIMARY = 0x404040;    // Main text (stage name, labels)
-    private static final int COLOR_SECONDARY = 0x707070;  // Secondary info (time, searching, idle states)
-    private static final int COLOR_ACCENT = 0x2E8B57;     // Active state (progress, finalizing)
-    private static final int COLOR_ERROR = 0xAA3333;      // Warnings (already learned, invalid)
+    private static final int COLOR_PRIMARY = 0x404040; // Main text (stage name, labels)
+    private static final int COLOR_SECONDARY = 0x707070; // Secondary info (time, searching, idle states)
+    private static final int COLOR_ACCENT = 0x2E8B57; // Active state (progress, finalizing)
+    private static final int COLOR_ERROR = 0xAA3333; // Warnings (already learned, invalid)
+    private static final int COLOR_PANEL = 0xD0C0A0; // Background for side panel (parchment-like)
+    private static final int COLOR_PANEL_BORDER = 0x8B4513; // Brown border for side panel
+
+    private int sidePanelWidth = 124;
+    private int totalGuiWidth = 176;
+    private boolean hasDependencies = false;
+    private Component pendingTooltip = null;
 
     public ResearchPedestalScreen(ResearchPedestalMenu pMenu, Inventory pPlayerInventory, Component pTitle) {
         super(pMenu, pPlayerInventory, pTitle);
@@ -66,10 +83,10 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             // Line 2: Stage name with status prefix
             if (alreadyUnlocked && finishDelay == 0) {
                 guiGraphics.drawString(this.font, "Research: " + stageName, 8, 18, COLOR_SECONDARY, false);
-
                 Component alreadyLearnedText = Component.translatable("screen.historystages.already_learned");
                 int textWidth = this.font.width(alreadyLearnedText);
-                guiGraphics.drawString(this.font, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55, COLOR_ERROR, false);
+                guiGraphics.drawString(this.font, alreadyLearnedText, (this.imageWidth / 2) - (textWidth / 2), 55,
+                        COLOR_ERROR, false);
             } else {
                 String prefix;
                 int nameColor;
@@ -84,20 +101,23 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
                 // Dependency status warning
                 if (!menu.areDependenciesMet()) {
-                    guiGraphics.drawString(this.font, "\u00A7c\u26A0 Dependencies not met", 48, 28, COLOR_ERROR, false);
+                    guiGraphics.drawString(this.font, "§c⚠ Dependencies not met", 48, 28, COLOR_ERROR, false);
                 }
 
                 // Lines 3-4: Progress + Time
                 if (stack.getTag().contains("ResearchProgress")) {
                     int currentProgress = stack.getTag().getInt("ResearchProgress");
-                    int maxProgress = stack.getTag().contains("MaxProgress") ? stack.getTag().getInt("MaxProgress") : 400;
+                    int maxProgress = stack.getTag().contains("MaxProgress") ? stack.getTag().getInt("MaxProgress")
+                            : 400;
 
                     int percent = (int) (((double) currentProgress / maxProgress) * 100);
-                    guiGraphics.drawString(this.font, "Progress: " + Math.min(100, percent) + "%", 48, 52, COLOR_ACCENT, false);
+                    guiGraphics.drawString(this.font, "Progress: " + Math.min(100, percent) + "%", 48, 52, COLOR_ACCENT,
+                            false);
 
                     int remainingTicks = Math.max(0, maxProgress - currentProgress);
                     int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
-                    if (percent >= 100) remainingSeconds = 0;
+                    if (percent >= 100)
+                        remainingSeconds = 0;
 
                     String timeText;
                     if (remainingSeconds >= 60) {
@@ -118,16 +138,14 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             }
 
         } else if (!stack.isEmpty()) {
-            // Invalid book - above progress bar
             guiGraphics.drawString(this.font, "Invalid Book!", 48, 28, COLOR_ERROR, false);
         } else {
-            // Empty slot - searching animation above progress bar
             int ticks = (int) (Minecraft.getInstance().level.getGameTime() / 10) % 4;
             guiGraphics.drawString(this.font, "Searching" + ".".repeat(ticks), 48, 28, COLOR_SECONDARY, false);
         }
 
-        // Inventory label
-        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY, COLOR_PRIMARY, false);
+        guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY,
+                COLOR_PRIMARY, false);
     }
 
     @Override
@@ -135,10 +153,34 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.setShaderTexture(0, TEXTURE);
-        int x = (width - imageWidth) / 2;
+
+        ItemStack stack = menu.getSlot(36).getItem();
+        hasDependencies = false;
+        totalGuiWidth = imageWidth;
+
+        if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+            String stageId = stack.getTag().getString("StageResearch");
+            if (!ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+                StageEntry entry = StageManager.isIndividualStage(stageId)
+                        ? StageManager.getIndividualStages().get(stageId)
+                        : StageManager.getStages().get(stageId);
+                if (entry != null && entry.hasDependencies()) {
+                    hasDependencies = true;
+                    totalGuiWidth = imageWidth + sidePanelWidth;
+                }
+            }
+        }
+
+        int x = (width - totalGuiWidth) / 2;
         int y = (height - imageHeight) / 2;
+        this.leftPos = x;
+        this.topPos = y;
 
         guiGraphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
+
+        if (hasDependencies) {
+            renderDependencyPanel(guiGraphics, x + imageWidth, y, pMouseX, pMouseY);
+        }
 
         // Progress bar
         if (menu.isCrafting()) {
@@ -153,18 +195,16 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta) {
         renderBackground(guiGraphics);
+        pendingTooltip = null;
         super.render(guiGraphics, mouseX, mouseY, delta);
 
-        // Gray overlay on individual scroll slot - always visible when scroll is locked
         if (menu.isIndividualMode()) {
             ItemStack stack = menu.getSlot(36).getItem();
             if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
                 String stageId = stack.getTag().getString("StageResearch");
                 if (!ClientIndividualStageCache.isStageUnlocked(stageId)) {
-                    int x = (width - imageWidth) / 2;
-                    int y = (height - imageHeight) / 2;
-                    int slotX = x + 26;
-                    int slotY = y + 35;
+                    int slotX = this.leftPos + 26;
+                    int slotY = this.topPos + 35;
                     guiGraphics.pose().pushPose();
                     guiGraphics.pose().translate(0, 0, 200);
                     guiGraphics.fill(slotX, slotY, slotX + 16, slotY + 16, 0x80808080);
@@ -173,6 +213,142 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             }
         }
 
-        renderTooltip(guiGraphics, mouseX, mouseY);
+        if (pendingTooltip != null) {
+            guiGraphics.renderTooltip(this.font, pendingTooltip, mouseX, mouseY);
+        } else {
+            renderTooltip(guiGraphics, mouseX, mouseY);
+        }
+    }
+
+    private void renderDependencyPanel(GuiGraphics guiGraphics, int x, int y, int mouseX, int mouseY) {
+        ItemStack stack = menu.getSlot(36).getItem();
+        if (stack.isEmpty() || !stack.hasTag())
+            return;
+        String stageId = stack.getTag().getString("StageResearch");
+
+        // Panel background
+        guiGraphics.fill(x, y + 4, x + sidePanelWidth - 4, y + imageHeight - 4, 0xFF000000 | COLOR_PANEL);
+        guiGraphics.renderOutline(x, y + 1, sidePanelWidth - 4, imageHeight - 2, 0xFF000000 | COLOR_PANEL_BORDER);
+
+        DependencyResult result = ClientDependencyCache.get(stageId);
+        if (result == null) {
+            PacketHandler.sendToServer(new CheckDependencyPacket(stageId, StageManager.isIndividualStage(stageId)));
+            guiGraphics.drawString(this.font, "Loading...", x + 10, y + 20, COLOR_SECONDARY, false);
+            return;
+        }
+
+        guiGraphics.drawString(this.font, "Dependencies", x + 10, y + 8, COLOR_PRIMARY, false);
+
+        int currentY = y + 20;
+        int groupIdx = 0;
+        for (DependencyResult.GroupResult group : result.getGroups()) {
+            if (result.getGroups().size() > 1) {
+                guiGraphics.drawString(this.font, "Group " + (groupIdx + 1) + ":", x + 6, currentY, COLOR_SECONDARY,
+                        false);
+                currentY += 10;
+            }
+
+            for (DependencyResult.EntryResult entry : group.getEntries()) {
+                if (currentY > y + imageHeight - 15)
+                    break;
+
+                boolean fulfilled = entry.isFulfilled();
+                int color = fulfilled ? COLOR_ACCENT : COLOR_ERROR;
+                String check = fulfilled ? "[\u2714] " : "[\u2718] ";
+
+                if ("item".equals(entry.getType())) {
+                    String[] parts = entry.getDescription().split("x ");
+                    ResourceLocation itemRl = ResourceLocation.tryParse(parts.length > 1 ? parts[1] : "");
+                    if (itemRl != null) {
+                        ItemStack itemIcon = new ItemStack(ForgeRegistries.ITEMS.getValue(itemRl));
+                        guiGraphics.renderItem(itemIcon, x + 10, currentY);
+                        String progressText = entry.getCurrent() + "/" + entry.getRequired();
+                        guiGraphics.drawString(this.font, progressText, x + 30, currentY + 4, color, false);
+
+                        if (mouseX >= x + 8 && mouseX <= x + sidePanelWidth - 12 && mouseY >= currentY
+                                && mouseY <= currentY + 16) {
+                            guiGraphics.fill(x + 5, currentY - 1, x + sidePanelWidth - 9, currentY + 17, 0x30FFFFFF);
+                            pendingTooltip = Component.literal(entry.getDescription()).withStyle(ChatFormatting.GRAY);
+                        }
+                        currentY += 18;
+                    }
+                } else if ("xp_level".equals(entry.getType())) {
+                    guiGraphics.drawString(this.font, check + entry.getDescription(), x + 10, currentY, color, false);
+                    if (!fulfilled && entry.getDescription().contains("(consumed)")) {
+                        if (mouseX >= x + 8 && mouseX <= x + sidePanelWidth - 12 && mouseY >= currentY
+                                && mouseY <= currentY + 10) {
+                            guiGraphics.fill(x + 5, currentY - 1, x + sidePanelWidth - 9, currentY + 11, 0x30FFFFFF);
+                            pendingTooltip = Component.literal("Click to deposit levels")
+                                    .withStyle(ChatFormatting.YELLOW);
+                        }
+                    }
+                    currentY += 12;
+                } else {
+                    String desc = entry.getDescription();
+                    if (this.font.width(desc) > sidePanelWidth - 30) {
+                        desc = this.font.plainSubstrByWidth(desc, sidePanelWidth - 40) + "...";
+                    }
+                    guiGraphics.drawString(this.font, check + desc, x + 10, currentY, color, false);
+                    if (mouseX >= x + 8 && mouseX <= x + sidePanelWidth - 12 && mouseY >= currentY
+                            && mouseY <= currentY + 10) {
+                        pendingTooltip = Component.literal(entry.getDescription()).withStyle(ChatFormatting.GRAY);
+                    }
+                    currentY += 11;
+                }
+            }
+            groupIdx++;
+            currentY += 4;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double pMouseX, double pMouseY, int pButton) {
+        if (hasDependencies && pButton == 0) {
+            int xIdx = this.leftPos + imageWidth;
+            int yIdx = this.topPos;
+
+            ItemStack scroll = menu.getSlot(36).getItem();
+            if (!scroll.isEmpty() && scroll.hasTag()) {
+                String stageId = scroll.getTag().getString("StageResearch");
+                DependencyResult result = ClientDependencyCache.get(stageId);
+
+                if (result != null) {
+                    int currentY = yIdx + 20;
+                    int groupIdx = 0;
+                    for (DependencyResult.GroupResult group : result.getGroups()) {
+                        if (result.getGroups().size() > 1)
+                            currentY += 10;
+                        for (DependencyResult.EntryResult entry : group.getEntries()) {
+                            if ("item".equals(entry.getType())) {
+                                if (pMouseX >= xIdx + 8 && pMouseX <= xIdx + sidePanelWidth - 12 && pMouseY >= currentY
+                                        && pMouseY <= currentY + 16) {
+                                    String[] parts = entry.getDescription().split("x ");
+                                    String itId = parts.length > 1 ? parts[1] : "";
+                                    PacketHandler.sendToServer(
+                                            new DepositDependencyPacket(menu.getBlockPos(), groupIdx, "ITEM", itId));
+                                    return true;
+                                }
+                                currentY += 18;
+                            } else if ("xp_level".equals(entry.getType())) {
+                                if (!entry.isFulfilled() && entry.getDescription().contains("(consumed)")) {
+                                    if (pMouseX >= xIdx + 8 && pMouseX <= xIdx + sidePanelWidth - 12
+                                            && pMouseY >= currentY && pMouseY <= currentY + 10) {
+                                        PacketHandler.sendToServer(
+                                                new DepositDependencyPacket(menu.getBlockPos(), groupIdx, "XP", ""));
+                                        return true;
+                                    }
+                                }
+                                currentY += 12;
+                            } else {
+                                currentY += 11;
+                            }
+                        }
+                        groupIdx++;
+                        currentY += 4;
+                    }
+                }
+            }
+        }
+        return super.mouseClicked(pMouseX, pMouseY, pButton);
     }
 }
