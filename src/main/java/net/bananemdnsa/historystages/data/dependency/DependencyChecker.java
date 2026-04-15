@@ -57,7 +57,7 @@ public class DependencyChecker {
     public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex, ServerPlayer player,
             Level level, CompoundTag depositedData) {
         List<DependencyResult.EntryResult> entries = new ArrayList<>();
-        boolean isOr = group.isOr();
+        boolean isActuallyOr = "OR".equalsIgnoreCase(group.getLogic());
 
         // Items
         for (DependencyItem item : group.getItems()) {
@@ -106,15 +106,17 @@ public class DependencyChecker {
         if (xpLevel != null && xpLevel.getLevel() > 0) {
             boolean met = false;
             int currentLevel = player != null ? player.experienceLevel : 0;
-            if (xpLevel.isConsume() && depositedData != null) {
-                met = depositedData.getBoolean("Group_" + groupIndex + "_XP");
+            if (xpLevel.isConsume()) {
+                met = depositedData != null && depositedData.getBoolean("Group_" + groupIndex + "_XP");
                 currentLevel = met ? xpLevel.getLevel() : currentLevel; // Show maxed if consumed
             } else {
                 met = currentLevel >= xpLevel.getLevel();
             }
+            boolean needsDeposit = xpLevel.isConsume() && !met;
             String desc = "Level " + xpLevel.getLevel() + (xpLevel.isConsume() ? " (consumed)" : "");
             entries.add(
-                    new DependencyResult.EntryResult("xp_level", "xp", desc, met, currentLevel, xpLevel.getLevel()));
+                    new DependencyResult.EntryResult("xp_level", "xp", desc, met, currentLevel, xpLevel.getLevel(),
+                            needsDeposit));
         }
 
         // Entity Kills
@@ -136,13 +138,15 @@ public class DependencyChecker {
                     current, stat.getMinValue()));
         }
 
-        // Determine group fulfillment based on logic
+        // Determine group fulfillment based on logic (Default to AND)
         boolean fulfilled;
+
         if (entries.isEmpty()) {
             fulfilled = true;
-        } else if (isOr) {
+        } else if (isActuallyOr) {
             fulfilled = entries.stream().anyMatch(DependencyResult.EntryResult::isFulfilled);
         } else {
+            // Must be AND
             fulfilled = entries.stream().allMatch(DependencyResult.EntryResult::isFulfilled);
         }
 

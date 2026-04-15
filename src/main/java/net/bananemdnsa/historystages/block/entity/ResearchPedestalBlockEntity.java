@@ -19,9 +19,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.MenuProvider;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -43,57 +45,125 @@ import java.util.UUID;
 
 public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProvider {
 
-    private final ItemStackHandler itemHandler = new ItemStackHandler(1) {
+    private final ItemStackHandler itemHandler = new ItemStackHandler(2) {
         @Override
         protected void onContentsChanged(int slot) {
-            ItemStack stack = getStackInSlot(slot);
-            if (!stack.isEmpty()) {
-                loadProgressFromItem(stack);
-                // Set owner UUID for individual stages
-                if (isCurrentScrollIndividual() && lastInteractingPlayer != null) {
-                    ownerUUID = lastInteractingPlayer;
-                    stack.getOrCreateTag().putUUID("OwnerUUID", ownerUUID);
-                    // Store owner name for client-side display
-                    if (level != null && level.getServer() != null) {
-                        net.minecraft.server.level.ServerPlayer ownerPlayer = level.getServer().getPlayerList()
-                                .getPlayer(ownerUUID);
-                        if (ownerPlayer != null) {
-                            stack.getOrCreateTag().putString("OwnerName", ownerPlayer.getName().getString());
+            if (slot == 0) {
+                ItemStack stack = getStackInSlot(0);
+                if (!stack.isEmpty()) {
+                    loadProgressFromItem(stack);
+                    // Set owner UUID for individual stages ONLY if not already set
+                    if (isCurrentScrollIndividual()) {
+                        CompoundTag tag = stack.getOrCreateTag();
+                        if (tag.hasUUID("OwnerUUID")) {
+                            // Keep existing owner
+                            ResearchPedestalBlockEntity.this.ownerUUID = tag.getUUID("OwnerUUID");
+                        } else if (lastInteractingPlayer != null) {
+                            // Assign new owner
+                            ResearchPedestalBlockEntity.this.ownerUUID = lastInteractingPlayer;
+                            tag.putUUID("OwnerUUID", ResearchPedestalBlockEntity.this.ownerUUID);
+                            // Store owner name for client-side display
+                            if (level != null && level.getServer() != null) {
+                                net.minecraft.server.level.ServerPlayer ownerPlayer = level.getServer().getPlayerList()
+                                        .getPlayer(ResearchPedestalBlockEntity.this.ownerUUID);
+                                if (ownerPlayer != null) {
+                                    tag.putString("OwnerName", ownerPlayer.getName().getString());
+                                }
+                            }
                         }
                     }
+                } else {
+                    ResearchPedestalBlockEntity.this.ownerUUID = null;
                 }
-            } else {
-                ownerUUID = null;
+            } else if (slot == 1) {
+                // Reset deposit delay when item changed
+                depositDelay = 0;
             }
             setChanged();
         }
 
         @Override
         public boolean isItemValid(int slot, @NotNull ItemStack stack) {
-            return stack.is(ModItems.RESEARCH_SCROLL.get()) || stack.is(ModItems.CREATIVE_SCROLL.get());
+            if (slot == 0) {
+                return stack.is(ModItems.RESEARCH_SCROLL.get()) || stack.is(ModItems.CREATIVE_SCROLL.get());
+            }
+            // All items are potentially valid for deposit (checked during processing)
+            return true;
         }
+    };
 
-        @Override
-        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
-            // Prevent extraction of individual scrolls during research
-            if (isCurrentScrollIndividual()) {
-                ItemStack current = getStackInSlot(slot);
-                if (!current.isEmpty() && current.hasTag() && current.getTag().contains("StageResearch")) {
-                    String stageId = current.getTag().getString("StageResearch");
-                    // Allow extraction only if the stage is already unlocked for the owner
-                    if (ownerUUID != null && !IndividualStageData.hasStageCached(ownerUUID, stageId)) {
-                        return ItemStack.EMPTY;
+    private void tryProcessDeposit(ItemStack depositStack) {
+        ItemStack scroll = getScrollStack();
+        if (scroll.isEmpty() || !scroll.hasTag() || !scroll.getTag().contains("StageResearch"))
+            return;
+
+        String stageId = scroll.getTag().getString("StageResearch");
+        boolean isIndividual = StageManager.isIndividualStage(stageId);
+        StageEntry entry = isIndividual ? StageManager.getIndividualStages().get(stageId)
+                : StageManager.getStages().get(stageId);
+
+        if (entry == null || entry.getDependencies() == null)
+            return;
+
+        ResourceLocation depositRl = ForgeRegistries.ITEMS.getKey(depositStack.getItem());
+        if (depositRl == null)
+            return;
+
+        CompoundTag deposited = scroll.getOrCreateTagElement("DepositedDependencies");
+        boolean changed = false;
+
+        for (int i = 0; i < entry.getDependencies().size(); i++) {
+            net.bananemdnsa.historystages.data.DependencyGroup group = entry.getDependencies().get(i);
+            for (net.bananemdnsa.historystages.data.dependency.DependencyItem reqItem : group.getItems()) {
+                ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
+                if (reqRl != null && reqRl.equals(depositRl)) {
+                    String key = "Group_" + i + "_Item_" + reqRl.toString();
+                    int current = deposited.getInt(key);
+                    int needed = reqItem.getCount() - current;
+
+                    if (needed > 0) {
+                        int toTake = Math.min(needed, depositStack.getCount());
+                        depositStack.shrink(toTake);
+                        deposited.putInt(key, current + toTake);
+                        changed = true;
+
+                        if (depositStack.isEmpty())
+                            break;
                     }
                 }
             }
-            return super.extractItem(slot, amount, simulate);
+            if (depositStack.isEmpty())
+                break;
         }
-    };
+
+        if (changed) {
+            scroll.setTag(scroll.getTag()); // Trigger sync
+            setChanged();
+
+            // Push update to watching players immediately
+            if (entry != null && level != null && !level.isClientSide) {
+                UUID checkUUID = isCurrentScrollIndividual() ? this.ownerUUID : this.lastInteractingPlayer;
+                if (checkUUID != null) {
+                    var player = level.getServer().getPlayerList().getPlayer(checkUUID);
+                    if (player != null) {
+                        var result = net.bananemdnsa.historystages.data.dependency.DependencyChecker.checkAll(entry,
+                                player, level, scroll.getTag().getCompound("DepositedDependencies"));
+                        net.bananemdnsa.historystages.network.PacketHandler.INSTANCE.send(
+                                net.minecraftforge.network.PacketDistributor.TRACKING_CHUNK
+                                        .with(() -> level.getChunkAt(this.worldPosition)),
+                                new net.bananemdnsa.historystages.network.SyncDependencyStatusPacket(stageId, result));
+                    }
+                }
+            }
+        }
+    }
 
     private LazyOptional<IItemHandler> lazyItemHandler = LazyOptional.empty();
     protected final ContainerData data;
     private int progress = 0;
     private int finishDelay = 0;
+    private int depositDelay = 0;
+    public static final int MAX_DEPOSIT_DELAY = 20; // 1 second
     private int syncTickDelay = -1;
     private UUID ownerUUID = null;
     private UUID lastInteractingPlayer = null;
@@ -110,6 +180,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay;
                     case 3 -> ResearchPedestalBlockEntity.this.isCurrentScrollIndividual() ? 1 : 0;
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet ? 1 : 0;
+                    case 5 -> ResearchPedestalBlockEntity.this.depositDelay;
                     default -> 0;
                 };
             }
@@ -120,12 +191,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 0 -> ResearchPedestalBlockEntity.this.progress = pValue;
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay = pValue;
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet = pValue == 1;
+                    case 5 -> ResearchPedestalBlockEntity.this.depositDelay = pValue;
                 }
             }
 
             @Override
             public int getCount() {
-                return 5;
+                return 6;
             }
         };
     }
@@ -147,6 +219,17 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return this.itemHandler.getStackInSlot(0);
     }
 
+    public boolean hasScrollWithDependencies() {
+        ItemStack stack = getScrollStack();
+        if (stack.isEmpty() || !stack.hasTag() || !stack.getTag().contains("StageResearch"))
+            return false;
+        String stageId = stack.getTag().getString("StageResearch");
+        StageEntry entry = StageManager.isIndividualStage(stageId)
+                ? StageManager.getIndividualStages().get(stageId)
+                : StageManager.getStages().get(stageId);
+        return entry != null && entry.hasDependencies();
+    }
+
     @Nullable
     @Override
     public AbstractContainerMenu createMenu(int pContainerId, Inventory pPlayerInventory, Player pPlayer) {
@@ -157,6 +240,18 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestalBlockEntity entity) {
         if (level.isClientSide)
             return;
+
+        // Handle item deposit delay logic
+        ItemStack depositSlot = entity.itemHandler.getStackInSlot(1);
+        if (!depositSlot.isEmpty() && entity.isItemNeeded(depositSlot)) {
+            entity.depositDelay++;
+            if (entity.depositDelay >= MAX_DEPOSIT_DELAY) {
+                entity.tryProcessDeposit(depositSlot);
+                entity.depositDelay = 0;
+            }
+        } else {
+            entity.depositDelay = 0;
+        }
 
         // Neu: Warte kurz, bevor das Sync-Paket gesendet wird (Timing-Fix)
         if (entity.syncTickDelay > 0) {
@@ -196,35 +291,45 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             if (!alreadyUnlocked) {
                 // Check non-item dependencies before allowing research
-                boolean dependenciesMet = true;
+                boolean metTotal = false;
                 if (!isCreative) {
                     StageEntry stageEntry = isIndividual
                             ? StageManager.getIndividualStages().get(stageId)
                             : StageManager.getStages().get(stageId);
-                    if (stageEntry != null && stageEntry.hasDependencies()) {
-                        // Find the researching player for dependency checks
-                        net.minecraft.server.level.ServerPlayer researchPlayer = null;
-                        UUID checkUUID = isIndividual ? entity.ownerUUID : entity.lastInteractingPlayer;
-                        if (checkUUID != null && level.getServer() != null) {
-                            researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
-                        }
-                        if (researchPlayer != null) {
-                            CompoundTag depositedTag = stack.hasTag()
-                                    && stack.getTag().contains("DepositedDependencies")
-                                            ? stack.getTag().getCompound("DepositedDependencies")
-                                            : null;
-                            DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
-                                    depositedTag);
-                            dependenciesMet = result.isFulfilled();
+
+                    if (stageEntry != null) {
+                        if (stageEntry.hasDependencies()) {
+                            // Find the researching player for dependency checks
+                            net.minecraft.server.level.ServerPlayer researchPlayer = null;
+                            UUID checkUUID = isIndividual ? entity.ownerUUID : entity.lastInteractingPlayer;
+                            if (checkUUID != null && level.getServer() != null) {
+                                researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
+                            }
+
+                            if (researchPlayer != null) {
+                                CompoundTag depositedTag = stack.hasTag()
+                                        && stack.getTag().contains("DepositedDependencies")
+                                                ? stack.getTag().getCompound("DepositedDependencies")
+                                                : null;
+                                DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
+                                        depositedTag);
+                                metTotal = result.isFulfilled();
+                            } else {
+                                // No player available to check - pause research
+                                metTotal = false;
+                            }
                         } else {
-                            // No player available to check - pause research
-                            dependenciesMet = false;
+                            // No dependencies defined - fulfill automatically
+                            metTotal = true;
                         }
                     }
+                } else {
+                    // Creative always fulfills
+                    metTotal = true;
                 }
 
-                entity.dependenciesMet = dependenciesMet;
-                if (dependenciesMet) {
+                entity.dependenciesMet = metTotal;
+                if (metTotal) {
                     isResearching = true;
                     if (entity.progress < maxProgress) {
                         entity.progress++;
@@ -446,7 +551,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return Config.COMMON.researchTimeInSeconds.get() * 20;
     }
 
-    private boolean isCurrentScrollIndividual() {
+    public boolean isCurrentScrollIndividual() {
         ItemStack stack = this.itemHandler.getStackInSlot(0);
         if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             return StageManager.isIndividualStage(stack.getTag().getString("StageResearch"));
@@ -493,11 +598,54 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     @Override
     public void load(CompoundTag nbt) {
         super.load(nbt);
-        itemHandler.deserializeNBT(nbt.getCompound("inventory"));
+
+        // Manual loading to prevent shrinking if loaded from old NBT
+        CompoundTag invTag = nbt.getCompound("inventory");
+        if (invTag.contains("Size", 3)) { // 3 is Tag.TAG_INT
+            int savedSize = invTag.getInt("Size");
+            if (savedSize != itemHandler.getSlots()) {
+                // If the saved size is different, we load what we can but keep our 2 slots
+                ItemStackHandler temp = new ItemStackHandler(savedSize);
+                temp.deserializeNBT(invTag);
+                for (int i = 0; i < Math.min(savedSize, itemHandler.getSlots()); i++) {
+                    itemHandler.setStackInSlot(i, temp.getStackInSlot(i));
+                }
+            } else {
+                itemHandler.deserializeNBT(invTag);
+            }
+        } else {
+            itemHandler.deserializeNBT(invTag);
+        }
+
         progress = nbt.getInt("research.progress");
         finishDelay = nbt.getInt("research.finishDelay");
         if (nbt.hasUUID("research.ownerUUID")) {
             ownerUUID = nbt.getUUID("research.ownerUUID");
         }
+    }
+
+    private boolean isItemNeeded(ItemStack depositStack) {
+        if (depositStack.isEmpty())
+            return false;
+        ItemStack scroll = getScrollStack();
+        if (scroll.isEmpty() || !scroll.hasTag() || !scroll.getTag().contains("StageResearch"))
+            return false;
+
+        String stageId = scroll.getTag().getString("StageResearch");
+        StageEntry entry = StageManager.isIndividualStage(stageId)
+                ? StageManager.getIndividualStages().get(stageId)
+                : StageManager.getStages().get(stageId);
+        if (entry == null || !entry.hasDependencies())
+            return false;
+
+        String itemId = ForgeRegistries.ITEMS.getKey(depositStack.getItem()).toString();
+        CompoundTag depositedData = scroll.getTag().getCompound("DepositedDependencies");
+
+        return entry.getDependencies().stream().anyMatch(group -> group.getItems().stream().anyMatch(item -> {
+            if (!item.getId().equals(itemId))
+                return false;
+            int count = depositedData.contains(itemId) ? depositedData.getInt(itemId) : 0;
+            return count < item.getCount();
+        }));
     }
 }
