@@ -12,8 +12,13 @@ public class DependencyResult {
         this.groups = groups;
     }
 
-    public boolean isFulfilled() { return fulfilled; }
-    public List<GroupResult> getGroups() { return groups; }
+    public boolean isFulfilled() {
+        return fulfilled;
+    }
+
+    public List<GroupResult> getGroups() {
+        return groups;
+    }
 
     /**
      * Result with no dependencies — always fulfilled.
@@ -33,20 +38,31 @@ public class DependencyResult {
             this.entries = entries;
         }
 
-        public String getLogic() { return logic; }
-        public boolean isFulfilled() { return fulfilled; }
-        public List<EntryResult> getEntries() { return entries; }
+        public String getLogic() {
+            return logic;
+        }
+
+        public boolean isFulfilled() {
+            return fulfilled;
+        }
+
+        public List<EntryResult> getEntries() {
+            return entries;
+        }
     }
 
     public static class EntryResult {
-        private final String type;       // "item", "stage", "individual_stage", "advancement", "xp_level", "entity_kill", "stat"
+        private final String type; // "item", "stage", "individual_stage", "advancement", "xp_level",
+                                   // "entity_kill", "stat"
+        private final String id; // The internal ID (e.g. "minecraft:iron_ingot")
         private final String description; // Human-readable, e.g. "10x Iron Ingot"
         private final boolean fulfilled;
-        private final int current;        // Current progress (e.g. current kill count)
-        private final int required;       // Required amount
+        private final int current; // Current progress
+        private final int required; // Required amount
 
-        public EntryResult(String type, String description, boolean fulfilled, int current, int required) {
+        public EntryResult(String type, String id, String description, boolean fulfilled, int current, int required) {
             this.type = type;
+            this.id = id;
             this.description = description;
             this.fulfilled = fulfilled;
             this.current = current;
@@ -54,13 +70,31 @@ public class DependencyResult {
         }
 
         public EntryResult(String type, String description, boolean fulfilled) {
-            this(type, description, fulfilled, fulfilled ? 1 : 0, 1);
+            this(type, "", description, fulfilled, fulfilled ? 1 : 0, 1);
         }
 
-        public String getType() { return type; }
-        public String getDescription() { return description; }
-        public boolean isFulfilled() { return fulfilled; }
-        public int getCurrent() { return current; }
-        public int getRequired() { return required; }
+        public String getType() {
+            return type;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public boolean isFulfilled() {
+            return fulfilled;
+        }
+
+        public int getCurrent() {
+            return current;
+        }
+
+        public int getRequired() {
+            return required;
+        }
     }
 }

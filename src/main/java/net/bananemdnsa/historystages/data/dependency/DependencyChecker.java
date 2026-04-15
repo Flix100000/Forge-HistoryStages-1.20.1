@@ -61,13 +61,17 @@ public class DependencyChecker {
 
         // Items
         for (DependencyItem item : group.getItems()) {
+            ResourceLocation rl = ResourceLocation.tryParse(item.getId());
+            String idString = rl != null ? rl.toString() : item.getId();
+
             int current = (depositedData != null)
-                    ? depositedData.getInt("Group_" + groupIndex + "_Item_" + item.getId())
+                    ? depositedData.getInt("Group_" + groupIndex + "_Item_" + idString)
                     : 0;
             boolean met = current >= item.getCount();
             String itemName = getItemDisplayName(item.getId());
-            entries.add(new DependencyResult.EntryResult("item", item.getCount() + "x " + itemName, met, current,
-                    item.getCount()));
+            entries.add(
+                    new DependencyResult.EntryResult("item", idString, item.getCount() + "x " + itemName, met, current,
+                            item.getCount()));
         }
 
         // Global Stages
@@ -109,7 +113,8 @@ public class DependencyChecker {
                 met = currentLevel >= xpLevel.getLevel();
             }
             String desc = "Level " + xpLevel.getLevel() + (xpLevel.isConsume() ? " (consumed)" : "");
-            entries.add(new DependencyResult.EntryResult("xp_level", desc, met, currentLevel, xpLevel.getLevel()));
+            entries.add(
+                    new DependencyResult.EntryResult("xp_level", "xp", desc, met, currentLevel, xpLevel.getLevel()));
         }
 
         // Entity Kills
@@ -117,7 +122,8 @@ public class DependencyChecker {
             int current = player != null ? getKillCount(player, kill.getEntityId()) : 0;
             boolean met = current >= kill.getCount();
             String entityName = getEntityDisplayName(kill.getEntityId());
-            entries.add(new DependencyResult.EntryResult("entity_kill", kill.getCount() + "x " + entityName, met,
+            entries.add(new DependencyResult.EntryResult("entity_kill", kill.getEntityId(),
+                    kill.getCount() + "x " + entityName, met,
                     current, kill.getCount()));
         }
 
@@ -125,7 +131,8 @@ public class DependencyChecker {
         for (StatDep stat : group.getStats()) {
             int current = player != null ? getStatValue(player, stat.getStatId()) : 0;
             boolean met = current >= stat.getMinValue();
-            entries.add(new DependencyResult.EntryResult("stat", stat.getStatId() + " >= " + stat.getMinValue(), met,
+            entries.add(new DependencyResult.EntryResult("stat", stat.getStatId(),
+                    stat.getStatId() + " >= " + stat.getMinValue(), met,
                     current, stat.getMinValue()));
         }
 

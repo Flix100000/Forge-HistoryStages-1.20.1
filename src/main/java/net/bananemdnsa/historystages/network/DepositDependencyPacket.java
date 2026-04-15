@@ -77,10 +77,11 @@ public class DepositDependencyPacket {
                 if (rl == null)
                     return;
 
-                // Find required count
+                // Find required count by comparing ResourceLocations
                 int required = 0;
                 for (DependencyItem item : group.getItems()) {
-                    if (item.getId().equals(data)) {
+                    ResourceLocation requiredRl = ResourceLocation.tryParse(item.getId());
+                    if (requiredRl != null && requiredRl.equals(rl)) {
                         required = item.getCount();
                         break;
                     }
@@ -88,7 +89,7 @@ public class DepositDependencyPacket {
                 if (required == 0)
                     return;
 
-                String key = "Group_" + groupIndex + "_Item_" + data;
+                String key = "Group_" + groupIndex + "_Item_" + rl.toString();
                 int current = deposited.getInt(key);
                 int needed = required - current;
                 if (needed <= 0)
@@ -98,15 +99,20 @@ public class DepositDependencyPacket {
                 int consumed = 0;
                 for (int i = 0; i < player.getInventory().getContainerSize() && consumed < needed; i++) {
                     ItemStack invStack = player.getInventory().getItem(i);
-                    if (!invStack.isEmpty() && rl.equals(ForgeRegistries.ITEMS.getKey(invStack.getItem()))) {
-                        int toRemove = Math.min(needed - consumed, invStack.getCount());
-                        invStack.shrink(toRemove);
-                        consumed += toRemove;
+                    if (!invStack.isEmpty()) {
+                        ResourceLocation invRl = ForgeRegistries.ITEMS.getKey(invStack.getItem());
+                        if (rl.equals(invRl)) {
+                            int toRemove = Math.min(needed - consumed, invStack.getCount());
+                            invStack.shrink(toRemove);
+                            consumed += toRemove;
+                        }
                     }
                 }
                 if (consumed > 0) {
                     deposited.putInt(key, current + consumed);
                     pedestal.setChanged();
+                    // Mark the stack as changed for sync
+                    scroll.setTag(scroll.getTag());
                 }
             } else if ("XP".equals(type)) {
                 XpLevelDep xpLevel = group.getXpLevel();
