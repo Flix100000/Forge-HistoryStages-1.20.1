@@ -8,6 +8,7 @@
   "command.historystages.unlocked_all": "Alle Stufen wurden freigeschaltet.",
   "command.historystages.not_found": "Stufe '%s' nicht gefunden!",
   "screen.historystages.already_learned": "\u00a7cBereits erforscht!",
+  "screen.historystages.dependencies_not_met": "\u00a7cAufgaben nicht erf\u00fcllt!",
   "creativetab.history_tab": "History Stages",
   "tooltip.historystages.research_scroll.info1": "Benutze diese Rolle in einem Forschungspodest,",
   "tooltip.historystages.research_scroll.info2": "um neue Technologien freizuschalten.",

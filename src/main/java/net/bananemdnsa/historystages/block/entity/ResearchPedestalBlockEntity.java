@@ -641,11 +641,17 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         String itemId = ForgeRegistries.ITEMS.getKey(depositStack.getItem()).toString();
         CompoundTag depositedData = scroll.getTag().getCompound("DepositedDependencies");
 
-        return entry.getDependencies().stream().anyMatch(group -> group.getItems().stream().anyMatch(item -> {
-            if (!item.getId().equals(itemId))
-                return false;
-            int count = depositedData.contains(itemId) ? depositedData.getInt(itemId) : 0;
-            return count < item.getCount();
-        }));
+        for (int i = 0; i < entry.getDependencies().size(); i++) {
+            net.bananemdnsa.historystages.data.DependencyGroup group = entry.getDependencies().get(i);
+            for (net.bananemdnsa.historystages.data.dependency.DependencyItem item : group.getItems()) {
+                if (item.getId().equals(itemId)) {
+                    String key = "Group_" + i + "_Item_" + item.getId();
+                    int count = depositedData.getInt(key);
+                    if (count < item.getCount())
+                        return true;
+                }
+            }
+        }
+        return false;
     }
 }

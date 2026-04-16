@@ -11,7 +11,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 public class ResearchPedestalMenu extends AbstractContainerMenu {
     private final ResearchPedestalBlockEntity blockEntity;
@@ -20,9 +25,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
-        // WICHTIG: Hier muss eine 3 stehen, damit Platz für alle Daten ist!
+        // WICHTIG: Hier muss eine 6 stehen, damit Platz für alle Daten ist!
         this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()),
-                new SimpleContainerData(5));
+                new SimpleContainerData(6));
     }
 
     // Server-Konstruktor
@@ -36,12 +41,49 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         addPlayerInventory(inv);
         addPlayerHotbar(inv);
 
-        // Slot-Koordinaten für das Buch
-        int slotX = 26;
-        int slotY = 35;
+        // We MUST ensure slots are ALWAYS added to have a consistent slot count (38
+        // total).
+        // On the client, the BE cap might be empty during early init.
+        IItemHandler handler = this.blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER)
+                .orElse(new ItemStackHandler(2));
 
-        this.blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler -> {
-            this.addSlot(new SlotItemHandler(handler, 0, slotX, slotY));
+        // Internal Slot 0: Scroll
+        this.addSlot(new SlotItemHandler(handler, 0, 26, 35));
+
+        // Internal Slot 1: Deposit (Inside the dependency panel)
+        this.addSlot(new SlotItemHandler(handler, 1, 246, 142) {
+            @Override
+            public boolean mayPlace(@NotNull ItemStack stack) {
+                if (ResearchPedestalMenu.this.blockEntity == null)
+                    return false;
+
+                // Get current stage info
+                ItemStack scroll = ResearchPedestalMenu.this.blockEntity.getScrollStack();
+                if (scroll.isEmpty() || !scroll.hasTag() || !scroll.getTag().contains("StageResearch"))
+                    return false;
+                String stageId = scroll.getTag().getString("StageResearch");
+
+                // Block if already unlocked
+                if (ResearchPedestalMenu.this.blockEntity.isCurrentScrollIndividual()) {
+                    UUID owner = scroll.getTag().contains("OwnerUUID") ? scroll.getTag().getUUID("OwnerUUID") : null;
+                    if (owner != null
+                            && net.bananemdnsa.historystages.util.IndividualStageData.hasStageCached(owner, stageId)) {
+                        return false;
+                    }
+                } else {
+                    if (net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId)) {
+                        return false;
+                    }
+                }
+
+                return super.mayPlace(stack);
+            }
+
+            @Override
+            public boolean isActive() {
+                return ResearchPedestalMenu.this.blockEntity != null
+                        && ResearchPedestalMenu.this.blockEntity.hasScrollWithDependencies();
+            }
         });
 
         // Synchronisiert die Daten (Progress, Max, Delay) zwischen Server und Client
@@ -91,16 +133,19 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
             ItemStack stack = slot.getItem();
             ItemStack copy = stack.copy();
 
-            // Wenn das Item aus dem Inventar kommt (0-35)
+            // If item comes from player inventory/hotbar (0-35)
             if (index < 36) {
-                // Versuche es in den Maschinen-Slot (36) zu schieben
-                if (!this.moveItemStackTo(stack, 36, 37, false)) {
+                // First try to put in scroll slot if valid
+                if (this.moveItemStackTo(stack, 36, 37, false)) {
+                    // Success
+                } else if (this.moveItemStackTo(stack, 37, 38, false)) {
+                    // Try to put in deposit slot
+                } else {
                     return ItemStack.EMPTY;
                 }
             }
-            // Wenn das Item aus der Maschine kommt (36)
+            // If item comes from pedestal slots (36-37)
             else {
-                // Versuche es ins Inventar zu schieben (0-35)
                 if (!this.moveItemStackTo(stack, 0, 36, false)) {
                     return ItemStack.EMPTY;
                 }

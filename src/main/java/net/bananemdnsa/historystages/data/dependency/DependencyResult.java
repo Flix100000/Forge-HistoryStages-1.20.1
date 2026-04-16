@@ -59,18 +59,25 @@ public class DependencyResult {
         private final boolean fulfilled;
         private final int current; // Current progress
         private final int required; // Required amount
+        private final boolean canDeposit; // If true, show a deposit button (e.g. for XP)
 
-        public EntryResult(String type, String id, String description, boolean fulfilled, int current, int required) {
+        public EntryResult(String type, String id, String description, boolean fulfilled, int current, int required,
+                boolean canDeposit) {
             this.type = type;
             this.id = id;
             this.description = description;
             this.fulfilled = fulfilled;
             this.current = current;
             this.required = required;
+            this.canDeposit = canDeposit;
+        }
+
+        public EntryResult(String type, String id, String description, boolean fulfilled, int current, int required) {
+            this(type, id, description, fulfilled, current, required, false);
         }
 
         public EntryResult(String type, String description, boolean fulfilled) {
-            this(type, "", description, fulfilled, fulfilled ? 1 : 0, 1);
+            this(type, "", description, fulfilled, fulfilled ? 1 : 0, 1, false);
         }
 
         public String getType() {
@@ -95,6 +102,10 @@ public class DependencyResult {
 
         public int getRequired() {
             return required;
+        }
+
+        public boolean canDeposit() {
+            return canDeposit;
         }
     }
 }

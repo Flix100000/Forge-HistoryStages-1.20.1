@@ -8,6 +8,7 @@
   "command.historystages.unlocked_all": "All stages have been unlocked.",
   "command.historystages.not_found": "Stage '%s' not found!",
   "screen.historystages.already_learned": "§cAlready learned!",
+  "screen.historystages.dependencies_not_met": "§cRequirements not met!",
   "creativetab.history_tab": "History Stages",
   "tooltip.historystages.research_scroll.info1": "Use this scroll in a Research Pedestal",
   "tooltip.historystages.research_scroll.info2": "to unlock new technologies.",
