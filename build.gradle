@@ -16,10 +16,27 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-minecraft {
-    // Hier nutzen wir wieder deine Variablen aus der gradle.properties
-    mappings channel: mapping_channel, version: mapping_version
+// --- 1. DEFINE SOURCE SETS ---
+sourceSets {
+    api {
+        // This creates src/api/java and src/api/resources
+    }
+    main {
+        compileClasspath += sourceSets.api.output // Here we include the API code in our main mod runtime
+        runtimeClasspath += sourceSets.api.output
+        resources { srcDirs += 'src/generated/resources' }
+    }
+}
 
+// Not strictly necessary right now, best best practice in case we need different
+// build settings for the API module in the future
+configurations {
+    apiImplementation.extendsFrom(implementation)
+    apiRuntimeOnly.extendsFrom(runtimeOnly)
+}
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
     copyIdeResources = true
 
     runs {
@@ -30,7 +47,8 @@ minecraft {
 
             mods {
                 "${mod_id}" {
-                    source sourceSets.main
+                    // Make sure we load both main and api source code when running in a dev environment
+                    sources sourceSets.main, sourceSets.api
                 }
             }
         }
@@ -53,52 +71,73 @@ minecraft {
     }
 }
 
-// FIX: Ressourcen korrekt einbinden
-sourceSets.main.resources { srcDirs += 'src/generated/resources' }
-
 repositories {
-    flatDir {
-        dir 'libs'
-    }
-    maven {
-        name = "TerraformersMC"
-        url = "https://maven.terraformersmc.com/"
-    }
-
-    maven {
-        url "https://cursemaven.com"
-    }
-    maven {
-        url "https://api.modrinth.com/maven"
-    }
+    flatDir { dir 'libs' }
+    maven { name = "TerraformersMC"; url = "https://maven.terraformersmc.com/" }
+    maven { url "https://cursemaven.com" }
+    maven { url "https://api.modrinth.com/maven" }
     mavenCentral()
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // Mixin Support
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    // JEI (Lokal)
     implementation fg.deobf("curse.maven:jei-238222:7391695")
-
-    // LOOTR (Über CurseMaven - Das ist die sauberste Lösung)
-    // Wir nutzen 'implementation' statt 'compileOnly', damit die Klassen im Projekt bekannt sind
     implementation fg.deobf("curse.maven:lootr-361276:5420132")
-
-    //FTB Quests + Dependencies
     implementation fg.deobf("curse.maven:ftb-quests-forge-289412:7608804")
     implementation fg.deobf("curse.maven:ftb-library-forge-404465:7296748")
     implementation fg.deobf("curse.maven:ftb-teams-forge-404468:7499810")
     implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
-
-    // EMI
-    compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
-    //runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
-    
-    //Jade
     implementation fg.deobf("curse.maven:jade-324717:6855440")
+    compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
+}
+
+// This builds the "Full" mod jar (contains Main + API)
+tasks.named('jar', Jar).configure {
+    from sourceSets.api.output
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'MixinConfigs'            : "${mod_id}.mixins.json"
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+// This builds the "API only" jar (contains ONLY API)
+tasks.register('apiJar', Jar) {
+    from sourceSets.api.output
+    archiveClassifier = 'api' // Tell gradle that is should treat this as an API
+
+    manifest {
+        attributes([
+                'Specification-Title': "HistoryStages API",
+                'Implementation-Version': project.version
+        ])
+    }
+}
+
+// We also include a build variant which bundles the raw source code for the API module
+// This will allow client mod makers to see the java doc comments explaining how to use
+// the API methods
+tasks.register('apiSourcesJar', Jar) {
+    from sourceSets.api.allSource
+    archiveClassifier = 'sources'
+}
+
+// Ensure the API jar is also reobfuscated for production use
+assemble.dependsOn apiJar
+assemble.dependsOn apiSourcesJar
+reobf {
+    apiJar {}
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -116,26 +155,10 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes([
-                'Specification-Title'     : mod_id,
-                'Specification-Vendor'    : mod_authors,
-                'Specification-Version'   : '1',
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.jar.archiveVersion,
-                'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
-                'MixinConfigs'            : "historystages.mixins.json"
-        ])
-    }
-    finalizedBy 'reobfJar'
-}
-
 mixin {
-    // Das verknüpft deine Mixins mit dem Code
-    add sourceSets.main, "historystages.refmap.json"
-    config "historystages.mixins.json"
+    // Mixins should generally target the main source set
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
 }
 
 tasks.withType(JavaCompile).configureEach {
