@@ -37,6 +37,8 @@ public class ToggleStageLockPacket {
 
             // Example of how much cleaner the codebase can be if we set up some universal functions
             // which handle unlocking and locking.
+            // Don't worry about the name of unlockStageForPlayer, current this still works the same way
+            // as before and it will handle both individual or global stages
             if (msg.unlock) {
                 HistoryStages.STAGE_MANAGER.unlockStageForPlayer(player, msg.stageId);
             } else {
