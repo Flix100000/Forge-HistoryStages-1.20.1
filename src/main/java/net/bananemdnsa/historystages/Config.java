@@ -185,6 +185,15 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue individualUseSounds;
         public final ForgeConfigSpec.BooleanValue individualUseToasts;
 
+        // Structure Lock
+        public final ForgeConfigSpec.IntValue structureCheckInterval;
+        public final ForgeConfigSpec.BooleanValue structureDamageEnabled;
+        public final ForgeConfigSpec.DoubleValue structureDamageAmount;
+        public final ForgeConfigSpec.IntValue structureDamageInterval;
+        public final ForgeConfigSpec.BooleanValue structureMessageEnabled;
+        public final ForgeConfigSpec.ConfigValue<String> structureLockMessageFormat;
+        public final ForgeConfigSpec.BooleanValue structureLockInChat;
+
         public Common(ForgeConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -348,6 +357,39 @@ public class Config {
                     .define("useToasts", true);
 
             builder.pop(); // Schließt "individual_stages"
+
+            // --- STRUCTURE LOCK SECTION ---
+            builder.comment("Structure Lock Settings (locks player entry into specified structures)").push("structure_lock");
+
+            structureCheckInterval = builder
+                    .comment("How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction. [Default: 10]")
+                    .defineInRange("checkInterval", 10, 1, 200);
+
+            structureMessageEnabled = builder
+                    .comment("Show the player a message when they are inside a locked structure? [Default: true]")
+                    .define("messageEnabled", true);
+
+            structureLockMessageFormat = builder
+                    .comment("Message format for structure lock. Use {structure} for the structure ID, {stage} for the required stage, and & for colors.")
+                    .define("messageFormat", "&cYou cannot enter &e{structure}&c yet!");
+
+            structureLockInChat = builder
+                    .comment("Show the structure lock message in chat as well (otherwise only actionbar)? [Default: false]")
+                    .define("showInChat", false);
+
+            structureDamageEnabled = builder
+                    .comment("Damage the player while they are inside a locked structure? [Default: false]")
+                    .define("damageEnabled", false);
+
+            structureDamageAmount = builder
+                    .comment("Amount of damage dealt per damage tick. [Default: 1.0]")
+                    .defineInRange("damageAmount", 1.0, 0.1, 100.0);
+
+            structureDamageInterval = builder
+                    .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
+                    .defineInRange("damageInterval", 20, 1, 600);
+
+            builder.pop(); // Schließt "structure_lock"
         }
     }
 

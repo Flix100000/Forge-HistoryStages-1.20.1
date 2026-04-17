@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.client.editor.widget.ModEntitySelectionPopu
 import net.bananemdnsa.historystages.client.editor.widget.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionList;
+import net.bananemdnsa.historystages.client.editor.widget.SearchableStructureList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableModList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
@@ -69,6 +70,7 @@ public class StageDetailScreen extends Screen {
     private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
     private final List<String> editRecipes;
     private final List<String> editDimensions;
+    private final List<String> editStructures;
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final List<String> editModLinked;
@@ -98,6 +100,7 @@ public class StageDetailScreen extends Screen {
     private SearchableEntityList entitySearch;
     private SearchableTagList tagSearch;
     private SearchableDimensionList dimensionSearch;
+    private SearchableStructureList structureSearch;
     private SearchableRecipeList recipeSearch;
     private ContextMenu contextMenu;
     private ModEntitySelectionPopup modEntityPopup;
@@ -150,7 +153,8 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.section.recipes",
             "editor.historystages.section.dimensions",
             "editor.historystages.section.entities_attack",
-            "editor.historystages.section.entities_spawn"
+            "editor.historystages.section.entities_spawn",
+            "editor.historystages.section.structures"
     };
 
     // Short tab label keys
@@ -162,7 +166,8 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tab.recipes",
             "editor.historystages.tab.dimensions",
             "editor.historystages.tab.attack",
-            "editor.historystages.tab.spawn"
+            "editor.historystages.tab.spawn",
+            "editor.historystages.tab.structures"
     };
 
     // Tooltip descriptions for tabs
@@ -174,7 +179,8 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tooltip.recipes",
             "editor.historystages.tooltip.dimensions",
             "editor.historystages.tooltip.attack",
-            "editor.historystages.tooltip.spawn"
+            "editor.historystages.tooltip.spawn",
+            "editor.historystages.tooltip.structures"
     };
 
     // Tab layout (computed in init)
@@ -238,6 +244,7 @@ public class StageDetailScreen extends Screen {
         }
         this.editRecipes = new ArrayList<>(e.getRecipes());
         this.editDimensions = new ArrayList<>(e.getDimensions());
+        this.editStructures = new ArrayList<>(e.getStructures());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>(e.getEntities().getSpawnlock());
         this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
@@ -409,6 +416,12 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         });
 
+        structureSearch = new SearchableStructureList(structId -> {
+            editStructures.add(structId);
+            hasChanges = true;
+            updateMaxScroll();
+        });
+
         recipeSearch = new SearchableRecipeList(recipeId -> {
             showRecipePreview(recipeId, () -> {
                 editRecipes.add(recipeId);
@@ -425,7 +438,8 @@ public class StageDetailScreen extends Screen {
     private boolean isAnyOverlayVisible() {
         return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
-                || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
+                || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
+                || recipeSearch.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible || modEntityPopup.isVisible();
     }
 
@@ -456,6 +470,7 @@ public class StageDetailScreen extends Screen {
             case 5 -> editDimensions;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
+            case 8 -> editStructures;
             default -> new ArrayList<>();
         };
     }
@@ -928,6 +943,7 @@ public class StageDetailScreen extends Screen {
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         tagSearch.render(guiGraphics, this.font, mouseX, mouseY);
         dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
         modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
@@ -1584,6 +1600,10 @@ public class StageDetailScreen extends Screen {
             if (dimensionSearch.mouseClicked(mouseX, mouseY))
                 return true;
         }
+        if (structureSearch.isVisible()) {
+            if (structureSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
         if (recipeSearch.isVisible()) {
             if (recipeSearch.mouseClicked(mouseX, mouseY))
                 return true;
@@ -1768,6 +1788,9 @@ public class StageDetailScreen extends Screen {
         } else if (activeTab == 6 || activeTab == 7) {
             entitySearch.setFilter("");
             entitySearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 8) {
+            structureSearch.setFilter("");
+            structureSearch.show(this.width / 2, this.height / 2, cw);
         }
     }
 
@@ -1861,6 +1884,17 @@ public class StageDetailScreen extends Screen {
                 });
             });
             entitySearch.show(this.width / 2, this.height / 2, cw);
+        } else if (tabIdx == 8) {
+            structureSearch = new SearchableStructureList(structId -> {
+                getListForSection(tabIdx).set(entryIdx, structId);
+                hasChanges = true;
+                structureSearch = new SearchableStructureList(id -> {
+                    editStructures.add(id);
+                    hasChanges = true;
+                    updateMaxScroll();
+                });
+            });
+            structureSearch.show(this.width / 2, this.height / 2, cw);
         } else {
             this.minecraft.setScreen(new AddEntryScreen(this, tabIdx, entryIdx, currentValue));
         }
@@ -1916,6 +1950,8 @@ public class StageDetailScreen extends Screen {
             return true;
         if (dimensionSearch.isVisible() && dimensionSearch.mouseDragged(mouseX, mouseY))
             return true;
+        if (structureSearch.isVisible() && structureSearch.mouseDragged(mouseX, mouseY))
+            return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY))
             return true;
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -1936,6 +1972,8 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.mouseReleased())
             return true;
         if (dimensionSearch.isVisible() && dimensionSearch.mouseReleased())
+            return true;
+        if (structureSearch.isVisible() && structureSearch.mouseReleased())
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
             return true;
@@ -1961,6 +1999,8 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (structureSearch.isVisible() && structureSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
@@ -1994,6 +2034,8 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode))
             return true;
         if (dimensionSearch.isVisible() && dimensionSearch.keyPressed(keyCode))
+            return true;
+        if (structureSearch.isVisible() && structureSearch.keyPressed(keyCode))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode))
             return true;
@@ -2049,6 +2091,8 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.charTyped(c))
             return true;
         if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c))
+            return true;
+        if (structureSearch.isVisible() && structureSearch.charTyped(c))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.charTyped(c))
             return true;
@@ -2115,6 +2159,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setModExceptionEntries(modExceptionEntries);
         newEntry.setRecipes(editRecipes);
         newEntry.setDimensions(editDimensions);
+        newEntry.setStructures(editStructures);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         locks.setSpawnlock(editSpawnlock);

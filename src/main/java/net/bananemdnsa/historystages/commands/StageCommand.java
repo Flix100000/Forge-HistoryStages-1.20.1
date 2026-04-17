@@ -126,7 +126,43 @@ public class StageCommand {
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!");
                         }))
+
+                // --- DEBUG ---
+                .then(Commands.literal("debug")
+                        .then(Commands.literal("structure")
+                                .executes(ctx -> handleDebugStructure(ctx.getSource()))))
         );
+    }
+
+    private static int handleDebugStructure(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+
+        var pos = player.blockPosition();
+        var holders = net.bananemdnsa.historystages.events.StructureLockHandler.collectStructureHoldersAt(
+                player.serverLevel(), pos);
+
+        source.sendSuccess(() -> Component.literal(
+                "§6--- Structures at §e" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " §6---"), false);
+
+        if (holders.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("  §7(not inside any structure)"), false);
+            return 1;
+        }
+
+        for (var h : holders) {
+            String id = h.unwrapKey().map(k -> k.location().toString()).orElse("<unknown>");
+            source.sendSuccess(() -> Component.literal("  §8• §f" + id), false);
+            // list tags for each structure
+            h.tags().forEach(tag -> source.sendSuccess(
+                    () -> Component.literal("      §8↳ §b#" + tag.location()), false));
+        }
+        return 1;
     }
 
     private static int handleGlobalInfo(CommandSourceStack source, String stageName) {

@@ -82,6 +82,12 @@ public class ConfigHandler {
         dimensions.add("minecraft:the_end");
         json.add("dimensions", dimensions);
 
+        // Structures Category
+        JsonArray structures = new JsonArray();
+        structures.add("minecraft:stronghold");
+        structures.add("#minecraft:village");
+        json.add("structures", structures);
+
         // Entities Category (with subcategories)
         JsonObject entities = new JsonObject();
         JsonArray attacklock = new JsonArray();

@@ -145,6 +145,11 @@ public class HistoryStages {
                     new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
                     player);
 
+            // Sync structure registry so editor UI can populate the searchable list
+            PacketHandler.sendStructureRegistryToPlayer(
+                    net.bananemdnsa.historystages.network.SyncStructureRegistryPacket.fromServer(player),
+                    player);
+
             DebugLogger.runtime("Player Login", player.getName().getString(),
                     "Synced " + StageManager.getStages().size() + " stage definitions, "
                             + data.getUnlockedStages().size() + " unlocked stages"

@@ -77,6 +77,13 @@ public class SyncConfigPacket {
         values.put("individualUseActionbar", Config.COMMON.individualUseActionbar.get().toString());
         values.put("individualUseSounds", Config.COMMON.individualUseSounds.get().toString());
         values.put("individualUseToasts", Config.COMMON.individualUseToasts.get().toString());
+        values.put("structureCheckInterval", Config.COMMON.structureCheckInterval.get().toString());
+        values.put("structureDamageEnabled", Config.COMMON.structureDamageEnabled.get().toString());
+        values.put("structureDamageAmount", Config.COMMON.structureDamageAmount.get().toString());
+        values.put("structureDamageInterval", Config.COMMON.structureDamageInterval.get().toString());
+        values.put("structureMessageEnabled", Config.COMMON.structureMessageEnabled.get().toString());
+        values.put("structureLockMessageFormat", Config.COMMON.structureLockMessageFormat.get());
+        values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
         return new SyncConfigPacket(values);
     }
 }

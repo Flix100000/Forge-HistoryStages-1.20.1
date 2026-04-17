@@ -44,7 +44,7 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "entities", "dependencies"
+            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -219,6 +219,7 @@ public class StageManager {
         removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getRecipes(), stageId, "recipes");
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
+        removeEmptyStrings(entry.getStructures(), stageId, "structures");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         removeEmptyStrings(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
 
@@ -228,6 +229,7 @@ public class StageManager {
         checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getRecipes(), stageId, "recipes");
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
+        checkDuplicates(entry.getStructures(), stageId, "structures");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         checkDuplicates(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
 
@@ -289,6 +291,17 @@ public class StageManager {
             if (!ResourceLocation.isValidResourceLocation(dimId)) {
                 addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Stage: " + stageId + "). Removed.");
                 DebugLogger.warn("Invalid Dimensions", "Dimension '" + dimId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Structures (plain IDs and "#tag" entries allowed) ---
+        entry.getStructures().removeIf(structId -> {
+            String check = structId != null && structId.startsWith("#") ? structId.substring(1) : structId;
+            if (!ResourceLocation.isValidResourceLocation(check)) {
+                addMessage(MessageLevel.WARN, "Structure '" + structId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Structures", "Structure '" + structId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -623,6 +636,26 @@ public class StageManager {
         return allFoundStages;
     }
 
+    public static List<String> getAllStagesForStructure(String structureId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static boolean anyStageHasStructures() {
+        for (StageEntry entry : STAGES.values()) {
+            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
+        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
+            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
+        return false;
+    }
+
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
         return getAllStagesForItemOrMod(itemId, modId, null);
     }
@@ -905,6 +938,7 @@ public class StageManager {
         removeEmptyStrings(entry.getMods(), stageId, "mods");
         removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
+        removeEmptyStrings(entry.getStructures(), stageId, "structures");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
         checkDuplicateItems(entry.getItemEntries(), stageId);
@@ -912,6 +946,7 @@ public class StageManager {
         checkDuplicates(entry.getMods(), stageId, "mods");
         checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
+        checkDuplicates(entry.getStructures(), stageId, "structures");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
 
         entry.getItemEntries().removeIf(item -> {
@@ -957,6 +992,15 @@ public class StageManager {
         entry.getDimensions().removeIf(dimId -> {
             if (!ResourceLocation.isValidResourceLocation(dimId)) {
                 addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        entry.getStructures().removeIf(structId -> {
+            String check = structId != null && structId.startsWith("#") ? structId.substring(1) : structId;
+            if (!ResourceLocation.isValidResourceLocation(check)) {
+                addMessage(MessageLevel.WARN, "Structure '" + structId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -1114,6 +1158,16 @@ public class StageManager {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
             if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllIndividualStagesForStructure(String structureId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
                 allFoundStages.add(entry.getKey());
             }
         }
