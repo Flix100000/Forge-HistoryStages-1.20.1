@@ -3,11 +3,22 @@ package net.bananemdnsa.historystages.data;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.bananemdnsa.historystages.data.dependency.*;
+import com.sun.jna.platform.win32.WinDef;
+import net.astr0.historystages.api.IStageManager;
+import net.astr0.historystages.api.events.StageEvent;
+import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -22,7 +33,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-public class StageManager {
+public class StageManager implements IStageManager {
     private static final Map<String, StageEntry> STAGES = new HashMap<>();
     private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new HashMap<>();
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
@@ -45,6 +56,27 @@ public class StageManager {
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
     );
+
+    /*
+     * In my opinion(Astr0), moving towards singleton approaches will be cleaner overall.
+     * Whilst they are often labelled as being "bad code", there are situations where they are highly appropriate
+     * We need a StageManager that gives access to the same data globally, but all the data may not necessarily exist
+     * at run-time (for example first load). Additionally, we need an instanced object for use with our external API.
+     * I suggest we slowly refactor the code to this pattern. That way in our mod entry point we can create an instance,
+     * initialize it from disk, and then pass it to the API. It will also let us create an event listener for world load,
+     * and unload which can be used for saving the data cleanly.
+     *
+     * For now, this can exist here without breaking any of your static based functions.
+     */
+    private static StageManager INSTANCE;
+    private StageManager() {}
+    public static StageManager getInstance() {
+        if(INSTANCE == null) {
+            INSTANCE = new StageManager();
+        }
+
+        return INSTANCE;
+    }
 
     // =============================================
     // LOADING
@@ -571,7 +603,7 @@ public class StageManager {
                 Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
                 if (item != null) {
                     for (String tagId : data.getTags()) {
-                        var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
+                        var tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
                         if (item.builtInRegistryHolder().is(tagKey)) return entry.getKey();
                     }
                 }
@@ -829,7 +861,7 @@ public class StageManager {
         // Check tags
         if (item != null && data.getTags() != null) {
             for (String tagId : data.getTags()) {
-                var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
+                var tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
                 if (item.builtInRegistryHolder().is(tagKey)) return true;
             }
         }
@@ -848,8 +880,8 @@ public class StageManager {
     /** Returns whether the given stage is currently unlocked, routing to client or server cache. */
     private static boolean isStageUnlocked(String stageId, boolean isClientSide) {
         return isClientSide
-                ? net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stageId)
-                : net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId);
+                ? ClientStageCache.isStageUnlocked(stageId)
+                : StageData.SERVER_CACHE.contains(stageId);
     }
 
     /** Returns research time in ticks, falling back to the global config default. */
@@ -857,7 +889,7 @@ public class StageManager {
         if (entry != null && entry.getResearchTime() > 0) {
             return entry.getResearchTime() * 20;
         }
-        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+        return Config.COMMON.researchTimeInSeconds.get() * 20;
     }
 
     private static boolean persistStage(String stageId, StageEntry entry,
@@ -920,5 +952,71 @@ public class StageManager {
 
     public static void reloadStages() {
         load();
+    }
+
+    public static StageEntry getStageEntryForLevel(ServerLevel level, String stage) {
+        if (!getStages().containsKey(stage)) return null;
+
+        return getStages().get(stage);
+    }
+
+    // =============================================
+    // CLIENT MOD API IMPLEMENTATION
+    // These functions implement the IStageManager interface.
+    // They will allow client mods to interact with this one
+    // We should also aim to use these as much as possible internally
+    // for consistency
+    // =============================================
+    @Override
+    public boolean isStageUnlockedForPlayer(ServerPlayer player, String stage) {
+        return false;
+    }
+
+    @Override
+    public boolean isStageUnlockedGlobally(String stage) {
+        return false;
+    }
+
+    @Override
+    public void unlockStageForPlayer(ServerPlayer player, String stage) {
+
+        var entry = getStageEntryForLevel(player.serverLevel(), stage);
+        if (entry == null) { return; }
+
+        StageData data = StageData.get(player.serverLevel());
+        String displayName = entry.getDisplayName();
+
+        data.addStage(stage);
+        MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(stage, displayName));
+
+        data.setDirty();
+        StageData.refreshCache(data.getUnlockedStages());
+        PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
+    }
+
+    @Override
+    public void unlockStageGlobally(String stage) {
+
+    }
+
+    @Override
+    public void lockStageForPlayer(ServerPlayer player, String stage) {
+        if (!getStages().containsKey(stage)) return;
+
+        StageData data = StageData.get(player.serverLevel());
+        var entry = StageManager.getStages().get(stage);
+        String displayName = entry.getDisplayName();
+
+        data.removeStage(stage);
+        MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stage, displayName));
+
+        data.setDirty();
+        StageData.refreshCache(data.getUnlockedStages());
+        PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
+    }
+
+    @Override
+    public void lockStageGlobally(String stage) {
+
     }
 }
