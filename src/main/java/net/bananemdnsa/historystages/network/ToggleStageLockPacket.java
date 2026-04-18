@@ -1,16 +1,10 @@
 package net.bananemdnsa.historystages.network;
 
-import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.events.StageEvent;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.ArrayList;
 import java.util.function.Supplier;
 
 public class ToggleStageLockPacket {
@@ -36,23 +30,15 @@ public class ToggleStageLockPacket {
             ServerPlayer player = ctx.get().getSender();
             if (player == null || !player.hasPermissions(2)) return;
 
-            if (!StageManager.getStages().containsKey(msg.stageId)) return;
-
-            StageData data = StageData.get(player.serverLevel());
-            var entry = StageManager.getStages().get(msg.stageId);
-            String displayName = entry != null ? entry.getDisplayName() : msg.stageId;
-
+            // Example of how much cleaner the codebase can be if we set up some universal functions
+            // which handle unlocking and locking.
+            // Don't worry about the name of unlockStageForPlayer, current this still works the same way
+            // as before and it will handle both individual or global stages
             if (msg.unlock) {
-                data.addStage(msg.stageId);
-                MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(msg.stageId, displayName));
+                HistoryStages.STAGE_MANAGER.unlockStageForPlayer(player, msg.stageId);
             } else {
-                data.removeStage(msg.stageId);
-                MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(msg.stageId, displayName));
+                HistoryStages.STAGE_MANAGER.lockStageForPlayer(player, msg.stageId);
             }
-
-            data.setDirty();
-            StageData.refreshCache(data.getUnlockedStages());
-            PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
         });
         ctx.get().setPacketHandled(true);
     }

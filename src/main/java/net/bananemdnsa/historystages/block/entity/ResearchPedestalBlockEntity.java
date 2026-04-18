@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.block.entity;
 
+import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
@@ -395,9 +396,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
-                    new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
+                    new StageEvent.Unlocked(stageId, eventDisplayName));
 
             if (level.getServer() != null) {
+                //TODO: This should not use a command to perform a reload. We should
+                // implement some function on like StageManager.getInstance().reloadStages()
+                // and use that everytime we need to do a reload anywhere
                 level.getServer().getCommands().performPrefixedCommand(
                         level.getServer().createCommandSourceStack().withSuppressedOutput(),
                         "history reload");
@@ -439,7 +443,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
             net.minecraftforge.common.MinecraftForge.EVENT_BUS.post(
-                    new net.bananemdnsa.historystages.events.StageEvent.IndividualUnlocked(stageId, eventDisplayName,
+                    new StageEvent.IndividualUnlocked(stageId, eventDisplayName,
                             ownerUUID));
 
             // Sync individual stages to the owner player only
@@ -499,6 +503,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         stageData.setDirty();
 
         // Reload recipes
+        //TODO: Again, we should not use commands. We should make a direct call to StageManager.reloadStages() or something
         level.getServer().getCommands().performPrefixedCommand(
                 level.getServer().createCommandSourceStack().withSuppressedOutput(),
                 "history reload");

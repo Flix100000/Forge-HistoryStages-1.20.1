@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages;
 
 import com.mojang.logging.LogUtils;
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
@@ -53,6 +54,7 @@ public class HistoryStages {
     public static ResourceLocation location(String path) {
         return new ResourceLocation(MOD_ID, path);
     }
+    public static final StageManager STAGE_MANAGER = StageManager.getInstance();
 
     public HistoryStages() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -85,6 +87,10 @@ public class HistoryStages {
         }
 
         MinecraftForge.EVENT_BUS.register(this);
+
+        // Here we can create our StageManager and give it to the API.
+        // Refer to my comment in the StageManager class for more details
+        HistoryStagesAPI._setStageManager(STAGE_MANAGER);
     }
 
     private void onRegisterItemDecorators(RegisterItemDecorationsEvent event) {
