@@ -1,15 +1,10 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
-import net.astr0.historystages.api.events.StageEvent;
-import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.ArrayList;
 import java.util.function.Supplier;
 
 public class ToggleStageLockPacket {

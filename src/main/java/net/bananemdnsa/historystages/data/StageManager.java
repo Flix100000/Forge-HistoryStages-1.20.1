@@ -4,7 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.astr0.historystages.api.IStageManager;
-import net.astr0.historystages.api.events.StageEvent;
+import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;

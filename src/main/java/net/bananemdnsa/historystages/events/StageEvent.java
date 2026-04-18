@@ -1,4 +1,4 @@
-package net.astr0.historystages.api.events;
+package net.bananemdnsa.historystages.events;
 
 import net.minecraftforge.eventbus.api.Event;
 
@@ -8,7 +8,7 @@ import net.minecraftforge.eventbus.api.Event;
  *
  * <p>Example usage with KubeJS:</p>
  * <pre>
- * ForgeEvents.onEvent('net.astr0.historystages.api.events.StageEvent$Unlocked', event => {
+ * ForgeEvents.onEvent('net.bananemdnsa.historystages.events.StageEvent$Unlocked', event => {
  *     console.log('Stage unlocked: ' + event.getStageId());
  * });
  * </pre>

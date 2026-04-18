@@ -322,7 +322,7 @@ Both events provide: getStageId() and getDisplayName().
 
 KubeJS example:
 ForgeEvents.onEvent(
-  'net.astr0.historystages.api.events.StageEvent$Unlocked',
+  'net.bananemdnsa.historystages.events.StageEvent$Unlocked',
   event => {
     console.log('Stage unlocked: ' + event.getStageId());
   }
