@@ -30,6 +30,7 @@ public class StageEntry {
 
     private List<String> recipes;
     private List<String> dimensions;
+    private List<String> structures;
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
@@ -40,6 +41,7 @@ public class StageEntry {
         this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
+        this.structures = new ArrayList<>();
         this.entities = new EntityLocks();
     }
 
@@ -120,6 +122,10 @@ public class StageEntry {
         return dimensions != null ? dimensions : new ArrayList<>();
     }
 
+    public List<String> getStructures() {
+        return structures != null ? structures : new ArrayList<>();
+    }
+
     public EntityLocks getEntities() {
         return entities != null ? entities : new EntityLocks();
     }
@@ -191,6 +197,10 @@ public class StageEntry {
         this.dimensions = dimensions != null ? new ArrayList<>(dimensions) : new ArrayList<>();
     }
 
+    public void setStructures(List<String> structures) {
+        this.structures = structures != null ? new ArrayList<>(structures) : new ArrayList<>();
+    }
+
     public void setEntities(EntityLocks entities) {
         this.entities = entities != null ? entities : new EntityLocks();
     }
@@ -209,6 +219,7 @@ public class StageEntry {
         copy.setModExceptionEntries(getModExceptionEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setRecipes(getRecipes());
         copy.setDimensions(getDimensions());
+        copy.setStructures(getStructures());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());

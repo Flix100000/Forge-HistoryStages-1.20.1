@@ -8,7 +8,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class PacketHandler {
-        private static final String PROTOCOL_VERSION = "7";
+        private static final String PROTOCOL_VERSION = "9";
         public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
                         new ResourceLocation(HistoryStages.MOD_ID, "main"),
                         () -> PROTOCOL_VERSION,
@@ -50,6 +50,13 @@ public class PacketHandler {
                                 SyncDependencyStatusPacket::decode, SyncDependencyStatusPacket::handle);
                 INSTANCE.registerMessage(id++, DepositDependencyPacket.class, DepositDependencyPacket::toBytes,
                                 DepositDependencyPacket::new, DepositDependencyPacket::handle);
+                INSTANCE.registerMessage(id++, SyncStructureRegistryPacket.class, SyncStructureRegistryPacket::encode,
+                                SyncStructureRegistryPacket::decode, SyncStructureRegistryPacket::handle);
+        }
+
+        // Send structure registry to a specific player (on login)
+        public static void sendStructureRegistryToPlayer(SyncStructureRegistryPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }
 
         // Hilfsmethode, um das Paket an alle Spieler zu senden

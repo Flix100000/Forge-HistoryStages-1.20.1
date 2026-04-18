@@ -3,7 +3,6 @@ package net.bananemdnsa.historystages.data;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.sun.jna.platform.win32.WinDef;
 import net.astr0.historystages.api.IStageManager;
 import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
@@ -51,7 +50,7 @@ public class StageManager implements IStageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "entities", "dependencies"
+            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -318,6 +317,7 @@ public class StageManager implements IStageManager {
         removeEmptyStrings(entry.getMods(), stageId, "mods");
         removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
+        removeEmptyStrings(entry.getStructures(), stageId, "structures");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         if (isGlobal) {
             removeEmptyStrings(entry.getRecipes(), stageId, "recipes");
@@ -330,6 +330,7 @@ public class StageManager implements IStageManager {
         checkDuplicates(entry.getMods(), stageId, "mods");
         checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
+        checkDuplicates(entry.getStructures(), stageId, "structures");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         if (isGlobal) {
             checkDuplicates(entry.getRecipes(), stageId, "recipes");
@@ -376,6 +377,57 @@ public class StageManager implements IStageManager {
                 addMessage(MessageLevel.ERROR, "Mod exception '" + exItemId + "' does not belong to a locked mod (" + context + ": " + stageId + "). Removed.");
                 DebugLogger.error("Invalid Mod Exceptions", "Mod exception '" + exItemId + "' belongs to mod '"
                         + rl.getNamespace() + "' which is not in the 'mods' list (" + context + ": " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Dimensions ---
+        entry.getDimensions().removeIf(dimId -> {
+            if (!ResourceLocation.isValidResourceLocation(dimId)) {
+                addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Dimensions", "Dimension '" + dimId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Structures (plain IDs and "#tag" entries allowed) ---
+        entry.getStructures().removeIf(structId -> {
+            String check = structId != null && structId.startsWith("#") ? structId.substring(1) : structId;
+            if (!ResourceLocation.isValidResourceLocation(check)) {
+                addMessage(MessageLevel.WARN, "Structure '" + structId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Structures", "Structure '" + structId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Recipes ---
+        entry.getRecipes().removeIf(recipeId -> {
+            if (!ResourceLocation.isValidResourceLocation(recipeId)) {
+                addMessage(MessageLevel.WARN, "Recipe '" + recipeId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Recipes", "Recipe '" + recipeId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Entities (attacklock) ---
+        entry.getEntities().getAttacklock().removeIf(entityId -> {
+            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+                addMessage(MessageLevel.WARN, "Entity attacklock '" + entityId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Entities", "Entity attacklock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // --- Entities (spawnlock) ---
+        entry.getEntities().getSpawnlock().removeIf(entityId -> {
+            if (!ResourceLocation.isValidResourceLocation(entityId)) {
+                addMessage(MessageLevel.WARN, "Entity spawnlock '" + entityId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Entities", "Entity spawnlock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
@@ -647,7 +699,40 @@ public class StageManager implements IStageManager {
     }
 
     public static List<String> getAllStagesForDimension(String dimensionId) {
-        return collectStagesWhere(STAGES, entry -> entry.getDimensions() != null && entry.getDimensions().contains(dimensionId));
+        //return collectStagesWhere(STAGES, entry -> entry.getDimensions() != null && entry.getDimensions().contains(dimensionId));
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllStagesForStructure(String structureId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static boolean anyStageHasStructures() {
+        for (StageEntry entry : STAGES.values()) {
+            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
+        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
+            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
+        return false;
+    }
+
+
+    /** Delegates to StageEntry.isModExcepted for consistency. */
+    private static boolean isModException(String itemId, net.minecraft.world.item.ItemStack stack, StageEntry data) {
+        return data.isModExcepted(itemId, stack);
     }
 
     /**
@@ -890,6 +975,16 @@ public class StageManager implements IStageManager {
             return entry.getResearchTime() * 20;
         }
         return Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    public static List<String> getAllIndividualStagesForStructure(String structureId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
+                allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
     }
 
     private static boolean persistStage(String stageId, StageEntry entry,

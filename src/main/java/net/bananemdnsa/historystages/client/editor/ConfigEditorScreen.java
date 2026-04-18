@@ -309,6 +309,31 @@ public class ConfigEditorScreen extends Screen {
                 String.join(",", Config.COMMON.replacementTag.get()), false, "",
                 "List of tags to pick a random replacement from (Priority 2). Click to manage."));
         commonSections.add(lootReplace);
+
+        ConfigSection structureLock = new ConfigSection("editor.historystages.config.structure_lock");
+        structureLock.add(new ConfigEntry("structureCheckInterval", ConfigType.INTEGER,
+                Config.COMMON.structureCheckInterval.get().toString(), false, "10",
+                "How often (in ticks) to check if a player is inside a locked structure."));
+        structureLock.add(new ConfigEntry("structureMessageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.structureMessageEnabled.get().toString(), false, "true",
+                "Show the player a message when they are inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureLockMessageFormat", ConfigType.STRING,
+                Config.COMMON.structureLockMessageFormat.get(), false,
+                "&cYou cannot enter &e{structure}&c yet!",
+                "Message format for structure lock. Use {structure}, {stage} and & for colors."));
+        structureLock.add(new ConfigEntry("structureLockInChat", ConfigType.BOOLEAN,
+                Config.COMMON.structureLockInChat.get().toString(), false, "false",
+                "Show the structure lock message in chat as well (otherwise only actionbar)?"));
+        structureLock.add(new ConfigEntry("structureDamageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.structureDamageEnabled.get().toString(), false, "false",
+                "Damage the player while they are inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureDamageAmount", ConfigType.STRING,
+                Config.COMMON.structureDamageAmount.get().toString(), false, "1.0",
+                "Amount of damage dealt per damage tick."));
+        structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
+                Config.COMMON.structureDamageInterval.get().toString(), false, "20",
+                "How often (in ticks) to deal damage while inside a locked structure."));
+        commonSections.add(structureLock);
     }
 
     private void resetToDefaults() {
