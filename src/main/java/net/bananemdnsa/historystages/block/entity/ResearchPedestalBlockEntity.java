@@ -420,8 +420,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             });
 
             if (Config.COMMON.useToasts.get()) {
+                String iconId = (stageEntry != null && stageEntry.getIcon() != null) ? stageEntry.getIcon() : "";
                 PacketHandler
-                        .sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
+                        .sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename, iconId));
             }
         }
     }
@@ -475,9 +476,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                 1.0F);
                     }
                     if (Config.COMMON.individualUseToasts.get()) {
+                        String iconId = (stageEntry != null && stageEntry.getIcon() != null) ? stageEntry.getIcon() : "";
                         PacketHandler.INSTANCE.send(
                                 net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> ownerPlayer),
-                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename));
+                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename, iconId));
                     }
                 }
             }

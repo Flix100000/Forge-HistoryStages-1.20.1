@@ -159,6 +159,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue useActionbar;
         public final ForgeConfigSpec.BooleanValue useSounds;
         public final ForgeConfigSpec.BooleanValue useToasts;
+        public final ForgeConfigSpec.ConfigValue<String> defaultStageIcon;
 
         // Forschungsstation
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
@@ -274,6 +275,10 @@ public class Config {
             useToasts = builder
                     .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
                     .define("useToasts", true);
+
+            defaultStageIcon = builder
+                    .comment("Default icon used in unlock toasts for stages that don't define their own icon. [Default: historystages:research_scroll]")
+                    .define("defaultStageIcon", "historystages:research_scroll");
 
             builder.pop(); // Schließt "notifications"
 
