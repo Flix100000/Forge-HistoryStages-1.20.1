@@ -1,17 +1,16 @@
 package net.bananemdnsa.historystages.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.network.CheckDependencyPacket;
 import net.bananemdnsa.historystages.network.DepositDependencyPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientDependencyCache;
+import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

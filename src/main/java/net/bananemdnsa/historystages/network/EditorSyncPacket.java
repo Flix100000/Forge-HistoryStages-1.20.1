@@ -3,7 +3,6 @@ package net.bananemdnsa.historystages.network;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 

@@ -1,23 +1,22 @@
 package net.bananemdnsa.historystages.init;
 
+import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.dependency.*;
+import net.bananemdnsa.historystages.data.dependency.DependencyItem;
+import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
+import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.bananemdnsa.historystages.util.ClientDependencyCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Rarity;
-import net.minecraft.world.item.TooltipFlag;
+import net.minecraft.world.item.*;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
-import net.bananemdnsa.historystages.HistoryStages;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;

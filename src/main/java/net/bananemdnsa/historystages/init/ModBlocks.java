@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.block.ResearchPedestalBlock; // WICHTIGER IMPORT
+import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockBehaviour;

@@ -1,11 +1,11 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.client.ClientStructureRegistry;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraftforge.network.NetworkEvent;
 

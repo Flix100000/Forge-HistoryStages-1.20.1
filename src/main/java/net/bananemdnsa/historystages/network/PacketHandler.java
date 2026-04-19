@@ -1,7 +1,5 @@
 package net.bananemdnsa.historystages.network;
 
-import net.bananemdnsa.historystages.HistoryStages;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;

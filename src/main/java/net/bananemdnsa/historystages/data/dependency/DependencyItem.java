@@ -1,7 +1,6 @@
 package net.bananemdnsa.historystages.data.dependency;
 
 import com.google.gson.JsonObject;
-import com.google.gson.annotations.SerializedName;
 
 public class DependencyItem {
     private String id;

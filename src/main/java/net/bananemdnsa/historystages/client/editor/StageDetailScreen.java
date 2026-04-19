@@ -1,38 +1,28 @@
 package net.bananemdnsa.historystages.client.editor;
 
-import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
-import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
-import net.bananemdnsa.historystages.client.editor.widget.ModEntitySelectionPopup;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableEntityList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableStructureList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableModList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableRecipeList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
+import net.bananemdnsa.historystages.util.AllRecipesCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -41,17 +31,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.ShapedRecipe;
-import net.bananemdnsa.historystages.util.AllRecipesCache;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Quaternionf;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class StageDetailScreen extends Screen {
     private final Screen parent;

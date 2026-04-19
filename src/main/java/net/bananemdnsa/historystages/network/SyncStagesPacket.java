@@ -1,9 +1,10 @@
 package net.bananemdnsa.historystages.network;
 
-import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.jei.JEIPlugin;
+import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
