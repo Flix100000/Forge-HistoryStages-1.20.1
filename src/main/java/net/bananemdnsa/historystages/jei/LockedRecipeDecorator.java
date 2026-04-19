@@ -47,6 +47,7 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
     }
 
     @Override
+    @SuppressWarnings(value = "all")
     public List<Component> decorateExistingTooltips(List<Component> tooltips, T recipe,
                                                      IRecipeCategory<T> category,
                                                      IRecipeSlotsView recipeSlotsView,
