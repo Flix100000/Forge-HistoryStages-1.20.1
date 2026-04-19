@@ -1,10 +1,14 @@
 **History Stages**
 
 History Stages is a progression and gatekeeping mod for
-Minecraft 1.20.1 (Forge). It allows modpack creators to
+Minecraft. It allows modpack creators to
 implement a global "Era" system and per-player progression
 by locking items, recipes, dimensions, mobs, and mod content
 behind custom research stages.
+
+For full documentation on commands, configuration, Forge
+events, and advanced usage, see the Wiki:
+https://github.com/Flix100000/History-Stages/wiki
 
 ----------------------------------------------------------------
 1. KEY FEATURES
@@ -32,6 +36,12 @@ CONTENT LOCKING:
 - Dimension Access: Prevent players from entering specific
   dimensions (Nether, End, etc.) without the required stage.
   Dimensions can overlap between global and individual stages.
+- Structure Lock: Prevent players from entering specific
+  structures until the required stage is unlocked. Supports
+  plain structure IDs (e.g. minecraft:stronghold) and structure
+  tags via a # prefix (e.g. #minecraft:village). Optionally
+  deals damage while inside a locked structure and blocks
+  container/spawner interactions.
 - Item Usage Lock: Prevent players from using locked items
   (equipping armor, using weapons, eating food, etc.).
 - Block Breaking Lock: Locked blocks are much harder to break
@@ -52,9 +62,26 @@ CONTENT LOCKING:
 - Entity Item Protection: Prevent interacting with or breaking
   armor stands and item frames containing locked items.
 
+STAGE DEPENDENCIES:
+- Stages can require prerequisites before they can be unlocked:
+  - Entity Kills: Kill a specified number of certain entities.
+  - XP Level: Reach a required experience level.
+  - Statistics: Reach a certain value in any Minecraft statistic.
+  - Individual Stage: Another per-player stage must be unlocked.
+- Dependencies are configured via a visual Dependency Editor in
+  the in-game stage editor and are validated client-server.
+- Multiple dependencies can be grouped; all must be met before
+  the stage can be unlocked.
+
 RESEARCH SYSTEM:
 - Research Pedestal and Research Scrolls with configurable
   research time per stage.
+- The pedestal GUI expands dynamically to show a dependency
+  side panel with a checklist of all required conditions.
+- Items and XP can be deposited directly into the pedestal to
+  satisfy deposit-based dependencies.
+- Owner Protection: Only the scroll owner can interact with
+  their scroll slot in the pedestal.
 - Creative Scroll: Unlocks all stages when researched in the
   pedestal.
 - Individual stage scrolls show owner name in tooltip and
@@ -91,7 +118,9 @@ INTEGRATIONS:
 
 OTHER:
 - Toast Notifications: Advancement-style popup notifications
-  when stages are unlocked.
+  when stages are unlocked. Each stage can define a custom
+  item icon for its toast; a global fallback icon is
+  configurable via defaultStageIcon in the config.
 - Debug Logging: Comprehensive diagnostic reports with
   config validation, registry checks, and stage content
   overview. Runtime event logging for tracking stage
@@ -120,16 +149,24 @@ Example format:
 {
   "display_name": "Bronze Age",
   "research_time": 60,
+  "icon": "minecraft:iron_ingot",
   "items": ["minecraft:iron_ingot"],
   "tags": ["forge:ores/iron"],
   "mods": ["mekanism"],
   "mod_exceptions": ["mekanism:configurator"],
   "recipes": ["minecraft:iron_pickaxe"],
   "dimensions": ["minecraft:the_nether"],
+  "structures": ["minecraft:stronghold", "#minecraft:village"],
   "entities": {
     "attacklock": ["minecraft:zombie"],
     "spawnlock": ["minecraft:skeleton"]
-  }
+  },
+  "dependencies": [
+    {"type": "xp_level", "level": 10},
+    {"type": "entity_kills", "entity": "minecraft:zombie", "count": 20},
+    {"type": "statistic", "stat": "minecraft:killed.minecraft:zombie", "value": 20},
+    {"type": "individual_stage", "stage": "stone_age"}
+  ]
 }
 
 Items can also be specified with NBT criteria:
@@ -151,6 +188,8 @@ FIELDS:
 - display_name: Human-readable name shown in messages and tooltips.
 - research_time: (Optional) Research duration in seconds for this
   stage. If omitted or 0, uses the global config default.
+- icon: (Optional) Item ID shown as the icon in unlock toast
+  notifications. Falls back to the global defaultStageIcon config.
 - items: List of item IDs or objects with id+nbt to lock.
   Supports NBT-based matching for granular item control.
 - tags: List of item tags to lock (e.g. "forge:ores/iron").
@@ -159,10 +198,23 @@ FIELDS:
   locking (with full NBT support).
 - recipes: List of recipe IDs to lock (shown with overlay).
 - dimensions: List of dimension IDs to block access to.
+- structures: List of structure IDs or tag IDs (# prefix) to
+  block access to (e.g. "minecraft:stronghold", "#minecraft:village").
 - entities: Object with two optional subcategories:
   - attacklock: Entities that cannot be attacked by players.
   - spawnlock: Entities that are prevented from spawning entirely.
     Spawnlocked entities are also automatically attacklocked.
+- dependencies: (Optional) List of prerequisite conditions that
+  must be met before this stage can be unlocked. Each entry has
+  a "type" field and type-specific parameters:
+  - xp_level: Requires reaching a minimum XP level.
+    Parameters: "level" (integer).
+  - entity_kills: Requires killing a number of specific entities.
+    Parameters: "entity" (entity ID), "count" (integer).
+  - statistic: Requires reaching a value in a Minecraft statistic.
+    Parameters: "stat" (statistic ID), "value" (integer).
+  - individual_stage: Requires another individual stage to be
+    unlocked for this player. Parameters: "stage" (stage ID).
 
 Note: JSON files prefixed with underscore (e.g. _exampleStage.json)
 are ignored during loading.
@@ -197,92 +249,24 @@ the game or manually edit JSON files. All stage configs and
 mod settings can be managed directly from within the GUI.
 
 ----------------------------------------------------------------
-4. ADMIN COMMANDS (Permission Level 2)
+4. ADMIN COMMANDS & CONFIGURATION
 ----------------------------------------------------------------
 
-GLOBAL STAGE COMMANDS:
-/history global unlock <stage>  - Unlocks a global stage. '*' for all.
-/history global lock <stage>    - Relocks a global stage. '*' for all.
-/history global list            - Shows all global stages.
-/history global info <stage>    - Shows stage details.
+See the Wiki for a full command reference, all config options,
+and Forge event documentation:
+https://github.com/Flix100000/History-Stages/wiki
 
-INDIVIDUAL STAGE COMMANDS:
-/history individual unlock <player> <stage>  - Unlocks for a player.
-/history individual lock <player> <stage>    - Relocks for a player.
-/history individual list <player>            - Shows player's stages.
-/history individual info <stage>             - Shows stage details.
+Quick reference:
+/history global unlock|lock <stage>
+/history individual unlock|lock <player> <stage>
+/history reload
+/history debug structure|nbt preset|custom
 
-Supports multi-player selectors (@a, @p, etc.) and '*' wildcard
-for stages.
-
-GENERAL COMMANDS:
-/history reload          - Reloads JSONs and syncs players.
-
-----------------------------------------------------------------
-5. OBTAINING SCROLLS VIA COMMAND
-----------------------------------------------------------------
-
+Scrolls can also be obtained via command:
 /give @s historystages:research_scroll{StageResearch:"stage_id"}
 
-(Replace "stage_id" with your JSON filename, e.g. "bronze_age")
-
 ----------------------------------------------------------------
-6. CONFIGURATION
-----------------------------------------------------------------
-
-CLIENT CONFIG (per player):
-- showTooltips: Show information tooltips on locked items.
-- showStageName: Show required stage name in tooltips.
-- showAllUntilComplete: Show all required stages until unlocked.
-- showLockIcons: Show lock icon overlay on locked items
-  (auto-disabled with EMI).
-- Jade settings: jadeShowInfo, jadeStageName,
-  jadeShowAllUntilComplete (requires Jade mod).
-- Dimension lock feedback: Actionbar and/or chat messages.
-- Mob lock feedback: Actionbar and/or chat messages.
-
-COMMON CONFIG (server-side):
-- showWelcomeMessage: Display welcome message on player join.
-- showDebugErrors: Show config validation errors in chat.
-- lockMobLoot: Remove locked items from mob drops.
-- lockBlockBreaking: Make locked blocks harder to break and
-  prevent their drops (default: true).
-- lockedBlockBreakSpeedMultiplier: Break speed multiplier for
-  locked blocks (default: 0.05 = 20x slower).
-- lockItemUsage: Prevent using locked items (default: true).
-- lockEntityItems: Prevent interacting with or breaking armor
-  stands and item frames containing locked items (default: true).
-- lockBlockGUI: Prevent opening GUI of locked blocks like
-  chests and furnaces (default: true).
-- lockContainerInteraction: Prevent moving individually-locked
-  items in containers (default: true).
-- lockEnchanting: Prevent applying locked enchantments via
-  anvil and enchanting table (default: true).
-- broadcastChat: Broadcast unlock/lock messages to all players.
-- unlockMessageFormat: Customize the unlock message text
-  (supports {stage} placeholder and & color codes).
-- individualUnlockMessageFormat: Customize the individual unlock
-  message text (supports {stage} and {player} placeholders).
-- useActionbar: Show messages in actionbar.
-- useSounds: Play notification sounds.
-- useToasts: Show advancement-style toast popups.
-- researchTimeInSeconds: Default research duration (default: 20s).
-- enableRuntimeLogging: Log runtime events (stage changes,
-  blocked actions, inventory tracking) to file (default: false).
-- useReplacements: Replace locked loot with alternative items.
-- replacementItems: List of replacement item IDs.
-- replacementTag: List of item tags for replacement fallback.
-
-Individual stages have their own independent config toggles for
-block breaking (with separate speed multiplier), item usage,
-and notification options (chat, actionbar, sounds, toasts).
-
-Config files are located at:
-- Client: /config/historystages-client.toml
-- Common: /config/historystages-common.toml
-
-----------------------------------------------------------------
-7. FTB QUESTS INTEGRATION
+5. FTB QUESTS INTEGRATION
 ----------------------------------------------------------------
 
 If FTB Quests is installed, History Stages adds two new types
@@ -306,37 +290,14 @@ The integration is fully optional and crash-safe. If FTB Quests
 is not installed, the mod works normally without it.
 
 ----------------------------------------------------------------
-8. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
-----------------------------------------------------------------
-
-History Stages fires custom Forge events on the EVENT_BUS:
-
-- StageEvent.Unlocked: Fired after a stage is unlocked
-  (via command, Research Pedestal, or FTB Quests reward).
-- StageEvent.Locked: Fired after a stage is locked
-  (via command or FTB Quests reward).
-
-Both events are also fired by FTB Quests rewards.
-Both events provide: getStageId() and getDisplayName().
-
-KubeJS example:
-ForgeEvents.onEvent(
-  'net.bananemdnsa.historystages.events.StageEvent$Unlocked',
-  event => {
-    console.log('Stage unlocked: ' + event.getStageId());
-  }
-);
-
-----------------------------------------------------------------
-9. DEPENDENCIES
+6. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
-- Optional: JEI (recipe viewer integration)
-- Optional: EMI (alternative recipe viewer integration)
-- Optional: Jade (block overlay integration)
-
-- Optional: FTB Quests (quest task and reward integration)
+- Optional: JEI
+- Optional: EMI
+- Optional: Jade
+- Optional: FTB Quests
 
 ----------------------------------------------------------------
 License: GPL-3.0
