@@ -69,7 +69,7 @@ public class MobLootLockHandler {
 
         try {
             String randomId = list.get(RANDOM.nextInt(list.size()));
-            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
+            Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(randomId));
             if (item != null && item != Items.AIR) {
                 return new ItemStack(item, count);
             }

@@ -65,7 +65,7 @@ public class LootLockHandler {
         if (list != null && !list.isEmpty()) {
             try {
                 String randomId = list.get(RANDOM.nextInt(list.size()));
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(randomId));
+                Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(randomId));
                 if (item != null && item != Items.AIR) {
                     return new ItemStack(item, count);
                 }
@@ -77,7 +77,7 @@ public class LootLockHandler {
         if (tags != null && !tags.isEmpty()) {
             try {
                 String tagStr = tags.get(RANDOM.nextInt(tags.size()));
-                TagKey<Item> tagKey = ItemTags.create(new ResourceLocation(tagStr));
+                TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
                 List<Item> tagItems = new ArrayList<>();
                 ForgeRegistries.ITEMS.tags().getTag(tagKey).forEach(tagItems::add);
 

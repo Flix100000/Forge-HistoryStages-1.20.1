@@ -26,8 +26,8 @@ import java.util.Map;
 @WailaPlugin
 public class JadePlugin implements IWailaPlugin {
 
-    private static final ResourceLocation LOCKED_BLOCK = new ResourceLocation(HistoryStages.MOD_ID, "locked_block");
-    private static final ResourceLocation LOCKED_ENTITY_ITEM = new ResourceLocation(HistoryStages.MOD_ID, "locked_entity_item");
+    private static final ResourceLocation LOCKED_BLOCK = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_block");
+    private static final ResourceLocation LOCKED_ENTITY_ITEM = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_entity_item");
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {

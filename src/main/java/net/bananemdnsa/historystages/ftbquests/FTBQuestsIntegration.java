@@ -20,13 +20,13 @@ public class FTBQuestsIntegration {
 
     public static void init() {
         HISTORY_STAGE_TASK = TaskTypes.register(
-                new ResourceLocation(HistoryStages.MOD_ID, "history_stage"),
+                ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "history_stage"),
                 HistoryStageTask::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
         ).setDisplayName(Component.translatable("ftbquests.historystages.task.history_stage"));
 
         HISTORY_STAGE_REWARD = RewardTypes.register(
-                new ResourceLocation(HistoryStages.MOD_ID, "history_stage"),
+                ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "history_stage"),
                 HistoryStageReward::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
         ).setDisplayName(Component.translatable("ftbquests.historystages.reward.history_stage"));

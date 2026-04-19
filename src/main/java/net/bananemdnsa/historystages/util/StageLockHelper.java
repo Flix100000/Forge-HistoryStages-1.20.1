@@ -326,7 +326,7 @@ public class StageLockHelper {
             for (String tagId : entry.getTags()) {
                 var tagKey = net.minecraft.tags.TagKey.create(
                         net.minecraft.core.registries.Registries.ITEM,
-                        new ResourceLocation(tagId)
+                        ResourceLocation.parse(tagId)
                 );
                 if (item.builtInRegistryHolder().is(tagKey)) return true;
             }

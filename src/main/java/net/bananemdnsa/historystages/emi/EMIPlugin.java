@@ -30,7 +30,7 @@ public class EMIPlugin implements EmiPlugin {
             if (!ClientStageCache.isStageUnlocked(stageId)) {
                 // 1. Items verstecken
                 for (String itemId : stageData.getItems()) {
-                    Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+                    Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
                     if (item != null) registry.removeEmiStacks(EmiStack.of(item));
                 }
 
@@ -49,7 +49,7 @@ public class EMIPlugin implements EmiPlugin {
 
                 // 3. Tags verstecken
                 for (String tagId : stageData.getTags()) {
-                    ResourceLocation tagRes = new ResourceLocation(tagId);
+                    ResourceLocation tagRes = ResourceLocation.parse(tagId);
                     for (Item item : ForgeRegistries.ITEMS) {
                         ItemStack stack = new ItemStack(item);
                         if (stack.getTags().anyMatch(t -> t.location().equals(tagRes))) {

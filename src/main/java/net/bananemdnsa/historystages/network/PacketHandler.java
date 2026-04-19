@@ -10,7 +10,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 public class PacketHandler {
         private static final String PROTOCOL_VERSION = "9";
         public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
-                        new ResourceLocation(HistoryStages.MOD_ID, "main"),
+                        ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "main"),
                         () -> PROTOCOL_VERSION,
                         PROTOCOL_VERSION::equals,
                         PROTOCOL_VERSION::equals);

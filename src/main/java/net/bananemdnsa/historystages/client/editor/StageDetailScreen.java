@@ -1104,7 +1104,7 @@ public class StageDetailScreen extends Screen {
 
     private static ItemStack getItemStack(String itemId) {
         try {
-            ResourceLocation loc = new ResourceLocation(itemId);
+            ResourceLocation loc = ResourceLocation.parse(itemId);
             Item item = ForgeRegistries.ITEMS.getValue(loc);
             return item != null ? new ItemStack(item) : ItemStack.EMPTY;
         } catch (Exception e) {

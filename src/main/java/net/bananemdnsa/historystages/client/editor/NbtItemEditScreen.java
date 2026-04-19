@@ -272,7 +272,7 @@ public class NbtItemEditScreen extends Screen {
         g.fill(0, 0, this.width, this.height, 0xE0101010);
 
         // Header: item display
-        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+        Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
         if (item != null) {
             ItemStack stack = new ItemStack(item);
             g.renderItem(stack, PADDING, 10);
