@@ -130,7 +130,12 @@ public class StageCommand {
                 // --- DEBUG ---
                 .then(Commands.literal("debug")
                         .then(Commands.literal("structure")
-                                .executes(ctx -> handleDebugStructure(ctx.getSource()))))
+                                .executes(ctx -> handleDebugStructure(ctx.getSource())))
+                        .then(Commands.literal("nbt")
+                                .then(Commands.literal("preset")
+                                        .executes(ctx -> DebugNbtCommand.handlePreset(ctx.getSource())))
+                                .then(Commands.literal("custom")
+                                        .executes(ctx -> DebugNbtCommand.handleCustom(ctx.getSource())))))
         );
     }
 
