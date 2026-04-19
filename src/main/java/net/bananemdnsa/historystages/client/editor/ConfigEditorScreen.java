@@ -125,9 +125,6 @@ public class ConfigEditorScreen extends Screen {
         clientSections = new ArrayList<>();
 
         ConfigSection visuals = new ConfigSection("editor.historystages.config.visuals");
-        visuals.add(new ConfigEntry("hideInJei", ConfigType.BOOLEAN,
-                Config.CLIENT.hideInJei.get().toString(), true, "false",
-                "Hide locked items from JEI? (Only works with JEI!)"));
         visuals.add(new ConfigEntry("showTooltips", ConfigType.BOOLEAN,
                 Config.CLIENT.showTooltips.get().toString(), true, "true",
                 "Show information tooltips on locked items?"));
@@ -867,7 +864,6 @@ public class ConfigEditorScreen extends Screen {
             String key = e.getKey();
             String value = e.getValue();
             switch (key) {
-                case "hideInJei" -> Config.CLIENT.hideInJei.set(Boolean.parseBoolean(value));
                 case "showTooltips" -> Config.CLIENT.showTooltips.set(Boolean.parseBoolean(value));
                 case "showStageName" -> Config.CLIENT.showStageName.set(Boolean.parseBoolean(value));
                 case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));

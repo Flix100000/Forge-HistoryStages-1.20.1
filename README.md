@@ -231,7 +231,6 @@ GENERAL COMMANDS:
 ----------------------------------------------------------------
 
 CLIENT CONFIG (per player):
-- hideInJei: Hide locked items from JEI/EMI.
 - showTooltips: Show information tooltips on locked items.
 - showStageName: Show required stage name in tooltips.
 - showAllUntilComplete: Show all required stages until unlocked.

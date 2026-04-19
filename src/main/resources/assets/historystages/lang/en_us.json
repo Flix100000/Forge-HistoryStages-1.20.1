@@ -85,7 +85,6 @@
   "editor.historystages.config.research": "Research Pedestal",
   "editor.historystages.config.loot_replacements": "Loot Replacements",
   "editor.historystages.config.dependencies": "Dependencies",
-  "editor.historystages.config.hideInJei": "Hide in JEI",
   "editor.historystages.config.showTooltips": "Show Tooltips",
   "editor.historystages.config.showStageName": "Show Stage Name",
   "editor.historystages.config.showAllUntilComplete": "Show All Until Complete",

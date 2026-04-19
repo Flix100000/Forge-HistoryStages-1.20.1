@@ -85,7 +85,6 @@
   "editor.historystages.config.research": "Forschungspodest",
   "editor.historystages.config.loot_replacements": "Loot-Ersetzungen",
   "editor.historystages.config.dependencies": "Abh\u00e4ngigkeiten",
-  "editor.historystages.config.hideInJei": "In JEI verstecken",
   "editor.historystages.config.showTooltips": "Tooltips anzeigen",
   "editor.historystages.config.showStageName": "Stufenname anzeigen",
   "editor.historystages.config.showAllUntilComplete": "Alle bis Abschluss zeigen",

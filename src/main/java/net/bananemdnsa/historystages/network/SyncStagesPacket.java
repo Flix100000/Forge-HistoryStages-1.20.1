@@ -1,7 +1,6 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.jei.JEIPlugin;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 import java.util.ArrayList;
@@ -45,11 +44,6 @@ public class SyncStagesPacket {
                         // Grafik-Refresh für Lock-Overlays
                         if (mc.levelRenderer != null) {
                             mc.levelRenderer.allChanged();
-                        }
-
-                        // JEI: Item-Sichtbarkeit aktualisieren (Decorator für Rezepte prüft live)
-                        if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
-                            JEIPlugin.refreshJei();
                         }
 
                         // EMI extra reload (hat eigenen Reload-Mechanismus)

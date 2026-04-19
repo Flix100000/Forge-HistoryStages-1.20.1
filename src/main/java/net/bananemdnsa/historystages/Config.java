@@ -11,7 +11,6 @@ public class Config {
 
     // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
     public static class Client {
-        public final ForgeConfigSpec.BooleanValue hideInJei;
         public final ForgeConfigSpec.BooleanValue showTooltips;
         public final ForgeConfigSpec.BooleanValue showStageName;
         public final ForgeConfigSpec.BooleanValue showAllUntilComplete;
@@ -39,10 +38,6 @@ public class Config {
                     "",
                     "Visual and UI settings (Individual for each player)")
                     .push("visuals");
-
-            hideInJei = builder
-                    .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
-                    .define("hideInJei", false);
 
             showTooltips = builder
                     .comment("Show information tooltips on locked items? [Default: true]")
