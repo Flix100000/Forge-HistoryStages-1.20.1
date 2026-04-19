@@ -1,5 +1,9 @@
-**History Stages**
+# **History Stages API & REFACTOR BRANCH**
+> [!WARNING]
+> This is a development branch. For release versions and main project code refer to `1.20.x` branch. This branch is kept up to date with the main branch, however it features  breaking changes, significant code refactors and incomplete features
 
+
+# History Stages (Original Description)
 History Stages is a progression and gatekeeping mod for
 Minecraft 1.20.1 (Forge). It allows modpack creators to
 implement a global "Era" system and per-player progression
