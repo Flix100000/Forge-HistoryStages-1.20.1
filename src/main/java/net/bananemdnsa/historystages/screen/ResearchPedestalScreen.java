@@ -24,10 +24,11 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPedestalMenu> {
-    private static final ResourceLocation TEXTURE = HistoryStages.location("textures/gui/research_pedestal_gui.png");
-    private static final ResourceLocation TEXTURE_DEP = HistoryStages
-            .location("textures/gui/research_pedestal_depen-gui.png");
+    private static final ResourceLocation TEXTURE = MOD_RESOURCE_LOCATION("textures/gui/research_pedestal_gui.png");
+    private static final ResourceLocation TEXTURE_DEP = MOD_RESOURCE_LOCATION("textures/gui/research_pedestal_depen-gui.png");
 
     // The dependency PNG is 512x512; the GUI sits at (113,140) with total size
     // 271x163

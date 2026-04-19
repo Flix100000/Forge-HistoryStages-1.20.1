@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 @JeiPlugin
 public class JEIPlugin implements IModPlugin {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -28,7 +30,7 @@ public class JEIPlugin implements IModPlugin {
 
     @Override
     public ResourceLocation getPluginUid() {
-        return ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "jei_plugin");
+        return MOD_RESOURCE_LOCATION("jei_plugin");
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

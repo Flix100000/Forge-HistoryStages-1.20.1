@@ -13,6 +13,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.MinecraftForge;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 public class FTBQuestsIntegration {
 
     public static TaskType HISTORY_STAGE_TASK;
@@ -20,13 +22,13 @@ public class FTBQuestsIntegration {
 
     public static void init() {
         HISTORY_STAGE_TASK = TaskTypes.register(
-                ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "history_stage"),
+                MOD_RESOURCE_LOCATION("history_stage"),
                 HistoryStageTask::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
         ).setDisplayName(Component.translatable("ftbquests.historystages.task.history_stage"));
 
         HISTORY_STAGE_REWARD = RewardTypes.register(
-                ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "history_stage"),
+                MOD_RESOURCE_LOCATION("history_stage"),
                 HistoryStageReward::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
         ).setDisplayName(Component.translatable("ftbquests.historystages.reward.history_stage"));

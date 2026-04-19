@@ -7,10 +7,12 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 public class PacketHandler {
         private static final String PROTOCOL_VERSION = "9";
         public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
-                        ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "main"),
+                        MOD_RESOURCE_LOCATION("main"),
                         () -> PROTOCOL_VERSION,
                         PROTOCOL_VERSION::equals,
                         PROTOCOL_VERSION::equals);

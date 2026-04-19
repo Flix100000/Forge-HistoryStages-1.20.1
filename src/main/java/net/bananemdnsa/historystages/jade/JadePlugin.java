@@ -23,11 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 @WailaPlugin
 public class JadePlugin implements IWailaPlugin {
 
-    private static final ResourceLocation LOCKED_BLOCK = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_block");
-    private static final ResourceLocation LOCKED_ENTITY_ITEM = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_entity_item");
+    private static final ResourceLocation LOCKED_BLOCK = MOD_RESOURCE_LOCATION("locked_block");
+    private static final ResourceLocation LOCKED_ENTITY_ITEM = MOD_RESOURCE_LOCATION("locked_entity_item");
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {

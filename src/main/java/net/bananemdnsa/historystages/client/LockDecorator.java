@@ -15,10 +15,12 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.List;
 
+import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
+
 public class LockDecorator implements IItemDecorator {
     // Hier definieren wir den Pfad zur Textur: assets/historystages/textures/gui/lock_overlay.png
-    private static final ResourceLocation LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay.png");
-    private static final ResourceLocation SILVER_LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay_silver.png");
+    private static final ResourceLocation LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay.png");
+    private static final ResourceLocation SILVER_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_silver.png");
 
     // Performance-Check für EMI
     private static final boolean IS_EMI_INSTALLED = ModList.get().isLoaded("emi");

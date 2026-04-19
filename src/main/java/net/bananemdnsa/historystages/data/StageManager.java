@@ -655,6 +655,8 @@ public class StageManager implements IStageManager {
                 Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
                 if (item != null) {
                     for (String tagId : data.getTags()) {
+                        //TODO: Creating tag keys like this could cause possible memory leaks if not careful
+                        // may be best to cache pre-existing tag keys in future
                         var tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
                         if (item.builtInRegistryHolder().is(tagKey)) return entry.getKey();
                     }
