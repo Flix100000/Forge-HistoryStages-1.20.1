@@ -56,8 +56,8 @@ public class HistoryStages {
     }
     public static final StageManager STAGE_MANAGER = StageManager.getInstance();
 
-    public HistoryStages() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    public HistoryStages(FMLJavaModLoadingContext modLoadingContext) {
+        IEventBus modEventBus = modLoadingContext.getModEventBus();
 
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
@@ -70,8 +70,8 @@ public class HistoryStages {
         // Hier fügen wir den Decorator hinzu:
         modEventBus.addListener(this::onRegisterItemDecorators);
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+        modLoadingContext.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
+        modLoadingContext.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
 
         PacketHandler.register();
         ConfigHandler.setupConfig();
