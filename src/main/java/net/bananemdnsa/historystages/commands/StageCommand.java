@@ -11,7 +11,7 @@ import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.StageData;
-import net.bananemdnsa.historystages.events.StageEvent;
+import net.astr0.historystages.api.events.StageEvent;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.ChatFormatting;

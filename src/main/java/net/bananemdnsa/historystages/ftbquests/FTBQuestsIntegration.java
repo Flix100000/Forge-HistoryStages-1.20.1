@@ -6,7 +6,7 @@ import dev.ftb.mods.ftbquests.quest.task.TaskTypes;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import dev.ftb.mods.ftbquests.quest.reward.RewardTypes;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.events.StageEvent;
+import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;

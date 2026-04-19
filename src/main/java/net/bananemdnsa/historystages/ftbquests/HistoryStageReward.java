@@ -6,7 +6,7 @@ import dev.ftb.mods.ftbquests.quest.reward.Reward;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.events.StageEvent;
+import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.StageUnlockedToastPacket;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;

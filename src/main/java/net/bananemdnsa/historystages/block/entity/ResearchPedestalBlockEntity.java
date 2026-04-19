@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.block.entity;
 
-import net.bananemdnsa.historystages.events.StageEvent;
+import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
