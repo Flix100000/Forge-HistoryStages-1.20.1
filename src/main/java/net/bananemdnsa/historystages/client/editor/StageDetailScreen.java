@@ -52,6 +52,7 @@ import java.util.Map;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class StageDetailScreen extends Screen {
     private final Screen parent;
@@ -768,25 +769,6 @@ public class StageDetailScreen extends Screen {
         boolean isItemsTab = (activeTab == 0);
         boolean isExceptionsTab = (activeTab == 3);
 
-        // Overlap warning for individual stages (items/tags/mods tabs)
-        if (isIndividual && (activeTab == 0 || activeTab == 1 || activeTab == 2)) {
-            java.util.Set<String> globalLocked = new java.util.HashSet<>();
-            for (StageEntry gEntry : StageManager.getStages().values()) {
-                switch (activeTab) {
-                    case 0 -> globalLocked.addAll(gEntry.getAllItemIds());
-                    case 1 -> globalLocked.addAll(gEntry.getTags());
-                    case 2 -> globalLocked.addAll(gEntry.getMods());
-                }
-            }
-            boolean hasOverlap = list.stream().anyMatch(globalLocked::contains);
-            if (hasOverlap) {
-                String warnText = Component.translatable("editor.historystages.overlap_warning").getString();
-                int warnH = 14;
-                guiGraphics.fill(contentLeft, y, contentRight, y + warnH, 0x40FFAA00);
-                guiGraphics.drawString(this.font, "\u26A0 " + warnText, contentLeft + 4, y + 3, 0xFFAA00, false);
-                y += warnH + CARD_GAP;
-            }
-        }
 
         // Slide-in timing for tab switch
         long slideElapsed = System.currentTimeMillis() - tabSwitchTime;
@@ -842,36 +824,35 @@ public class StageDetailScreen extends Screen {
                 guiGraphics.fill(contentLeft + 1 + slideOffsetX, cardY + 1, contentRight - 1, cardY + CARD_HEIGHT - 1,
                         cardBg);
 
-                // Check if this entry overlaps with a global stage (individual mode only)
-                boolean isGlobalOverlap = false;
+                // Check if this entry is a dual-phase entry (present in both individual and a global stage)
+                boolean isDualPhase = false;
                 if (isIndividual && (activeTab == 0 || activeTab == 1 || activeTab == 2)) {
                     String entry = list.get(i);
-                    for (StageEntry gEntry : StageManager.getStages().values()) {
-                        boolean found = switch (activeTab) {
-                            case 0 -> gEntry.getAllItemIds().contains(entry);
-                            case 1 -> gEntry.getTags().contains(entry);
-                            case 2 -> gEntry.getMods().contains(entry);
-                            default -> false;
+                    isDualPhase = switch (activeTab) {
+                        case 0 -> StageManager.getDualPhaseItems().containsKey(entry);
+                        case 1 -> StageManager.getDualPhaseTags().containsKey(entry);
+                        case 2 -> StageManager.getDualPhaseMods().containsKey(entry);
+                        default -> false;
+                    };
+                    if (isDualPhase && entryHovered) {
+                        Set<String> globalStages = switch (activeTab) {
+                            case 0 -> StageManager.getDualPhaseItems().get(entry);
+                            case 1 -> StageManager.getDualPhaseTags().get(entry);
+                            case 2 -> StageManager.getDualPhaseMods().get(entry);
+                            default -> null;
                         };
-                        if (found) {
-                            isGlobalOverlap = true;
-                            break;
-                        }
+                        pendingTooltipKey = "dual-phase:" + entry;
+                        pendingTooltipText = String.format(
+                                Component.translatable("editor.historystages.dual_phase_tooltip").getString(),
+                                globalStages);
                     }
                 }
 
-                // Left accent on hover (orange for overlap, gold otherwise)
+                // Left accent on hover
                 if (cardProgress > 0.01f) {
                     int accentAlpha = (int) (cardProgress * 0xCC);
-                    int accentColor = isGlobalOverlap ? 0xFFAA00 : 0xFFCC00;
                     guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX,
-                            cardY + CARD_HEIGHT, (accentAlpha << 24) | accentColor);
-                }
-
-                // Permanent orange left accent for overlapping entries
-                if (isGlobalOverlap && cardProgress <= 0.01f) {
-                    guiGraphics.fill(contentLeft + slideOffsetX, cardY, contentLeft + 2 + slideOffsetX,
-                            cardY + CARD_HEIGHT, 0x80FFAA00);
+                            cardY + CARD_HEIGHT, (accentAlpha << 24) | 0xFFCC00);
                 }
 
                 int textOffsetX = 8;
@@ -931,11 +912,11 @@ public class StageDetailScreen extends Screen {
                 }
 
                 // Text with marquee for truncated entries
-                String entryText = list.get(i) + (isGlobalOverlap ? " *" : "");
+                String entryText = list.get(i) + (isDualPhase ? " [Dual]" : "");
                 int textStartX = renderLeft + textOffsetX;
                 int textAvailW = contentRight - textStartX - 4 - badgeW;
                 int entryTextW = this.font.width(entryText);
-                int textColor = isGlobalOverlap ? 0xFFAA00 : (entryHovered ? 0xFFFFFF : 0xBBBBBB);
+                int textColor = entryHovered ? 0xFFFFFF : 0xBBBBBB;
 
                 if (entryTextW > textAvailW && entryHovered && i == hoveredCardIndex) {
                     long elapsed = System.currentTimeMillis() - cardHoverStartTime;
@@ -1758,20 +1739,6 @@ public class StageDetailScreen extends Screen {
         List<String> list = getActiveList();
         int y = listTop - (int) smoothScrollOffset + CARD_GAP;
 
-        // Account for overlap warning banner offset (same logic as in render)
-        if (isIndividual && (activeTab == 0 || activeTab == 1 || activeTab == 2)) {
-            java.util.Set<String> globalLocked = new java.util.HashSet<>();
-            for (StageEntry gEntry : StageManager.getStages().values()) {
-                switch (activeTab) {
-                    case 0 -> globalLocked.addAll(gEntry.getAllItemIds());
-                    case 1 -> globalLocked.addAll(gEntry.getTags());
-                    case 2 -> globalLocked.addAll(gEntry.getMods());
-                }
-            }
-            if (list.stream().anyMatch(globalLocked::contains)) {
-                y += 14 + CARD_GAP;
-            }
-        }
 
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
