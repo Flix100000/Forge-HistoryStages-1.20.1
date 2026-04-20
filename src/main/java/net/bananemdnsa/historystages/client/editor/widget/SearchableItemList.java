@@ -50,6 +50,7 @@ public class SearchableItemList {
 
     private boolean inventoryMode = false;
     private int selectedInventorySlot = -1;
+    private String selectedRegistryId = null;
 
     // Tab indicator animation (matching StageDetailScreen category tabs)
     private float tabIndicatorX = 0;
@@ -84,6 +85,7 @@ public class SearchableItemList {
         this.searchFocused = true;
         this.inventoryMode = false;
         this.selectedInventorySlot = -1;
+        this.selectedRegistryId = null;
         this.tabIndicatorInit = false;
         setFilter("");
         recalcPanelSize();
@@ -107,8 +109,10 @@ public class SearchableItemList {
                     + SLOT_SIZE + 6
                     + addButtonH + PADDING;
         } else {
+            int addButtonH = 20;
             panelW = GRID_COLS * SLOT_SIZE + PADDING * 2 + 8;
-            panelH = TAB_HEIGHT + 4 + SEARCH_HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4;
+            panelH = TAB_HEIGHT + 4 + SEARCH_HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4
+                    + addButtonH + PADDING;
         }
 
         // Always center
@@ -340,7 +344,16 @@ public class SearchableItemList {
                         slotHovered ? 0xFF353535 : 0xFF1A1A1A);
 
                 if (index < filteredItems.size()) {
-                    guiGraphics.renderItem(filteredItems.get(index).stack, slotX + 1, slotY + 1);
+                    ItemEntry entry = filteredItems.get(index);
+                    guiGraphics.renderItem(entry.stack, slotX + 1, slotY + 1);
+                    if (selectedRegistryId != null && selectedRegistryId.equals(entry.id)) {
+                        guiGraphics.fill(slotX, slotY, slotX + SLOT_SIZE, slotY + SLOT_SIZE, 0xFFFFCC00);
+                        guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
+                                0xFF2A2510);
+                        guiGraphics.renderItem(entry.stack, slotX + 1, slotY + 1);
+                        guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
+                                0x40FFCC00);
+                    }
                 }
             }
         }
@@ -355,6 +368,28 @@ public class SearchableItemList {
             int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / (maxScrollRow + GRID_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+        }
+
+        // Add button
+        int addBtnW = 80;
+        int addBtnH = 20;
+        int addBtnX = panelX + (panelW - addBtnW) / 2;
+        int addBtnY = panelY + panelH - PADDING - addBtnH;
+
+        boolean canAdd = selectedRegistryId != null;
+        boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
+                && mouseY >= addBtnY && mouseY < addBtnY + addBtnH;
+        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
+                : Math.max(0.0f, addHoverProgress - 0.08f);
+
+        if (canAdd) {
+            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, addBtnH, "Add Item", addHoverProgress);
+        } else {
+            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + addBtnH, 0x20FFFFFF);
+            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 1, 0x10FFFFFF);
+            String addText = "Select an Item";
+            guiGraphics.drawString(font, addText, addBtnX + (addBtnW - font.width(addText)) / 2,
+                    addBtnY + (addBtnH - 8) / 2, 0xFF666666, false);
         }
 
         // Tooltip
@@ -764,6 +799,21 @@ public class SearchableItemList {
     private boolean handleRegistryClick(double mouseX, double mouseY) {
         int topOffset = PADDING + TAB_HEIGHT + 4;
 
+        // Add button
+        int addBtnW = 80;
+        int addBtnH = 20;
+        int addBtnX = panelX + (panelW - addBtnW) / 2;
+        int addBtnY = panelY + panelH - PADDING - addBtnH;
+        if (mouseX >= addBtnX && mouseX < addBtnX + addBtnW && mouseY >= addBtnY && mouseY < addBtnY + addBtnH) {
+            if (selectedRegistryId != null) {
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                onSelect.accept(selectedRegistryId);
+                hide();
+            }
+            return true;
+        }
+
         if (maxScrollRow > 0) {
             int searchY = panelY + topOffset;
             int gridX = panelX + PADDING + 4;
@@ -792,8 +842,8 @@ public class SearchableItemList {
                         && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
                     Minecraft.getInstance().getSoundManager()
                             .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    onSelect.accept(filteredItems.get(index).id);
-                    hide();
+                    String clickedId = filteredItems.get(index).id;
+                    selectedRegistryId = clickedId.equals(selectedRegistryId) ? null : clickedId;
                     return true;
                 }
             }
@@ -871,6 +921,14 @@ public class SearchableItemList {
                     }
                 }
             }
+            return true;
+        }
+
+        if (keyCode == 257 && selectedRegistryId != null) { // Enter
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            onSelect.accept(selectedRegistryId);
+            hide();
             return true;
         }
 

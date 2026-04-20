@@ -63,6 +63,7 @@ public class SyncConfigPacket {
         values.put("useActionbar", Config.COMMON.useActionbar.get().toString());
         values.put("useSounds", Config.COMMON.useSounds.get().toString());
         values.put("useToasts", Config.COMMON.useToasts.get().toString());
+        values.put("defaultStageIcon", Config.COMMON.defaultStageIcon.get());
         values.put("researchTimeInSeconds", Config.COMMON.researchTimeInSeconds.get().toString());
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));

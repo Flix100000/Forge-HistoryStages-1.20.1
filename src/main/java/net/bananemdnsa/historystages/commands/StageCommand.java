@@ -326,7 +326,9 @@ public class StageCommand {
 
         // Toast notification
         if (isUnlock && Config.COMMON.useToasts.get()) {
-            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name));
+            var stageEntry = StageManager.getStages().get(stageID);
+            String iconId = (stageEntry != null && stageEntry.getIcon() != null) ? stageEntry.getIcon() : "";
+            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name, iconId));
         }
     }
 
@@ -494,9 +496,10 @@ public class StageCommand {
             target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
         }
         if (Config.COMMON.individualUseToasts.get()) {
+            String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
             PacketHandler.INSTANCE.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> target),
-                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName)
+                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName, iconId)
             );
         }
 

@@ -122,9 +122,6 @@ public class ConfigEditorScreen extends Screen {
         clientSections = new ArrayList<>();
 
         ConfigSection visuals = new ConfigSection("editor.historystages.config.visuals");
-        visuals.add(new ConfigEntry("hideInJei", ConfigType.BOOLEAN,
-                Config.CLIENT.hideInJei.get().toString(), true, "false",
-                "Hide locked items from JEI? (Only works with JEI!)"));
         visuals.add(new ConfigEntry("showTooltips", ConfigType.BOOLEAN,
                 Config.CLIENT.showTooltips.get().toString(), true, "true",
                 "Show information tooltips on locked items?"));
@@ -246,6 +243,9 @@ public class ConfigEditorScreen extends Screen {
         notifications.add(new ConfigEntry("useToasts", ConfigType.BOOLEAN,
                 Config.COMMON.useToasts.get().toString(), false, "true",
                 "Show an advancement-style toast popup when a stage is unlocked?"));
+        notifications.add(new ConfigEntry("defaultStageIcon", ConfigType.ITEM,
+                Config.COMMON.defaultStageIcon.get(), false, "historystages:research_scroll",
+                "Default icon used in unlock toasts for stages that don't define their own icon."));
         commonSections.add(notifications);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
@@ -486,6 +486,13 @@ public class ConfigEditorScreen extends Screen {
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()) {
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 200);
+            itemPickerOverlay.render(guiGraphics, this.font, mouseX, mouseY);
+            guiGraphics.pose().popPose();
+        }
+
         // Tooltip rendering (after everything else, including super)
         if (currentHovered != null) {
             if (!currentHovered.equals(hoveredEntryKey)) {
@@ -591,6 +598,19 @@ public class ConfigEditorScreen extends Screen {
                 }
                 guiGraphics.drawString(this.font, display, controlX, y + 8, 0xDDDDDD, false);
             }
+            case ITEM -> {
+                ItemStack stack = resolveItemStack(entry.value);
+                guiGraphics.renderItem(stack, controlX, y + 3);
+                String idText = entry.value.isEmpty() ? "\u00A77(click to pick)" : entry.value;
+                int availWidth = right - (controlX + 20) - 5;
+                if (availWidth > 0 && this.font.width(idText) > availWidth) {
+                    idText = this.font.plainSubstrByWidth(idText, availWidth - 10) + "...";
+                }
+                boolean itemHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                guiGraphics.drawString(this.font, idText, controlX + 22, y + 8,
+                        itemHovered ? 0xFFCC00 : 0xDDDDDD, false);
+            }
             case ITEM_LIST -> {
                 int count = entry.value.isEmpty() ? 0 : entry.value.split(",").length;
                 String display = "[" + count + " items] \u00A77(click to edit)";
@@ -620,6 +640,10 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()) {
+            if (itemPickerOverlay.mouseClicked(mouseX, mouseY))
+                return true;
+        }
         // Check tab clicks
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
@@ -683,6 +707,34 @@ public class ConfigEditorScreen extends Screen {
     private ConfigEntry editingItemListEntry;
     private List<String> editingItemList;
 
+    // Single-item picker overlay for ITEM config entries
+    private SearchableItemList itemPickerOverlay;
+    private ConfigEntry pickingItemEntry;
+
+    private ItemStack resolveItemStack(String id) {
+        if (id != null && !id.isEmpty()) {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl != null) {
+                Item item = ForgeRegistries.ITEMS.getValue(rl);
+                if (item != null && item != net.minecraft.world.item.Items.AIR) {
+                    return new ItemStack(item);
+                }
+            }
+        }
+        return new ItemStack(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get());
+    }
+
+    private void openItemPicker(ConfigEntry entry) {
+        pickingItemEntry = entry;
+        itemPickerOverlay = new SearchableItemList(itemId -> {
+            if (pickingItemEntry != null) {
+                pickingItemEntry.value = itemId;
+            }
+        });
+        itemPickerOverlay.setFilter("");
+        itemPickerOverlay.show(this.width / 2, this.height / 2, this.width);
+    }
+
     private void handleEntryClick(ConfigEntry entry) {
         switch (entry.type) {
             case BOOLEAN -> {
@@ -691,6 +743,7 @@ public class ConfigEditorScreen extends Screen {
             }
             case INTEGER -> this.minecraft.setScreen(new ValueInputScreen(this, entry, true));
             case STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry, false));
+            case ITEM -> openItemPicker(entry);
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
         }
@@ -698,12 +751,18 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()
+                && itemPickerOverlay.mouseScrolled(mouseX, mouseY, delta))
+            return true;
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
         return true;
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()
+                && itemPickerOverlay.mouseDragged(mouseX, mouseY))
+            return true;
         if (draggingScrollbar) {
             int listTop = HEADER_HEIGHT;
             int listBottom = this.height - 40;
@@ -715,6 +774,8 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.mouseReleased())
+            return true;
         if (draggingScrollbar) {
             draggingScrollbar = false;
             return true;
@@ -731,11 +792,20 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.keyPressed(keyCode))
+            return true;
         if (keyCode == 256) { // ESC
             tryClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char c, int modifiers) {
+        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.charTyped(c))
+            return true;
+        return super.charTyped(c, modifiers);
     }
 
     @Override
@@ -791,7 +861,6 @@ public class ConfigEditorScreen extends Screen {
             String key = e.getKey();
             String value = e.getValue();
             switch (key) {
-                case "hideInJei" -> Config.CLIENT.hideInJei.set(Boolean.parseBoolean(value));
                 case "showTooltips" -> Config.CLIENT.showTooltips.set(Boolean.parseBoolean(value));
                 case "showStageName" -> Config.CLIENT.showStageName.set(Boolean.parseBoolean(value));
                 case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));
@@ -829,7 +898,7 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST
+        BOOLEAN, INTEGER, STRING, ITEM, ITEM_LIST, TAG_LIST
     }
 
     static class ConfigEntry {

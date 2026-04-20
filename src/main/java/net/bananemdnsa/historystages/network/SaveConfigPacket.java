@@ -81,6 +81,7 @@ public class SaveConfigPacket {
                 case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));
                 case "useSounds" -> Config.COMMON.useSounds.set(Boolean.parseBoolean(value));
                 case "useToasts" -> Config.COMMON.useToasts.set(Boolean.parseBoolean(value));
+                case "defaultStageIcon" -> Config.COMMON.defaultStageIcon.set(value);
                 case "researchTimeInSeconds" -> {
                     try { Config.COMMON.researchTimeInSeconds.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
                 }

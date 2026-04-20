@@ -46,6 +46,7 @@ public class StageDetailScreen extends Screen {
     private String editStageId;
     private String editDisplayName;
     private int editResearchTime;
+    private String editIcon; // null = use default
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
     private final List<String> editTags;
@@ -79,6 +80,7 @@ public class StageDetailScreen extends Screen {
 
     // Widgets
     private SearchableItemList itemSearch;
+    private SearchableItemList iconSearch;
     private SearchableItemList modExceptionSearch;
     private SearchableModList modSearch;
     private SearchableEntityList entitySearch;
@@ -93,6 +95,8 @@ public class StageDetailScreen extends Screen {
     private String hoveredTooltipKey = null;
     private long tooltipHoverStart = 0;
     private static final long TOOLTIP_DELAY_MS = 400;
+    private String pendingTooltipKey = null;
+    private String pendingTooltipText = null;
 
     // Animation state
     private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
@@ -206,6 +210,7 @@ public class StageDetailScreen extends Screen {
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get()
                 : e.getResearchTime();
+        this.editIcon = e.getIcon();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = e.getItemEntries();
@@ -347,6 +352,16 @@ public class StageDetailScreen extends Screen {
                 Component.translatable("editor.historystages.dep.title"),
                 btn -> openDependencyEditor(), depBtnX, 66, depBtnW, FIELD_HEIGHT));
 
+        // Icon picker button (right of Dependencies button)
+        int iconBtnX = depBtnX + depBtnW + 6;
+        this.addRenderableWidget(new IconPickerButton(iconBtnX, 66));
+
+        iconSearch = new SearchableItemList(itemId -> {
+            String configDefault = net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get();
+            editIcon = (itemId != null && itemId.equals(configDefault)) ? null : itemId;
+            hasChanges = true;
+        });
+
         itemSearch = new SearchableItemList(itemId -> {
             getActiveList().add(itemId);
             hasChanges = true;
@@ -420,11 +435,93 @@ public class StageDetailScreen extends Screen {
     }
 
     private boolean isAnyOverlayVisible() {
-        return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible()
+        return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
+                || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
                 || recipeSearch.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible || modEntityPopup.isVisible();
+    }
+
+    private ItemStack resolveIconPreview() {
+        String id = editIcon;
+        if (id == null || id.isEmpty()) {
+            id = net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get();
+        }
+        if (id != null && !id.isEmpty()) {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl != null) {
+                net.minecraft.world.item.Item item = ForgeRegistries.ITEMS.getValue(rl);
+                if (item != null && item != net.minecraft.world.item.Items.AIR) {
+                    return new ItemStack(item);
+                }
+            }
+        }
+        return new ItemStack(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get());
+    }
+
+    /** Small 18x18 button showing the current stage icon; click opens icon picker. */
+    private class IconPickerButton extends net.minecraft.client.gui.components.AbstractWidget {
+        private float hoverProgress = 0.0f;
+
+        IconPickerButton(int x, int y) {
+            super(x, y, FIELD_HEIGHT, FIELD_HEIGHT,
+                    Component.translatable("editor.historystages.icon.title"));
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            boolean pickerOpen = iconSearch != null && iconSearch.isVisible();
+            boolean active = pickerOpen || this.isHovered();
+
+            if (active) {
+                hoverProgress = Math.min(1.0f, hoverProgress + 0.1f);
+            } else {
+                hoverProgress = Math.max(0.0f, hoverProgress - 0.08f);
+            }
+
+            int bgAlpha = (int) (0x30 + hoverProgress * 0x20);
+            int bgR = 0xFF;
+            int bgG = (int) (0xFF - hoverProgress * 0x33);
+            int bgB = (int) (0xFF - hoverProgress * 0xFF);
+            g.fill(getX(), getY(), getX() + width, getY() + height,
+                    (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB);
+
+            int accentAlpha = (int) (0x60 + hoverProgress * 0x9F);
+            g.fill(getX(), getY() + height - 2, getX() + width, getY() + height,
+                    (accentAlpha << 24) | 0xFFCC00);
+
+            g.fill(getX(), getY(), getX() + width, getY() + 1, 0x20FFFFFF);
+            g.fill(getX(), getY(), getX() + 1, getY() + height, 0x15FFFFFF);
+            g.fill(getX() + width - 1, getY(), getX() + width, getY() + height, 0x15FFFFFF);
+
+            ItemStack preview = resolveIconPreview();
+            int iconX = getX() + (width - 16) / 2;
+            int iconY = getY() + (height - 16) / 2 - 1;
+            g.renderItem(preview, iconX, iconY);
+
+            if (this.isHovered() && !isAnyOverlayVisible()) {
+                pendingTooltipKey = "icon.picker";
+                pendingTooltipText = Component.translatable("editor.historystages.icon.tooltip").getString();
+            }
+        }
+
+        @Override
+        public void onClick(double mouseX, double mouseY) {
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            if (iconSearch != null) {
+                iconSearch.setFilter("");
+                iconSearch.show(StageDetailScreen.this.width / 2,
+                        StageDetailScreen.this.height / 2, StageDetailScreen.this.width);
+            }
+            setFocused(false);
+        }
+
+        @Override
+        protected void updateWidgetNarration(net.minecraft.client.gui.narration.NarrationElementOutput out) {
+            out.add(net.minecraft.client.gui.narration.NarratedElementType.TITLE, getMessage());
+        }
     }
 
     private void switchTab(int tab) {
@@ -922,6 +1019,7 @@ public class StageDetailScreen extends Screen {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
         itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        if (iconSearch != null) iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
         modExceptionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         modSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -934,6 +1032,14 @@ public class StageDetailScreen extends Screen {
         if (recipePopupVisible)
             renderRecipePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
+
+        // Merge pending tooltips from widgets (set during their renderWidget pass)
+        if (pendingTooltipKey != null && pendingTooltipText != null) {
+            currentTooltipKey = pendingTooltipKey;
+            currentTooltipText = pendingTooltipText;
+        }
+        pendingTooltipKey = null;
+        pendingTooltipText = null;
 
         // Tooltip rendering
         if (currentTooltipKey != null && currentTooltipText != null && !currentTooltipText.isEmpty()) {
@@ -1564,6 +1670,10 @@ public class StageDetailScreen extends Screen {
             if (itemSearch.mouseClicked(mouseX, mouseY))
                 return true;
         }
+        if (iconSearch != null && iconSearch.isVisible()) {
+            if (iconSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
         if (modExceptionSearch.isVisible()) {
             if (modExceptionSearch.mouseClicked(mouseX, mouseY))
                 return true;
@@ -1922,6 +2032,8 @@ public class StageDetailScreen extends Screen {
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseDragged(mouseX, mouseY))
             return true;
+        if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseDragged(mouseX, mouseY))
+            return true;
         if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.mouseDragged(mouseX, mouseY))
@@ -1946,6 +2058,8 @@ public class StageDetailScreen extends Screen {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased())
             return true;
         if (itemSearch.isVisible() && itemSearch.mouseReleased())
+            return true;
+        if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseReleased())
             return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.mouseReleased())
             return true;
@@ -1973,6 +2087,8 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
@@ -2008,6 +2124,8 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode))
+            return true;
+        if (iconSearch != null && iconSearch.isVisible() && iconSearch.keyPressed(keyCode))
             return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.keyPressed(keyCode))
             return true;
@@ -2064,6 +2182,8 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean charTyped(char c, int modifiers) {
+        if (iconSearch != null && iconSearch.isVisible() && iconSearch.charTyped(c))
+            return true;
         if (itemSearch.isVisible() && itemSearch.charTyped(c))
             return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c))
@@ -2127,6 +2247,7 @@ public class StageDetailScreen extends Screen {
         StageEntry newEntry = new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
+        newEntry.setIcon(editIcon);
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {
             com.google.gson.JsonObject nbt = editItemNbt.get(idx);

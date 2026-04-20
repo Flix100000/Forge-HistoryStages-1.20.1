@@ -18,6 +18,9 @@ public class StageEntry {
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
 
+    @SerializedName("icon")
+    private String icon; // item id, null = use default (research scroll)
+
     @JsonAdapter(ItemEntryListAdapter.class)
     private List<ItemEntry> items;
     private List<String> tags;
@@ -50,6 +53,11 @@ public class StageEntry {
 
     public int getResearchTime() {
         return researchTime; // 0 means "use global default from config"
+    }
+
+    /** Returns the custom icon item id, or null if not set (use default). */
+    public String getIcon() {
+        return (icon != null && !icon.isEmpty()) ? icon : null;
     }
 
     /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
@@ -148,6 +156,10 @@ public class StageEntry {
         this.researchTime = researchTime;
     }
 
+    public void setIcon(String icon) {
+        this.icon = (icon != null && !icon.isEmpty()) ? icon : null;
+    }
+
     /** Sets items from simple string IDs (no NBT). */
     public void setItems(List<String> items) {
         if (items == null) {
@@ -212,6 +224,7 @@ public class StageEntry {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
         copy.setResearchTime(researchTime);
+        copy.setIcon(icon);
         copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTags(getTags());
         copy.setMods(getMods());

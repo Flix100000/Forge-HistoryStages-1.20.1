@@ -178,9 +178,10 @@ public class HistoryStageReward extends Reward {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
             if (Config.COMMON.individualUseToasts.get()) {
+                String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
                 PacketHandler.INSTANCE.send(
                         net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
-                        new StageUnlockedToastPacket(displayName)
+                        new StageUnlockedToastPacket(displayName, iconId)
                 );
             }
         }
@@ -216,7 +217,9 @@ public class HistoryStageReward extends Reward {
         });
 
         if (Config.COMMON.useToasts.get()) {
-            PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName));
+            var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stage);
+            String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
+            PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName, iconId));
         }
     }
 
