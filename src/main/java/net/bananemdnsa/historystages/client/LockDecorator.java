@@ -18,8 +18,8 @@ import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESO
 
 public class LockDecorator implements IItemDecorator {
     // Hier definieren wir den Pfad zur Textur: assets/historystages/textures/gui/lock_overlay.png
-    private static final ResourceLocation LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay.png");
-    private static final ResourceLocation SILVER_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_silver.png");
+    private static final ResourceLocation GLOBAL_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_global.png");
+    private static final ResourceLocation INDIVIDUAL_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_idividual.png");
     private static final ResourceLocation DUAL_PHASE_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_dual.png");
 
     // Performance-Check für EMI
@@ -44,8 +44,8 @@ public class LockDecorator implements IItemDecorator {
 
         if (globallyLocked || individuallyLocked) {
             ResourceLocation icon = dualPhaseGlobal ? DUAL_PHASE_LOCK_ICON
-                                  : individuallyLocked ? SILVER_LOCK_ICON
-                                  : LOCK_ICON;
+                                  : individuallyLocked ? INDIVIDUAL_LOCK_ICON
+                                  : GLOBAL_LOCK_ICON;
 
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(xOffset, yOffset, 250);
