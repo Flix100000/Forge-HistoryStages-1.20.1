@@ -1,10 +1,12 @@
-title: "[Idea] "
-labels: []
+name: Feature Request / Idea
+description: Suggest a new feature or improvement for History Stages
+title: "[Feature] "
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists!
+        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists.
 
   - type: textarea
     id: description
