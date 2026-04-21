@@ -20,6 +20,15 @@ PROGRESSION MODES:
 - Individual Stages: Per-player progression with UUID-based
   persistence. Each player can have their own unlocked stages
   independently from global progression.
+- Dual-Phase Stages: Items, tags, or mods that appear in both
+  a global and an individual stage are automatically dual-phase
+  locked. Phase 1 (global): the item is locked for everyone
+  until all paired global stages are unlocked. Phase 2
+  (individual): once the global phase is complete, the item
+  is locked per-player until that player unlocks their
+  individual stage. Dual-phase entries are marked with [Dual]
+  in the editor and shown with a dedicated lock icon in
+  inventories.
 
 CONTENT LOCKING:
 - Deep Gating: Lock content by Item ID, Recipe ID, Tags,
@@ -79,7 +88,8 @@ EDITOR & UI:
   the game with organized categories and reset-to-defaults.
 - Lock Icon Overlay: Locked items show a lock icon in
   inventories and JEI. Gold icon for global stages, silver
-  icon for individual stages (auto-disabled with EMI).
+  icon for individual stages, dedicated icon for dual-phase
+  Phase 1 (auto-disabled with EMI).
 
 INTEGRATIONS:
 - JEI/EMI Support: Locked items are marked and locked recipes
@@ -119,6 +129,16 @@ Individual (per-player) stages are defined via JSON files in:
 Each player unlocks individual stages independently.
 Dimensions and entities can overlap between global and
 individual stages.
+
+DUAL-PHASE STAGES:
+If an item, tag, or mod entry appears in both a global and an
+individual stage config, it is automatically treated as
+dual-phase. No extra configuration is needed. The game log
+will show an INFO message confirming the registration.
+Phase 1 ends when all global stages containing that entry are
+globally unlocked. If a player already has the individual
+stage unlocked when Phase 1 completes, they gain access
+immediately.
 
 Example format:
 {

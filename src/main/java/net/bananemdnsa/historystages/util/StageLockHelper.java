@@ -12,8 +12,13 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.Item;
+
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -174,6 +179,45 @@ public class StageLockHelper {
         for (String stage : individualStages) {
             if (!ClientIndividualStageCache.isStageUnlocked(stage)) {
                 return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks if an item is in the global phase of a dual-phase lock on the client side.
+     * Dual-phase: the item appears in both a global and an individual stage config.
+     * Returns true when at least one of the paired global stages is not yet client-side unlocked.
+     */
+    public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId  = res.getNamespace();
+
+        Set<String> itemStages = StageManager.getDualPhaseItems().get(itemId);
+        if (itemStages != null) {
+            for (String stage : itemStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+
+        Set<String> modStages = StageManager.getDualPhaseMods().get(modId);
+        if (modStages != null) {
+            for (String stage : modStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+
+        Item item = stack.getItem();
+        for (Map.Entry<String, Set<String>> tagEntry : StageManager.getDualPhaseTags().entrySet()) {
+            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, new ResourceLocation(tagEntry.getKey()));
+            if (item.builtInRegistryHolder().is(tagKey)) {
+                for (String stage : tagEntry.getValue()) {
+                    if (!ClientStageCache.isStageUnlocked(stage)) return true;
+                }
             }
         }
 

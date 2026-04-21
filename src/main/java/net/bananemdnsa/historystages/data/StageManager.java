@@ -40,6 +40,12 @@ public class StageManager implements IStageManager {
     private static final String GLOBAL_CONFIG_PATH = "global";
     private static final String INDIVIDUAL_CONFIG_PATH = "individual";
 
+
+    // Dual-phase: item/tag/mod ID → set of global stage IDs that share the entry with an individual stage
+    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_TAGS = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_MODS = new HashMap<>();
+
     public enum MessageLevel { ERROR, WARN, INFO }
     public record LoadingMessage(MessageLevel level, String message) {}
 
@@ -83,6 +89,9 @@ public class StageManager implements IStageManager {
     public static void load() {
         STAGES.clear();
         INDIVIDUAL_STAGES.clear();
+        DUAL_PHASE_ITEMS.clear();
+        DUAL_PHASE_TAGS.clear();
+        DUAL_PHASE_MODS.clear();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
@@ -872,45 +881,51 @@ public class StageManager implements IStageManager {
      * Note: Dimensions and entities are allowed to overlap.
      */
     private static void detectOverlaps() {
-        Map<String, String> globalItemMap = new HashMap<>();
-        Map<String, String> globalTagMap  = new HashMap<>();
-        Map<String, String> globalModMap  = new HashMap<>();
+        // Map each item/tag/mod to the *set* of global stages that contain it
+        // (a single entry can theoretically appear in more than one global stage)
+        Map<String, Set<String>> globalItemMap = new HashMap<>();
+        Map<String, Set<String>> globalTagMap  = new HashMap<>();
+        Map<String, Set<String>> globalModMap  = new HashMap<>();
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
-            entry.getValue().getAllItemIds().forEach(item -> globalItemMap.put(item, gStageId));
-            entry.getValue().getTags().forEach(tag -> globalTagMap.put(tag, gStageId));
-            entry.getValue().getMods().forEach(mod -> globalModMap.put(mod, gStageId));
+            entry.getValue().getAllItemIds().forEach(item -> globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId));
+            entry.getValue().getTags().forEach(tag -> globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId));
+            entry.getValue().getMods().forEach(mod -> globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId));
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
             String iStageId = entry.getKey();
             StageEntry iEntry = entry.getValue();
-            removeOverlappingEntries(iEntry.getItemEntries(), globalItemMap, iStageId, "item", ItemEntry::getId);
-            removeOverlappingStringEntries(iEntry.getTags(), globalTagMap, iStageId, "tag");
-            removeOverlappingStringEntries(iEntry.getMods(), globalModMap, iStageId, "mod");
+            registerDualPhaseOverlaps(iEntry.getItemEntries(), globalItemMap, DUAL_PHASE_ITEMS, iStageId, "item", ItemEntry::getId);
+            registerDualPhaseOverlaps(iEntry.getTags(),        globalTagMap,  DUAL_PHASE_TAGS,  iStageId, "tag",  s -> s);
+            registerDualPhaseOverlaps(iEntry.getMods(),        globalModMap,  DUAL_PHASE_MODS,  iStageId, "mod",  s -> s);
         }
     }
 
-    private static <T> void removeOverlappingEntries(List<T> list, Map<String, String> globalMap,
-                                                     String stageId, String label, Function<T, String> keyOf) {
-        list.removeIf(item -> {
-            String conflict = globalMap.get(keyOf.apply(item));
-            if (conflict != null) {
-                String msg = "Individual stage '" + stageId + "' " + label + " '" + keyOf.apply(item)
-                        + "' conflicts with global stage '" + conflict + "'. Individual entry skipped.";
-                addMessage(MessageLevel.ERROR, msg);
-                DebugLogger.error("Overlap Detection", msg);
-                return true;
+    /**
+     * For each entry in {@code list} that also appears in {@code globalMap}, registers a dual-phase
+     * lock in {@code dualPhaseMap} and logs an INFO message. Entries are kept — an overlap is no
+     * longer an error; the item/tag/mod must satisfy both the global and individual stage.
+     */
+    private static <T> void registerDualPhaseOverlaps(List<T> list,
+                                                      Map<String, Set<String>> globalMap,
+                                                      Map<String, Set<String>> dualPhaseMap,
+                                                      String stageId, String label,
+                                                      Function<T, String> keyOf) {
+        for (T item : list) {
+            String key = keyOf.apply(item);
+            Set<String> globalStages = globalMap.get(key);
+            if (globalStages != null) {
+                dualPhaseMap.computeIfAbsent(key, k -> new HashSet<>()).addAll(globalStages);
+                String msg = "Individual stage '" + stageId + "' " + label + " '" + key
+                        + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
+                addMessage(MessageLevel.INFO, msg);
+                DebugLogger.info("Dual-Phase Detection", msg);
             }
-            return false;
-        });
+        }
     }
 
-    private static void removeOverlappingStringEntries(List<String> list, Map<String, String> globalMap,
-                                                       String stageId, String label) {
-        removeOverlappingEntries(list, globalMap, stageId, label, s -> s);
-    }
 
     // =============================================
     // SHARED PRIVATE UTILITIES
@@ -930,6 +945,10 @@ public class StageManager implements IStageManager {
         }
         return result;
     }
+
+    public static Map<String, Set<String>> getDualPhaseItems() { return DUAL_PHASE_ITEMS; }
+    public static Map<String, Set<String>> getDualPhaseTags()  { return DUAL_PHASE_TAGS; }
+    public static Map<String, Set<String>> getDualPhaseMods()  { return DUAL_PHASE_MODS; }
 
     private static boolean stageMatchesItemOrMod(StageEntry data, String itemId, String modId,
                                                  ItemStack stack, Item item) {

@@ -20,6 +20,7 @@ public class LockDecorator implements IItemDecorator {
     // Hier definieren wir den Pfad zur Textur: assets/historystages/textures/gui/lock_overlay.png
     private static final ResourceLocation LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay.png");
     private static final ResourceLocation SILVER_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_silver.png");
+    private static final ResourceLocation DUAL_PHASE_LOCK_ICON = MOD_RESOURCE_LOCATION("textures/gui/lock_overlay_dual.png");
 
     // Performance-Check für EMI
     private static final boolean IS_EMI_INSTALLED = ModList.get().isLoaded("emi");
@@ -36,12 +37,15 @@ public class LockDecorator implements IItemDecorator {
             return false;
         }
 
-        // 3. Check global lock first, then individual lock
-        boolean globallyLocked = isGloballyLocked(stack);
+        // 3. Determine which lock icon to show (dual-phase > global > individual)
+        boolean globallyLocked     = isGloballyLocked(stack);
+        boolean dualPhaseGlobal    = globallyLocked && StageLockHelper.isDualPhaseGloballyLockedClient(stack);
         boolean individuallyLocked = !globallyLocked && Config.CLIENT.showSilverLockIcons.get() && isIndividuallyLocked(stack);
 
         if (globallyLocked || individuallyLocked) {
-            ResourceLocation icon = individuallyLocked ? SILVER_LOCK_ICON : LOCK_ICON;
+            ResourceLocation icon = dualPhaseGlobal ? DUAL_PHASE_LOCK_ICON
+                                  : individuallyLocked ? SILVER_LOCK_ICON
+                                  : LOCK_ICON;
 
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(xOffset, yOffset, 250);

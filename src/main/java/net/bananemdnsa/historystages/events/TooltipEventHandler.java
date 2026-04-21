@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -95,6 +96,14 @@ public class TooltipEventHandler {
                     isCurrentlyLocked = true;
                 }
             }
+        }
+
+        // Dual-Phase Phase 1 indicator
+        if (isCurrentlyLocked && StageLockHelper.isDualPhaseGloballyLockedClient(stack)) {
+            event.getToolTip().add(Component.translatable("tooltip.historystages.dual_phase_lock")
+                    .withStyle(ChatFormatting.GOLD));
+            event.getToolTip().add(Component.translatable("tooltip.historystages.dual_phase_lock_desc")
+                    .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
         }
 
         if (isCurrentlyLocked) {
