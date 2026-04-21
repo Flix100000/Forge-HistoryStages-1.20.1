@@ -6,13 +6,27 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for sharing your idea! Before submitting, please check if a similar suggestion already exists.
+        ## Before you submit
+        > Please take a moment to check the following before opening a feature request:
+        - Search [existing issues](https://github.com/Flix100000/History-Stages/issues) to see if this has already been suggested.
+        - Check the [Q&A Discussions](https://github.com/Flix100000/History-Stages/discussions/new?category=q-a) if you are unsure whether something is already possible.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm all of the following before submitting.
+      options:
+        - label: I have searched existing issues and this feature has not been requested before.
+          required: true
+        - label: This is a feature request, not a bug report or support question.
+          required: true
 
   - type: textarea
     id: description
     attributes:
       label: Feature Description
-      description: What should the mod do that it currently does not?
+      description: What should History Stages do that it currently does not?
       placeholder: "It would be useful if the Research Pedestal could output a redstone signal when a stage is unlocked."
     validations:
       required: true
@@ -21,8 +35,8 @@ body:
     id: usecase
     attributes:
       label: Use Case
-      description: How would you use this feature in a modpack?
-      placeholder: "This would allow automating stage-dependent logic using redstone or modded automation."
+      description: How would you use this feature in a modpack? Why is it valuable?
+      placeholder: "This would allow automating stage-dependent logic using redstone or modded automation (e.g. Create)."
     validations:
       required: true
 
@@ -38,7 +52,7 @@ body:
     id: scope
     attributes:
       label: Scope
-      description: What area of the mod does this affect?
+      description: Which area of the mod does this feature affect?
       options:
         - Research Pedestal / Scrolls
         - Stage Configuration (JSON)
@@ -63,7 +77,7 @@ body:
     id: example
     attributes:
       label: Example
-      description: If applicable, provide an example of how this feature would work (e.g. JSON config, command usage).
+      description: If applicable, show how this feature could look in practice (e.g. JSON config, command syntax).
       render: json
     validations:
       required: false
