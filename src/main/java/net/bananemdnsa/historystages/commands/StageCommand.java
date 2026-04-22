@@ -225,7 +225,7 @@ public class StageCommand {
 
             d.getUnlockedStages().clear();
             d.setDirty();
-            StageData.SERVER_CACHE.clear();
+            StageData.refreshCache(d.getUnlockedStages());
 
             DebugLogger.runtime("Stage Lock", executor, "Locked ALL stages (" + count + " total)");
             broadcastEffect(source, "*", false);
@@ -291,8 +291,7 @@ public class StageCommand {
 
     private static int syncAndReload(CommandSourceStack source, StageData data, String msg) {
         data.setDirty();
-        StageData.SERVER_CACHE.clear();
-        StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+        StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
         source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);

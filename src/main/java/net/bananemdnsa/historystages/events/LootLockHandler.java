@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -36,6 +37,7 @@ public class LootLockHandler {
         if (!container.getClass().getName().toLowerCase().contains("lootr")) return;
 
         boolean changed = false;
+        int replacedCount = 0;
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack stack = container.getItem(i);
             if (stack.isEmpty()) continue;
@@ -47,7 +49,13 @@ public class LootLockHandler {
                     container.setItem(i, ItemStack.EMPTY);
                 }
                 changed = true;
+                replacedCount++;
             }
+        }
+
+        if (replacedCount > 0) {
+            DebugLogger.runtime("Loot Lock", event.getEntity().getName().getString(),
+                    "Replaced " + replacedCount + " locked item(s) in Lootr container");
         }
 
         if (changed) {
@@ -56,29 +64,7 @@ public class LootLockHandler {
     }
 
     private static ItemStack getReplacement(int count) {
-        // Try replacement tags first (higher priority)
-        List<? extends String> tagList = Config.COMMON.replacementTags.get();
-        if (tagList != null && !tagList.isEmpty()) {
-            for (String tagStr : tagList) {
-                if (tagStr == null || tagStr.isEmpty()) continue;
-                try {
-                    TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
-                    List<Item> tagItems = new ArrayList<>();
-                    Optional<? extends Iterable<Holder<Item>>> tagOptional = BuiltInRegistries.ITEM.getTag(tagKey);
-                    tagOptional.ifPresent(holders -> {
-                        for (Holder<Item> holder : holders) {
-                            tagItems.add(holder.value());
-                        }
-                    });
-
-                    if (!tagItems.isEmpty()) {
-                        return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
-                    }
-                } catch (Exception ignored) {}
-            }
-        }
-
-        // Fall back to replacement items
+        // 1. Priority: random item from replacementItems list
         List<? extends String> list = Config.COMMON.replacementItems.get();
         if (list != null && !list.isEmpty()) {
             try {
@@ -86,6 +72,25 @@ public class LootLockHandler {
                 Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(randomId));
                 if (item != null && item != Items.AIR) {
                     return new ItemStack(item, count);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // 2. Priority: random item from replacementTags
+        List<? extends String> tagList = Config.COMMON.replacementTags.get();
+        if (tagList != null && !tagList.isEmpty()) {
+            try {
+                String tagStr = tagList.get(RANDOM.nextInt(tagList.size()));
+                TagKey<Item> tagKey = ItemTags.create(ResourceLocation.parse(tagStr));
+                List<Item> tagItems = new ArrayList<>();
+                Optional<? extends Iterable<Holder<Item>>> tagOptional = BuiltInRegistries.ITEM.getTag(tagKey);
+                tagOptional.ifPresent(holders -> {
+                    for (Holder<Item> holder : holders) {
+                        tagItems.add(holder.value());
+                    }
+                });
+                if (!tagItems.isEmpty()) {
+                    return new ItemStack(tagItems.get(RANDOM.nextInt(tagItems.size())), count);
                 }
             } catch (Exception ignored) {}
         }

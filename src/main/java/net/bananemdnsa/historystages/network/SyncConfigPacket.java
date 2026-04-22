@@ -54,10 +54,12 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         Map<String, String> values = new HashMap<>();
         values.put("showWelcomeMessage", Config.COMMON.showWelcomeMessage.get().toString());
         values.put("showDebugErrors", Config.COMMON.showDebugErrors.get().toString());
+        values.put("enableRuntimeLogging", Config.COMMON.enableRuntimeLogging.get().toString());
         values.put("lockMobLoot", Config.COMMON.lockMobLoot.get().toString());
         values.put("lockBlockBreaking", Config.COMMON.lockBlockBreaking.get().toString());
         values.put("lockedBlockBreakSpeedMultiplier", Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString());
         values.put("lockItemUsage", Config.COMMON.lockItemUsage.get().toString());
+        values.put("lockEntityItems", Config.COMMON.lockEntityItems.get().toString());
         values.put("broadcastChat", Config.COMMON.broadcastChat.get().toString());
         values.put("unlockMessageFormat", Config.COMMON.unlockMessageFormat.get());
         values.put("useActionbar", Config.COMMON.useActionbar.get().toString());

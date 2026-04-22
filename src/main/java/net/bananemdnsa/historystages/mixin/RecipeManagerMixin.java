@@ -41,8 +41,7 @@ public class RecipeManagerMixin {
         net.minecraft.server.MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             StageData data = StageData.get(server.overworld());
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            StageData.refreshCache(data.getUnlockedStages());
         }
 
         AllRecipesCache.set(new ArrayList<>(this.byName.values()));
@@ -106,6 +105,36 @@ public class RecipeManagerMixin {
                 .collect(Collectors.toList());
         if (filtered.size() != recipes.size()) {
             cir.setReturnValue(filtered);
+        }
+    }
+
+    /**
+     * Filter getAllRecipesFor - used by some mods and vanilla for recipe book lookups.
+     * No Level parameter available, defaults to server-side check.
+     */
+    @Inject(method = "getAllRecipesFor", at = @At("RETURN"), cancellable = true, remap = true)
+    private <I extends RecipeInput, T extends Recipe<I>> void filterGetAllRecipesFor(
+            RecipeType<T> type,
+            CallbackInfoReturnable<List<RecipeHolder<T>>> cir) {
+        List<RecipeHolder<T>> recipes = cir.getReturnValue();
+        List<RecipeHolder<T>> filtered = recipes.stream()
+                .filter(r -> !isRecipeLocked(r, false))
+                .collect(Collectors.toList());
+        if (filtered.size() != recipes.size()) {
+            cir.setReturnValue(filtered);
+        }
+    }
+
+    /**
+     * Filter byKey - direct recipe lookup by ResourceLocation, used by some mods.
+     * No Level parameter available, defaults to server-side check.
+     */
+    @Inject(method = "byKey", at = @At("RETURN"), cancellable = true, remap = true)
+    private void filterByKey(ResourceLocation recipeId,
+                             CallbackInfoReturnable<Optional<RecipeHolder<?>>> cir) {
+        Optional<RecipeHolder<?>> result = cir.getReturnValue();
+        if (result.isPresent() && isRecipeLocked(result.get(), false)) {
+            cir.setReturnValue(Optional.empty());
         }
     }
 

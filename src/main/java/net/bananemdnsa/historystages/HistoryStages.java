@@ -221,8 +221,7 @@ public class HistoryStages {
     public void onWorldLoad(LevelEvent.Load event) {
         if (!event.getLevel().isClientSide() && event.getLevel() instanceof ServerLevel sl) {
             StageData data = StageData.get(sl);
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            StageData.refreshCache(data.getUnlockedStages());
 
             // Initialize individual stage cache
             IndividualStageData individualData = IndividualStageData.get(sl);

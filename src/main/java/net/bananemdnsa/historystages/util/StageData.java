@@ -10,18 +10,25 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StageData extends SavedData {
     private final List<String> unlockedStages = new ArrayList<>();
     private static final String DATA_NAME = "historystages_global";
 
-    public static final Set<String> SERVER_CACHE = new HashSet<>();
+    public static final Set<String> SERVER_CACHE = ConcurrentHashMap.newKeySet();
 
     public StageData() {
         SERVER_CACHE.clear();
+    }
+
+    public static void refreshCache(List<String> stages) {
+        Set<String> newSet = ConcurrentHashMap.newKeySet();
+        newSet.addAll(stages);
+        SERVER_CACHE.addAll(newSet);
+        SERVER_CACHE.retainAll(newSet);
     }
 
     public static StageData load(CompoundTag nbt, HolderLookup.Provider registries) {
@@ -54,8 +61,7 @@ public class StageData extends SavedData {
                             DATA_NAME
                     );
 
-            SERVER_CACHE.clear();
-            SERVER_CACHE.addAll(data.unlockedStages);
+            refreshCache(data.unlockedStages);
             return data;
         }
         return new StageData();

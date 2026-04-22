@@ -72,6 +72,11 @@ public class HistoryStageTask extends AbstractBooleanTask {
     }
 
     @Override
+    public boolean checkOnLogin() {
+        return true;
+    }
+
+    @Override
     public boolean canSubmit(TeamData teamData, ServerPlayer player) {
         if (stage.isEmpty()) return false;
         if (individual) {
