@@ -1,17 +1,37 @@
 name: Compatibility Issue
-description: Report an incompatibility with another mod
+description: Report an incompatibility between History Stages and another mod
 title: "[Incompatibility] History Stages + "
 labels: ["compatibility"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this template when History Stages causes issues in combination with another mod.
-        Common symptoms: recipes disappearing from mod machines, items behaving unexpectedly,
-        or crashes that only occur with both mods installed.
+        ## Before you submit
+        > Use this template when History Stages causes problems **in combination with another mod**.
+        Common symptoms include:
+        - Recipes disappearing from mod machines
+        - Items or blocks behaving unexpectedly
+        - Crashes that only occur with both mods installed
+
+        If the issue also occurs **without** the other mod, please use the [Bug Report](https://github.com/Flix100000/History-Stages/issues/new?template=bug_report.yml) template instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm all of the following before submitting.
+      options:
+        - label: I have searched existing issues and this has not been reported before.
+          required: true
+        - label: I am using the latest available version of History Stages.
+          required: true
+        - label: I have tested with **only** History Stages and the conflicting mod installed.
+          required: true
+        - label: The issue does **not** occur when History Stages is removed.
+          required: true
 
   - type: input
-    id: version
+    id: hs-version
     attributes:
       label: History Stages Version
       placeholder: "e.g. 3.0.0"
@@ -38,9 +58,11 @@ body:
     id: environment
     attributes:
       label: Environment
+      description: Where does the conflict occur?
       options:
         - Singleplayer (integrated server)
         - Dedicated Server + Client
+        - Both
     validations:
       required: true
 
@@ -48,8 +70,13 @@ body:
     id: description
     attributes:
       label: Description of the Conflict
-      description: What goes wrong? When does it happen?
-      placeholder: "Recipes from the other mod disappear in-game after History Stages is installed, even though they are still visible in JEI."
+      description: What goes wrong? When does it happen? What did you expect instead?
+      placeholder: |
+        **What happened:**
+        Recipes from Create disappear in-game after History Stages is installed, even though they are still visible in JEI.
+
+        **What I expected:**
+        Recipes should only be hidden for players who have not yet unlocked the relevant stage.
     validations:
       required: true
 
@@ -57,10 +84,11 @@ body:
     id: steps
     attributes:
       label: Steps to Reproduce
+      description: Provide a minimal, reliable set of steps to reproduce the conflict.
       placeholder: |
         1. Install History Stages and the conflicting mod.
-        2. Configure stage X to lock item Y.
-        3. Open the mod's interface.
+        2. Configure stage X to lock item Y (see JSON below).
+        3. Join the world and open the mod's interface.
         4. Observe that ...
     validations:
       required: true
@@ -68,8 +96,8 @@ body:
   - type: textarea
     id: stage-config
     attributes:
-      label: Relevant Stage JSON (if applicable)
-      description: Paste the stage config that triggers the conflict.
+      label: Relevant Stage JSON
+      description: Paste the stage config that triggers the conflict. Leave blank if not applicable.
       render: json
     validations:
       required: false
@@ -78,18 +106,9 @@ body:
     id: log
     attributes:
       label: Log / Crash Report
-      description: "Paste the relevant error from your latest.log or crash report. Use a paste site (e.g. https://mclo.gs) for full logs."
+      description: |
+        Paste the relevant error from `latest.log` or the crash report.
+        For long logs, please use a paste service such as [mclo.gs](https://mclo.gs) and share the link.
       render: text
-    validations:
-      required: false
-
-  - type: checkboxes
-    id: isolation
-    attributes:
-      label: Isolation Check
-      description: Please confirm before submitting.
-      options:
-        - label: I have reproduced this with only History Stages and the conflicting mod installed.
-        - label: The issue does not occur when History Stages is removed.
     validations:
       required: false

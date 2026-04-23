@@ -4,14 +4,28 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for asking! Please provide as much detail as possible so we can help you quickly.
-        For bug reports, please use the [Issues](https://github.com/Flix100000/History-Stages/issues/new/choose) section instead.
+        ## Before you ask
+        > Please take a moment to check the following before posting your question:
+        - Browse the [existing discussions](https://github.com/Flix100000/History-Stages/discussions) – your question may already be answered.
+        - Check the mod's documentation and README for configuration examples.
+        - If you found a **bug or crash**, please use the [Issues](https://github.com/Flix100000/History-Stages/issues/new/choose) section instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched existing discussions and my question has not been asked before.
+          required: true
+        - label: This is a question, not a bug report or feature request.
+          required: true
 
   - type: input
     id: mod_version
     attributes:
       label: History Stages Version
-      placeholder: "3.0.0-1.20.1"
+      placeholder: "e.g. 3.0.0-1.20.1"
     validations:
       required: true
 
@@ -19,6 +33,7 @@ body:
     id: topic
     attributes:
       label: Topic
+      description: Which area of the mod does your question relate to?
       options:
         - Stage JSON Configuration
         - In-Game Editors (Stage / Config)
@@ -39,8 +54,8 @@ body:
   - type: textarea
     id: question
     attributes:
-      label: Question
-      description: Describe what you are trying to do and what you are unsure about.
+      label: Your Question
+      description: Describe what you are trying to do and what you are unsure about. The more detail you provide, the faster we can help.
       placeholder: "How do I lock all items from a specific mod until a certain stage is unlocked?"
     validations:
       required: true
@@ -48,8 +63,8 @@ body:
   - type: textarea
     id: context
     attributes:
-      label: Relevant Configuration (if applicable)
-      description: Paste any stage JSON or config snippets relevant to your question.
+      label: Relevant Configuration
+      description: Paste any stage JSON or config snippets relevant to your question. Leave blank if not applicable.
       render: json
     validations:
       required: false

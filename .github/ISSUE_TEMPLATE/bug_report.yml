@@ -1,16 +1,32 @@
 name: Bug Report
-description: Report a bug or crash
+description: Report a bug or crash in History Stages
 title: "[Bug] "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug! Please fill out the information below so we can reproduce and fix the issue.
-        Before submitting, please check if this issue has already been reported.
+        ## Before you submit
+        > Please take a moment to check the following before opening a bug report:
+        - Search [existing issues](https://github.com/Flix100000/History-Stages/issues) to avoid duplicates.
+        - Make sure you are using the **latest version** of History Stages.
+        - If you have a general question, use [Q&A Discussions](https://github.com/Flix100000/History-Stages/discussions/new?category=q-a) instead.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm all of the following before submitting.
+      options:
+        - label: I have searched existing issues and this has not been reported before.
+          required: true
+        - label: I am using the latest available version of History Stages.
+          required: true
+        - label: This is a bug, not a configuration question or feature request.
+          required: true
 
   - type: input
-    id: version
+    id: hs-version
     attributes:
       label: History Stages Version
       placeholder: "e.g. 3.0.0"
@@ -29,9 +45,11 @@ body:
     id: environment
     attributes:
       label: Environment
+      description: Where does the bug occur?
       options:
         - Singleplayer (integrated server)
         - Dedicated Server + Client
+        - Both
     validations:
       required: true
 
@@ -39,8 +57,15 @@ body:
     id: description
     attributes:
       label: Bug Description
-      description: What happened? What did you expect to happen?
-      placeholder: Describe the bug clearly...
+      description: |
+        Clearly describe what happens and what you expected to happen instead.
+        The more detail you provide, the faster we can fix it.
+      placeholder: |
+        **What happened:**
+        ...
+
+        **What I expected:**
+        ...
     validations:
       required: true
 
@@ -48,20 +73,20 @@ body:
     id: steps
     attributes:
       label: Steps to Reproduce
-      description: How can we reproduce this?
+      description: Provide a minimal, reliable set of steps to reproduce the bug.
       placeholder: |
-        1. Install mod X and Y
-        2. Join a world
-        3. Do this...
-        4. See error
+        1. Install History Stages and start a new world.
+        2. Configure stage X to lock item Y (see JSON below).
+        3. Join the world and do Z.
+        4. Observe that ...
     validations:
       required: true
 
   - type: textarea
     id: stage-config
     attributes:
-      label: Relevant Stage JSON (if applicable)
-      description: Paste the stage JSON file(s) related to the bug.
+      label: Relevant Stage JSON
+      description: Paste the stage JSON file(s) related to the bug. Leave blank if not applicable.
       render: json
     validations:
       required: false
@@ -70,7 +95,9 @@ body:
     id: log
     attributes:
       label: Log / Crash Report
-      description: "Paste the relevant error from your latest.log or crash report. Use a paste site (e.g. https://mclo.gs) for full logs."
+      description: |
+        Paste the relevant error from `latest.log` or the crash report.
+        For long logs, please use a paste service such as [mclo.gs](https://mclo.gs) and share the link.
       render: text
     validations:
       required: false
@@ -78,11 +105,11 @@ body:
   - type: textarea
     id: modlist
     attributes:
-      label: Other Mods Installed
-      description: List other mods that might be relevant, or share your full mod list.
+      label: Other Installed Mods
+      description: List any other mods that might be relevant to this bug.
       placeholder: |
-        - JEI
-        - Create
-        - ...
+        - Create 6.0.9
+        - JEI 15.3.0.4
+        - FTB Quests 2001.1.3
     validations:
       required: false
