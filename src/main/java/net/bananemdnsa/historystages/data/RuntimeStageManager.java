@@ -19,8 +19,6 @@ public final class RuntimeStageManager {
      * - The server then redistributes the config to all other clients.
      * - The clients and server all deterministically bake the locks
      */
-
-
     private BitSet GLOBAL_UNLOCKED_STAGES = new BitSet();
 
     private static RuntimeStageManager INSTANCE;

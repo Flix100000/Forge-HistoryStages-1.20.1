@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.data;
 
+import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 
