@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
+import net.astr0.historystages.api.StageScope;
 
 import java.util.BitSet;
 import java.util.Comparator;
@@ -45,7 +46,11 @@ public final class RuntimeStageManager {
         // We sort in order to achieve deterministic mappings between bit position and stage
         // If the same stages are loaded on both the client and the server, they are guaranteed
         // to have the same order (Alphabetical)
-        stages.sort(Comparator.comparing(StageDefinition::getName, String.CASE_INSENSITIVE_ORDER));
+        stages.sort(
+            Comparator
+                .comparing((StageDefinition s) -> s.getStageScope() == StageScope.INDIVIDUAL) // false (Global) first
+                .thenComparing(StageDefinition::getName, String.CASE_INSENSITIVE_ORDER)
+        );
 
         // Load our quick lookup tables for bit position <--> stage
         // We use these to achieve O(1) forward and reverse lookups of bit positions corresponding
@@ -78,7 +83,11 @@ public final class RuntimeStageManager {
         return itemLocks.computeIfAbsent(item, k -> new BitSet());
     }
 
-
+    // TODO(Astr0): To optimise, consider an approach to initialise lock hashmaps at
+    // a reasonably size. We want to minimise the amount of resize and rehash operations at runtime
+    // Either use a reasonably base size or simply assume double whatever the last known value was
+    // could also place this behind a develop config flag. When dev mode is off, we run in a low
+    // mem profile which limits this dict size to the expected size at initialisation
     // BAKE TIME: Use Reference map for O(1) pointer-equality lookups
     private final Reference2ObjectMap<Item, BitSet> itemLocks = new Reference2ObjectOpenHashMap<>();
 
@@ -90,8 +99,9 @@ public final class RuntimeStageManager {
 
         // Direct traversal of the required bits
         // Most items have 1 bit. nextSetBit(0) returns that bit,
-        // the check fails or passes, and nextSetBit returns -1. Loop ends.
-
+        // nextSetBit is implemented using pure bitwise operations, so its fast
+        //TODO(Astr0): Check if we can implement a long based class to do bitwise operations
+        //on the stack, rather than traversing java heap allocated BitSet
         for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
             // If the bit is NOT in global AND NOT in the player mask, the item is locked.
             if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {

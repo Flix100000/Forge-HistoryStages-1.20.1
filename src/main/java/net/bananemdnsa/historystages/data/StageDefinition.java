@@ -9,9 +9,11 @@ import java.util.List;
 public class StageDefinition {
 
     private final String stageName;
+    private final StageScope _scope;
 
-    public StageDefinition(String stage) {
+    public StageDefinition(String stage, StageScope scope) {
         stageName = stage;
+        _scope = scope;
     }
 
     public String getName() {
@@ -24,5 +26,9 @@ public class StageDefinition {
 
     public List<ResourceLocation> getLockedMods() {
         return new ArrayList<>();
+    }
+
+    public StageScope getStageScope() {
+        return _scope;
     }
 }
