@@ -29,6 +29,10 @@ public class Config {
         public final ModConfigSpec.BooleanValue showSilverLockIcons;
         public final ModConfigSpec.BooleanValue showIndividualTooltips;
 
+        // Dependencies
+        public final ModConfigSpec.BooleanValue showDependenciesOnScroll;
+        public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
+
         public Client(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -118,6 +122,18 @@ public class Config {
                     .define("showIndividualTooltips", true);
 
             builder.pop();
+
+            builder.comment("Dependency Display Settings").push("dependencies");
+
+            showDependenciesOnScroll = builder
+                    .comment("Show dependency requirements in research scroll tooltips? [Default: true]")
+                    .define("showDependenciesOnScroll", true);
+
+            hideFulfilledDependencies = builder
+                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
+                    .define("hideFulfilledDependencies", false);
+
+            builder.pop();
         }
     }
 
@@ -145,6 +161,7 @@ public class Config {
 
         // Forschungsstation
         public final ModConfigSpec.IntValue researchTimeInSeconds;
+        public final ModConfigSpec.BooleanValue showDependencyScreenInPedestal;
 
         // Loot-Ersetzungen
         public final ModConfigSpec.BooleanValue useReplacements;
@@ -255,6 +272,11 @@ public class Config {
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 3600);
+
+            showDependencyScreenInPedestal = builder
+                    .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
+                    .define("showDependencyScreenInPedestal", true);
+
             builder.pop(); // research
 
             // --- LOOT REPLACEMENTS SECTION ---

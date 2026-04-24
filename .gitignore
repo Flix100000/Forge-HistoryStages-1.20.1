@@ -24,3 +24,8 @@ runs
 run-data
 
 repo
+
+# claude / editor
+.claude/
+.vscode/
+CLAUDE.md
