@@ -561,9 +561,15 @@ public class SearchableRecipeList {
 
     private void updateScrollFromMouse(double mouseY, int gridY) {
         int gridH = GRID_ROWS * SLOT_SIZE;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - gridY) / (double) gridH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + GRID_ROWS;
+        int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / totalRows * gridH));
+        float usableH = gridH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - gridY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     private void updateRecipeScrollFromMouse(double mouseY, int listY) {

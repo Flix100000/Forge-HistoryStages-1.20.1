@@ -7,14 +7,19 @@ import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -166,6 +171,45 @@ public class StageLockHelper {
                 return true;
             }
         }
+        return false;
+    }
+
+    /**
+     * Returns true when an item is in the global phase of a dual-phase lock.
+     * Dual-phase: the item appears in both a global and an individual stage config.
+     * Returns true when at least one of the paired global stages is not yet unlocked client-side.
+     */
+    public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId  = res.getNamespace();
+
+        Set<String> itemStages = StageManager.getDualPhaseItems().get(itemId);
+        if (itemStages != null) {
+            for (String stage : itemStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+
+        Set<String> modStages = StageManager.getDualPhaseMods().get(modId);
+        if (modStages != null) {
+            for (String stage : modStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+
+        Item item = stack.getItem();
+        for (Map.Entry<String, Set<String>> tagEntry : StageManager.getDualPhaseTags().entrySet()) {
+            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagEntry.getKey()));
+            if (item.builtInRegistryHolder().is(tagKey)) {
+                for (String stage : tagEntry.getValue()) {
+                    if (!ClientStageCache.isStageUnlocked(stage)) return true;
+                }
+            }
+        }
+
         return false;
     }
 

@@ -12,7 +12,10 @@ import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.events.StageEvent;
+import net.bananemdnsa.historystages.events.StructureLockHandler;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -126,7 +129,47 @@ public class StageCommand {
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!");
                         }))
+
+                // --- DEBUG ---
+                .then(Commands.literal("debug")
+                        .then(Commands.literal("structure")
+                                .executes(ctx -> handleDebugStructure(ctx.getSource())))
+                        .then(Commands.literal("nbt")
+                                .then(Commands.literal("preset")
+                                        .executes(ctx -> DebugNbtCommand.handlePreset(ctx.getSource())))
+                                .then(Commands.literal("custom")
+                                        .executes(ctx -> DebugNbtCommand.handleCustom(ctx.getSource())))))
         );
+    }
+
+    private static int handleDebugStructure(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+
+        BlockPos pos = player.blockPosition();
+        ServerLevel level = player.serverLevel();
+        var holders = StructureLockHandler.collectStructureHoldersAt(level, pos);
+
+        source.sendSuccess(() -> Component.literal(
+                "§6--- Structures at §e" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " §6---"), false);
+
+        if (holders.isEmpty()) {
+            source.sendSuccess(() -> Component.literal("  §7(not inside any structure)"), false);
+            return 1;
+        }
+
+        for (var h : holders) {
+            String id = h.unwrapKey().map(k -> k.location().toString()).orElse("<unknown>");
+            source.sendSuccess(() -> Component.literal("  §8• §f" + id), false);
+            h.tags().forEach(tag -> source.sendSuccess(
+                    () -> Component.literal("      §8↳ §b#" + tag.location()), false));
+        }
+        return 1;
     }
 
     private static int handleGlobalInfo(CommandSourceStack source, String stageName) {
@@ -160,6 +203,10 @@ public class StageCommand {
         if (!entry.getDimensions().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
             entry.getDimensions().forEach(d -> source.sendSuccess(() -> Component.literal("  §8• §7" + d), false));
+        }
+        if (!entry.getStructures().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§5▶ Structures:"), false);
+            entry.getStructures().forEach(s -> source.sendSuccess(() -> Component.literal("  §8• §7" + s), false));
         }
         if (!entry.getEntities().getAttacklock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
@@ -245,7 +292,10 @@ public class StageCommand {
     private static void broadcastEffect(CommandSourceStack source, String stageID, boolean isUnlock) {
         if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get() && !Config.COMMON.useSounds.get() && !Config.COMMON.useToasts.get()) return;
 
-        String name = stageID.equals("*") ? "All Progress" : (StageManager.getStages().containsKey(stageID) ? StageManager.getStages().get(stageID).getDisplayName() : stageID);
+        var stageEntry = StageManager.getStages().get(stageID);
+        String name = stageID.equals("*") ? "All Progress" : (stageEntry != null ? stageEntry.getDisplayName() : stageID);
+        String iconId = (!stageID.equals("*") && stageEntry != null && !stageEntry.getIcon().isEmpty())
+                ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
 
         // --- CHAT NACHRICHT LOGIK ---
         Component chatMsg;
@@ -285,7 +335,7 @@ public class StageCommand {
 
         // Toast notification
         if (isUnlock && Config.COMMON.useToasts.get()) {
-            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name));
+            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name, iconId));
         }
     }
 
@@ -331,6 +381,10 @@ public class StageCommand {
         if (!entry.getDimensions().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
             entry.getDimensions().forEach(d -> source.sendSuccess(() -> Component.literal("  §8• §7" + d), false));
+        }
+        if (!entry.getStructures().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§5▶ Structures:"), false);
+            entry.getStructures().forEach(s -> source.sendSuccess(() -> Component.literal("  §8• §7" + s), false));
         }
         if (!entry.getEntities().getAttacklock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
@@ -454,8 +508,9 @@ public class StageCommand {
             target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
         }
         if (Config.COMMON.individualUseToasts.get()) {
+            String iconId = (!entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
             PacketHandler.sendToastToPlayer(
-                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName),
+                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName, iconId),
                     target
             );
         }

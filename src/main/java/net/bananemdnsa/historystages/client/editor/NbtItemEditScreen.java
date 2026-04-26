@@ -259,6 +259,11 @@ public class NbtItemEditScreen extends Screen {
         return height;
     }
 
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(parent);
+    }
+
     // ==========================================
     // Rendering
     // ==========================================
@@ -436,8 +441,9 @@ public class NbtItemEditScreen extends Screen {
             int fieldX = right - fieldW - 10;
             int fieldY = y + 2;
             boolean fieldHovered = mx >= fieldX && mx < fieldX + fieldW && my >= fieldY && my < fieldY + ROW_HEIGHT - 4;
-            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + ROW_HEIGHT - 4, fieldHovered ? 0x50FFFFFF : 0x40FFFFFF);
-            g.fill(fieldX + 1, fieldY + 1, fieldX + fieldW - 1, fieldY + ROW_HEIGHT - 5, 0xE0101010);
+            int borderColor = fieldHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + ROW_HEIGHT - 3, borderColor);
+            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + ROW_HEIGHT - 4, 0xFF0D0D0D);
             String displayVal = prop.value != null ? prop.value : "";
             if (displayVal.isEmpty()) {
                 g.drawString(this.font, "click to edit...", fieldX + 4, fieldY + 4, 0x555555);
@@ -468,8 +474,9 @@ public class NbtItemEditScreen extends Screen {
         int idX = x + 16;
         int fieldW = (right - idX - 80) / 2;
         boolean idHovered = mx >= idX && mx < idX + fieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
-        g.fill(idX, y + 2, idX + fieldW, y + ROW_HEIGHT - 4, idHovered ? 0x50FFFFFF : 0x40FFFFFF);
-        g.fill(idX + 1, y + 3, idX + fieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
+        int idBorder = idHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(idX - 1, y + 1, idX + fieldW + 1, y + ROW_HEIGHT - 3, idBorder);
+        g.fill(idX, y + 2, idX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
         g.drawString(this.font, ench.id.isEmpty() ? "enchantment id..." : ench.id, idX + 4, y + 6, ench.id.isEmpty() ? 0x555555 : 0xCCCCCC);
 
         // Level label + field
@@ -478,8 +485,9 @@ public class NbtItemEditScreen extends Screen {
         int lvlFieldX = lvlLabelX + this.font.width("lvl:") + 4;
         int lvlFieldW = 50;
         boolean lvlHovered = mx >= lvlFieldX && mx < lvlFieldX + lvlFieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
-        g.fill(lvlFieldX, y + 2, lvlFieldX + lvlFieldW, y + ROW_HEIGHT - 4, lvlHovered ? 0x50FFFFFF : 0x40FFFFFF);
-        g.fill(lvlFieldX + 1, y + 3, lvlFieldX + lvlFieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
+        int lvlBorder = lvlHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(lvlFieldX - 1, y + 1, lvlFieldX + lvlFieldW + 1, y + ROW_HEIGHT - 3, lvlBorder);
+        g.fill(lvlFieldX, y + 2, lvlFieldX + lvlFieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
         g.drawString(this.font, ench.level.isEmpty() ? "1" : ench.level, lvlFieldX + 4, y + 6, ench.level.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 
@@ -496,8 +504,10 @@ public class NbtItemEditScreen extends Screen {
         // Value field
         int fieldX = x + 16;
         int fieldW = right - fieldX - 10;
-        g.fill(fieldX, y + 2, fieldX + fieldW, y + ROW_HEIGHT - 4, 0x40FFFFFF);
-        g.fill(fieldX + 1, y + 3, fieldX + fieldW - 1, y + ROW_HEIGHT - 5, 0xE0101010);
+        boolean fieldHovered = mx >= fieldX && mx < fieldX + fieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
+        int fieldBorder = fieldHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
+        g.fill(fieldX - 1, y + 1, fieldX + fieldW + 1, y + ROW_HEIGHT - 3, fieldBorder);
+        g.fill(fieldX, y + 2, fieldX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
         g.drawString(this.font, val.isEmpty() ? "click to edit..." : val, fieldX + 4, y + 6, val.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 

@@ -1,6 +1,5 @@
 package net.bananemdnsa.historystages.client;
 
-import net.bananemdnsa.historystages.init.ModItems;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastComponent;
@@ -11,16 +10,16 @@ import net.minecraft.world.item.ItemStack;
 public class StageUnlockedToast implements Toast {
 
     private static final ResourceLocation BACKGROUND_SPRITE = ResourceLocation.withDefaultNamespace("toast/advancement");
-    private static final ItemStack ICON = new ItemStack(ModItems.RESEARCH_SCROLL.get());
     private static final int DISPLAY_TIME = 5000;
 
     private final Component title;
     private final Component stageName;
-    private boolean playedSound;
+    private final ItemStack icon;
 
-    public StageUnlockedToast(String stageName) {
+    public StageUnlockedToast(String stageName, ItemStack icon) {
         this.title = Component.translatable("toast.historystages.stage_unlocked");
         this.stageName = Component.literal(stageName);
+        this.icon = icon != null ? icon : ItemStack.EMPTY;
     }
 
     @Override
@@ -34,8 +33,10 @@ public class StageUnlockedToast implements Toast {
         // Draw stage name (line 2) - white
         guiGraphics.drawString(toastComponent.getMinecraft().font, this.stageName, 30, 18, 0xFFFFFFFF, false);
 
-        // Draw the research scroll icon
-        guiGraphics.renderFakeItem(ICON, 8, 8);
+        // Draw the stage icon
+        if (!icon.isEmpty()) {
+            guiGraphics.renderFakeItem(icon, 8, 8);
+        }
 
         return (double) timeSinceLastVisible >= (double) DISPLAY_TIME * toastComponent.getNotificationDisplayTimeMultiplier()
                 ? Visibility.HIDE : Visibility.SHOW;

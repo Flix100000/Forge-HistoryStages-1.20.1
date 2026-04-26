@@ -5,31 +5,25 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforgespi.language.IModInfo;
+import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
- * Searchable list of all installed mods.
- * Rendered as an overlay panel within the parent screen.
+ * Searchable overlay list of all vanilla custom stats.
  */
-public class SearchableModList {
+public class SearchableStatList {
     private static final int ROW_HEIGHT = 16;
     private static final int VISIBLE_ROWS = 10;
     private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
-    private static final int PANEL_WIDTH = 220;
+    private static final int PANEL_WIDTH = 300;
 
-    private final List<ModEntry> allMods = new ArrayList<>();
-    private final List<ModEntry> filteredMods = new ArrayList<>();
+    private final List<String> allStats = new ArrayList<>();
+    private final List<String> filteredStats = new ArrayList<>();
     private final Consumer<String> onSelect;
 
     private int panelX, panelY, panelW, panelH;
@@ -41,29 +35,19 @@ public class SearchableModList {
     private boolean draggingScrollbar = false;
     private boolean allSelected = false;
 
-    public SearchableModList(Consumer<String> onSelect) {
+    // Marquee
+    private int hoveredRow = -1;
+    private long hoverStartTime = 0;
+    private static final long MARQUEE_DELAY_MS = 800;
+    private static final float MARQUEE_SPEED = 25.0f;
+
+    public SearchableStatList(Consumer<String> onSelect) {
         this.onSelect = onSelect;
 
-        // Collect mod IDs that actually register content (items, blocks, or entities)
-        Set<String> contentMods = new HashSet<>();
-        for (ResourceLocation key : BuiltInRegistries.ITEM.keySet()) {
-            contentMods.add(key.getNamespace());
-        }
-        for (ResourceLocation key : BuiltInRegistries.BLOCK.keySet()) {
-            contentMods.add(key.getNamespace());
-        }
-        for (ResourceLocation key : BuiltInRegistries.ENTITY_TYPE.keySet()) {
-            contentMods.add(key.getNamespace());
-        }
-
-        for (IModInfo mod : ModList.get().getMods()) {
-            String modId = mod.getModId();
-            if (!contentMods.contains(modId)) continue;
-            String displayName = mod.getDisplayName();
-            allMods.add(new ModEntry(modId, displayName, displayName.toLowerCase()));
-        }
-        allMods.sort((a, b) -> a.modId.compareToIgnoreCase(b.modId));
-        filteredMods.addAll(allMods);
+        // Collect all custom stats from the registry
+        BuiltInRegistries.CUSTOM_STAT.forEach(rl -> allStats.add(rl.toString()));
+        allStats.sort(String::compareToIgnoreCase);
+        filteredStats.addAll(allStats);
     }
 
     public void show(int centerX, int centerY, int parentWidth) {
@@ -71,7 +55,6 @@ public class SearchableModList {
         panelH = SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-
         if (panelX < 4) panelX = 4;
         if (panelY < 4) panelY = 4;
 
@@ -79,57 +62,45 @@ public class SearchableModList {
         this.scrollRow = 0;
         this.filter = "";
         this.searchFocused = true;
-        filteredMods.clear();
-        filteredMods.addAll(allMods);
-        updateMaxScroll();
+        setFilter("");
     }
 
-    public void hide() {
-        this.visible = false;
-    }
-
-    public boolean isVisible() {
-        return visible;
-    }
+    public void hide() { this.visible = false; }
+    public boolean isVisible() { return visible; }
 
     public void setFilter(String filter) {
         this.filter = filter.toLowerCase();
         this.scrollRow = 0;
-        filteredMods.clear();
+        filteredStats.clear();
         if (this.filter.isEmpty()) {
-            filteredMods.addAll(allMods);
+            filteredStats.addAll(allStats);
         } else {
-            for (ModEntry entry : allMods) {
-                if (entry.modId.contains(this.filter) || entry.searchName.contains(this.filter)) {
-                    filteredMods.add(entry);
-                }
+            for (String stat : allStats) {
+                if (stat.toLowerCase().contains(this.filter)) filteredStats.add(stat);
             }
         }
         updateMaxScroll();
     }
 
     private void updateMaxScroll() {
-        maxScrollRow = Math.max(0, filteredMods.size() - VISIBLE_ROWS);
+        maxScrollRow = Math.max(0, filteredStats.size() - VISIBLE_ROWS);
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         if (!visible) return;
 
-        // Panel background
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
-        // Search bar
         int searchX = panelX + PADDING;
         int searchY = panelY + PADDING;
         int searchW = panelW - PADDING * 2;
         guiGraphics.fill(searchX - 1, searchY - 1, searchX + searchW + 1, searchY + SEARCH_HEIGHT + 1, 0xFF4A4A4A);
         guiGraphics.fill(searchX, searchY, searchX + searchW, searchY + SEARCH_HEIGHT, 0xFF0D0D0D);
 
-        // Search text
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "\u00A77Search mods..." : filter;
+        String displayFilter = filter.isEmpty() ? "\u00A77Search stats..." : filter;
 
         if (allSelected && !filter.isEmpty()) {
             int textW = font.width(filter);
@@ -144,39 +115,60 @@ public class SearchableModList {
         }
         guiGraphics.pose().popPose();
 
-        // List area
         int listX = panelX + PADDING;
         int listY = searchY + SEARCH_HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
+        boolean anyRowHovered = false;
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
-                    rowHovered ? 0xFF353535 : 0xFF252525);
+            if (rowHovered) anyRowHovered = true;
+            guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT, rowHovered ? 0xFF353535 : 0xFF252525);
 
-            if (index < filteredMods.size()) {
-                ModEntry entry = filteredMods.get(index);
-                String text = entry.displayName + " \u00A77(" + entry.modId + ")";
-                if (font.width(text) > listW - 4) {
-                    text = font.plainSubstrByWidth(text, listW - 10) + "...";
+            if (index < filteredStats.size()) {
+                String text = filteredStats.get(index);
+                int textW = font.width(text);
+                int textAvailW = listW - 6;
+                int textColor = rowHovered ? 0xFFFFFF : 0xBBBBBB;
+
+                if (rowHovered && hoveredRow != index) {
+                    hoveredRow = index;
+                    hoverStartTime = System.currentTimeMillis();
                 }
-                guiGraphics.drawString(font, text, listX + 3, rowY + 4, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+
+                if (textW > textAvailW && rowHovered && hoveredRow == index) {
+                    long elapsed = System.currentTimeMillis() - hoverStartTime;
+                    if (elapsed > MARQUEE_DELAY_MS) {
+                        float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                        int maxMarquee = textW - textAvailW + 10;
+                        float cycle = (float) maxMarquee * 2;
+                        float pos = scrollProg % cycle;
+                        int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                        guiGraphics.enableScissor(listX, rowY, listX + listW, rowY + ROW_HEIGHT);
+                        guiGraphics.drawString(font, text, listX + 3 - scrollOff, rowY + 4, textColor, false);
+                        guiGraphics.disableScissor();
+                    } else {
+                        guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3, rowY + 4, textColor, false);
+                    }
+                } else if (textW > textAvailW) {
+                    guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3, rowY + 4, textColor, false);
+                } else {
+                    guiGraphics.drawString(font, text, listX + 3, rowY + 4, textColor, false);
+                }
             }
         }
+        if (!anyRowHovered) hoveredRow = -1;
 
-        // Scrollbar
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
             int scrollBarTop = listY;
             int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
-
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-
             int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
@@ -185,13 +177,10 @@ public class SearchableModList {
 
     public boolean mouseClicked(double mouseX, double mouseY) {
         if (!visible) return false;
-
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
-            hide();
-            return true;
+            hide(); return true;
         }
 
-        // Scrollbar click
         if (maxScrollRow > 0) {
             int searchY = panelY + PADDING;
             int listY = searchY + SEARCH_HEIGHT + PADDING;
@@ -205,7 +194,6 @@ public class SearchableModList {
             }
         }
 
-        // List clicks
         int searchY = panelY + PADDING;
         int listX = panelX + PADDING;
         int listY = searchY + SEARCH_HEIGHT + PADDING;
@@ -214,15 +202,14 @@ public class SearchableModList {
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
-            if (index < filteredMods.size() && mouseX >= listX && mouseX < listX + listW
+            if (index < filteredStats.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                onSelect.accept(filteredMods.get(index).modId);
+                onSelect.accept(filteredStats.get(index));
                 hide();
                 return true;
             }
         }
-
         searchFocused = true;
         return true;
     }
@@ -236,10 +223,7 @@ public class SearchableModList {
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) {
-            draggingScrollbar = false;
-            return true;
-        }
+        if (draggingScrollbar) { draggingScrollbar = false; return true; }
         return false;
     }
 
@@ -256,10 +240,10 @@ public class SearchableModList {
         }
     }
 
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         if (!visible) return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
-            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) scrollY));
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
         }
         return false;
@@ -267,36 +251,17 @@ public class SearchableModList {
 
     public boolean keyPressed(int keyCode) {
         if (!visible || !searchFocused) return false;
-
-        if (keyCode == 256) { // ESC
-            hide();
+        if (keyCode == 256) { hide(); return true; }
+        if (keyCode == 259) {
+            if (allSelected) { allSelected = false; setFilter(""); }
+            else if (!filter.isEmpty()) setFilter(filter.substring(0, filter.length() - 1));
             return true;
         }
-        if (keyCode == 259) { // BACKSPACE
-            if (allSelected) {
-                allSelected = false;
-                setFilter("");
-            } else if (!filter.isEmpty()) {
-                setFilter(filter.substring(0, filter.length() - 1));
-            }
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 65) { // Ctrl+A
-            if (!filter.isEmpty()) allSelected = true;
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 67) { // Ctrl+C
-            if (!filter.isEmpty()) {
-                Minecraft.getInstance().keyboardHandler.setClipboard(filter);
-            }
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 86) { // Ctrl+V
+        if (Screen.hasControlDown() && keyCode == 65) { if (!filter.isEmpty()) allSelected = true; return true; }
+        if (Screen.hasControlDown() && keyCode == 67) { if (!filter.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(filter); return true; }
+        if (Screen.hasControlDown() && keyCode == 86) {
             String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
-            if (clipboard != null && !clipboard.isEmpty()) {
-                setFilter(allSelected ? clipboard : filter + clipboard);
-                allSelected = false;
-            }
+            if (clipboard != null && !clipboard.isEmpty()) { setFilter(allSelected ? clipboard : filter + clipboard); allSelected = false; }
             return true;
         }
         return false;
@@ -304,23 +269,11 @@ public class SearchableModList {
 
     public boolean charTyped(char c) {
         if (!visible || !searchFocused) return false;
-        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == ' ' || c == '.') {
+        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':' || c == ' ') {
             setFilter(allSelected ? String.valueOf(c) : filter + c);
             allSelected = false;
             return true;
         }
         return false;
     }
-
-    /**
-     * Returns the display name for a given mod ID, or the mod ID itself if not found.
-     */
-    public String getDisplayName(String modId) {
-        for (ModEntry entry : allMods) {
-            if (entry.modId.equals(modId)) return entry.displayName;
-        }
-        return modId;
-    }
-
-    private record ModEntry(String modId, String displayName, String searchName) {}
 }

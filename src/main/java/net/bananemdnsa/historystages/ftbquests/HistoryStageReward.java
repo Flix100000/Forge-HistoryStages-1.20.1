@@ -116,7 +116,8 @@ public class HistoryStageReward extends Reward {
                         "history reload"
                 );
             }
-            broadcastUnlockEffects(player, displayName);
+            String iconId = (entry != null && !entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
+        broadcastUnlockEffects(player, displayName, iconId);
         }
 
         PacketHandler.sendToAll(new SyncStagesPacket(data.getUnlockedStages()));
@@ -176,7 +177,10 @@ public class HistoryStageReward extends Reward {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
             if (Config.COMMON.individualUseToasts.get()) {
-                PacketHandler.sendToastToPlayer(new StageUnlockedToastPacket(displayName), player);
+                var indEntry = StageManager.getIndividualStages().get(stage);
+                String indIconId = (indEntry != null && !indEntry.getIcon().isEmpty())
+                        ? indEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                PacketHandler.sendToastToPlayer(new StageUnlockedToastPacket(displayName, indIconId), player);
             }
         }
 
@@ -188,7 +192,7 @@ public class HistoryStageReward extends Reward {
         // No recipe reload needed for individual stages
     }
 
-    private void broadcastUnlockEffects(ServerPlayer source, String stageName) {
+    private void broadcastUnlockEffects(ServerPlayer source, String stageName, String iconId) {
         String configChat = Config.COMMON.unlockMessageFormat.get();
         String finalChat = configChat.replace("{stage}", stageName).replace("&", "\u00a7");
 
@@ -211,7 +215,7 @@ public class HistoryStageReward extends Reward {
         });
 
         if (Config.COMMON.useToasts.get()) {
-            PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName));
+            PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName, iconId));
         }
     }
 

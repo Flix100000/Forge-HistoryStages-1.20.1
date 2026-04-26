@@ -54,6 +54,10 @@ public class HistoryStages {
     public static final String MOD_ID = "historystages";
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    public static net.minecraft.resources.ResourceLocation location(String path) {
+        return net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    }
+
     public HistoryStages(IEventBus modEventBus, ModContainer modContainer) {
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
@@ -151,6 +155,11 @@ public class HistoryStages {
                     new SyncIndividualStagesPacket(individualData.getUnlockedStages(player.getUUID())),
                     player
             );
+
+            // Sync structure registry so editor UI can populate the searchable list
+            PacketHandler.sendStructureRegistryToPlayer(
+                    net.bananemdnsa.historystages.network.SyncStructureRegistryPacket.fromServer(player),
+                    player);
 
             DebugLogger.runtime("Player Login", player.getName().getString(),
                     "Synced " + StageManager.getStages().size() + " stage definitions, "

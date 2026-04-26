@@ -65,10 +65,18 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("useActionbar", Config.COMMON.useActionbar.get().toString());
         values.put("useSounds", Config.COMMON.useSounds.get().toString());
         values.put("useToasts", Config.COMMON.useToasts.get().toString());
+        values.put("defaultStageIcon", Config.COMMON.defaultStageIcon.get());
         values.put("researchTimeInSeconds", Config.COMMON.researchTimeInSeconds.get().toString());
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         values.put("replacementTags", Config.COMMON.replacementTags.get().stream().map(Object::toString).collect(Collectors.joining(",")));
+        values.put("structureCheckInterval", Config.COMMON.structureCheckInterval.get().toString());
+        values.put("structureDamageEnabled", Config.COMMON.structureDamageEnabled.get().toString());
+        values.put("structureDamageAmount", Config.COMMON.structureDamageAmount.get().toString());
+        values.put("structureDamageInterval", Config.COMMON.structureDamageInterval.get().toString());
+        values.put("structureMessageEnabled", Config.COMMON.structureMessageEnabled.get().toString());
+        values.put("structureLockMessageFormat", Config.COMMON.structureLockMessageFormat.get());
+        values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
         return new SyncConfigPacket(values);
     }
 

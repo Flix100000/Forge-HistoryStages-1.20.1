@@ -207,10 +207,12 @@ public class StageOverviewScreen extends Screen {
             if (entryBottom < listTop || entryTop > listBottom) { continue; }
 
             // Lock button bounds (calculated early for hover exclusion)
-            int lockBtnX = listRight - 60;
-            int lockBtnY = entryTop + 5;
-            int lockBtnW = 50;
+            boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
+            String lockLabel = Component.translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
+            int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
+            int lockBtnX = listRight - lockBtnW - 10;
             int lockBtnH = 16;
+            int lockBtnY = entryTop + 5;
             boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
                     && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
 
@@ -244,7 +246,6 @@ public class StageOverviewScreen extends Screen {
             }
 
             // Lock/unlock icon
-            boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
             String icon = unlocked ? "\u2714" : "\uD83D\uDD12";
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
@@ -253,7 +254,7 @@ public class StageOverviewScreen extends Screen {
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
             int nameX = listLeft + 22;
-            int nameAvailW = (listRight - 60) - nameX - 5; // account for lock button
+            int nameAvailW = (listRight - lockBtnW - 10) - nameX - 5; // account for lock button
             int nameW = this.font.width(displayText);
 
             if (nameW > nameAvailW && hovered && i == hoveredStageIndex) {
@@ -276,11 +277,15 @@ public class StageOverviewScreen extends Screen {
 
             // Item count info
             int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                    + entry.getRecipes().size() + entry.getDimensions().size()
+                    + entry.getRecipes().size() + entry.getDimensions().size() + entry.getStructures().size()
                     + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
             guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+            if (entry.hasDependencies()) {
+                int depBadgeX = listLeft + 22 + this.font.width(info) + 6;
+                guiGraphics.drawString(this.font, "\u00A76[Dep]", depBadgeX, entryTop + 15, 0xFFAA55, false);
+            }
 
             // Lock/Unlock toggle button (right side) - bounds already calculated above
             boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
@@ -291,7 +296,6 @@ public class StageOverviewScreen extends Screen {
             int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
             guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
 
-            String lockLabel = Component.translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
             int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
             int textW = this.font.width(lockLabel);
             guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor, false);
@@ -381,7 +385,7 @@ public class StageOverviewScreen extends Screen {
 
                 // Item count info
                 int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                        + entry.getDimensions().size()
+                        + entry.getDimensions().size() + entry.getStructures().size()
                         + entry.getEntities().getAttacklock().size();
                 String info = itemCount + " entries";
                 int infoColor = (int) (0x88 + progress * 0x33);
@@ -457,9 +461,11 @@ public class StageOverviewScreen extends Screen {
             if (mouseY >= entryTop && mouseY <= entryBottom) {
                 // Check lock/unlock button click
                 boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
-                int lockBtnX = listRight - 60;
+                String lockLabelClick = Component.translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
+                int lockBtnWClick = Math.max(50, this.font.width(lockLabelClick) + 12);
+                int lockBtnX = listRight - lockBtnWClick - 10;
                 int lockBtnY = entryTop + 5;
-                if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + 50
+                if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + lockBtnWClick
                         && mouseY >= lockBtnY && mouseY <= lockBtnY + 16) {
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     PacketHandler.sendToServer(new ToggleStageLockPacket(stageId, !unlocked));
@@ -565,10 +571,16 @@ public class StageOverviewScreen extends Screen {
     }
 
     private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
-        int scrollAreaHeight = listBottom - listTop;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
-        scrollOffset = Math.round(ratio * maxScroll);
-        scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        int listH = listBottom - listTop;
+        int totalH = maxScroll + listH;
+        int thumbHeight = Math.max(20, (int) ((float) listH / totalH * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listTop - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollOffset = Math.round(ratio * maxScroll);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        }
     }
 
     @Override public boolean shouldCloseOnEsc() { return true; }

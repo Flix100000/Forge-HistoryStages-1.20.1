@@ -78,6 +78,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));
                 case "useSounds" -> Config.COMMON.useSounds.set(Boolean.parseBoolean(value));
                 case "useToasts" -> Config.COMMON.useToasts.set(Boolean.parseBoolean(value));
+                case "defaultStageIcon" -> Config.COMMON.defaultStageIcon.set(value);
                 case "researchTimeInSeconds" -> {
                     try { Config.COMMON.researchTimeInSeconds.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
                 }
@@ -96,6 +97,19 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                             .collect(Collectors.toList());
                     Config.COMMON.replacementTags.set(tagList);
                 }
+                case "structureCheckInterval" -> {
+                    try { Config.COMMON.structureCheckInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "structureDamageEnabled" -> Config.COMMON.structureDamageEnabled.set(Boolean.parseBoolean(value));
+                case "structureDamageAmount" -> {
+                    try { Config.COMMON.structureDamageAmount.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "structureDamageInterval" -> {
+                    try { Config.COMMON.structureDamageInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "structureMessageEnabled" -> Config.COMMON.structureMessageEnabled.set(Boolean.parseBoolean(value));
+                case "structureLockMessageFormat" -> Config.COMMON.structureLockMessageFormat.set(value);
+                case "structureLockInChat" -> Config.COMMON.structureLockInChat.set(Boolean.parseBoolean(value));
             }
         }
     }

@@ -50,10 +50,6 @@ public record SyncStagesPacket(List<String> unlockedStages) implements CustomPac
                         mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
                     }
 
-                    if (net.neoforged.fml.ModList.get().isLoaded("jei")) {
-                        ExternalMods.refreshJEI();
-                    }
-
                     if (net.neoforged.fml.ModList.get().isLoaded("emi")) {
                         ExternalMods.refreshEMI();
                     }
@@ -72,12 +68,6 @@ public record SyncStagesPacket(List<String> unlockedStages) implements CustomPac
     }
 
     private static class ExternalMods {
-        private static void refreshJEI() {
-            try {
-                net.bananemdnsa.historystages.jei.JEIPlugin.refreshJei();
-            } catch (Throwable ignored) {}
-        }
-
         private static void refreshEMI() {
             try {
                 String currentSearch = dev.emi.emi.api.EmiApi.getSearchText();

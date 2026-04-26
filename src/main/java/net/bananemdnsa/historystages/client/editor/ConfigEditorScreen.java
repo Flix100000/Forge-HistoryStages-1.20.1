@@ -124,9 +124,6 @@ public class ConfigEditorScreen extends Screen {
         clientSections = new ArrayList<>();
 
         ConfigSection visuals = new ConfigSection("editor.historystages.config.visuals");
-        visuals.add(new ConfigEntry("hideInJei", ConfigType.BOOLEAN,
-                Config.CLIENT.hideInJei.get().toString(), true, "false",
-                "Hide locked items from JEI? (Only works with JEI!)"));
         visuals.add(new ConfigEntry("showTooltips", ConfigType.BOOLEAN,
                 Config.CLIENT.showTooltips.get().toString(), true, "true",
                 "Show information tooltips on locked items?"));
@@ -186,6 +183,15 @@ public class ConfigEditorScreen extends Screen {
                 "If mobShowChat is true, should the required stages also be listed?"));
         clientSections.add(mobLock);
 
+        ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
+        dependenciesClient.add(new ConfigEntry("showDependenciesOnScroll", ConfigType.BOOLEAN,
+                Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true",
+                "Show dependency requirements in research scroll tooltips?"));
+        dependenciesClient.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
+                Config.CLIENT.hideFulfilledDependencies.get().toString(), true, "false",
+                "Hide already fulfilled dependencies in scroll tooltips?"));
+        clientSections.add(dependenciesClient);
+
         // --- COMMON CONFIG ---
         commonSections = new ArrayList<>();
 
@@ -239,6 +245,9 @@ public class ConfigEditorScreen extends Screen {
         notifications.add(new ConfigEntry("useToasts", ConfigType.BOOLEAN,
                 Config.COMMON.useToasts.get().toString(), false, "true",
                 "Show an advancement-style toast popup when a stage is unlocked?"));
+        notifications.add(new ConfigEntry("defaultStageIcon", ConfigType.ITEM,
+                Config.COMMON.defaultStageIcon.get(), false, "historystages:research_scroll",
+                "Default icon item shown in unlock toasts when a stage has no icon set."));
         commonSections.add(notifications);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
@@ -282,6 +291,9 @@ public class ConfigEditorScreen extends Screen {
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
                 Config.COMMON.researchTimeInSeconds.get().toString(), false, "20",
                 "Default research time in seconds. Used as fallback if a stage does not define its own."));
+        research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
+                Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
+                "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
         commonSections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");
@@ -296,6 +308,31 @@ public class ConfigEditorScreen extends Screen {
                 String.join(",", Config.COMMON.replacementTags.get()), false, "",
                 "List of tags to pick a random replacement from (Priority 2). Click to manage."));
         commonSections.add(lootReplace);
+
+        ConfigSection structureLock = new ConfigSection("editor.historystages.config.structure_lock");
+        structureLock.add(new ConfigEntry("structureCheckInterval", ConfigType.INTEGER,
+                Config.COMMON.structureCheckInterval.get().toString(), false, "10",
+                "How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction."));
+        structureLock.add(new ConfigEntry("structureMessageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.structureMessageEnabled.get().toString(), false, "true",
+                "Show the player a message when they are inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureLockMessageFormat", ConfigType.STRING,
+                Config.COMMON.structureLockMessageFormat.get(), false,
+                "&cYou cannot enter &e{structure}&c yet!",
+                "Message format for structure lock. Use {structure} for the ID, {stage} for the required stage, and & for colors."));
+        structureLock.add(new ConfigEntry("structureLockInChat", ConfigType.BOOLEAN,
+                Config.COMMON.structureLockInChat.get().toString(), false, "false",
+                "Show the structure lock message in chat as well (otherwise only actionbar)?"));
+        structureLock.add(new ConfigEntry("structureDamageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.structureDamageEnabled.get().toString(), false, "false",
+                "Damage the player while they are inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureDamageAmount", ConfigType.STRING,
+                Config.COMMON.structureDamageAmount.get().toString(), false, "1.0",
+                "Amount of damage dealt per damage tick (0.1-100.0)."));
+        structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
+                Config.COMMON.structureDamageInterval.get().toString(), false, "20",
+                "How often (in ticks) to deal damage while inside a locked structure."));
+        commonSections.add(structureLock);
     }
 
     private void resetToDefaults() {
@@ -451,6 +488,12 @@ public class ConfigEditorScreen extends Screen {
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
+        // Item picker overlay (single-item selector for ITEM entries)
+        if (itemPickerOverlay != null) {
+            guiGraphics.fill(0, 0, this.width, this.height, 0x80000000);
+            itemPickerOverlay.render(guiGraphics, this.font, mouseX, mouseY);
+        }
+
         // Tooltip rendering (after everything else, including super)
         if (currentHovered != null) {
             if (!currentHovered.equals(hoveredEntryKey)) {
@@ -564,6 +607,18 @@ public class ConfigEditorScreen extends Screen {
                 guiGraphics.drawString(this.font, display, controlX, y + 8,
                         listHovered ? 0xFFCC00 : 0xDDDDDD, false);
             }
+            case ITEM -> {
+                // Render a 16x16 item icon + the item ID text
+                ItemStack preview = resolveItemStack(entry.value);
+                if (!preview.isEmpty()) {
+                    guiGraphics.renderItem(preview, controlX, y + 3);
+                }
+                String itemDisplay = entry.value.isEmpty() ? "\u00A77(none)" : entry.value;
+                boolean itemHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                guiGraphics.drawString(this.font, itemDisplay, controlX + 18, y + 8,
+                        itemHovered ? 0xFFCC00 : 0xDDDDDD, false);
+            }
         }
     }
 
@@ -577,6 +632,14 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Item picker overlay
+        if (itemPickerOverlay != null) {
+            if (itemPickerOverlay.mouseClicked(mouseX, mouseY)) return true;
+            itemPickerOverlay = null;
+            pickingItemEntry = null;
+            return true;
+        }
+
         // Check tab clicks
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
@@ -632,6 +695,10 @@ public class ConfigEditorScreen extends Screen {
         return false;
     }
 
+    // Item picker overlay for single ITEM config entries (e.g. defaultStageIcon)
+    private SearchableItemList itemPickerOverlay;
+    private ConfigEntry pickingItemEntry;
+
     // Item list overlay for ITEM_LIST config entries
     private SearchableItemList itemListOverlay;
     private ConfigEntry editingItemListEntry;
@@ -647,12 +714,33 @@ public class ConfigEditorScreen extends Screen {
             case STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry, false));
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
+            case ITEM -> openItemPicker(entry);
         }
+    }
+
+    private void openItemPicker(ConfigEntry entry) {
+        pickingItemEntry = entry;
+        itemPickerOverlay = new SearchableItemList(itemId -> {
+            entry.value = itemId;
+            itemPickerOverlay = null;
+            pickingItemEntry = null;
+        });
+        itemPickerOverlay.show(this.width / 2, this.height / 2, this.width);
+    }
+
+    private ItemStack resolveItemStack(String id) {
+        if (id == null || id.isEmpty()) return ItemStack.EMPTY;
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return ItemStack.EMPTY;
+        Item item = BuiltInRegistries.ITEM.get(rl);
+        if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
+        return new ItemStack(item);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-            double delta = scrollY;
+        if (itemPickerOverlay != null) return itemPickerOverlay.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        double delta = scrollY;
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
         return true;
     }
@@ -683,11 +771,21 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (itemPickerOverlay != null) {
+            if (keyCode == 256) { itemPickerOverlay = null; pickingItemEntry = null; return true; }
+            return itemPickerOverlay.keyPressed(keyCode);
+        }
         if (keyCode == 256) { // ESC
             tryClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char c, int modifiers) {
+        if (itemPickerOverlay != null) return itemPickerOverlay.charTyped(c);
+        return super.charTyped(c, modifiers);
     }
 
     @Override
@@ -743,7 +841,6 @@ public class ConfigEditorScreen extends Screen {
             String key = e.getKey();
             String value = e.getValue();
             switch (key) {
-                case "hideInJei" -> Config.CLIENT.hideInJei.set(Boolean.parseBoolean(value));
                 case "showTooltips" -> Config.CLIENT.showTooltips.set(Boolean.parseBoolean(value));
                 case "showStageName" -> Config.CLIENT.showStageName.set(Boolean.parseBoolean(value));
                 case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));
@@ -776,7 +873,7 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST
+        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM
     }
 
     static class ConfigEntry {

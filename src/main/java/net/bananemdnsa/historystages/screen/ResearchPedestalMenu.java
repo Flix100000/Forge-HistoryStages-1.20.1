@@ -3,14 +3,20 @@ package net.bananemdnsa.historystages.screen;
 import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModMenuTypes;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.items.SlotItemHandler;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.UUID;
 
 public class ResearchPedestalMenu extends AbstractContainerMenu {
     private final ResearchPedestalBlockEntity blockEntity;
@@ -19,7 +25,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
-        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()), new SimpleContainerData(4));
+        // WICHTIG: Hier muss eine 6 stehen, damit Platz für alle Daten ist!
+        this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()),
+                new SimpleContainerData(6));
     }
 
     // Server-Konstruktor
@@ -33,14 +41,58 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         addPlayerInventory(inv);
         addPlayerHotbar(inv);
 
-        // Slot-Koordinaten für das Buch
-        int slotX = 26;
-        int slotY = 35;
+        // Internal Slot 0: Scroll
+        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 0, 26, 35));
 
-        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 0, slotX, slotY));
+        // Internal Slot 1: Deposit (Inside the dependency panel)
+        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 1, 246, 142) {
+            @Override
+            public boolean mayPlace(@NotNull ItemStack stack) {
+                if (ResearchPedestalMenu.this.blockEntity == null)
+                    return false;
 
-        // Synchronisiert die Daten (Progress, Max, Delay) zwischen Server und Client
+                // Read stage info from the scroll
+                ItemStack scroll = ResearchPedestalMenu.this.blockEntity.getScrollStack();
+                if (scroll.isEmpty())
+                    return false;
+                CompoundTag scrollTag = scroll.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+                if (!scrollTag.contains("StageResearch"))
+                    return false;
+                String stageId = scrollTag.getString("StageResearch");
+
+                // Block placement if the stage is already unlocked
+                if (ResearchPedestalMenu.this.blockEntity.isCurrentScrollIndividual()) {
+                    UUID owner = scrollTag.hasUUID("OwnerUUID") ? scrollTag.getUUID("OwnerUUID") : null;
+                    if (owner != null
+                            && net.bananemdnsa.historystages.util.IndividualStageData.hasStageCached(owner, stageId)) {
+                        return false;
+                    }
+                } else {
+                    if (net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId)) {
+                        return false;
+                    }
+                }
+
+                return super.mayPlace(stack);
+            }
+
+            @Override
+            public boolean isActive() {
+                return ResearchPedestalMenu.this.blockEntity != null
+                        && ResearchPedestalMenu.this.blockEntity.hasScrollWithDependencies();
+            }
+        });
+
+        // Synchronisiert die Daten (Progress, Max, Delay, IndividualMode, DepsMet, DepositDelay)
         addDataSlots(data);
+    }
+
+    public ResearchPedestalBlockEntity getBlockEntity() {
+        return this.blockEntity;
+    }
+
+    public net.minecraft.core.BlockPos getBlockPos() {
+        return this.blockEntity.getBlockPos();
     }
 
     public int getScaledProgress() {
@@ -53,7 +105,8 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player pPlayer) {
-        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer, ModBlocks.RESEARCH_PEDESTAL.get());
+        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer,
+                ModBlocks.RESEARCH_PEDESTAL.get());
     }
 
     private void addPlayerInventory(Inventory playerInventory) {
@@ -77,16 +130,19 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
             ItemStack stack = slot.getItem();
             ItemStack copy = stack.copy();
 
-            // Wenn das Item aus dem Inventar kommt (0-35)
+            // If item comes from player inventory/hotbar (0-35)
             if (index < 36) {
-                // Versuche es in den Maschinen-Slot (36) zu schieben
-                if (!this.moveItemStackTo(stack, 36, 37, false)) {
+                // First try scroll slot, then deposit slot
+                if (this.moveItemStackTo(stack, 36, 37, false)) {
+                    // moved to scroll slot
+                } else if (this.moveItemStackTo(stack, 37, 38, false)) {
+                    // moved to deposit slot
+                } else {
                     return ItemStack.EMPTY;
                 }
             }
-            // Wenn das Item aus der Maschine kommt (36)
+            // If item comes from pedestal slots (36-37)
             else {
-                // Versuche es ins Inventar zu schieben (0-35)
                 if (!this.moveItemStackTo(stack, 0, 36, false)) {
                     return ItemStack.EMPTY;
                 }
@@ -103,11 +159,15 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     }
 
     public boolean isCrafting() {
-        // Wir zeigen den Balken auch an, wenn wir im finishDelay (data Index 2) sind!
+        // Show bar even when in finishDelay (data index 2)
         return data.get(0) > 0 || data.get(2) > 0;
     }
 
     public boolean isIndividualMode() {
         return data.get(3) == 1;
+    }
+
+    public boolean areDependenciesMet() {
+        return data.get(4) == 1;
     }
 }

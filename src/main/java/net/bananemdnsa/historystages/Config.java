@@ -9,7 +9,6 @@ public class Config {
 
     // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
     public static class Client {
-        public final ModConfigSpec.BooleanValue hideInJei;
         public final ModConfigSpec.BooleanValue showTooltips;
         public final ModConfigSpec.BooleanValue showStageName;
         public final ModConfigSpec.BooleanValue showAllUntilComplete;
@@ -40,10 +39,6 @@ public class Config {
                     "",
                     "Visual and UI settings (Individual for each player)")
                     .push("visuals");
-
-            hideInJei = builder
-                    .comment("Hide locked items from JEI? (Only works with JEI!) [Default: false]")
-                    .define("hideInJei", false);
 
             showTooltips = builder
                     .comment("Show information tooltips on locked items? [Default: true]")
@@ -158,6 +153,7 @@ public class Config {
         public final ModConfigSpec.BooleanValue useActionbar;
         public final ModConfigSpec.BooleanValue useSounds;
         public final ModConfigSpec.BooleanValue useToasts;
+        public final ModConfigSpec.ConfigValue<String> defaultStageIcon;
 
         // Forschungsstation
         public final ModConfigSpec.IntValue researchTimeInSeconds;
@@ -183,6 +179,15 @@ public class Config {
         public final ModConfigSpec.BooleanValue individualUseActionbar;
         public final ModConfigSpec.BooleanValue individualUseSounds;
         public final ModConfigSpec.BooleanValue individualUseToasts;
+
+        // Structure Lock
+        public final ModConfigSpec.IntValue structureCheckInterval;
+        public final ModConfigSpec.BooleanValue structureDamageEnabled;
+        public final ModConfigSpec.DoubleValue structureDamageAmount;
+        public final ModConfigSpec.IntValue structureDamageInterval;
+        public final ModConfigSpec.BooleanValue structureMessageEnabled;
+        public final ModConfigSpec.ConfigValue<String> structureLockMessageFormat;
+        public final ModConfigSpec.BooleanValue structureLockInChat;
 
         public Common(ModConfigSpec.Builder builder) {
             builder.comment(
@@ -264,6 +269,10 @@ public class Config {
             useToasts = builder
                     .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
                     .define("useToasts", true);
+
+            defaultStageIcon = builder
+                    .comment("Default icon item shown in unlock toasts when a stage has no icon set. Use the item's full registry ID. [Default: historystages:research_scroll]")
+                    .define("defaultStageIcon", "historystages:research_scroll");
 
             builder.pop(); // notifications
 
@@ -347,6 +356,39 @@ public class Config {
                     .define("useToasts", true);
 
             builder.pop(); // individual_stages
+
+            // --- STRUCTURE LOCK SECTION ---
+            builder.comment("Structure Lock Settings (locks player entry into specified structures)").push("structure_lock");
+
+            structureCheckInterval = builder
+                    .comment("How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction. [Default: 10]")
+                    .defineInRange("checkInterval", 10, 1, 200);
+
+            structureMessageEnabled = builder
+                    .comment("Show the player a message when they are inside a locked structure? [Default: true]")
+                    .define("messageEnabled", true);
+
+            structureLockMessageFormat = builder
+                    .comment("Message format for structure lock. Use {structure} for the structure ID, {stage} for the required stage, and & for colors.")
+                    .define("messageFormat", "&cYou cannot enter &e{structure}&c yet!");
+
+            structureLockInChat = builder
+                    .comment("Show the structure lock message in chat as well (otherwise only actionbar)? [Default: false]")
+                    .define("showInChat", false);
+
+            structureDamageEnabled = builder
+                    .comment("Damage the player while they are inside a locked structure? [Default: false]")
+                    .define("damageEnabled", false);
+
+            structureDamageAmount = builder
+                    .comment("Amount of damage dealt per damage tick. [Default: 1.0]")
+                    .defineInRange("damageAmount", 1.0, 0.1, 100.0);
+
+            structureDamageInterval = builder
+                    .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
+                    .defineInRange("damageInterval", 20, 1, 600);
+
+            builder.pop(); // structure_lock
         }
     }
 

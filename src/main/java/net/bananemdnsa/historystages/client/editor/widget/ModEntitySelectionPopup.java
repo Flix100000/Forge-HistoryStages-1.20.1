@@ -643,9 +643,15 @@ public class ModEntitySelectionPopup {
 
     private void updateScrollFromMouse(double mouseY, int listY, int visibleRows) {
         int listH = visibleRows * ROW_HEIGHT;
-        float ratio = (float) Math.max(0, Math.min(1, (mouseY - listY) / (double) listH));
-        scrollRow = Math.round(ratio * maxScrollRow);
-        scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        int totalRows = maxScrollRow + visibleRows;
+        int thumbHeight = Math.max(10, (int) ((float) visibleRows / totalRows * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listY - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollRow = Math.round(ratio * maxScrollRow);
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
+        }
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {

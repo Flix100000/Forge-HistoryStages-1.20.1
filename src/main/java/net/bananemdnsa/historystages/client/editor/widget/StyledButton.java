@@ -18,7 +18,7 @@ public class StyledButton extends Button {
 
     @Override
     public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        boolean hovered = this.isHoveredOrFocused();
+        boolean hovered = this.isHovered();
 
         // Smooth hover transition
         if (hovered) {

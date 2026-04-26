@@ -15,8 +15,9 @@ import net.neoforged.fml.ModList;
 import java.util.List;
 
 public class LockDecorator implements IItemDecorator {
-    private static final ResourceLocation LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay.png");
-    private static final ResourceLocation SILVER_LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay_silver.png");
+    private static final ResourceLocation LOCK_ICON            = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay_global.png");
+    private static final ResourceLocation SILVER_LOCK_ICON     = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay_individual.png");
+    private static final ResourceLocation DUAL_PHASE_LOCK_ICON = ResourceLocation.fromNamespaceAndPath("historystages", "textures/gui/lock_overlay_dual.png");
 
     private static final boolean IS_EMI_INSTALLED = ModList.get().isLoaded("emi");
 
@@ -30,11 +31,14 @@ public class LockDecorator implements IItemDecorator {
             return false;
         }
 
-        boolean globallyLocked = isGloballyLocked(stack);
+        boolean globallyLocked     = isGloballyLocked(stack);
+        boolean dualPhaseGlobal    = globallyLocked && StageLockHelper.isDualPhaseGloballyLockedClient(stack);
         boolean individuallyLocked = !globallyLocked && Config.CLIENT.showSilverLockIcons.get() && isIndividuallyLocked(stack);
 
         if (globallyLocked || individuallyLocked) {
-            ResourceLocation icon = individuallyLocked ? SILVER_LOCK_ICON : LOCK_ICON;
+            ResourceLocation icon = dualPhaseGlobal ? DUAL_PHASE_LOCK_ICON
+                                  : individuallyLocked ? SILVER_LOCK_ICON
+                                  : LOCK_ICON;
 
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(xOffset, yOffset, 250);
