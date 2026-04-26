@@ -56,9 +56,9 @@ public class DimensionLockHandler {
             DebugLogger.runtime("Dimension Lock", player.getName().getString(),
                     "Blocked travel to '" + dimId + "' — missing stages: " + lockedStages);
 
-            if (Config.CLIENT.dimShowChat.get()) {
+            if (Config.COMMON.dimShowChat.get()) {
                 MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
-                if (Config.CLIENT.dimShowStagesInChat.get()) {
+                if (Config.COMMON.dimShowStagesInChat.get()) {
                     for (String stageId : lockedStages) {
                         StageEntry stageEntry = StageManager.getStages().get(stageId);
                         if (stageEntry == null) {
@@ -71,7 +71,7 @@ public class DimensionLockHandler {
                 player.sendSystemMessage(chatMsg);
             }
 
-            if (Config.CLIENT.dimUseActionbar.get()) {
+            if (Config.COMMON.dimUseActionbar.get()) {
                 player.displayClientMessage(
                         Component.translatable("message.historystages.dimension_unknown")
                                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),

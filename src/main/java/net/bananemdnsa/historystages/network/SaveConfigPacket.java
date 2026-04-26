@@ -76,6 +76,12 @@ public class SaveConfigPacket {
                 case "lockItemUsage" -> Config.COMMON.lockItemUsage.set(Boolean.parseBoolean(value));
                 case "lockEntityItems" -> Config.COMMON.lockEntityItems.set(Boolean.parseBoolean(value));
                 case "lockBlockInteraction" -> Config.COMMON.lockBlockInteraction.set(Boolean.parseBoolean(value));
+                case "dimUseActionbar" -> Config.COMMON.dimUseActionbar.set(Boolean.parseBoolean(value));
+                case "dimShowChat" -> Config.COMMON.dimShowChat.set(Boolean.parseBoolean(value));
+                case "dimShowStagesInChat" -> Config.COMMON.dimShowStagesInChat.set(Boolean.parseBoolean(value));
+                case "mobUseActionbar" -> Config.COMMON.mobUseActionbar.set(Boolean.parseBoolean(value));
+                case "mobShowChat" -> Config.COMMON.mobShowChat.set(Boolean.parseBoolean(value));
+                case "mobShowStagesInChat" -> Config.COMMON.mobShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "broadcastChat" -> Config.COMMON.broadcastChat.set(Boolean.parseBoolean(value));
                 case "unlockMessageFormat" -> Config.COMMON.unlockMessageFormat.set(value);
                 case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));

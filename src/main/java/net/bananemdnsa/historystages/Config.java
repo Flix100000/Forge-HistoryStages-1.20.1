@@ -19,13 +19,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue jadeStageName;
         public final ForgeConfigSpec.BooleanValue jadeShowAllUntilComplete;
 
-        public final ForgeConfigSpec.BooleanValue dimUseActionbar;
-        public final ForgeConfigSpec.BooleanValue dimShowChat;
-        public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
         public final ForgeConfigSpec.BooleanValue showLockIcons;
-        public final ForgeConfigSpec.BooleanValue mobUseActionbar;
-        public final ForgeConfigSpec.BooleanValue mobShowChat;
-        public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
         // Individual Stages
         public final ForgeConfigSpec.BooleanValue showSilverLockIcons;
@@ -73,37 +67,6 @@ public class Config {
 
             builder.pop();
 
-            builder.comment("Settings for dimension access feedback").push("dimension_lock");
-
-            dimUseActionbar = builder
-                    .comment("Show a simple 'Dimension Locked' message in the actionbar? [Default: true]?")
-                    .define("useActionbar", true);
-
-            dimShowChat = builder
-                    .comment("Show the dimension lock message in the chat? [Default: false]")
-                    .define("showInChat", false);
-
-            dimShowStagesInChat = builder
-                    .comment("If dimShowChat is true, should the required stages also be listed? [Default: true]")
-                    .define("showStagesInChat", true);
-
-            builder.pop();
-
-            builder.comment("Settings for mob damage lock feedback").push("mob_lock");
-
-            mobUseActionbar = builder
-                    .comment("Show a 'Mob Protected' message in the actionbar? [Default: true]")
-                    .define("useActionbar", true);
-
-            mobShowChat = builder
-                    .comment("Show the mob lock message in the chat? [Default: false]")
-                    .define("showInChat", false);
-
-            mobShowStagesInChat = builder
-                    .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
-                    .define("showStagesInChat", true);
-            builder.pop();
-
             builder.comment("Individual Stage Visual Settings").push("individual_stages");
 
             showSilverLockIcons = builder
@@ -147,6 +110,12 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue lockBlockInteraction;
         public final ForgeConfigSpec.BooleanValue lockContainerInteraction;
         public final ForgeConfigSpec.BooleanValue lockEnchanting;
+        public final ForgeConfigSpec.BooleanValue dimUseActionbar;
+        public final ForgeConfigSpec.BooleanValue dimShowChat;
+        public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
+        public final ForgeConfigSpec.BooleanValue mobUseActionbar;
+        public final ForgeConfigSpec.BooleanValue mobShowChat;
+        public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
 
         // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
         public final ForgeConfigSpec.BooleanValue broadcastChat;
@@ -247,6 +216,37 @@ public class Config {
                     .define("lockEnchanting", true);
 
             builder.pop(); // gameplay
+
+            builder.comment("Settings for dimension access feedback").push("dimension_lock");
+
+            dimUseActionbar = builder
+                    .comment("Show a simple 'Dimension Locked' message in the actionbar? [Default: true]?")
+                    .define("useActionbar", true);
+
+            dimShowChat = builder
+                    .comment("Show the dimension lock message in the chat? [Default: false]")
+                    .define("showInChat", false);
+
+            dimShowStagesInChat = builder
+                    .comment("If dimShowChat is true, should the required stages also be listed? [Default: true]")
+                    .define("showStagesInChat", true);
+
+            builder.pop();
+
+            builder.comment("Settings for mob damage lock feedback").push("mob_lock");
+
+            mobUseActionbar = builder
+                    .comment("Show a 'Mob Protected' message in the actionbar? [Default: true]")
+                    .define("useActionbar", true);
+
+            mobShowChat = builder
+                    .comment("Show the mob lock message in the chat? [Default: false]")
+                    .define("showInChat", false);
+
+            mobShowStagesInChat = builder
+                    .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
+                    .define("showStagesInChat", true);
+            builder.pop();
 
             // --- NOTIFICATIONS SECTION ---
             builder.comment("Global Notification Settings (Server-controlled)").push("notifications");

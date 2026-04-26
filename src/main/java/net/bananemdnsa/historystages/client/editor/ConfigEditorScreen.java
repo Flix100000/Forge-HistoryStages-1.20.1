@@ -169,30 +169,6 @@ public class ConfigEditorScreen extends Screen {
                 "Hide already fulfilled dependencies in scroll tooltips?"));
         clientSections.add(dependenciesClient);
 
-        ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
-        dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
-                Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
-                "Show a simple 'Dimension Locked' message in the actionbar?"));
-        dimLock.add(new ConfigEntry("dimShowChat", ConfigType.BOOLEAN,
-                Config.CLIENT.dimShowChat.get().toString(), true, "false",
-                "Show the dimension lock message in the chat?"));
-        dimLock.add(new ConfigEntry("dimShowStagesInChat", ConfigType.BOOLEAN,
-                Config.CLIENT.dimShowStagesInChat.get().toString(), true, "true",
-                "If dimShowChat is true, should the required stages also be listed?"));
-        clientSections.add(dimLock);
-
-        ConfigSection mobLock = new ConfigSection("editor.historystages.config.mob_lock");
-        mobLock.add(new ConfigEntry("mobUseActionbar", ConfigType.BOOLEAN,
-                Config.CLIENT.mobUseActionbar.get().toString(), true, "true",
-                "Show a 'Mob Protected' message in the actionbar?"));
-        mobLock.add(new ConfigEntry("mobShowChat", ConfigType.BOOLEAN,
-                Config.CLIENT.mobShowChat.get().toString(), true, "false",
-                "Show the mob lock message in the chat?"));
-        mobLock.add(new ConfigEntry("mobShowStagesInChat", ConfigType.BOOLEAN,
-                Config.CLIENT.mobShowStagesInChat.get().toString(), true, "true",
-                "If mobShowChat is true, should the required stages also be listed?"));
-        clientSections.add(mobLock);
-
         // --- COMMON CONFIG ---
         commonSections = new ArrayList<>();
 
@@ -228,6 +204,30 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.lockBlockInteraction.get().toString(), false, "true",
                 "Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.)"));
         commonSections.add(gameplay);
+
+        ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
+        dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
+                Config.COMMON.dimUseActionbar.get().toString(), false, "true",
+                "Show a simple 'Dimension Locked' message in the actionbar?"));
+        dimLock.add(new ConfigEntry("dimShowChat", ConfigType.BOOLEAN,
+                Config.COMMON.dimShowChat.get().toString(), false, "false",
+                "Show the dimension lock message in the chat?"));
+        dimLock.add(new ConfigEntry("dimShowStagesInChat", ConfigType.BOOLEAN,
+                Config.COMMON.dimShowStagesInChat.get().toString(), false, "true",
+                "If dimShowChat is true, should the required stages also be listed?"));
+        commonSections.add(dimLock);
+
+        ConfigSection mobLock = new ConfigSection("editor.historystages.config.mob_lock");
+        mobLock.add(new ConfigEntry("mobUseActionbar", ConfigType.BOOLEAN,
+                Config.COMMON.mobUseActionbar.get().toString(), false, "true",
+                "Show a 'Mob Protected' message in the actionbar?"));
+        mobLock.add(new ConfigEntry("mobShowChat", ConfigType.BOOLEAN,
+                Config.COMMON.mobShowChat.get().toString(), false, "false",
+                "Show the mob lock message in the chat?"));
+        mobLock.add(new ConfigEntry("mobShowStagesInChat", ConfigType.BOOLEAN,
+                Config.COMMON.mobShowStagesInChat.get().toString(), false, "true",
+                "If mobShowChat is true, should the required stages also be listed?"));
+        commonSections.add(mobLock);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
         notifications.add(new ConfigEntry("broadcastChat", ConfigType.BOOLEAN,
@@ -868,16 +868,10 @@ public class ConfigEditorScreen extends Screen {
                 case "showStageName" -> Config.CLIENT.showStageName.set(Boolean.parseBoolean(value));
                 case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));
                 case "showLockIcons" -> Config.CLIENT.showLockIcons.set(Boolean.parseBoolean(value));
-                case "dimUseActionbar" -> Config.CLIENT.dimUseActionbar.set(Boolean.parseBoolean(value));
-                case "dimShowChat" -> Config.CLIENT.dimShowChat.set(Boolean.parseBoolean(value));
-                case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "jadeShowInfo" -> Config.CLIENT.jadeShowInfo.set(Boolean.parseBoolean(value));
                 case "jadeStageName" -> Config.CLIENT.jadeStageName.set(Boolean.parseBoolean(value));
                 case "jadeShowAllUntilComplete" ->
                     Config.CLIENT.jadeShowAllUntilComplete.set(Boolean.parseBoolean(value));
-                case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
-                case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
-                case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
                 case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
                 case "showDependenciesOnScroll" ->

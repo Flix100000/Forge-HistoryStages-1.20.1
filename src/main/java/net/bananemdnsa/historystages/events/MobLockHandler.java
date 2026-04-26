@@ -72,9 +72,9 @@ public class MobLockHandler {
             if (lastMessage != null && (now - lastMessage) < COOLDOWN_MS) return;
             MESSAGE_COOLDOWNS.put(player.getUUID(), now);
 
-            if (Config.CLIENT.mobShowChat.get()) {
+            if (Config.COMMON.mobShowChat.get()) {
                 MutableComponent chatMsg = Component.translatable("message.historystages.mob_locked");
-                if (Config.CLIENT.mobShowStagesInChat.get()) {
+                if (Config.COMMON.mobShowStagesInChat.get()) {
                     for (String stageId : lockedStages) {
                         StageEntry stageEntry = StageManager.getStages().get(stageId);
                         String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
@@ -84,7 +84,7 @@ public class MobLockHandler {
                 player.sendSystemMessage(chatMsg);
             }
 
-            if (Config.CLIENT.mobUseActionbar.get()) {
+            if (Config.COMMON.mobUseActionbar.get()) {
                 player.displayClientMessage(
                         Component.translatable("message.historystages.mob_unknown")
                                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),

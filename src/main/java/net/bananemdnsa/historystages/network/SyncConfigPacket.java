@@ -58,6 +58,12 @@ public class SyncConfigPacket {
         values.put("lockedBlockBreakSpeedMultiplier", Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString());
         values.put("lockItemUsage", Config.COMMON.lockItemUsage.get().toString());
         values.put("lockEntityItems", Config.COMMON.lockEntityItems.get().toString());
+        values.put("dimUseActionbar", Config.COMMON.dimUseActionbar.get().toString());
+        values.put("dimShowChat", Config.COMMON.dimShowChat.get().toString());
+        values.put("dimShowStagesInChat", Config.COMMON.dimShowStagesInChat.get().toString());
+        values.put("mobUseActionbar", Config.COMMON.mobUseActionbar.get().toString());
+        values.put("mobShowChat", Config.COMMON.mobShowChat.get().toString());
+        values.put("mobShowStagesInChat", Config.COMMON.mobShowStagesInChat.get().toString());
         values.put("broadcastChat", Config.COMMON.broadcastChat.get().toString());
         values.put("unlockMessageFormat", Config.COMMON.unlockMessageFormat.get());
         values.put("useActionbar", Config.COMMON.useActionbar.get().toString());
