@@ -33,6 +33,8 @@ public class StageEntry {
 
     private List<String> recipes;
     private List<String> dimensions;
+
+    @JsonAdapter(StructureLocksAdapter.class)
     private StructureLocks structures;
 
     private EntityLocks entities;
