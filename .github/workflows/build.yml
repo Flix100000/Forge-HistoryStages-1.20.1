@@ -2,7 +2,9 @@ name: Build
 
 on:
   push:
-    branches: ['**']
+    branches:
+      - '**' # Include all branches
+      - '!forge-1.20.X-API_WIP'    # Temporarily exclude WIP builds whilst branch is in a broken state
   pull_request:
     branches: ['**']
 
