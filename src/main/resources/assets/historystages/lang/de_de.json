@@ -173,6 +173,7 @@
   "editor.historystages.config.individualUseSounds": "Sounds abspielen",
   "editor.historystages.config.individualUseToasts": "Toasts anzeigen",
   "editor.historystages.dual_phase_tooltip": "Dual-Phase Lock \u2013 ben\u00f6tigt globale Stage(s): %s",
+  "editor.historystages.dual_phase_tooltip_global": "Dual-Phase Lock \u2013 zus\u00e4tzlich individuell gesperrt in: %s",
   "tooltip.historystages.dual_phase_lock": "[Dual-Phase Lock]",
   "tooltip.historystages.dual_phase_lock_desc": "Nach globalem Freischalten: individuelle Sperre aktiv",
   "editor.historystages.dep.title": "Abh\u00e4ngigkeiten",

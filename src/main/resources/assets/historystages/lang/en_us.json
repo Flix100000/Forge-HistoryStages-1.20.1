@@ -173,6 +173,7 @@
   "editor.historystages.config.individualUseSounds": "Use Sounds",
   "editor.historystages.config.individualUseToasts": "Use Toasts",
   "editor.historystages.dual_phase_tooltip": "Dual-Phase Lock – requires global stage(s): %s",
+  "editor.historystages.dual_phase_tooltip_global": "Dual-Phase Lock – also individually locked in: %s",
   "tooltip.historystages.dual_phase_lock": "[Dual-Phase Lock]",
   "tooltip.historystages.dual_phase_lock_desc": "After global unlock: individual lock applies",
   "editor.historystages.dep.title": "Dependencies",
