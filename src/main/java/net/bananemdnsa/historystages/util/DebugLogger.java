@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.util;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.EntityLocks;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLPaths;
 
@@ -86,7 +86,7 @@ public class DebugLogger {
      * @param stages the loaded global stage map (pass StageManager.getStages())
      * @param individualStages the loaded individual stage map (pass StageManager.getIndividualStages())
      */
-    public static void writeLogFile(Map<String, StageEntry> stages, Map<String, StageEntry> individualStages) {
+    public static void writeLogFile(Map<String, StageDefinition> stages, Map<String, StageDefinition> individualStages) {
         if (CATEGORIES.isEmpty()) return;
 
         try {
@@ -119,7 +119,7 @@ public class DebugLogger {
             // Count totals across all stages
             int totalItems = 0, totalTags = 0, totalMods = 0, totalRecipes = 0;
             int totalDimensions = 0, totalAttacklock = 0, totalSpawnlock = 0;
-            for (StageEntry entry : stages.values()) {
+            for (StageDefinition entry : stages.values()) {
                 totalItems += entry.getAllItemIds().size();
                 totalTags += entry.getTags().size();
                 totalMods += entry.getMods().size();
@@ -178,9 +178,9 @@ public class DebugLogger {
                 pw.println("================================================================");
                 pw.println();
 
-                for (Map.Entry<String, StageEntry> stageEntry : stages.entrySet()) {
+                for (Map.Entry<String, StageDefinition> stageEntry : stages.entrySet()) {
                     String id = stageEntry.getKey();
-                    StageEntry s = stageEntry.getValue();
+                    StageDefinition s = stageEntry.getValue();
                     EntityLocks ent = s.getEntities();
 
                     int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
@@ -209,9 +209,9 @@ public class DebugLogger {
                     pw.println("================================================================");
                     pw.println();
 
-                    for (Map.Entry<String, StageEntry> stageEntry : individualStages.entrySet()) {
+                    for (Map.Entry<String, StageDefinition> stageEntry : individualStages.entrySet()) {
                         String id = stageEntry.getKey();
-                        StageEntry s = stageEntry.getValue();
+                        StageDefinition s = stageEntry.getValue();
                         EntityLocks ent = s.getEntities();
 
                         int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()

@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -62,10 +62,10 @@ public class SearchableStageList {
 
     private void rebuildList() {
         allStages.clear();
-        Map<String, StageEntry> stages = showIndividual
+        Map<String, StageDefinition> stages = showIndividual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
-        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : stages.entrySet()) {
             allStages.add(new StageListEntry(entry.getKey(), entry.getValue().getDisplayName()));
         }
         allStages.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));

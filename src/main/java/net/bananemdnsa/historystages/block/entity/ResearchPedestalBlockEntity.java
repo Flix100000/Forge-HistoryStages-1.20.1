@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.block.entity;
 import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
@@ -100,7 +100,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         String stageId = scroll.getTag().getString("StageResearch");
         boolean isIndividual = StageManager.isIndividualStage(stageId);
-        StageEntry entry = isIndividual ? StageManager.getIndividualStages().get(stageId)
+        StageDefinition entry = isIndividual ? StageManager.getIndividualStages().get(stageId)
                 : StageManager.getStages().get(stageId);
 
         if (entry == null || entry.getDependencies() == null)
@@ -225,7 +225,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         if (stack.isEmpty() || !stack.hasTag() || !stack.getTag().contains("StageResearch"))
             return false;
         String stageId = stack.getTag().getString("StageResearch");
-        StageEntry entry = StageManager.isIndividualStage(stageId)
+        StageDefinition entry = StageManager.isIndividualStage(stageId)
                 ? StageManager.getIndividualStages().get(stageId)
                 : StageManager.getStages().get(stageId);
         return entry != null && entry.hasDependencies();
@@ -294,7 +294,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 // Check non-item dependencies before allowing research
                 boolean metTotal = false;
                 if (!isCreative) {
-                    StageEntry stageEntry = isIndividual
+                    StageDefinition stageEntry = isIndividual
                             ? StageManager.getIndividualStages().get(stageId)
                             : StageManager.getStages().get(stageId);
 
@@ -639,7 +639,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             return false;
 
         String stageId = scroll.getTag().getString("StageResearch");
-        StageEntry entry = StageManager.isIndividualStage(stageId)
+        StageDefinition entry = StageManager.isIndividualStage(stageId)
                 ? StageManager.getIndividualStages().get(stageId)
                 : StageManager.getStages().get(stageId);
         if (entry == null || !entry.hasDependencies())

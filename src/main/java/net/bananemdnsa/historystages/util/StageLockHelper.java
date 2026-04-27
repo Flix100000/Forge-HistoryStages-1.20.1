@@ -4,7 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.bananemdnsa.historystages.data.ItemEntry;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -251,7 +251,7 @@ public class StageLockHelper {
      * Called when an individual stage is revoked from a player.
      */
     public static void dropLockedItemsForPlayer(ServerPlayer player, String revokedStageId) {
-        StageEntry entry = StageManager.getIndividualStages().get(revokedStageId);
+        StageDefinition entry = StageManager.getIndividualStages().get(revokedStageId);
         if (entry == null) return;
 
         Inventory inv = player.getInventory();
@@ -313,7 +313,7 @@ public class StageLockHelper {
     /**
      * Checks if a stage entry locks a specific enchantment via enchanted book NBT criteria.
      */
-    private static boolean stageLocksEnchantment(StageEntry stage, String enchantmentId, int level) {
+    private static boolean stageLocksEnchantment(StageDefinition stage, String enchantmentId, int level) {
         for (ItemEntry itemEntry : stage.getItemEntries()) {
             if (!itemEntry.hasNbt()) continue;
             // Only check enchanted book entries
@@ -353,7 +353,7 @@ public class StageLockHelper {
         return false;
     }
 
-    private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageEntry entry) {
+    private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageDefinition entry) {
         for (net.bananemdnsa.historystages.data.ItemEntry itemEntry : entry.getItemEntries()) {
             if (itemEntry.getId().equals(itemId)) {
                 if (itemEntry.hasNbt()) {

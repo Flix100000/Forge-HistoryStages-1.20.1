@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.init.ModItems;
@@ -86,7 +86,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         if (!stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch")) {
             String stageId = stack.getTag().getString("StageResearch");
             if (!ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
-                StageEntry entry = StageManager.isIndividualStage(stageId)
+                StageDefinition entry = StageManager.isIndividualStage(stageId)
                         ? StageManager.getIndividualStages().get(stageId)
                         : StageManager.getStages().get(stageId);
                 if (entry != null && entry.hasDependencies()) {
@@ -120,7 +120,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 stageName = "Creative";
                 alreadyUnlocked = false;
             } else {
-                StageEntry entry;
+                StageDefinition entry;
                 if (isIndividual) {
                     entry = StageManager.getIndividualStages().get(stageId);
                     alreadyUnlocked = ClientIndividualStageCache.isStageUnlocked(stageId);

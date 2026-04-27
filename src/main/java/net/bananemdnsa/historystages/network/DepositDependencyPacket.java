@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
@@ -61,7 +61,7 @@ public class DepositDependencyPacket {
                 return;
 
             String stageId = scroll.getTag().getString("StageResearch");
-            StageEntry stageEntry = StageManager.isIndividualStage(stageId)
+            StageDefinition stageEntry = StageManager.isIndividualStage(stageId)
                     ? StageManager.getIndividualStages().get(stageId)
                     : StageManager.getStages().get(stageId);
 

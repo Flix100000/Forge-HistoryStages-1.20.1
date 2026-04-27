@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
@@ -60,7 +60,7 @@ public class DimensionLockHandler {
                 MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
                 if (Config.CLIENT.dimShowStagesInChat.get()) {
                     for (String stageId : lockedStages) {
-                        StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        StageDefinition stageEntry = StageManager.getStages().get(stageId);
                         if (stageEntry == null) {
                             stageEntry = StageManager.getIndividualStages().get(stageId);
                         }

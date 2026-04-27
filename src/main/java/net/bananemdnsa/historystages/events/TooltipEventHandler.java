@@ -4,7 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
@@ -78,11 +78,11 @@ public class TooltipEventHandler {
         String itemID = itemLocation.toString();
         String modID = itemLocation.getNamespace();
 
-        List<StageEntry> totalRequiredStages = new ArrayList<>();
+        List<StageDefinition> totalRequiredStages = new ArrayList<>();
         boolean isCurrentlyLocked = false;
 
-        for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {
-            StageEntry stage = entry.getValue();
+        for (Map.Entry<String, StageDefinition> entry : StageManager.getStages().entrySet()) {
+            StageDefinition stage = entry.getValue();
             String stageID = entry.getKey();
 
             boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
@@ -110,7 +110,7 @@ public class TooltipEventHandler {
             if (Config.CLIENT.showStageName.get()) {
                 event.getToolTip().add(Component.literal("Required Progress:").withStyle(ChatFormatting.DARK_RED));
 
-                for (StageEntry stage : totalRequiredStages) {
+                for (StageDefinition stage : totalRequiredStages) {
                     String stageID = StageManager.getStages().entrySet().stream()
                             .filter(e -> e.getValue().equals(stage))
                             .map(Map.Entry::getKey).findFirst().orElse("");
@@ -137,11 +137,11 @@ public class TooltipEventHandler {
         }
 
         // --- INDIVIDUAL STAGES TOOLTIP ---
-        List<StageEntry> individualRequiredStages = new ArrayList<>();
+        List<StageDefinition> individualRequiredStages = new ArrayList<>();
         boolean isIndividuallyLocked = false;
 
-        for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-            StageEntry stage = entry.getValue();
+        for (Map.Entry<String, StageDefinition> entry : StageManager.getIndividualStages().entrySet()) {
+            StageDefinition stage = entry.getValue();
             String stageID = entry.getKey();
 
             boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
@@ -161,7 +161,7 @@ public class TooltipEventHandler {
             if (Config.CLIENT.showStageName.get()) {
                 event.getToolTip().add(Component.literal("Required Individual Progress:").withStyle(ChatFormatting.DARK_RED));
 
-                for (StageEntry stage : individualRequiredStages) {
+                for (StageDefinition stage : individualRequiredStages) {
                     String stageID = StageManager.getIndividualStages().entrySet().stream()
                             .filter(e -> e.getValue().equals(stage))
                             .map(Map.Entry::getKey).findFirst().orElse("");
@@ -188,7 +188,7 @@ public class TooltipEventHandler {
         }
     }
 
-    private static boolean matchesNbtItem(StageEntry stage, String itemID, ItemStack stack) {
+    private static boolean matchesNbtItem(StageDefinition stage, String itemID, ItemStack stack) {
         for (ItemEntry itemEntry : stage.getItemEntries()) {
             if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
                 if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;

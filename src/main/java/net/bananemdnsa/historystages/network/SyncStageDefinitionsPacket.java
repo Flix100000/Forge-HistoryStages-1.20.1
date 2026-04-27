@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.network;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
@@ -18,16 +18,16 @@ import java.util.function.Supplier;
  */
 public class SyncStageDefinitionsPacket {
     private static final Gson GSON = new Gson();
-    private static final Type MAP_TYPE = new TypeToken<Map<String, StageEntry>>() {}.getType();
+    private static final Type MAP_TYPE = new TypeToken<Map<String, StageDefinition>>() {}.getType();
 
-    private final Map<String, StageEntry> stages;
-    private final Map<String, StageEntry> individualStages;
+    private final Map<String, StageDefinition> stages;
+    private final Map<String, StageDefinition> individualStages;
 
-    public SyncStageDefinitionsPacket(Map<String, StageEntry> stages) {
+    public SyncStageDefinitionsPacket(Map<String, StageDefinition> stages) {
         this(stages, StageManager.getIndividualStages());
     }
 
-    public SyncStageDefinitionsPacket(Map<String, StageEntry> stages, Map<String, StageEntry> individualStages) {
+    public SyncStageDefinitionsPacket(Map<String, StageDefinition> stages, Map<String, StageDefinition> individualStages) {
         this.stages = stages;
         this.individualStages = individualStages;
     }
@@ -41,10 +41,10 @@ public class SyncStageDefinitionsPacket {
 
     public static SyncStageDefinitionsPacket decode(FriendlyByteBuf buffer) {
         String json = buffer.readUtf(262144);
-        Map<String, StageEntry> stages = GSON.fromJson(json, MAP_TYPE);
+        Map<String, StageDefinition> stages = GSON.fromJson(json, MAP_TYPE);
         if (stages == null) stages = new HashMap<>();
         String individualJson = buffer.readUtf(262144);
-        Map<String, StageEntry> individualStages = GSON.fromJson(individualJson, MAP_TYPE);
+        Map<String, StageDefinition> individualStages = GSON.fromJson(individualJson, MAP_TYPE);
         if (individualStages == null) individualStages = new HashMap<>();
         return new SyncStageDefinitionsPacket(stages, individualStages);
     }

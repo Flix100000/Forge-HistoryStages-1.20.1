@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -93,8 +93,8 @@ public class StageOverviewScreen extends Screen {
 
     private void applyFilter() {
         String query = searchFilter.toLowerCase().trim();
-        Map<String, StageEntry> stages = StageManager.getStages();
-        Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
+        Map<String, StageDefinition> stages = StageManager.getStages();
+        Map<String, StageDefinition> individualStages = StageManager.getIndividualStages();
 
         filteredStageOrder = new ArrayList<>();
         for (String id : stageOrder) {
@@ -112,7 +112,7 @@ public class StageOverviewScreen extends Screen {
         scrollOffset = Math.min(scrollOffset, maxScroll);
     }
 
-    private boolean matchesFilter(String stageId, StageEntry entry, String query) {
+    private boolean matchesFilter(String stageId, StageDefinition entry, String query) {
         if (stageId.toLowerCase().contains(query))
             return true;
         if (entry != null && entry.getDisplayName().toLowerCase().contains(query))
@@ -176,8 +176,8 @@ public class StageOverviewScreen extends Screen {
         int effectiveMouseX = overlayOpen ? -1 : mouseX;
         int effectiveMouseY = overlayOpen ? -1 : mouseY;
 
-        Map<String, StageEntry> stages = StageManager.getStages();
-        Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
+        Map<String, StageDefinition> stages = StageManager.getStages();
+        Map<String, StageDefinition> individualStages = StageManager.getIndividualStages();
         int y = listTop - (int) smoothScroll;
 
         int currentHovered = -1;
@@ -198,7 +198,7 @@ public class StageOverviewScreen extends Screen {
         // --- Global Stages ---
         for (int i = 0; i < filteredStageOrder.size(); i++) {
             String stageId = filteredStageOrder.get(i);
-            StageEntry entry = stages.get(stageId);
+            StageDefinition entry = stages.get(stageId);
             if (entry == null)
                 continue;
 
@@ -330,7 +330,7 @@ public class StageOverviewScreen extends Screen {
             int indY = sectionY + SECTION_HEADER_HEIGHT;
             for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
                 String stageId = filteredIndividualStageOrder.get(i);
-                StageEntry entry = individualStages.get(stageId);
+                StageDefinition entry = individualStages.get(stageId);
                 if (entry == null)
                     continue;
 
@@ -478,14 +478,14 @@ public class StageOverviewScreen extends Screen {
         if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom)
             return false;
 
-        Map<String, StageEntry> stages = StageManager.getStages();
-        Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
+        Map<String, StageDefinition> stages = StageManager.getStages();
+        Map<String, StageDefinition> individualStages = StageManager.getIndividualStages();
         int y = listTop - (int) scrollOffset + SECTION_HEADER_HEIGHT; // skip global header
 
         // Global stages
         for (int i = 0; i < filteredStageOrder.size(); i++) {
             String stageId = filteredStageOrder.get(i);
-            StageEntry entry = stages.get(stageId);
+            StageDefinition entry = stages.get(stageId);
             if (entry == null)
                 continue;
 
@@ -549,7 +549,7 @@ public class StageOverviewScreen extends Screen {
             int indY = y + filteredStageOrder.size() * ENTRY_HEIGHT + SECTION_HEADER_HEIGHT;
             for (int i = 0; i < filteredIndividualStageOrder.size(); i++) {
                 String stageId = filteredIndividualStageOrder.get(i);
-                StageEntry entry = individualStages.get(stageId);
+                StageDefinition entry = individualStages.get(stageId);
                 if (entry == null)
                     continue;
 
@@ -722,11 +722,11 @@ public class StageOverviewScreen extends Screen {
             }
 
             if (duplicateFromId != null) {
-                StageEntry source = individual
+                StageDefinition source = individual
                         ? StageManager.getIndividualStages().get(duplicateFromId)
                         : StageManager.getStages().get(duplicateFromId);
                 if (source != null) {
-                    StageEntry copy = source.copy();
+                    StageDefinition copy = source.copy();
                     PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual));
                     this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
                 } else {

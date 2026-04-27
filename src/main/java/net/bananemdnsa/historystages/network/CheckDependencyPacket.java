@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.network;
 
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
@@ -44,7 +44,7 @@ public class CheckDependencyPacket {
             if (player == null)
                 return;
 
-            StageEntry entry = packet.isIndividual
+            StageDefinition entry = packet.isIndividual
                     ? StageManager.getIndividualStages().get(packet.stageId)
                     : StageManager.getStages().get(packet.stageId);
 

@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.data.dependency;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
@@ -32,7 +32,7 @@ public class DependencyChecker {
      * @param depositedData The tracking NBT from the scroll, if applicable
      * @return DependencyResult with per-group and per-entry details
      */
-    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
+    public static DependencyResult checkAll(StageDefinition entry, ServerPlayer player, Level level,
             CompoundTag depositedData) {
         List<DependencyGroup> groups = entry.getDependencies();
         if (groups == null || groups.isEmpty()) {
@@ -84,7 +84,7 @@ public class DependencyChecker {
                 StageData data = StageData.get(level);
                 met = data.getUnlockedStages().contains(stageId);
             }
-            StageEntry stageEntry = StageManager.getStages().get(stageId);
+            StageDefinition stageEntry = StageManager.getStages().get(stageId);
             String name = stageEntry != null ? stageEntry.getDisplayName() : stageId;
             entries.add(new DependencyResult.EntryResult("stage", name, met));
         }
@@ -92,7 +92,7 @@ public class DependencyChecker {
         // Individual Stages (all online / all ever)
         for (IndividualStageDep dep : group.getIndividualStages()) {
             boolean met = checkIndividualStageDep(dep, level);
-            StageEntry stageEntry = StageManager.getIndividualStages().get(dep.getStageId());
+            StageDefinition stageEntry = StageManager.getIndividualStages().get(dep.getStageId());
             String name = stageEntry != null ? stageEntry.getDisplayName() : dep.getStageId();
             String modeLabel = dep.isAllEver() ? " (all ever)" : " (all online)";
             entries.add(new DependencyResult.EntryResult("individual_stage", name + modeLabel, met));

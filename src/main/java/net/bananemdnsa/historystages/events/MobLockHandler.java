@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
@@ -72,7 +72,7 @@ public class MobLockHandler {
                 MutableComponent chatMsg = Component.translatable("message.historystages.mob_locked");
                 if (Config.CLIENT.mobShowStagesInChat.get()) {
                     for (String stageId : lockedStages) {
-                        StageEntry stageEntry = StageManager.getStages().get(stageId);
+                        StageDefinition stageEntry = StageManager.getStages().get(stageId);
                         String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
                         chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
                     }

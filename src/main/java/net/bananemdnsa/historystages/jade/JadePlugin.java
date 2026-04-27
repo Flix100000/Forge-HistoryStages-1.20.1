@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.jade;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
@@ -58,11 +58,11 @@ public class JadePlugin implements IWailaPlugin {
             String itemID = itemLocation.toString();
             String modID = itemLocation.getNamespace();
 
-            List<StageEntry> totalRequiredStages = new ArrayList<>();
+            List<StageDefinition> totalRequiredStages = new ArrayList<>();
             boolean isCurrentlyLocked = false;
 
-            for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {
-                StageEntry stage = entry.getValue();
+            for (Map.Entry<String, StageDefinition> entry : StageManager.getStages().entrySet()) {
+                StageDefinition stage = entry.getValue();
                 String stageID = entry.getKey();
 
                 boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
@@ -83,11 +83,11 @@ public class JadePlugin implements IWailaPlugin {
             }
 
             // Individual stages
-            List<StageEntry> individualRequiredStages = new ArrayList<>();
+            List<StageDefinition> individualRequiredStages = new ArrayList<>();
             boolean isIndividuallyLocked = false;
 
-            for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-                StageEntry stage = entry.getValue();
+            for (Map.Entry<String, StageDefinition> entry : StageManager.getIndividualStages().entrySet()) {
+                StageDefinition stage = entry.getValue();
                 String stageID = entry.getKey();
 
                 boolean isListed = stage.getItems().contains(itemID) ||
@@ -136,7 +136,7 @@ public class JadePlugin implements IWailaPlugin {
 
             if (items.isEmpty()) return;
 
-            List<StageEntry> totalRequiredStages = new ArrayList<>();
+            List<StageDefinition> totalRequiredStages = new ArrayList<>();
             boolean isCurrentlyLocked = false;
 
             for (ItemStack stack : items) {
@@ -146,8 +146,8 @@ public class JadePlugin implements IWailaPlugin {
                 String itemID = itemLocation.toString();
                 String modID = itemLocation.getNamespace();
 
-                for (Map.Entry<String, StageEntry> entry : StageManager.getStages().entrySet()) {
-                    StageEntry stage = entry.getValue();
+                for (Map.Entry<String, StageDefinition> entry : StageManager.getStages().entrySet()) {
+                    StageDefinition stage = entry.getValue();
                     String stageID = entry.getKey();
 
                     boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
@@ -169,7 +169,7 @@ public class JadePlugin implements IWailaPlugin {
             }
 
             // Individual stages
-            List<StageEntry> individualRequiredStages = new ArrayList<>();
+            List<StageDefinition> individualRequiredStages = new ArrayList<>();
             boolean isIndividuallyLocked = false;
 
             for (ItemStack stack : items) {
@@ -178,8 +178,8 @@ public class JadePlugin implements IWailaPlugin {
 
                 String indItemID = indItemLocation.toString();
 
-                for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-                    StageEntry stage = entry.getValue();
+                for (Map.Entry<String, StageDefinition> entry : StageManager.getIndividualStages().entrySet()) {
+                    StageDefinition stage = entry.getValue();
                     String stageID = entry.getKey();
 
                     boolean isListed = stage.getItems().contains(indItemID) ||
@@ -206,16 +206,16 @@ public class JadePlugin implements IWailaPlugin {
         }
     }
 
-    private static void appendStageTooltip(ITooltip tooltip, List<StageEntry> totalRequiredStages, boolean individual) {
+    private static void appendStageTooltip(ITooltip tooltip, List<StageDefinition> totalRequiredStages, boolean individual) {
         if (Config.CLIENT.jadeStageName.get()) {
             String header = individual ? "Required Individual Progress:" : "Required Progress:";
             tooltip.add(Component.literal(header).withStyle(ChatFormatting.DARK_RED));
 
-            Map<String, StageEntry> stageMap = individual
+            Map<String, StageDefinition> stageMap = individual
                     ? StageManager.getIndividualStages()
                     : StageManager.getStages();
 
-            for (StageEntry stage : totalRequiredStages) {
+            for (StageDefinition stage : totalRequiredStages) {
                 String stageID = stageMap.entrySet().stream()
                         .filter(e -> e.getValue().equals(stage))
                         .map(Map.Entry::getKey).findFirst().orElse("");
@@ -243,7 +243,7 @@ public class JadePlugin implements IWailaPlugin {
         }
     }
 
-    private static boolean matchesNbtItem(StageEntry stage, String itemID, ItemStack stack) {
+    private static boolean matchesNbtItem(StageDefinition stage, String itemID, ItemStack stack) {
         for (ItemEntry itemEntry : stage.getItemEntries()) {
             if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
                 if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;

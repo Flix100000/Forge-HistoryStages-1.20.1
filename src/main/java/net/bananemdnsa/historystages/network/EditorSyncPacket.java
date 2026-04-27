@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.network;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -13,11 +13,11 @@ import java.util.function.Supplier;
 
 public class EditorSyncPacket {
     private static final Gson GSON = new Gson();
-    private static final Type MAP_TYPE = new TypeToken<Map<String, StageEntry>>() {}.getType();
+    private static final Type MAP_TYPE = new TypeToken<Map<String, StageDefinition>>() {}.getType();
 
-    private final Map<String, StageEntry> stages;
+    private final Map<String, StageDefinition> stages;
 
-    public EditorSyncPacket(Map<String, StageEntry> stages) {
+    public EditorSyncPacket(Map<String, StageDefinition> stages) {
         this.stages = stages;
     }
 
@@ -28,7 +28,7 @@ public class EditorSyncPacket {
 
     public static EditorSyncPacket decode(FriendlyByteBuf buffer) {
         String json = buffer.readUtf(262144);
-        Map<String, StageEntry> stages = GSON.fromJson(json, MAP_TYPE);
+        Map<String, StageDefinition> stages = GSON.fromJson(json, MAP_TYPE);
         if (stages == null) stages = new HashMap<>();
         return new EditorSyncPacket(stages);
     }

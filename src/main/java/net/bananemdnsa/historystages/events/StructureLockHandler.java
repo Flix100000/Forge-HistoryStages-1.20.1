@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
@@ -113,7 +113,7 @@ public class StructureLockHandler {
         LinkedHashSet<String> lockedStages = new LinkedHashSet<>();
 
         // Global stages
-        for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
+        for (Map.Entry<String, StageDefinition> e : StageManager.getStages().entrySet()) {
             String stageId = e.getKey();
             if (StageData.SERVER_CACHE.contains(stageId)) continue; // already unlocked
             List<String> entries = e.getValue().getStructures();
@@ -128,7 +128,7 @@ public class StructureLockHandler {
         }
 
         // Individual stages (per-player)
-        for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
+        for (Map.Entry<String, StageDefinition> e : StageManager.getIndividualStages().entrySet()) {
             String stageId = e.getKey();
             if (playerStages.contains(stageId)) continue;
             List<String> entries = e.getValue().getStructures();
@@ -249,7 +249,7 @@ public class StructureLockHandler {
     }
 
     private static String resolveStageDisplayName(String stageId) {
-        StageEntry entry = StageManager.getStages().get(stageId);
+        StageDefinition entry = StageManager.getStages().get(stageId);
         if (entry == null) entry = StageManager.getIndividualStages().get(stageId);
         return entry != null ? entry.getDisplayName() : stageId;
     }

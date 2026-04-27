@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.network;
 
 import com.google.gson.Gson;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.network.FriendlyByteBuf;
@@ -19,11 +19,11 @@ public class SaveStagePacket {
     private final String stageJson;
     private final boolean individual;
 
-    public SaveStagePacket(String stageId, StageEntry entry) {
+    public SaveStagePacket(String stageId, StageDefinition entry) {
         this(stageId, entry, false);
     }
 
-    public SaveStagePacket(String stageId, StageEntry entry, boolean individual) {
+    public SaveStagePacket(String stageId, StageDefinition entry, boolean individual) {
         this.stageId = stageId;
         this.stageJson = entry.toJson();
         this.individual = individual;
@@ -53,7 +53,7 @@ public class SaveStagePacket {
             ServerPlayer player = ctx.get().getSender();
             if (player == null || !player.hasPermissions(2)) return;
 
-            StageEntry entry = GSON.fromJson(msg.stageJson, StageEntry.class);
+            StageDefinition entry = GSON.fromJson(msg.stageJson, StageDefinition.class);
             if (entry == null) return;
 
             boolean success;

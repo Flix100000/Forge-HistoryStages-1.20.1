@@ -32,8 +32,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class StageManager implements IStageManager {
-    private static final Map<String, StageEntry> STAGES = new HashMap<>();
-    private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new HashMap<>();
+    private static final Map<String, StageDefinition> STAGES = new HashMap<>();
+    private static final Map<String, StageDefinition> INDIVIDUAL_STAGES = new HashMap<>();
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
@@ -144,7 +144,7 @@ public class StageManager implements IStageManager {
             String content = Files.readString(file.toPath());
             detectUnknownKeys(id, content);
 
-            StageEntry entry = GSON.fromJson(content, StageEntry.class);
+            StageDefinition entry = GSON.fromJson(content, StageDefinition.class);
             if (entry != null) {
                 if (isIndividual) {
                     stripUnsupportedIndividualCategories(id, entry);
@@ -209,9 +209,9 @@ public class StageManager implements IStageManager {
         }
     }
 
-    private static Map<String, Set<String>> buildDependencyGraph(Map<String, StageEntry> stages) {
+    private static Map<String, Set<String>> buildDependencyGraph(Map<String, StageDefinition> stages) {
         Map<String, Set<String>> graph = new HashMap<>();
-        for (Map.Entry<String, StageEntry> e : stages.entrySet()) {
+        for (Map.Entry<String, StageDefinition> e : stages.entrySet()) {
             Set<String> refs = new HashSet<>();
             for (DependencyGroup group : e.getValue().getDependencies()) {
                 refs.addAll(group.getReferencedStageIds());
@@ -289,13 +289,13 @@ public class StageManager implements IStageManager {
     // ENTRY VALIDATION
     // =============================================
 
-    private static void validateAndAdd(String stageId, StageEntry entry) {
+    private static void validateAndAdd(String stageId, StageDefinition entry) {
         validateEntry(stageId, entry, "Stage", true);
         STAGES.put(stageId, entry);
         System.out.println("[HistoryStages] Stage loaded: " + stageId);
     }
 
-    private static void validateAndAddIndividual(String stageId, StageEntry entry) {
+    private static void validateAndAddIndividual(String stageId, StageDefinition entry) {
         if (STAGES.containsKey(stageId)) {
             String msg = "Individual stage '" + stageId + "' has the same ID as a global stage. Individual stage skipped.";
             addMessage(MessageLevel.ERROR, msg);
@@ -313,7 +313,7 @@ public class StageManager implements IStageManager {
      * @param isGlobal if true, also validates: recipes, spawnlock, mod install check,
      *                 redundant entity detection, dependency references, and empty stage detection.
      */
-    private static void validateEntry(String stageId, StageEntry entry, String context, boolean isGlobal) {
+    private static void validateEntry(String stageId, StageDefinition entry, String context, boolean isGlobal) {
         if (entry.getDisplayName().equals("Unknown Stage")) {
             addMessage(MessageLevel.WARN, context + " '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
             DebugLogger.warn("Missing Fields", context + " '" + stageId + "' has no 'display_name' set. It will show as 'Unknown Stage'.");
@@ -522,15 +522,15 @@ public class StageManager implements IStageManager {
      * NOT during mod construction when load() runs.
      */
     public static void validateAgainstRegistries() {
-        for (Map.Entry<String, StageEntry> e : STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> e : STAGES.entrySet()) {
             validateStageAgainstRegistries(e.getKey(), e.getValue(), "Stage");
         }
-        for (Map.Entry<String, StageEntry> e : INDIVIDUAL_STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> e : INDIVIDUAL_STAGES.entrySet()) {
             validateStageAgainstRegistries(e.getKey(), e.getValue(), "Individual Stage");
         }
     }
 
-    private static void validateStageAgainstRegistries(String stageId, StageEntry entry, String context) {
+    private static void validateStageAgainstRegistries(String stageId, StageDefinition entry, String context) {
         for (String itemId : entry.getAllItemIds()) {
             if (!ResourceLocation.isValidResourceLocation(itemId)) continue;
             if (!ForgeRegistries.ITEMS.containsKey(ResourceLocation.parse(itemId))) {
@@ -568,7 +568,7 @@ public class StageManager implements IStageManager {
     // STAGE QUERIES — GLOBAL
     // =============================================
 
-    public static Map<String, StageEntry> getStages() {
+    public static Map<String, StageDefinition> getStages() {
         return STAGES;
     }
 
@@ -576,7 +576,7 @@ public class StageManager implements IStageManager {
      * Replaces all stage definitions with the given map.
      * Used on the client side to sync stage definitions from the server in multiplayer.
      */
-    public static void setStages(Map<String, StageEntry> stages) {
+    public static void setStages(Map<String, StageDefinition> stages) {
         STAGES.clear();
         if (stages != null) STAGES.putAll(stages);
     }
@@ -588,7 +588,7 @@ public class StageManager implements IStageManager {
 
     public static List<String> getAllStagesForAttackLockedEntity(String entityId) {
         List<String> result = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : STAGES.entrySet()) {
             EntityLocks locks = entry.getValue().getEntities();
             // Spawnlock entities are implicitly also attack-locked
             if (locks.getAttacklock().contains(entityId) || locks.getSpawnlock().contains(entityId)) {
@@ -606,7 +606,7 @@ public class StageManager implements IStageManager {
     public static List<String> getAllStagesForDimension(String dimensionId) {
         //return collectStagesWhere(STAGES, entry -> entry.getDimensions() != null && entry.getDimensions().contains(dimensionId));
         List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : STAGES.entrySet()) {
             if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
                 allFoundStages.add(entry.getKey());
             }
@@ -616,10 +616,10 @@ public class StageManager implements IStageManager {
 
 
     public static boolean anyStageHasStructures() {
-        for (StageEntry entry : STAGES.values()) {
+        for (StageDefinition entry : STAGES.values()) {
             if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
         }
-        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
+        for (StageDefinition entry : INDIVIDUAL_STAGES.values()) {
             if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
         }
         return false;
@@ -633,7 +633,7 @@ public class StageManager implements IStageManager {
         return resolveResearchTimeInTicks(STAGES.get(stageId));
     }
 
-    public static boolean saveStage(String stageId, StageEntry entry) {
+    public static boolean saveStage(String stageId, StageDefinition entry) {
         return persistStage(stageId, entry, STAGES, GLOBAL_CONFIG_PATH, "Stage Save");
     }
 
@@ -654,7 +654,7 @@ public class StageManager implements IStageManager {
      * Uses ClientStageCache on the client, SERVER_CACHE on the server.
      */
     public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : STAGES.entrySet()) {
             if (entry.getValue().getRecipes().contains(recipeId) && !isStageUnlocked(entry.getKey(), isClientSide)) {
                 return true;
             }
@@ -683,11 +683,11 @@ public class StageManager implements IStageManager {
     // STAGE QUERIES — INDIVIDUAL
     // =============================================
 
-    public static Map<String, StageEntry> getIndividualStages() {
+    public static Map<String, StageDefinition> getIndividualStages() {
         return INDIVIDUAL_STAGES;
     }
 
-    public static void setIndividualStages(Map<String, StageEntry> stages) {
+    public static void setIndividualStages(Map<String, StageDefinition> stages) {
         INDIVIDUAL_STAGES.clear();
         if (stages != null) INDIVIDUAL_STAGES.putAll(stages);
     }
@@ -717,7 +717,7 @@ public class StageManager implements IStageManager {
         return resolveResearchTimeInTicks(INDIVIDUAL_STAGES.get(stageId));
     }
 
-    public static boolean saveIndividualStage(String stageId, StageEntry entry) {
+    public static boolean saveIndividualStage(String stageId, StageDefinition entry) {
         return persistStage(stageId, entry, INDIVIDUAL_STAGES, INDIVIDUAL_CONFIG_PATH, "Individual Stage Save");
     }
 
@@ -740,7 +740,7 @@ public class StageManager implements IStageManager {
     // INDIVIDUAL STAGE — LOADING SPECIFICS
     // =============================================
 
-    private static void stripUnsupportedIndividualCategories(String stageId, StageEntry entry) {
+    private static void stripUnsupportedIndividualCategories(String stageId, StageDefinition entry) {
         if (entry.getRecipes() != null && !entry.getRecipes().isEmpty()) {
             String msg = "Individual stage '" + stageId + "' contains 'recipes' — not supported for individual stages. Entries removed.";
             addMessage(MessageLevel.ERROR, msg);
@@ -767,16 +767,16 @@ public class StageManager implements IStageManager {
         Map<String, Set<String>> globalTagMap  = new HashMap<>();
         Map<String, Set<String>> globalModMap  = new HashMap<>();
 
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
             entry.getValue().getAllItemIds().forEach(item -> globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId));
             entry.getValue().getTags().forEach(tag -> globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId));
             entry.getValue().getMods().forEach(mod -> globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId));
         }
 
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : INDIVIDUAL_STAGES.entrySet()) {
             String iStageId = entry.getKey();
-            StageEntry iEntry = entry.getValue();
+            StageDefinition iEntry = entry.getValue();
             registerDualPhaseOverlaps(iEntry.getItemEntries(), globalItemMap, DUAL_PHASE_ITEMS, iStageId, "item", ItemEntry::getId);
             registerDualPhaseOverlaps(iEntry.getTags(),        globalTagMap,  DUAL_PHASE_TAGS,  iStageId, "tag",  s -> s);
             registerDualPhaseOverlaps(iEntry.getMods(),        globalModMap,  DUAL_PHASE_MODS,  iStageId, "mod",  s -> s);
@@ -816,9 +816,9 @@ public class StageManager implements IStageManager {
      * Used by both global and individual getAllStagesForItemOrMod methods.
      */
     private static List<String> collectMatchingStages(
-            Map<String, StageEntry> stages, String itemId, String modId, ItemStack stack, Item item) {
+            Map<String, StageDefinition> stages, String itemId, String modId, ItemStack stack, Item item) {
         List<String> result = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : stages.entrySet()) {
             if (stageMatchesItemOrMod(entry.getValue(), itemId, modId, stack, item)) {
                 result.add(entry.getKey());
             }
@@ -830,7 +830,7 @@ public class StageManager implements IStageManager {
     public static Map<String, Set<String>> getDualPhaseTags()  { return DUAL_PHASE_TAGS; }
     public static Map<String, Set<String>> getDualPhaseMods()  { return DUAL_PHASE_MODS; }
 
-    private static boolean stageMatchesItemOrMod(StageEntry data, String itemId, String modId,
+    private static boolean stageMatchesItemOrMod(StageDefinition data, String itemId, String modId,
                                                  ItemStack stack, Item item) {
         // Check item entries (with optional NBT matching)
         for (ItemEntry itemEntry : data.getItemEntries()) {
@@ -853,10 +853,10 @@ public class StageManager implements IStageManager {
         return false;
     }
 
-    /** Collects stage IDs from the given map where the predicate on StageEntry is satisfied. */
-    private static List<String> collectStagesWhere(Map<String, StageEntry> stages, Predicate<StageEntry> predicate) {
+    /** Collects stage IDs from the given map where the predicate on StageDefinition is satisfied. */
+    private static List<String> collectStagesWhere(Map<String, StageDefinition> stages, Predicate<StageDefinition> predicate) {
         List<String> result = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : stages.entrySet()) {
             if (predicate.test(entry.getValue())) result.add(entry.getKey());
         }
         return result;
@@ -870,7 +870,7 @@ public class StageManager implements IStageManager {
     }
 
     /** Returns research time in ticks, falling back to the global config default. */
-    private static int resolveResearchTimeInTicks(StageEntry entry) {
+    private static int resolveResearchTimeInTicks(StageDefinition entry) {
         if (entry != null && entry.getResearchTime() > 0) {
             return entry.getResearchTime() * 20;
         }
@@ -879,7 +879,7 @@ public class StageManager implements IStageManager {
 
     public static List<String> getAllIndividualStagesForStructure(String structureId) {
         List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+        for (Map.Entry<String, StageDefinition> entry : INDIVIDUAL_STAGES.entrySet()) {
             if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
                 allFoundStages.add(entry.getKey());
             }
@@ -887,8 +887,8 @@ public class StageManager implements IStageManager {
         return allFoundStages;
     }
 
-    private static boolean persistStage(String stageId, StageEntry entry,
-                                        Map<String, StageEntry> map, String configPath, String logCategory) {
+    private static boolean persistStage(String stageId, StageDefinition entry,
+                                        Map<String, StageDefinition> map, String configPath, String logCategory) {
         File configDir = resolveConfigDir(configPath);
         if (!configDir.exists()) configDir.mkdirs();
 
@@ -906,7 +906,7 @@ public class StageManager implements IStageManager {
         }
     }
 
-    private static boolean removeStage(String stageId, Map<String, StageEntry> map,
+    private static boolean removeStage(String stageId, Map<String, StageDefinition> map,
                                        String configPath, String logCategory) {
         File file = new File(resolveConfigDir(configPath), stageId + ".json");
         if (file.exists() && file.delete()) {
@@ -917,7 +917,7 @@ public class StageManager implements IStageManager {
         return false;
     }
 
-    private static List<String> resolveStageOrder(Map<String, StageEntry> map, String configPath) {
+    private static List<String> resolveStageOrder(Map<String, StageDefinition> map, String configPath) {
         File configDir = resolveConfigDir(configPath);
         if (!configDir.exists()) return new ArrayList<>(map.keySet());
 
@@ -949,7 +949,7 @@ public class StageManager implements IStageManager {
         load();
     }
 
-    public static StageEntry getStageEntryForLevel(ServerLevel level, String stage) {
+    public static StageDefinition getStageDefinitionForLevel(ServerLevel level, String stage) {
         if (!getStages().containsKey(stage)) return null;
 
         return getStages().get(stage);
@@ -975,7 +975,7 @@ public class StageManager implements IStageManager {
     @Override
     public void unlockStageForPlayer(ServerPlayer player, String stage) {
 
-        var entry = getStageEntryForLevel(player.serverLevel(), stage);
+        var entry = getStageDefinitionForLevel(player.serverLevel(), stage);
         if (entry == null) { return; }
 
         StageData data = StageData.get(player.serverLevel());

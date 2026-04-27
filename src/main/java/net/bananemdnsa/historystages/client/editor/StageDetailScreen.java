@@ -7,7 +7,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
@@ -202,7 +202,7 @@ public class StageDetailScreen extends Screen {
         return isIndividual && (tab == 4 || tab == 7);
     }
 
-    public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual) {
+    public StageDetailScreen(Screen parent, String stageId, StageDefinition entry, boolean isIndividual) {
         super(Component.translatable("editor.historystages.detail_title"));
         this.parent = parent;
         this.originalStageId = stageId;
@@ -211,7 +211,7 @@ public class StageDetailScreen extends Screen {
                 || (!StageManager.getStages().containsKey(stageId)
                         && !StageManager.getIndividualStages().containsKey(stageId)));
 
-        StageEntry e = entry != null ? entry : new StageEntry();
+        StageDefinition e = entry != null ? entry : new StageDefinition();
         this.editStageId = stageId != null ? stageId : "";
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get()
@@ -2216,7 +2216,7 @@ public class StageDetailScreen extends Screen {
         }
         saveError = "";
 
-        StageEntry newEntry = new StageEntry();
+        StageDefinition newEntry = new StageDefinition();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
         newEntry.setIcon(editIcon);

@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
@@ -71,7 +71,7 @@ public class ModItems {
                     // Show dependencies in tooltip
                     if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
                         String stageId = stack.getTag().getString("StageResearch");
-                        StageEntry entry = StageManager.getStages().get(stageId);
+                        StageDefinition entry = StageManager.getStages().get(stageId);
                         if (entry == null)
                             entry = StageManager.getIndividualStages().get(stageId);
                         if (entry != null && entry.hasDependencies()) {
