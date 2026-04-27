@@ -6,6 +6,7 @@ import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -75,7 +76,7 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
             var displayed = slot.getDisplayedItemStack();
             if (displayed.isPresent()) {
                 ItemStack stack = displayed.get();
-                if (!stack.isEmpty() && StageManager.isItemLocked(stack, true)) {
+                if (!stack.isEmpty() && StageLockHelper.isItemLockedForClient(stack)) {
                     return true;
                 }
             }
