@@ -58,11 +58,14 @@ public class StageManager {
 
 
     private static final Set<String> KNOWN_KEYS = Set.of(
-            "display_name", "research_time", "items", "tags", "mods",
+            "display_name", "research_time", "icon", "items", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
+    );
+    private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
+            "structures", "mod_linked"
     );
 
     public static void load() {
@@ -226,6 +229,16 @@ public class StageManager {
                     }
                 }
             }
+            // Check structures sub-keys
+            if (json.has("structures") && json.get("structures").isJsonObject()) {
+                JsonObject structuresObj = json.getAsJsonObject("structures");
+                for (String key : structuresObj.keySet()) {
+                    if (!KNOWN_STRUCTURE_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown structures key '" + key + "' in stage '" + stageId + "'. Typo?");
+                        DebugLogger.warn("Unknown Keys", "Unknown key 'structures." + key + "' in stage '" + stageId + "'. Known structure keys: " + KNOWN_STRUCTURE_KEYS + ".");
+                    }
+                }
+            }
         } catch (Exception ignored) {
             // JSON parsing errors are handled in the main load loop
         }
@@ -237,6 +250,13 @@ public class StageManager {
         if (entry.getDisplayName().equals("Unknown Stage")) {
             addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
             DebugLogger.warn("Missing Fields", "Stage '" + stageId + "' has no 'display_name' set. It will show as 'Unknown Stage'.");
+        }
+
+        // --- Icon ---
+        if (entry.getIcon() != null && !ResourceLocation.isValidResourceLocation(entry.getIcon())) {
+            addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has invalid icon '" + entry.getIcon() + "'. Ignored.");
+            DebugLogger.warn("Invalid Icon", "Stage '" + stageId + "' has an invalid icon ResourceLocation: '" + entry.getIcon() + "'. It will be ignored.");
+            entry.setIcon(null);
         }
 
         // --- Empty strings & duplicates helper ---
@@ -425,6 +445,7 @@ public class StageManager {
         // --- Empty stage check ---
         int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                 + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
+                + entry.getStructures().size()
                 + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
         if (totalEntries == 0) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
