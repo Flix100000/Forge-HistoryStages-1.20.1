@@ -1,15 +1,13 @@
 package net.bananemdnsa.historystages.events;
 
-import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.network.LockFeedbackPacket;
+import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.EntityTravelToDimensionEvent;
@@ -56,28 +54,19 @@ public class DimensionLockHandler {
             DebugLogger.runtime("Dimension Lock", player.getName().getString(),
                     "Blocked travel to '" + dimId + "' — missing stages: " + lockedStages);
 
-            if (Config.CLIENT.dimShowChat.get()) {
-                MutableComponent chatMsg = Component.translatable("message.historystages.dimension_locked");
-                if (Config.CLIENT.dimShowStagesInChat.get()) {
-                    for (String stageId : lockedStages) {
-                        StageEntry stageEntry = StageManager.getStages().get(stageId);
-                        if (stageEntry == null) {
-                            stageEntry = StageManager.getIndividualStages().get(stageId);
-                        }
-                        String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                        chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
-                    }
+            List<String> displayNames = new ArrayList<>(lockedStages.size());
+            for (String stageId : lockedStages) {
+                StageEntry stageEntry = StageManager.getStages().get(stageId);
+                if (stageEntry == null) {
+                    stageEntry = StageManager.getIndividualStages().get(stageId);
                 }
-                player.sendSystemMessage(chatMsg);
+                displayNames.add(stageEntry != null ? stageEntry.getDisplayName() : stageId);
             }
 
-            if (Config.CLIENT.dimUseActionbar.get()) {
-                player.displayClientMessage(
-                        Component.translatable("message.historystages.dimension_unknown")
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                        true
-                );
-            }
+            PacketHandler.sendLockFeedbackToPlayer(
+                    new LockFeedbackPacket(LockFeedbackPacket.KIND_DIMENSION, displayNames),
+                    player
+            );
         }
     }
 }

@@ -403,6 +403,7 @@ public class ConfigEditorScreen extends Screen {
         guiGraphics.fill(10, tabY - 2, this.width - 10, tabY - 1, 0xFF555555);
 
         // Render custom tabs (styled like stage tabs)
+        String hoveredTabTooltip = null;
         for (int i = 0; i < TAB_KEYS.length; i++) {
             boolean active = (i == activeTab);
             boolean hovered = mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
@@ -418,6 +419,10 @@ public class ConfigEditorScreen extends Screen {
             String label = Component.translatable(TAB_KEYS[i]).getString();
             int textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
             drawSmallText(guiGraphics, label, tabX[i] + TAB_PAD, tabY + 4, textColor);
+
+            if (hovered) {
+                hoveredTabTooltip = Component.translatable(TAB_KEYS[i] + ".tooltip").getString();
+            }
         }
 
         // Separator below tabs
@@ -469,6 +474,12 @@ public class ConfigEditorScreen extends Screen {
         }
 
         guiGraphics.disableScissor();
+
+        // Tab hover tooltip — overrides any entry tooltip when hovering a tab
+        if (hoveredTabTooltip != null) {
+            currentHovered = "__tab__" + activeTab;
+            currentDescription = hoveredTabTooltip;
+        }
 
         // Scrollbar
         if (maxScroll > 0) {

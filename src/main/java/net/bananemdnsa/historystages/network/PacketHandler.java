@@ -52,6 +52,13 @@ public class PacketHandler {
                                 DepositDependencyPacket::new, DepositDependencyPacket::handle);
                 INSTANCE.registerMessage(id++, SyncStructureRegistryPacket.class, SyncStructureRegistryPacket::encode,
                                 SyncStructureRegistryPacket::decode, SyncStructureRegistryPacket::handle);
+                INSTANCE.registerMessage(id++, LockFeedbackPacket.class, LockFeedbackPacket::encode,
+                                LockFeedbackPacket::decode, LockFeedbackPacket::handle);
+        }
+
+        // Send lock feedback (dimension or mob) to a specific player — client decides display
+        public static void sendLockFeedbackToPlayer(LockFeedbackPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }
 
         // Send structure registry to a specific player (on login)

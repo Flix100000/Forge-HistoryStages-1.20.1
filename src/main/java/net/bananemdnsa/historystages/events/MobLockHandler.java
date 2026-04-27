@@ -1,15 +1,13 @@
 package net.bananemdnsa.historystages.events;
 
-import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.network.LockFeedbackPacket;
+import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
@@ -72,25 +70,16 @@ public class MobLockHandler {
             if (lastMessage != null && (now - lastMessage) < COOLDOWN_MS) return;
             MESSAGE_COOLDOWNS.put(player.getUUID(), now);
 
-            if (Config.CLIENT.mobShowChat.get()) {
-                MutableComponent chatMsg = Component.translatable("message.historystages.mob_locked");
-                if (Config.CLIENT.mobShowStagesInChat.get()) {
-                    for (String stageId : lockedStages) {
-                        StageEntry stageEntry = StageManager.getStages().get(stageId);
-                        String displayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                        chatMsg.append(Component.translatable("message.historystages.locked_stage", displayName));
-                    }
-                }
-                player.sendSystemMessage(chatMsg);
+            List<String> displayNames = new ArrayList<>(lockedStages.size());
+            for (String stageId : lockedStages) {
+                StageEntry stageEntry = StageManager.getStages().get(stageId);
+                displayNames.add(stageEntry != null ? stageEntry.getDisplayName() : stageId);
             }
 
-            if (Config.CLIENT.mobUseActionbar.get()) {
-                player.displayClientMessage(
-                        Component.translatable("message.historystages.mob_unknown")
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                        true
-                );
-            }
+            PacketHandler.sendLockFeedbackToPlayer(
+                    new LockFeedbackPacket(LockFeedbackPacket.KIND_MOB, displayNames),
+                    player
+            );
         }
     }
 }
