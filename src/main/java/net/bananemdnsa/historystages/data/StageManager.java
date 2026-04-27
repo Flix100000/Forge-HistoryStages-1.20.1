@@ -319,19 +319,6 @@ public class StageManager implements IStageManager {
             DebugLogger.warn("Missing Fields", context + " '" + stageId + "' has no 'display_name' set. It will show as 'Unknown Stage'.");
         }
 
-        // Remove empty/blank entries
-        removeEmptyItemEntries(entry.getItemEntries(), stageId);
-        removeEmptyStrings(entry.getTags(), stageId, "tags");
-        removeEmptyStrings(entry.getMods(), stageId, "mods");
-        removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
-        removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
-        removeEmptyStrings(entry.getStructures(), stageId, "structures");
-        removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-        if (isGlobal) {
-            removeEmptyStrings(entry.getRecipes(), stageId, "recipes");
-            removeEmptyStrings(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
-        }
-
         // Warn about duplicates
         checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
@@ -343,16 +330,6 @@ public class StageManager implements IStageManager {
         if (isGlobal) {
             checkDuplicates(entry.getRecipes(), stageId, "recipes");
             checkDuplicates(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
-        }
-
-        // Remove entries with invalid ResourceLocation format
-        removeInvalidItemEntries(entry.getItemEntries(), "Item", stageId, context);
-        removeInvalidResourceLocations(entry.getTags(), "Tag", stageId, context);
-        removeInvalidResourceLocations(entry.getDimensions(), "Dimension", stageId, context);
-        removeInvalidResourceLocations(entry.getEntities().getAttacklock(), "Entity attacklock", stageId, context);
-        if (isGlobal) {
-            removeInvalidResourceLocations(entry.getRecipes(), "Recipe", stageId, context);
-            removeInvalidResourceLocations(entry.getEntities().getSpawnlock(), "Entity spawnlock", stageId, context);
         }
 
         // Mod format validation (individual stages skip the install-presence check)
@@ -513,54 +490,6 @@ public class StageManager implements IStageManager {
         }
     }
 
-    // =============================================
-    // VALIDATION HELPERS
-    // =============================================
-
-    private static void removeInvalidResourceLocations(List<String> list, String fieldLabel, String stageId, String context) {
-        list.removeIf(id -> {
-            if (!ResourceLocation.isValidResourceLocation(id)) {
-                addMessage(MessageLevel.WARN, fieldLabel + " '" + id + "' invalid format (" + context + ": " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid " + fieldLabel + "s", fieldLabel + " '" + id
-                        + "' is not a valid ResourceLocation (" + context + ": " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-    }
-
-    private static void removeInvalidItemEntries(List<ItemEntry> list, String fieldLabel, String stageId, String context) {
-        list.removeIf(item -> {
-            String itemId = item.getId();
-            if (!ResourceLocation.isValidResourceLocation(itemId)) {
-                addMessage(MessageLevel.WARN, fieldLabel + " '" + itemId + "' invalid format (" + context + ": " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid " + fieldLabel + "s", fieldLabel + " '" + itemId
-                        + "' is not a valid ResourceLocation (" + context + ": " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-    }
-
-    private static void removeEmptyItemEntries(List<ItemEntry> list, String stageId) {
-        int before = list.size();
-        list.removeIf(e -> e.getId() == null || e.getId().isBlank());
-        int removed = before - list.size();
-        if (removed > 0) {
-            addMessage(MessageLevel.WARN, "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
-            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
-        }
-    }
-
-    private static void removeEmptyStrings(List<String> list, String stageId, String field) {
-        int before = list.size();
-        list.removeIf(val -> val == null || val.isBlank());
-        int removed = before - list.size();
-        if (removed > 0) {
-            addMessage(MessageLevel.WARN, "Removed " + removed + " empty string(s) from '" + field + "' (Stage: " + stageId + ").");
-            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty/blank string(s) from '" + field + "' (Stage: " + stageId + ").");
-        }
-    }
 
     private static void checkDuplicateItems(List<ItemEntry> list, String stageId) {
         Set<String> seen = new HashSet<>();
@@ -652,32 +581,6 @@ public class StageManager implements IStageManager {
         if (stages != null) STAGES.putAll(stages);
     }
 
-    public static String getStageForItemOrMod(String itemId, String modId) {
-        for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-
-            if (data.getItems() != null && data.getItems().contains(itemId)) return entry.getKey();
-            if (data.getMods() != null && data.getMods().contains(modId) && !data.isModExcepted(itemId, null)) return entry.getKey();
-
-            if (data.getTags() != null) {
-                Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
-                if (item != null) {
-                    for (String tagId : data.getTags()) {
-                        //TODO: Creating tag keys like this could cause possible memory leaks if not careful
-                        // may be best to cache pre-existing tag keys in future
-                        var tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
-                        if (item.builtInRegistryHolder().is(tagKey)) return entry.getKey();
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
-        return getAllStagesForItemOrMod(itemId, modId, null);
-    }
-
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
         Item item = ForgeRegistries.ITEMS.getValue(ResourceLocation.parse(itemId));
         return collectMatchingStages(STAGES, itemId, modId, stack, item);
@@ -699,14 +602,6 @@ public class StageManager implements IStageManager {
         return collectStagesWhere(STAGES, entry -> entry.getEntities().getSpawnlock().contains(entityId));
     }
 
-    public static String getStageForDimension(String dimensionId) {
-        for (var entry : STAGES.entrySet()) {
-            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
 
     public static List<String> getAllStagesForDimension(String dimensionId) {
         //return collectStagesWhere(STAGES, entry -> entry.getDimensions() != null && entry.getDimensions().contains(dimensionId));
@@ -719,15 +614,6 @@ public class StageManager implements IStageManager {
         return allFoundStages;
     }
 
-    public static List<String> getAllStagesForStructure(String structureId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
 
     public static boolean anyStageHasStructures() {
         for (StageEntry entry : STAGES.values()) {
@@ -737,12 +623,6 @@ public class StageManager implements IStageManager {
             if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
         }
         return false;
-    }
-
-
-    /** Delegates to StageEntry.isModExcepted for consistency. */
-    private static boolean isModException(String itemId, net.minecraft.world.item.ItemStack stack, StageEntry data) {
-        return data.isModExcepted(itemId, stack);
     }
 
     /**
