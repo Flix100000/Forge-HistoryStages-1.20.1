@@ -632,6 +632,12 @@ public class StageDetailScreen extends Screen {
             }
         }
 
+        // Icon picker button tooltip
+        if (!overlayOpen && iconPickerBtn != null && iconPickerBtn.isHoveredOrFocused()) {
+            currentTooltipKey = "field.icon";
+            currentTooltipText = Component.translatable("editor.historystages.icon.tooltip").getString();
+        }
+
         // Sliding gold underline indicator
         guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
 
