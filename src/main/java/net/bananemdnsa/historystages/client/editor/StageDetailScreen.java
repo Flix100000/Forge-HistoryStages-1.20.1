@@ -826,25 +826,27 @@ public class StageDetailScreen extends Screen {
 
                 // Check if this entry is a dual-phase entry (present in both individual and a global stage)
                 boolean isDualPhase = false;
-                if (isIndividual && (activeTab == 0 || activeTab == 1 || activeTab == 2)) {
+                if (isIndividual) {
                     String entry = list.get(i);
-                    isDualPhase = switch (activeTab) {
-                        case 0 -> StageManager.getDualPhaseItems().containsKey(entry);
-                        case 1 -> StageManager.getDualPhaseTags().containsKey(entry);
-                        case 2 -> StageManager.getDualPhaseMods().containsKey(entry);
-                        default -> false;
+                    Map<String, Set<String>> dualMap = switch (activeTab) {
+                        case 0 -> StageManager.getDualPhaseItems();
+                        case 1 -> StageManager.getDualPhaseTags();
+                        case 2 -> StageManager.getDualPhaseMods();
+                        case 5 -> StageManager.getDualPhaseDimensions();
+                        case 6 -> StageManager.getDualPhaseAttacklock();
+                        case 8 -> StageManager.getDualPhaseStructures();
+                        default -> null;
                     };
-                    if (isDualPhase && entryHovered) {
-                        Set<String> globalStages = switch (activeTab) {
-                            case 0 -> StageManager.getDualPhaseItems().get(entry);
-                            case 1 -> StageManager.getDualPhaseTags().get(entry);
-                            case 2 -> StageManager.getDualPhaseMods().get(entry);
-                            default -> null;
-                        };
-                        pendingTooltipKey = "dual-phase:" + entry;
-                        pendingTooltipText = String.format(
-                                Component.translatable("editor.historystages.dual_phase_tooltip").getString(),
-                                globalStages);
+                    if (dualMap != null) {
+                        // For items tab, the list contains item IDs; dual-phase key is the item ID.
+                        isDualPhase = dualMap.containsKey(entry);
+                        if (isDualPhase && entryHovered) {
+                            Set<String> globalStages = dualMap.get(entry);
+                            pendingTooltipKey = "dual-phase:" + entry;
+                            pendingTooltipText = String.format(
+                                    Component.translatable("editor.historystages.dual_phase_tooltip").getString(),
+                                    globalStages);
+                        }
                     }
                 }
 
