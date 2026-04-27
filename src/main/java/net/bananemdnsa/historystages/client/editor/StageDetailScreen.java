@@ -413,7 +413,10 @@ public class StageDetailScreen extends Screen {
             }
             if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty()) hasChanges = true;
             updateMaxScroll();
-            // Chain: show structure popup after entity popup
+            if (pendingModId != null)
+                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2);
+        }, () -> {
+            // Skip pressed: still chain to structure popup
             if (pendingModId != null)
                 modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2);
         });

@@ -8,12 +8,15 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
  * Popup that shows all structures from a specific mod with checkboxes.
  * Appears after the entity-selection popup when adding a mod in the editor.
+ * Mirrors the layout of ModEntitySelectionPopup.
  */
 public class ModStructureSelectionPopup {
     private static final int ROW_HEIGHT = 18;
@@ -21,7 +24,7 @@ public class ModStructureSelectionPopup {
     private static final int PADDING = 8;
     private static final int PANEL_WIDTH = 260;
     private static final int CHECKBOX_SIZE = 12;
-    private static final int HEADER_HEIGHT = 28;
+    private static final int HEADER_HEIGHT = 38;
     private static final int FOOTER_HEIGHT = 30;
 
     private static final long MARQUEE_DELAY_MS = 800;
@@ -43,6 +46,8 @@ public class ModStructureSelectionPopup {
     private float confirmHoverProgress = 0;
     private float skipHoverProgress = 0;
 
+    private final Map<String, Float> checkboxHoverProgress = new HashMap<>();
+
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
 
@@ -54,6 +59,7 @@ public class ModStructureSelectionPopup {
     public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY) {
         this.modDisplayName = modDisplayName;
         structures.clear();
+        checkboxHoverProgress.clear();
         confirmHoverProgress = 0;
         skipHoverProgress = 0;
         hoveredRowIndex = -1;
@@ -93,7 +99,7 @@ public class ModStructureSelectionPopup {
     }
 
     private int getCbX() {
-        return panelX + panelW - PADDING - CHECKBOX_SIZE - 4;
+        return panelX + panelW - PADDING - CHECKBOX_SIZE - 30;
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -101,22 +107,28 @@ public class ModStructureSelectionPopup {
 
         int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
 
+        // Dimmed background
         guiGraphics.fill(0, 0, guiGraphics.guiWidth(), guiGraphics.guiHeight(), 0x88000000);
+
+        // Panel background
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
-        // Header
+        // Header: title on the left, "Add" label above the checkbox column
         String title = modDisplayName + " - Structures";
-        if (font.width(title) > panelW - PADDING * 2 - 4) {
-            title = font.plainSubstrByWidth(title, panelW - PADDING * 2 - 10) + "...";
+        if (font.width(title) > panelW - PADDING * 2 - 60) {
+            title = font.plainSubstrByWidth(title, panelW - PADDING * 2 - 66) + "...";
         }
-        guiGraphics.drawString(font, title, panelX + PADDING, panelY + 9, 0xFFFFFF, false);
+        guiGraphics.drawString(font, title, panelX + PADDING, panelY + 7, 0xFFFFFF, false);
 
-        // "Add" column header + select-all checkbox
         int cbX = getCbX();
         String addLabel = "Add";
         int addLabelX = cbX + (CHECKBOX_SIZE - font.width(addLabel)) / 2;
-        guiGraphics.drawString(font, addLabel, addLabelX, panelY + 9, 0x999999, false);
+        guiGraphics.drawString(font, addLabel, addLabelX, panelY + 7, 0x999999, false);
+
+        // Select-all checkbox below the label (same row as entity popup's select-all)
+        int selectAllY = panelY + 20;
+        renderCheckbox(guiGraphics, cbX, selectAllY, allSelected, mouseX, mouseY, "all");
 
         // List area
         int listY = panelY + HEADER_HEIGHT + PADDING;
@@ -170,7 +182,7 @@ public class ModStructureSelectionPopup {
 
             // Checkbox
             int cbY = rowY + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
-            renderCheckbox(guiGraphics, cbX, cbY, row.selected, mouseX, mouseY);
+            renderCheckbox(guiGraphics, cbX, cbY, row.selected, mouseX, mouseY, String.valueOf(index));
         }
 
         if (currentHoveredRow != hoveredRowIndex) {
@@ -211,26 +223,21 @@ public class ModStructureSelectionPopup {
 
         renderStyledButton(guiGraphics, font, "Confirm", confirmX, footerY + 5, btnW, btnH, confirmHoverProgress);
         renderStyledButton(guiGraphics, font, "Skip", skipX, footerY + 5, btnW, btnH, skipHoverProgress);
-
-        // Select-all row above footer
-        int selectAllY = footerY - ROW_HEIGHT - 2;
-        guiGraphics.fill(listX, selectAllY, listX + listW, selectAllY + ROW_HEIGHT,
-                mouseX >= listX && mouseX < listX + listW && mouseY >= selectAllY && mouseY < selectAllY + ROW_HEIGHT
-                        ? 0xFF303030 : 0xFF222222);
-        guiGraphics.drawString(font, "Select all", listX + 4, selectAllY + (ROW_HEIGHT - 8) / 2, 0xAAAAAA, false);
-        int saCbY = selectAllY + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
-        renderCheckbox(guiGraphics, cbX, saCbY, allSelected, mouseX, mouseY);
     }
 
-    private void renderCheckbox(GuiGraphics g, int x, int y, boolean checked, int mx, int my) {
+    private void renderCheckbox(GuiGraphics g, int x, int y, boolean checked, int mx, int my, String hoverKey) {
         boolean hovered = mx >= x && mx < x + CHECKBOX_SIZE && my >= y && my < y + CHECKBOX_SIZE;
-        float p = checked ? 1.0f : (hovered ? 0.6f : 0.0f);
-        int bgAlpha = (int) (0x30 + p * 0x20);
+        float hp = checkboxHoverProgress.getOrDefault(hoverKey, 0f);
+        hp = hovered ? Math.min(1.0f, hp + 0.1f) : Math.max(0.0f, hp - 0.08f);
+        checkboxHoverProgress.put(hoverKey, hp);
+        float progress = checked ? 1.0f : hp;
+
+        int bgAlpha = (int) (0x30 + progress * 0x20);
         int bgR = 0xFF;
-        int bgG = (int) (0xFF - p * 0x33);
-        int bgB = (int) (0xFF - p * 0xFF);
+        int bgG = (int) (0xFF - progress * 0x33);
+        int bgB = (int) (0xFF - progress * 0xFF);
         g.fill(x, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB);
-        int accentAlpha = (int) (0x60 + p * 0x9F);
+        int accentAlpha = (int) (0x60 + progress * 0x9F);
         g.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, (accentAlpha << 24) | 0xFFCC00);
         g.fill(x, y, x + CHECKBOX_SIZE, y + 1, 0x20FFFFFF);
         g.fill(x, y, x + 1, y + CHECKBOX_SIZE, 0x15FFFFFF);
@@ -277,6 +284,7 @@ public class ModStructureSelectionPopup {
         int confirmX = panelX + panelW / 2 - btnW - 5;
         int skipX = panelX + panelW / 2 + 5;
 
+        // Footer buttons
         if (mouseY >= footerY + 5 && mouseY < footerY + 5 + btnH) {
             if (mouseX >= confirmX && mouseX < confirmX + btnW) {
                 List<String> selected = new ArrayList<>();
@@ -310,14 +318,11 @@ public class ModStructureSelectionPopup {
             }
         }
 
-        // Select-all row
-        int listX = panelX + PADDING;
-        int listW = panelW - PADDING * 2 - 8;
-        int selectAllY = footerY - ROW_HEIGHT - 2;
+        // Select-all checkbox in header
         int cbX = getCbX();
-        int saCbY = selectAllY + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
-        if (mouseX >= cbX && mouseX < cbX + CHECKBOX_SIZE && mouseY >= saCbY && mouseY < saCbY + CHECKBOX_SIZE
-                || (mouseX >= listX && mouseX < listX + listW && mouseY >= selectAllY && mouseY < selectAllY + ROW_HEIGHT)) {
+        int selectAllY = panelY + 20;
+        if (mouseX >= cbX && mouseX < cbX + CHECKBOX_SIZE
+                && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
             Minecraft.getInstance().getSoundManager()
                     .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allSelected = !allSelected;
@@ -329,11 +334,12 @@ public class ModStructureSelectionPopup {
 
         // Per-row checkbox
         int listY = panelY + HEADER_HEIGHT + PADDING;
+        int listX = panelX + PADDING;
+        int listW = panelW - PADDING * 2 - 8;
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
             if (index >= structures.size()) break;
             int rowY = listY + i * ROW_HEIGHT;
-            int cbY = rowY + (ROW_HEIGHT - CHECKBOX_SIZE) / 2;
             if (mouseX >= listX && mouseX < listX + listW && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));

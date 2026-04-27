@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Popup that shows all entities from a specific mod with checkboxes for
@@ -46,6 +47,7 @@ public class ModEntitySelectionPopup {
     private final List<EntityRow> entities = new ArrayList<>();
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
     private final BiConsumer<List<String>, List<String>> onConfirm; // (spawnlock, attacklock)
+    private final Runnable onSkip;
 
     private int panelX, panelY, panelW, panelH;
     private boolean visible = false;
@@ -74,8 +76,9 @@ public class ModEntitySelectionPopup {
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
 
-    public ModEntitySelectionPopup(BiConsumer<List<String>, List<String>> onConfirm) {
+    public ModEntitySelectionPopup(BiConsumer<List<String>, List<String>> onConfirm, Runnable onSkip) {
         this.onConfirm = onConfirm;
+        this.onSkip = onSkip;
     }
 
     public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY) {
@@ -557,6 +560,7 @@ public class ModEntitySelectionPopup {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 hide();
+                if (onSkip != null) onSkip.run();
                 return true;
             }
         }

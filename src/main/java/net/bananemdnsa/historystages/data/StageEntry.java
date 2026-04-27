@@ -33,10 +33,7 @@ public class StageEntry {
 
     private List<String> recipes;
     private List<String> dimensions;
-    private List<String> structures;
-
-    @SerializedName("structure_mod_linked")
-    private List<String> structureModLinked;
+    private StructureLocks structures;
 
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
@@ -48,8 +45,7 @@ public class StageEntry {
         this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
-        this.structures = new ArrayList<>();
-        this.structureModLinked = new ArrayList<>();
+        this.structures = new StructureLocks();
         this.entities = new EntityLocks();
     }
 
@@ -136,11 +132,11 @@ public class StageEntry {
     }
 
     public List<String> getStructures() {
-        return structures != null ? structures : new ArrayList<>();
+        return structures != null ? structures.getStructures() : new ArrayList<>();
     }
 
     public List<String> getStructureModLinked() {
-        return structureModLinked != null ? structureModLinked : new ArrayList<>();
+        return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
     public EntityLocks getEntities() {
@@ -219,11 +215,13 @@ public class StageEntry {
     }
 
     public void setStructures(List<String> structures) {
-        this.structures = structures != null ? new ArrayList<>(structures) : new ArrayList<>();
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setStructures(structures);
     }
 
-    public void setStructureModLinked(List<String> structureModLinked) {
-        this.structureModLinked = structureModLinked != null ? new ArrayList<>(structureModLinked) : new ArrayList<>();
+    public void setStructureModLinked(List<String> modLinked) {
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setModLinked(modLinked);
     }
 
     public void setEntities(EntityLocks entities) {
