@@ -123,14 +123,17 @@ public class DebugLogger {
                     .orElse("unknown");
 
             // Count totals across all stages
-            int totalItems = 0, totalTags = 0, totalMods = 0, totalRecipes = 0;
-            int totalDimensions = 0, totalAttacklock = 0, totalSpawnlock = 0;
+            int totalItems = 0, totalTags = 0, totalMods = 0, totalModExceptions = 0;
+            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0;
+            int totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
                 totalItems += entry.getAllItemIds().size();
                 totalTags += entry.getTags().size();
                 totalMods += entry.getMods().size();
+                totalModExceptions += entry.getAllModExceptionIds().size();
                 totalRecipes += entry.getRecipes().size();
                 totalDimensions += entry.getDimensions().size();
+                totalStructures += entry.getStructures().size();
                 totalAttacklock += entry.getEntities().getAttacklock().size();
                 totalSpawnlock += entry.getEntities().getSpawnlock().size();
             }
@@ -153,8 +156,8 @@ public class DebugLogger {
                         + "  (Errors: " + errorCount + "  |  Warnings: " + warnCount + "  |  Info: " + infoCount + ")");
                 pw.println();
                 pw.println("  Total entries across global stages:");
-                pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods);
-                pw.println("    Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions);
+                pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods + "  |  Mod Exceptions: " + totalModExceptions);
+                pw.println("    Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions + "  |  Structures: " + totalStructures);
                 pw.println("    Entities (attacklock): " + totalAttacklock + "  |  Entities (spawnlock): " + totalSpawnlock);
                 pw.println();
 
@@ -185,27 +188,7 @@ public class DebugLogger {
                 pw.println();
 
                 for (Map.Entry<String, StageEntry> stageEntry : stages.entrySet()) {
-                    String id = stageEntry.getKey();
-                    StageEntry s = stageEntry.getValue();
-                    EntityLocks ent = s.getEntities();
-
-                    int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
-                            + s.getRecipes().size() + s.getDimensions().size()
-                            + ent.getAttacklock().size() + ent.getSpawnlock().size();
-
-                    pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
-                    pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
-                    pw.println("  Total entries: " + entryCount);
-
-                    printList(pw, "Items", s.getAllItemIds());
-                    printList(pw, "Tags", s.getTags());
-                    printList(pw, "Mods", s.getMods());
-                    printList(pw, "Recipes", s.getRecipes());
-                    printList(pw, "Dimensions", s.getDimensions());
-                    printList(pw, "Entities (attacklock)", ent.getAttacklock());
-                    printList(pw, "Entities (spawnlock)", ent.getSpawnlock());
-
-                    pw.println();
+                    printStage(pw, stageEntry.getKey(), stageEntry.getValue());
                 }
 
                 // ── Loaded Individual Stages ──
@@ -216,27 +199,7 @@ public class DebugLogger {
                     pw.println();
 
                     for (Map.Entry<String, StageEntry> stageEntry : individualStages.entrySet()) {
-                        String id = stageEntry.getKey();
-                        StageEntry s = stageEntry.getValue();
-                        EntityLocks ent = s.getEntities();
-
-                        int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
-                                + s.getRecipes().size() + s.getDimensions().size()
-                                + ent.getAttacklock().size() + ent.getSpawnlock().size();
-
-                        pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
-                        pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
-                        pw.println("  Total entries: " + entryCount);
-
-                        printList(pw, "Items", s.getAllItemIds());
-                        printList(pw, "Tags", s.getTags());
-                        printList(pw, "Mods", s.getMods());
-                        printList(pw, "Recipes", s.getRecipes());
-                        printList(pw, "Dimensions", s.getDimensions());
-                        printList(pw, "Entities (attacklock)", ent.getAttacklock());
-                        printList(pw, "Entities (spawnlock)", ent.getSpawnlock());
-
-                        pw.println();
+                        printStage(pw, stageEntry.getKey(), stageEntry.getValue());
                     }
                 }
 
@@ -284,6 +247,52 @@ public class DebugLogger {
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to write debug log: " + e.getMessage());
         }
+    }
+
+    private static void printStage(PrintWriter pw, String id, StageEntry s) {
+        EntityLocks ent = s.getEntities();
+        List<String> structures = s.getStructures();
+        List<String> structureModLinked = s.getStructureModLinked();
+        List<String> modExceptions = s.getAllModExceptionIds();
+        List<String> attacklock = ent.getAttacklock();
+        List<String> spawnlock = ent.getSpawnlock();
+        List<String> entModLinked = ent.getModLinked();
+
+        int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
+                + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
+                + structures.size() + attacklock.size() + spawnlock.size();
+
+        pw.println("--- " + id + " (" + s.getDisplayName() + ") "
+                + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
+        pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
+        if (s.getIcon() != null) pw.println("  Icon: " + s.getIcon());
+        pw.println("  Total entries: " + entryCount);
+
+        printList(pw, "Items", s.getAllItemIds());
+        printList(pw, "Tags", s.getTags());
+        printList(pw, "Mods", s.getMods());
+        if (!modExceptions.isEmpty()) printList(pw, "Mod Exceptions", modExceptions);
+        printList(pw, "Recipes", s.getRecipes());
+        printList(pw, "Dimensions", s.getDimensions());
+        if (!structures.isEmpty()) {
+            printList(pw, "Structures", structures);
+            if (!structureModLinked.isEmpty()) printList(pw, "  Structures (mod-linked)", structureModLinked);
+        }
+        if (!attacklock.isEmpty()) {
+            printList(pw, "Entities — Attacklock", attacklock);
+        }
+        if (!spawnlock.isEmpty()) {
+            printList(pw, "Entities — Spawnlock", spawnlock);
+        }
+        if (!entModLinked.isEmpty()) printList(pw, "  Entities (mod-linked)", entModLinked);
+        if (s.hasDependencies()) {
+            pw.println("  Dependencies (" + s.getDependencies().size() + " group(s)):");
+            for (var group : s.getDependencies()) {
+                pw.println("    - " + group);
+            }
+        }
+
+        pw.println();
     }
 
     private static void printList(PrintWriter pw, String label, List<String> list) {
