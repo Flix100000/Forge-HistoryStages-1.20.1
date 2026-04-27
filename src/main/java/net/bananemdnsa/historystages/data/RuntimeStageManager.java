@@ -4,22 +4,19 @@ import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.*;
 import net.astr0.historystages.api.IStageManager;
-import net.bananemdnsa.historystages.HistoryStages;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
-import org.apache.commons.compress.compressors.lz77support.LZ77Compressor;
 
-import java.util.BitSet;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
+import java.util.*;
 
 public final class RuntimeStageManager implements IStageManager {
 
@@ -61,6 +58,11 @@ public final class RuntimeStageManager implements IStageManager {
 
     private final Object2IntOpenHashMap<String> stageToBitPositionReferenceMap = new Object2IntOpenHashMap<>();
     private final Int2ObjectOpenHashMap<String> bitPositionToStageReferenceMap = new Int2ObjectOpenHashMap<>();
+    // THIS SHOULD NEVER BE MODIFIED. WE USE THIS FOR EMPTY BITSETS ONLY
+    // To save memory, we will assign/return this anytime we know there is no lock.
+    // If this instance is modified, we will start getting some really strange bugs
+    private final BitSet EMPTY_BITSET = new ReadOnlyBitSet();
+    private boolean STAGE_WITH_STRUCTURE_EXISTS = false;
 
     // TODO(Astr0): To optimise, consider an approach to initialise lock hashmaps at
     // a reasonably size. We want to minimise the amount of resize and rehash operations at runtime
@@ -73,6 +75,8 @@ public final class RuntimeStageManager implements IStageManager {
     private final Reference2ObjectMap<Block, BitSet> blockLocks = new Reference2ObjectOpenHashMap<>(300);
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> modLocks = new Object2ObjectOpenHashMap<>();
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> dimensionLocks = new Object2ObjectOpenHashMap<>(20);
+    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> entityLocks = new Object2ObjectOpenHashMap<>(20);
+    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> structureLocks = new Object2ObjectOpenHashMap<>(20);
 
     // =========================
     //     Implementation
@@ -133,8 +137,60 @@ public final class RuntimeStageManager implements IStageManager {
                     }
                 }
             });
+
+            // Reset this cached result
+            STAGE_WITH_STRUCTURE_EXISTS = false;
+            stage.getLockedStructures().forEach((structure) -> {
+
+                // Cache that we have ANY locked structure
+                // This is returned by anyStageHasStructures()
+                STAGE_WITH_STRUCTURE_EXISTS = true;
+            });
         }
 
+        bakeTagEntries(stages);
+
+    }
+
+    private void lockItemWithStage(Item item, String stage) {
+        int stageBit = getStageBit(stage);
+        BitSet itemLock = itemLocks.computeIfAbsent(item, k -> new BitSet());
+        itemLock.set(stageBit);
+    }
+
+    // Tags aren't loaded until the game world loads and can also be reloaded mid-game.
+    // So we have to process tags data separately, so they can be handled correctly
+    public void bakeTagEntries(List<StageDefinition> stages) {
+
+        for (StageDefinition stage : stages) {
+            List<TagKey<Item>> lockedTags = stage.getLockedItemTags();
+
+            for (TagKey<Item> tag : lockedTags) {
+                ForgeRegistries.ITEMS.tags().getTag(tag).forEach(item -> {
+                    lockItemWithStage(item, stage.getName());
+                });
+            }
+        }
+    }
+
+
+    public boolean anyStageHasStructures() {
+        return STAGE_WITH_STRUCTURE_EXISTS;
+    }
+
+    public List<String> getStagesForItem(Item item) {
+
+        List<String> lockingStages = new ArrayList<>();
+
+        BitSet lockReference = itemLocks.getOrDefault(item, EMPTY_BITSET);
+
+        for (int i = lockReference.nextSetBit(0); i >= 0; i = lockReference.nextSetBit(i + 1)) {
+            //TODO: It should never happen but it may be possible that we try to test a bit position which doesn't correspond
+            // to a stage. Check this code later and consider if this is possible.
+            lockingStages.add(bitPositionToStageReferenceMap.get(i));
+        }
+
+        return lockingStages;
     }
 
 
@@ -165,7 +221,7 @@ public final class RuntimeStageManager implements IStageManager {
     // the bits. The order may change at any time so this is not a stable external API.
     // Will return 0 if the stage is not present in the global state -> This will always correspond
     // to the "DummyState", which we can safely modify in any way without impacting game state.
-    private int getBit(String stage) {
+    private int getStageBit(String stage) {
 
         //Todo: Pick which one of these error behaviours to use
         ASSERT_VALID_STAGE(stage);
@@ -196,34 +252,34 @@ public final class RuntimeStageManager implements IStageManager {
 
     @Override
     public boolean isStageUnlockedForPlayer(ServerPlayer player, String stage) {
-        return getBitSetForPlayer(player).get(getBit(stage));
+        return getBitSetForPlayer(player).get(getStageBit(stage));
     }
 
     @Override
     public boolean isStageUnlockedGlobally(String stage) {
-        return GLOBAL_UNLOCKED_STAGES.get(getBit(stage));
+        return GLOBAL_UNLOCKED_STAGES.get(getStageBit(stage));
     }
 
     @Override
     public void unlockStageForPlayer(ServerPlayer player, String stage) {
-        int bitPosition = getBit(stage);
+        int bitPosition = getStageBit(stage);
         getBitSetForPlayer(player).set(bitPosition);
     }
 
     @Override
     public void unlockStageGlobally(String stage) {
-        GLOBAL_UNLOCKED_STAGES.set(getBit(stage));
+        GLOBAL_UNLOCKED_STAGES.set(getStageBit(stage));
     }
 
     @Override
     public void lockStageForPlayer(ServerPlayer player, String stage) {
-        int bitPosition = getBit(stage);
+        int bitPosition = getStageBit(stage);
 
         getBitSetForPlayer(player).clear(bitPosition);
     }
 
     @Override
     public void lockStageGlobally(String stage) {
-        GLOBAL_UNLOCKED_STAGES.clear(getBit(stage));
+        GLOBAL_UNLOCKED_STAGES.clear(getStageBit(stage));
     }
 }
