@@ -394,44 +394,109 @@ public class StageManager {
 
         // --- Dependencies validation ---
         if (entry.hasDependencies()) {
+            int groupIdx = 0;
             for (DependencyGroup group : entry.getDependencies()) {
-                // Validate dependency item IDs
+                groupIdx++;
+                String ctx = "Stage: " + stageId + ", group " + groupIdx;
+
+                // logic field
+                String logic = group.getLogic();
+                if (!"AND".equalsIgnoreCase(logic) && !"OR".equalsIgnoreCase(logic)) {
+                    addMessage(MessageLevel.WARN, "Dependency group " + groupIdx + " has invalid logic '" + logic + "' (Stage: " + stageId + "). Expected AND or OR. Defaulting to AND.");
+                    DebugLogger.warn("Invalid Dependencies", "Dependency group " + groupIdx + " has invalid logic value '" + logic + "' (" + ctx + "). Expected 'AND' or 'OR'. Defaulting to AND.");
+                    group.setLogic("AND");
+                }
+
+                // items
                 group.getItems().removeIf(depItem -> {
                     if (depItem.getId() == null || !ResourceLocation.isValidResourceLocation(depItem.getId())) {
-                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' invalid format (" + ctx + "). Removed.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency item '" + depItem.getId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
                         return true;
+                    }
+                    if (depItem.getCount() < 1) {
+                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' has count < 1 (" + ctx + "). Clamped to 1.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency item '" + depItem.getId() + "' has count " + depItem.getCount() + " (" + ctx + "). Clamped to 1.");
+                        depItem.setCount(1);
                     }
                     return false;
                 });
-                // Validate entity kill IDs
+
+                // entity kills
                 group.getEntityKills().removeIf(kill -> {
                     if (kill.getEntityId() == null || !ResourceLocation.isValidResourceLocation(kill.getEntityId())) {
-                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' invalid format (" + ctx + "). Removed.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency entity_kill '" + kill.getEntityId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
                         return true;
+                    }
+                    if (kill.getCount() < 1) {
+                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' has count < 1 (" + ctx + "). Clamped to 1.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency entity_kill '" + kill.getEntityId() + "' has count " + kill.getCount() + " (" + ctx + "). Clamped to 1.");
+                        kill.setCount(1);
                     }
                     return false;
                 });
-                // Validate stat IDs
+
+                // stats
                 group.getStats().removeIf(stat -> {
                     if (stat.getStatId() == null || !ResourceLocation.isValidResourceLocation(stat.getStatId())) {
-                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' invalid format (" + ctx + "). Removed.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency stat '" + stat.getStatId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
                         return true;
+                    }
+                    if (stat.getMinValue() < 0) {
+                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' has negative min_value (" + ctx + "). Clamped to 0.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency stat '" + stat.getStatId() + "' has min_value " + stat.getMinValue() + " (" + ctx + "). Clamped to 0.");
+                        stat.setMinValue(0);
                     }
                     return false;
                 });
-                // Validate advancement IDs
+
+                // advancements
                 group.getAdvancements().removeIf(adv -> {
                     if (adv == null || !ResourceLocation.isValidResourceLocation(adv)) {
-                        addMessage(MessageLevel.WARN, "Dependency advancement '" + adv + "' invalid format (Stage: " + stageId + "). Removed.");
+                        addMessage(MessageLevel.WARN, "Dependency advancement '" + adv + "' invalid format (" + ctx + "). Removed.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency advancement '" + adv + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
                         return true;
                     }
                     return false;
                 });
-                // Warn about unknown stage references (non-fatal, stage might not be loaded yet)
+
+                // xp_level
+                if (group.getXpLevel() != null && group.getXpLevel().getLevel() < 0) {
+                    addMessage(MessageLevel.WARN, "Dependency xp_level has negative level (" + ctx + "). Clamped to 0.");
+                    DebugLogger.warn("Invalid Dependencies", "Dependency xp_level has negative level " + group.getXpLevel().getLevel() + " (" + ctx + "). Clamped to 0.");
+                    group.getXpLevel().setLevel(0);
+                }
+
+                // individual_stages
+                group.getIndividualStages().removeIf(dep -> {
+                    if (dep.getStageId() == null || dep.getStageId().isBlank()) {
+                        addMessage(MessageLevel.WARN, "Dependency individual_stage has null/empty stage_id (" + ctx + "). Removed.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency individual_stage entry has null or empty stage_id (" + ctx + "). Removed.");
+                        return true;
+                    }
+                    String mode = dep.getMode();
+                    if (!"all_online".equals(mode) && !"all_ever".equals(mode)) {
+                        addMessage(MessageLevel.WARN, "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + ctx + "). Defaulting to all_online.");
+                        DebugLogger.warn("Invalid Dependencies", "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + ctx + "). Expected 'all_online' or 'all_ever'. Defaulting to all_online.");
+                        dep.setMode("all_online");
+                    }
+                    return false;
+                });
+
+                // global stage references
                 for (String depStageId : group.getStages()) {
                     if (!STAGES.containsKey(depStageId)) {
                         addMessage(MessageLevel.INFO, "Dependency stage '" + depStageId + "' not found (Stage: " + stageId + "). May load later.");
+                        DebugLogger.info("Unresolved Dependencies", "Dependency references global stage '" + depStageId + "' which is not yet loaded (" + ctx + "). This is only a problem if the stage never loads.");
                     }
+                }
+
+                // empty group warning
+                if (group.isEmpty()) {
+                    addMessage(MessageLevel.INFO, "Dependency group " + groupIdx + " is empty (Stage: " + stageId + "). It will always be satisfied.");
+                    DebugLogger.info("Empty Dependencies", "Dependency group " + groupIdx + " has no conditions defined (" + ctx + "). An empty group is always satisfied — this is likely unintentional.");
                 }
             }
         }

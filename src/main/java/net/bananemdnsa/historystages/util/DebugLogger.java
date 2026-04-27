@@ -1,8 +1,10 @@
 package net.bananemdnsa.historystages.util;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLPaths;
 
@@ -287,8 +289,24 @@ public class DebugLogger {
         if (!entModLinked.isEmpty()) printList(pw, "  Entities (mod-linked)", entModLinked);
         if (s.hasDependencies()) {
             pw.println("  Dependencies (" + s.getDependencies().size() + " group(s)):");
-            for (var group : s.getDependencies()) {
-                pw.println("    - " + group);
+            int gi = 0;
+            for (DependencyGroup group : s.getDependencies()) {
+                gi++;
+                pw.println("    Group " + gi + " [" + group.getLogic() + "]:");
+                for (var item : group.getItems())
+                    pw.println("      item: " + item.getId() + " x" + item.getCount() + (item.hasNbt() ? " [nbt]" : ""));
+                for (String sid : group.getStages())
+                    pw.println("      stage: " + sid);
+                for (IndividualStageDep dep : group.getIndividualStages())
+                    pw.println("      individual_stage: " + dep.getStageId() + " (" + dep.getMode() + ")");
+                for (String adv : group.getAdvancements())
+                    pw.println("      advancement: " + adv);
+                if (group.getXpLevel() != null)
+                    pw.println("      xp_level: " + group.getXpLevel().getLevel() + (group.getXpLevel().isConsume() ? " (consume)" : ""));
+                for (var kill : group.getEntityKills())
+                    pw.println("      entity_kill: " + kill.getEntityId() + " x" + kill.getCount());
+                for (var stat : group.getStats())
+                    pw.println("      stat: " + stat.getStatId() + " >= " + stat.getMinValue());
             }
         }
 
