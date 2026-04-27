@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -81,28 +82,31 @@ public class JadePlugin implements IWailaPlugin {
                 appendStageTooltip(tooltip, totalRequiredStages, false);
             }
 
-            // Individual stages
-            List<StageEntry> individualRequiredStages = new ArrayList<>();
-            boolean isIndividuallyLocked = false;
+            // Individual stages — only shown when not in Phase 1 of a dual-phase lock
+            if (!StageLockHelper.isDualPhaseGloballyLockedClient(blockItem)) {
+                List<StageEntry> individualRequiredStages = new ArrayList<>();
+                boolean isIndividuallyLocked = false;
 
-            for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-                StageEntry stage = entry.getValue();
-                String stageID = entry.getKey();
+                for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
+                    StageEntry stage = entry.getValue();
+                    String stageID = entry.getKey();
 
-                boolean isListed = stage.getItems().contains(itemID) ||
-                        matchesNbtItem(stage, itemID, blockItem) ||
-                        blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                    boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
+                            stage.getItems().contains(itemID) ||
+                            matchesNbtItem(stage, itemID, blockItem) ||
+                            blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
-                if (isListed) {
-                    individualRequiredStages.add(stage);
-                    if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
-                        isIndividuallyLocked = true;
+                    if (isListed) {
+                        individualRequiredStages.add(stage);
+                        if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
+                            isIndividuallyLocked = true;
+                        }
                     }
                 }
-            }
 
-            if (isIndividuallyLocked) {
-                appendStageTooltip(tooltip, individualRequiredStages, true);
+                if (isIndividuallyLocked) {
+                    appendStageTooltip(tooltip, individualRequiredStages, true);
+                }
             }
         }
 
@@ -167,35 +171,40 @@ public class JadePlugin implements IWailaPlugin {
                 appendStageTooltip(tooltip, totalRequiredStages, false);
             }
 
-            // Individual stages
-            List<StageEntry> individualRequiredStages = new ArrayList<>();
-            boolean isIndividuallyLocked = false;
+            // Individual stages — only shown when not in Phase 1 of a dual-phase lock
+            boolean anyDualPhaseGlobal = items.stream().anyMatch(StageLockHelper::isDualPhaseGloballyLockedClient);
+            if (!anyDualPhaseGlobal) {
+                List<StageEntry> individualRequiredStages = new ArrayList<>();
+                boolean isIndividuallyLocked = false;
 
-            for (ItemStack stack : items) {
-                ResourceLocation indItemLocation = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                if (indItemLocation == null) continue;
+                for (ItemStack stack : items) {
+                    ResourceLocation indItemLocation = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                    if (indItemLocation == null) continue;
 
-                String indItemID = indItemLocation.toString();
+                    String indItemID = indItemLocation.toString();
+                    String indModID = indItemLocation.getNamespace();
 
-                for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-                    StageEntry stage = entry.getValue();
-                    String stageID = entry.getKey();
+                    for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
+                        StageEntry stage = entry.getValue();
+                        String stageID = entry.getKey();
 
-                    boolean isListed = stage.getItems().contains(indItemID) ||
-                            matchesNbtItem(stage, indItemID, stack) ||
-                            stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                        boolean isListed = (stage.getMods().contains(indModID) && !stage.isModExcepted(indItemID, stack)) ||
+                                stage.getItems().contains(indItemID) ||
+                                matchesNbtItem(stage, indItemID, stack) ||
+                                stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
 
-                    if (isListed && !individualRequiredStages.contains(stage)) {
-                        individualRequiredStages.add(stage);
-                        if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
-                            isIndividuallyLocked = true;
+                        if (isListed && !individualRequiredStages.contains(stage)) {
+                            individualRequiredStages.add(stage);
+                            if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
+                                isIndividuallyLocked = true;
+                            }
                         }
                     }
                 }
-            }
 
-            if (isIndividuallyLocked) {
-                appendStageTooltip(tooltip, individualRequiredStages, true);
+                if (isIndividuallyLocked) {
+                    appendStageTooltip(tooltip, individualRequiredStages, true);
+                }
             }
         }
 
