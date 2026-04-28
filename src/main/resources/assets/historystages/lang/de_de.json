@@ -53,6 +53,7 @@
   "editor.historystages.remove": "Entfernen",
   "editor.historystages.copy_id": "ID kopieren",
   "editor.historystages.edit": "Bearbeiten",
+  "editor.historystages.edit.nothing_to_edit": "[HistoryStages] Mod '%s' hat keine Entities oder Strukturen zum Bearbeiten.",
   "editor.historystages.lock": "Sperren",
   "editor.historystages.unlock": "Freischalten",
   "editor.historystages.tab.items": "Items",

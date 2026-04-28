@@ -30,3 +30,4 @@ CLAUDE.md
 
 # VSCode
 .vscode/
+.claude/settings.local.json

@@ -112,6 +112,9 @@ public class StageDetailScreen extends Screen {
     private ModStructureSelectionPopup modStructurePopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
+    // When non-null, the entity/structure popups are in "edit mode" for this mod:
+    // a Confirm replaces the existing mod-linked entries instead of just appending.
+    private String editingModId = null;
 
     // Tooltip hover tracking
     private String hoveredTooltipKey = null;
@@ -394,31 +397,68 @@ public class StageDetailScreen extends Screen {
         modExceptionSearch = createModExceptionSearch();
 
         modStructurePopup = new ModStructureSelectionPopup(selectedIds -> {
-            for (String id : selectedIds) {
-                if (!editStructures.contains(id)) editStructures.add(id);
-                if (!editStructureModLinked.contains(id)) editStructureModLinked.add(id);
+            // In edit mode, drop the previous mod-linked structures for this mod first so
+            // unchecked rows are actually removed.
+            if (editingModId != null) {
+                String prefix = editingModId + ":";
+                boolean removedAny = editStructures.removeIf(
+                        id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
+                boolean removedLink = editStructureModLinked.removeIf(id -> id.startsWith(prefix));
+                if (removedAny || removedLink)
+                    hasChanges = true;
             }
-            if (!selectedIds.isEmpty()) hasChanges = true;
+            for (String id : selectedIds) {
+                if (!editStructures.contains(id))
+                    editStructures.add(id);
+                if (!editStructureModLinked.contains(id))
+                    editStructureModLinked.add(id);
+            }
+            if (!selectedIds.isEmpty())
+                hasChanges = true;
+            editingModId = null;
             updateMaxScroll();
         });
 
         modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
+            // In edit mode, drop the previous mod-linked entity locks for this mod first
+            // so unchecked rows are actually removed.
+            if (editingModId != null) {
+                String prefix = editingModId + ":";
+                boolean removedSpawn = editSpawnlock
+                        .removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                boolean removedAttack = editAttacklock
+                        .removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                boolean removedLink = editModLinked.removeIf(id -> id.startsWith(prefix));
+                if (removedSpawn || removedAttack || removedLink)
+                    hasChanges = true;
+            }
             for (String id : spawnlockIds) {
-                if (!editSpawnlock.contains(id)) editSpawnlock.add(id);
-                if (!editModLinked.contains(id)) editModLinked.add(id);
+                if (!editSpawnlock.contains(id))
+                    editSpawnlock.add(id);
+                if (!editModLinked.contains(id))
+                    editModLinked.add(id);
             }
             for (String id : attacklockIds) {
-                if (!editAttacklock.contains(id)) editAttacklock.add(id);
-                if (!editModLinked.contains(id)) editModLinked.add(id);
+                if (!editAttacklock.contains(id))
+                    editAttacklock.add(id);
+                if (!editModLinked.contains(id))
+                    editModLinked.add(id);
             }
-            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty()) hasChanges = true;
+            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty())
+                hasChanges = true;
             updateMaxScroll();
             if (pendingModId != null)
-                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2);
+                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2,
+                        editStructures);
+            else
+                editingModId = null;
         }, () -> {
-            // Skip pressed: still chain to structure popup
+            // Skip pressed: leave entity locks untouched, but still chain to structure popup
             if (pendingModId != null)
-                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2);
+                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2,
+                        editStructures);
+            else
+                editingModId = null;
         });
 
         modSearch = new SearchableModList(modId -> {
@@ -427,10 +467,13 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
             pendingModId = modId;
             pendingModDisplayName = modSearch.getDisplayName(modId);
+            editingModId = null; // normal add — not edit mode
             // Show entity popup first; structure popup follows after confirm
-            if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2)) {
+            if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
+                    editAttacklock)) {
                 // No entities — go straight to structure popup
-                modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2);
+                modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
+                        editStructures);
             }
         });
 
@@ -498,7 +541,9 @@ public class StageDetailScreen extends Screen {
         return new ItemStack(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get());
     }
 
-    /** Small 18x18 button showing the current stage icon; click opens icon picker. */
+    /**
+     * Small 18x18 button showing the current stage icon; click opens icon picker.
+     */
     private class IconPickerButton extends net.minecraft.client.gui.components.AbstractWidget {
         private float hoverProgress = 0.0f;
 
@@ -790,7 +835,6 @@ public class StageDetailScreen extends Screen {
         boolean isItemsTab = (activeTab == 0);
         boolean isExceptionsTab = (activeTab == 3);
 
-
         // Slide-in timing for tab switch
         long slideElapsed = System.currentTimeMillis() - tabSwitchTime;
 
@@ -845,31 +889,32 @@ public class StageDetailScreen extends Screen {
                 guiGraphics.fill(contentLeft + 1 + slideOffsetX, cardY + 1, contentRight - 1, cardY + CARD_HEIGHT - 1,
                         cardBg);
 
-                // Check if this entry is a dual-phase entry (present in both individual and a global stage)
+                // Check if this entry is a dual-phase entry (present in both individual and a
+                // global stage)
                 boolean isDualPhase = false;
                 {
                     String entry = list.get(i);
                     // Individual view: map holds entry → global stage IDs
                     // Global view: map holds entry → individual stage IDs
                     Map<String, Set<String>> dualMap = isIndividual
-                        ? switch (activeTab) {
-                            case 0 -> StageManager.getDualPhaseItems();
-                            case 1 -> StageManager.getDualPhaseTags();
-                            case 2 -> StageManager.getDualPhaseMods();
-                            case 5 -> StageManager.getDualPhaseDimensions();
-                            case 6 -> StageManager.getDualPhaseAttacklock();
-                            case 8 -> StageManager.getDualPhaseStructures();
-                            default -> null;
-                        }
-                        : switch (activeTab) {
-                            case 0 -> StageManager.getDualPhaseItemsInd();
-                            case 1 -> StageManager.getDualPhaseTagsInd();
-                            case 2 -> StageManager.getDualPhaseModsInd();
-                            case 5 -> StageManager.getDualPhaseDimensionsInd();
-                            case 6 -> StageManager.getDualPhaseAttacklockInd();
-                            case 8 -> StageManager.getDualPhaseStructuresInd();
-                            default -> null;
-                        };
+                            ? switch (activeTab) {
+                                case 0 -> StageManager.getDualPhaseItems();
+                                case 1 -> StageManager.getDualPhaseTags();
+                                case 2 -> StageManager.getDualPhaseMods();
+                                case 5 -> StageManager.getDualPhaseDimensions();
+                                case 6 -> StageManager.getDualPhaseAttacklock();
+                                case 8 -> StageManager.getDualPhaseStructures();
+                                default -> null;
+                            }
+                            : switch (activeTab) {
+                                case 0 -> StageManager.getDualPhaseItemsInd();
+                                case 1 -> StageManager.getDualPhaseTagsInd();
+                                case 2 -> StageManager.getDualPhaseModsInd();
+                                case 5 -> StageManager.getDualPhaseDimensionsInd();
+                                case 6 -> StageManager.getDualPhaseAttacklockInd();
+                                case 8 -> StageManager.getDualPhaseStructuresInd();
+                                default -> null;
+                            };
                     if (dualMap != null) {
                         isDualPhase = dualMap.containsKey(entry);
                         if (isDualPhase && entryHovered) {
@@ -1054,7 +1099,8 @@ public class StageDetailScreen extends Screen {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
         itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
-        if (iconSearch != null) iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        if (iconSearch != null)
+            iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
         modExceptionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         modSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -1781,7 +1827,6 @@ public class StageDetailScreen extends Screen {
         List<String> list = getActiveList();
         int y = listTop - (int) smoothScrollOffset + CARD_GAP;
 
-
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
                 if (button == 0 && activeTab == 4) {
@@ -1803,6 +1848,32 @@ public class StageDetailScreen extends Screen {
                     if (tabIdx == 0) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
                                 () -> openNbtEditScreen(entryIdx, entryValue));
+                    }
+                    if (tabIdx == 2) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
+                                () -> {
+                                    pendingModId = entryValue;
+                                    pendingModDisplayName = modSearch.getDisplayName(entryValue);
+                                    editingModId = entryValue;
+                                    boolean entityShown = modEntityPopup.showForMod(pendingModId,
+                                            pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
+                                            editAttacklock);
+                                    if (!entityShown) {
+                                        boolean structShown = modStructurePopup.showForMod(pendingModId,
+                                                pendingModDisplayName, this.width / 2, this.height / 2,
+                                                editStructures);
+                                        if (!structShown) {
+                                            // Nothing to edit for this mod — surface the reason instead of
+                                            // silently doing nothing.
+                                            net.minecraft.client.gui.Gui gui = Minecraft.getInstance().gui;
+                                            if (gui != null)
+                                                gui.getChat().addMessage(Component.translatable(
+                                                        "editor.historystages.edit.nothing_to_edit",
+                                                        pendingModDisplayName));
+                                            editingModId = null;
+                                        }
+                                    }
+                                });
                     }
                     if (tabIdx == 3) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
@@ -1947,16 +2018,22 @@ public class StageDetailScreen extends Screen {
                 hasChanges = true;
                 pendingModId = modId;
                 pendingModDisplayName = modSearch.getDisplayName(modId);
-                if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2))
-                    modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2);
+                editingModId = null; // normal add — not edit mode
+                if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
+                        editSpawnlock, editAttacklock))
+                    modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
+                            editStructures);
                 modSearch = new SearchableModList(id -> {
                     editMods.add(id);
                     hasChanges = true;
                     updateMaxScroll();
                     pendingModId = id;
                     pendingModDisplayName = modSearch.getDisplayName(id);
-                    if (!modEntityPopup.showForMod(id, pendingModDisplayName, this.width / 2, this.height / 2))
-                        modStructurePopup.showForMod(id, pendingModDisplayName, this.width / 2, this.height / 2);
+                    editingModId = null; // normal add — not edit mode
+                    if (!modEntityPopup.showForMod(id, pendingModDisplayName, this.width / 2, this.height / 2,
+                            editSpawnlock, editAttacklock))
+                        modStructurePopup.showForMod(id, pendingModDisplayName, this.width / 2, this.height / 2,
+                                editStructures);
                 });
             });
             modSearch.show(this.width / 2, this.height / 2, cw);

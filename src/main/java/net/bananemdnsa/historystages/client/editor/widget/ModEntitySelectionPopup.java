@@ -81,7 +81,8 @@ public class ModEntitySelectionPopup {
         this.onSkip = onSkip;
     }
 
-    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY) {
+    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY,
+            List<String> initialSpawnlock, List<String> initialAttacklock) {
         this.modDisplayName = modDisplayName;
         entities.clear();
         entityCache.clear();
@@ -95,7 +96,9 @@ public class ModEntitySelectionPopup {
             ResourceLocation key = ForgeRegistries.ENTITY_TYPES.getKey(entityType);
             if (key != null && key.getNamespace().equals(modId) && isLivingEntityType(entityType)) {
                 String displayName = entityType.getDescription().getString();
-                entities.add(new EntityRow(key.toString(), displayName, false, false));
+                boolean sLock = initialSpawnlock != null && initialSpawnlock.contains(key.toString());
+                boolean aLock = initialAttacklock != null && initialAttacklock.contains(key.toString());
+                entities.add(new EntityRow(key.toString(), displayName, sLock, aLock));
             }
         }
 
@@ -560,7 +563,8 @@ public class ModEntitySelectionPopup {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 hide();
-                if (onSkip != null) onSkip.run();
+                if (onSkip != null)
+                    onSkip.run();
                 return true;
             }
         }

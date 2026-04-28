@@ -30,7 +30,8 @@ public class ModStructureSelectionPopup {
     private static final long MARQUEE_DELAY_MS = 800;
     private static final float MARQUEE_SPEED = 25.0f;
 
-    private record StructureRow(String id, boolean selected) {}
+    private record StructureRow(String id, boolean selected) {
+    }
 
     private final List<StructureRow> structures = new ArrayList<>();
     private final Consumer<List<String>> onConfirm;
@@ -55,8 +56,12 @@ public class ModStructureSelectionPopup {
         this.onConfirm = onConfirm;
     }
 
-    /** Returns false if this mod has no known structures (caller should skip showing it). */
-    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY) {
+    /**
+     * Returns false if this mod has no known structures (caller should skip showing
+     * it).
+     */
+    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY,
+            List<String> initialStructures) {
         this.modDisplayName = modDisplayName;
         structures.clear();
         checkboxHoverProgress.clear();
@@ -68,11 +73,12 @@ public class ModStructureSelectionPopup {
         String prefix = modId + ":";
         for (String id : ClientStructureRegistry.get()) {
             if (id.startsWith(prefix)) {
-                structures.add(new StructureRow(id, false));
+                structures.add(new StructureRow(id, initialStructures != null && initialStructures.contains(id)));
             }
         }
 
-        if (structures.isEmpty()) return false;
+        if (structures.isEmpty())
+            return false;
 
         structures.sort((a, b) -> a.id.compareToIgnoreCase(b.id));
 
@@ -81,8 +87,10 @@ public class ModStructureSelectionPopup {
         panelH = HEADER_HEIGHT + PADDING + visibleRows * ROW_HEIGHT + PADDING + FOOTER_HEIGHT;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
@@ -90,8 +98,13 @@ public class ModStructureSelectionPopup {
         return true;
     }
 
-    public void hide() { this.visible = false; }
-    public boolean isVisible() { return visible; }
+    public void hide() {
+        this.visible = false;
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
 
     private void updateMaxScroll() {
         int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
@@ -103,7 +116,8 @@ public class ModStructureSelectionPopup {
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
         int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
 
@@ -138,13 +152,15 @@ public class ModStructureSelectionPopup {
 
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
-            if (index >= structures.size()) break;
+            if (index >= structures.size())
+                break;
             int rowY = listY + i * ROW_HEIGHT;
             StructureRow row = structures.get(index);
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered) currentHoveredRow = index;
+            if (rowHovered)
+                currentHoveredRow = index;
 
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
@@ -270,7 +286,8 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
@@ -289,7 +306,8 @@ public class ModStructureSelectionPopup {
             if (mouseX >= confirmX && mouseX < confirmX + btnW) {
                 List<String> selected = new ArrayList<>();
                 for (StructureRow row : structures) {
-                    if (row.selected) selected.add(row.id);
+                    if (row.selected)
+                        selected.add(row.id);
                 }
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -338,7 +356,8 @@ public class ModStructureSelectionPopup {
         int listW = panelW - PADDING * 2 - 8;
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
-            if (index >= structures.size()) break;
+            if (index >= structures.size())
+                break;
             int rowY = listY + i * ROW_HEIGHT;
             if (mouseX >= listX && mouseX < listX + listW && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
@@ -354,18 +373,23 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar) return false;
+        if (!visible || !draggingScrollbar)
+            return false;
         updateScrollFromMouse(mouseY);
         return true;
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
         return false;
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
@@ -374,8 +398,12 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible) return false;
-        if (keyCode == 256) { hide(); return true; } // ESC
+        if (!visible)
+            return false;
+        if (keyCode == 256) {
+            hide();
+            return true;
+        } // ESC
         return false;
     }
 

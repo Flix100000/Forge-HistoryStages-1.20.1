@@ -53,6 +53,7 @@
   "editor.historystages.remove": "Remove",
   "editor.historystages.copy_id": "Copy ID",
   "editor.historystages.edit": "Edit",
+  "editor.historystages.edit.nothing_to_edit": "[HistoryStages] Nothing to edit for mod '%s' — no entities or structures available.",
   "editor.historystages.lock": "Lock",
   "editor.historystages.unlock": "Unlock",
   "editor.historystages.tab.items": "Items",
