@@ -43,6 +43,9 @@ public class PacketHandler {
 
         // Structure registry sync (Server → Client)
         registrar.playToClient(SyncStructureRegistryPacket.TYPE, SyncStructureRegistryPacket.STREAM_CODEC, SyncStructureRegistryPacket::handle);
+
+        // Lock feedback (Server → Client) — client reads its own CLIENT config to decide display
+        registrar.playToClient(LockFeedbackPacket.TYPE, LockFeedbackPacket.STREAM_CODEC, LockFeedbackPacket::handle);
     }
 
     public static void sendToAll(SyncStagesPacket packet) {
@@ -82,6 +85,11 @@ public class PacketHandler {
     }
 
     public static void sendStructureRegistryToPlayer(SyncStructureRegistryPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    // Send lock feedback (dimension or mob) to a specific player — client decides display
+    public static void sendLockFeedbackToPlayer(LockFeedbackPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
 

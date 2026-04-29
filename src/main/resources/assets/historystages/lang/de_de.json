@@ -55,6 +55,7 @@
   "editor.historystages.remove": "Entfernen",
   "editor.historystages.copy_id": "ID kopieren",
   "editor.historystages.edit": "Bearbeiten",
+  "editor.historystages.edit.nothing_to_edit": "[HistoryStages] Mod '%s' hat keine Entities oder Strukturen zum Bearbeiten.",
   "editor.historystages.lock": "Sperren",
   "editor.historystages.unlock": "Freischalten",
   "editor.historystages.tab.items": "Items",
@@ -67,7 +68,9 @@
   "editor.historystages.tab.spawn": "Spawn",
   "editor.historystages.tab.structures": "Strukt.",
   "editor.historystages.tab.client": "Client",
+  "editor.historystages.tab.client.tooltip": "Client-Einstellungen wirken nur auf deinen eigenen Client. Beim Speichern werden sie lokal in deine historystages-client.toml geschrieben — sie werden weder zum Server noch an andere Spieler übertragen.",
   "editor.historystages.tab.common": "Allgemein",
+  "editor.historystages.tab.common.tooltip": "Allgemeine Einstellungen werden auf dem Server gespeichert und an alle verbundenen Spieler synchronisiert. Änderungen hier wirken sich auf alle Spieler auf dem Server aus.",
   "editor.historystages.entries": "%d Eintr\u00e4ge",
 
   "editor.historystages.config.visuals": "Darstellung",
@@ -170,6 +173,7 @@
   "editor.historystages.config.individualUseToasts": "Toasts anzeigen",
 
   "editor.historystages.dual_phase_tooltip": "Dual-Phase Lock – benötigt globale Stage(s): %s",
+  "editor.historystages.dual_phase_tooltip_global": "Dual-Phase Lock – zusätzlich individuell gesperrt in: %s",
   "tooltip.historystages.dual_phase_lock": "[Dual-Phase Lock]",
   "tooltip.historystages.dual_phase_lock_desc": "Nach globalem Freischalten: individuelle Sperre aktiv",
 

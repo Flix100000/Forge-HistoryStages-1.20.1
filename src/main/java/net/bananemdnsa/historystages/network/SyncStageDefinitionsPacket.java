@@ -53,6 +53,7 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages, Map<Str
         ctx.enqueueWork(() -> {
             StageManager.setStages(msg.stages);
             StageManager.setIndividualStages(msg.individualStages);
+            StageManager.rebuildDualPhase();
             EditorDataCache.setStages(new HashMap<>(msg.stages));
             System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions + "
                     + msg.individualStages.size() + " individual stage definitions from server.");

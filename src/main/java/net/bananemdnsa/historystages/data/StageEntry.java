@@ -28,7 +28,9 @@ public class StageEntry {
 
     private List<String> recipes;
     private List<String> dimensions;
-    private List<String> structures;
+
+    @JsonAdapter(StructureLocksAdapter.class)
+    private StructureLocks structures;
     @SerializedName("icon")
     private String icon;
     private EntityLocks entities;
@@ -41,7 +43,7 @@ public class StageEntry {
         this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
-        this.structures = new ArrayList<>();
+        this.structures = new StructureLocks();
         this.entities = new EntityLocks();
     }
 
@@ -123,7 +125,11 @@ public class StageEntry {
     }
 
     public List<String> getStructures() {
-        return structures != null ? structures : new ArrayList<>();
+        return structures != null ? structures.getStructures() : new ArrayList<>();
+    }
+
+    public List<String> getStructureModLinked() {
+        return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
     public String getIcon() { return icon != null ? icon : ""; }
@@ -195,7 +201,13 @@ public class StageEntry {
     }
 
     public void setStructures(List<String> structures) {
-        this.structures = structures != null ? new ArrayList<>(structures) : new ArrayList<>();
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setStructures(structures);
+    }
+
+    public void setStructureModLinked(List<String> modLinked) {
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setModLinked(modLinked);
     }
 
     public void setIcon(String icon) { this.icon = (icon != null && !icon.isEmpty()) ? icon : null; }
@@ -219,6 +231,7 @@ public class StageEntry {
         copy.setRecipes(getRecipes());
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
+        copy.setStructureModLinked(getStructureModLinked());
         copy.setIcon(getIcon());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());

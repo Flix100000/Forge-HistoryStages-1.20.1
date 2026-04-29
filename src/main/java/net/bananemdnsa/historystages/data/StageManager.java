@@ -33,10 +33,20 @@ public class StageManager {
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
-    // Dual-phase: item/tag/mod ID → set of global stage IDs that share the entry with an individual stage
-    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_TAGS  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_MODS  = new HashMap<>();
+    // Dual-phase: entry ID → set of global stage IDs that share the entry with an individual stage
+    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS       = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_TAGS        = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_MODS        = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK  = new HashMap<>();
+    // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
+    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS_IND       = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_TAGS_IND        = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_MODS_IND        = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND  = new HashMap<>();
 
     public enum MessageLevel { ERROR, WARN, INFO }
     public record LoadingMessage(MessageLevel level, String message) {}
@@ -52,10 +62,13 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
+            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies", "icon"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
+    );
+    private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
+            "structures", "mod_linked"
     );
 
     public static void load() {
@@ -64,6 +77,15 @@ public class StageManager {
         DUAL_PHASE_ITEMS.clear();
         DUAL_PHASE_TAGS.clear();
         DUAL_PHASE_MODS.clear();
+        DUAL_PHASE_DIMENSIONS.clear();
+        DUAL_PHASE_STRUCTURES.clear();
+        DUAL_PHASE_ATTACKLOCK.clear();
+        DUAL_PHASE_ITEMS_IND.clear();
+        DUAL_PHASE_TAGS_IND.clear();
+        DUAL_PHASE_MODS_IND.clear();
+        DUAL_PHASE_DIMENSIONS_IND.clear();
+        DUAL_PHASE_STRUCTURES_IND.clear();
+        DUAL_PHASE_ATTACKLOCK_IND.clear();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
@@ -136,6 +158,15 @@ public class StageManager {
                     if (!KNOWN_ENTITY_KEYS.contains(key)) {
                         addMessage(MessageLevel.WARN, "Unknown entity key '" + key + "' in stage '" + stageId + "'. Typo?");
                         DebugLogger.warn("Unknown Keys", "Unknown key 'entities." + key + "' in stage '" + stageId + "'. Known entity keys: " + KNOWN_ENTITY_KEYS + ".");
+                    }
+                }
+            }
+            if (json.has("structures") && json.get("structures").isJsonObject()) {
+                JsonObject structures = json.getAsJsonObject("structures");
+                for (String key : structures.keySet()) {
+                    if (!KNOWN_STRUCTURE_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown structure key '" + key + "' in stage '" + stageId + "'. Typo?");
+                        DebugLogger.warn("Unknown Keys", "Unknown key 'structures." + key + "' in stage '" + stageId + "'. Known structure keys: " + KNOWN_STRUCTURE_KEYS + ".");
                     }
                 }
             }
@@ -277,41 +308,125 @@ public class StageManager {
             DebugLogger.info("Configuration", "Stage '" + stageId + "' has negative research_time (" + entry.getResearchTime() + "). Falling back to global default.");
         }
 
+        // --- Icon validation ---
+        String iconVal = entry.getIcon();
+        if (iconVal != null && !iconVal.isEmpty()) {
+            if (!isValidResourceLocation(iconVal)) {
+                addMessage(MessageLevel.WARN, "Icon '" + iconVal + "' invalid format (Stage: " + stageId + "). Cleared.");
+                DebugLogger.warn("Invalid Icon", "Icon '" + iconVal + "' is not a valid ResourceLocation (Stage: " + stageId + "). Cleared.");
+                entry.setIcon(null);
+            }
+        }
+
         // --- Dependencies validation ---
         if (entry.hasDependencies()) {
+            int groupIdx = 0;
             for (DependencyGroup group : entry.getDependencies()) {
+                groupIdx++;
+                String groupLabel = "Stage: " + stageId + ", group " + groupIdx;
+
+                // Validate logic field
+                String logic = group.getLogic();
+                if (!"AND".equalsIgnoreCase(logic) && !"OR".equalsIgnoreCase(logic)) {
+                    String msg = "Dependency group has invalid logic '" + logic + "' (" + groupLabel + "). Must be AND or OR. Defaulting to AND.";
+                    addMessage(MessageLevel.WARN, msg);
+                    DebugLogger.warn("Invalid Dependencies", msg);
+                    group.setLogic("AND");
+                }
+
+                // Validate items
                 group.getItems().removeIf(depItem -> {
                     if (depItem.getId() == null || !isValidResourceLocation(depItem.getId())) {
-                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        String msg = "Dependency item '" + depItem.getId() + "' invalid format (" + groupLabel + "). Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
                         return true;
+                    }
+                    if (depItem.getCount() < 1) {
+                        String msg = "Dependency item '" + depItem.getId() + "' has invalid count " + depItem.getCount() + " (" + groupLabel + "). Corrected to 1.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        depItem.setCount(1);
                     }
                     return false;
                 });
+
+                // Validate individual_stages
+                group.getIndividualStages().removeIf(dep -> {
+                    if (dep.getStageId() == null || dep.getStageId().isBlank()) {
+                        String msg = "Dependency individual_stage entry has no stage_id (" + groupLabel + "). Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        return true;
+                    }
+                    String mode = dep.getMode();
+                    if (!"all_online".equals(mode) && !"all_ever".equals(mode)) {
+                        String msg = "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + groupLabel + "). Defaulting to all_online.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        dep.setMode("all_online");
+                    }
+                    return false;
+                });
+
+                // Validate entity kills
                 group.getEntityKills().removeIf(kill -> {
                     if (kill.getEntityId() == null || !isValidResourceLocation(kill.getEntityId())) {
-                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        String msg = "Dependency entity kill '" + kill.getEntityId() + "' invalid format (" + groupLabel + "). Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
                         return true;
+                    }
+                    if (kill.getCount() < 1) {
+                        String msg = "Dependency entity kill '" + kill.getEntityId() + "' has invalid count " + kill.getCount() + " (" + groupLabel + "). Corrected to 1.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        kill.setCount(1);
                     }
                     return false;
                 });
+
+                // Validate stats
                 group.getStats().removeIf(stat -> {
                     if (stat.getStatId() == null || !isValidResourceLocation(stat.getStatId())) {
-                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                        String msg = "Dependency stat '" + stat.getStatId() + "' invalid format (" + groupLabel + "). Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
                         return true;
+                    }
+                    if (stat.getMinValue() < 0) {
+                        String msg = "Dependency stat '" + stat.getStatId() + "' has invalid min_value " + stat.getMinValue() + " (" + groupLabel + "). Corrected to 0.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        stat.setMinValue(0);
                     }
                     return false;
                 });
+
+                // Validate advancements
                 group.getAdvancements().removeIf(adv -> {
                     if (adv == null || !isValidResourceLocation(adv)) {
-                        addMessage(MessageLevel.WARN, "Dependency advancement '" + adv + "' invalid format (Stage: " + stageId + "). Removed.");
+                        String msg = "Dependency advancement '" + adv + "' invalid format (" + groupLabel + "). Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
                         return true;
                     }
                     return false;
                 });
+
+                // Validate xp_level
+                if (group.getXpLevel() != null && group.getXpLevel().getLevel() < 0) {
+                    String msg = "Dependency xp_level has negative level " + group.getXpLevel().getLevel() + " (" + groupLabel + "). Corrected to 0.";
+                    addMessage(MessageLevel.WARN, msg);
+                    DebugLogger.warn("Invalid Dependencies", msg);
+                    group.getXpLevel().setLevel(0);
+                }
+
                 // Warn about unknown stage references (non-fatal, stage might not be loaded yet)
                 for (String depStageId : group.getStages()) {
                     if (!STAGES.containsKey(depStageId)) {
                         addMessage(MessageLevel.INFO, "Dependency stage '" + depStageId + "' not found (Stage: " + stageId + "). May load later.");
+                        DebugLogger.info("Invalid Dependencies", "Dependency stage '" + depStageId + "' not found (" + groupLabel + "). May be loaded later or is an individual stage.");
                     }
                 }
             }
@@ -968,14 +1083,18 @@ public class StageManager {
 
     /**
      * Detects overlaps between individual and global stages.
-     * Overlapping items/tags/mods are registered as dual-phase entries instead of being removed.
-     * Dual-phase: first locked globally (all paired global stages must be unlocked), then locked per-player.
-     * Note: Dimensions and entities are allowed to overlap — a player needs BOTH global and individual stages unlocked.
+     * Overlapping entries are registered as dual-phase: first locked globally
+     * (all paired global stages must be unlocked), then locked per-player.
+     * Covers items, tags, mods, dimensions, structures, and entity attacklock.
      */
     private static void detectOverlaps() {
-        Map<String, Set<String>> globalItemMap = new HashMap<>();
-        Map<String, Set<String>> globalTagMap  = new HashMap<>();
-        Map<String, Set<String>> globalModMap  = new HashMap<>();
+        // Build a lookup: entry ID -> set of all global stage IDs containing it
+        Map<String, Set<String>> globalItemMap       = new HashMap<>();
+        Map<String, Set<String>> globalTagMap        = new HashMap<>();
+        Map<String, Set<String>> globalModMap        = new HashMap<>();
+        Map<String, Set<String>> globalDimensionMap  = new HashMap<>();
+        Map<String, Set<String>> globalStructureMap  = new HashMap<>();
+        Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
@@ -986,6 +1105,15 @@ public class StageManager {
                 globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId);
             for (String mod : gEntry.getMods())
                 globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId);
+            for (String dim : gEntry.getDimensions())
+                globalDimensionMap.computeIfAbsent(dim, k -> new HashSet<>()).add(gStageId);
+            for (String struct : gEntry.getStructures())
+                globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
+            for (String entityId : gEntry.getEntities().getAttacklock())
+                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
+            // Spawnlocked entities are also attacklocked globally — count for attacklock dual-phase
+            for (String entityId : gEntry.getEntities().getSpawnlock())
+                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
@@ -993,40 +1121,68 @@ public class StageManager {
             StageEntry iEntry = entry.getValue();
 
             for (ItemEntry itemEntry : iEntry.getItemEntries()) {
-                Set<String> globalStages = globalItemMap.get(itemEntry.getId());
-                if (globalStages != null) {
-                    DUAL_PHASE_ITEMS.computeIfAbsent(itemEntry.getId(), k -> new HashSet<>()).addAll(globalStages);
-                    String msg = "Individual stage '" + iStageId + "' item '" + itemEntry.getId() + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-                    addMessage(MessageLevel.INFO, msg);
-                    DebugLogger.info("Dual-Phase Detection", msg);
-                }
+                registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItemMap, itemEntry.getId(), "item", iStageId);
             }
-
             for (String tag : iEntry.getTags()) {
-                Set<String> globalStages = globalTagMap.get(tag);
-                if (globalStages != null) {
-                    DUAL_PHASE_TAGS.computeIfAbsent(tag, k -> new HashSet<>()).addAll(globalStages);
-                    String msg = "Individual stage '" + iStageId + "' tag '" + tag + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-                    addMessage(MessageLevel.INFO, msg);
-                    DebugLogger.info("Dual-Phase Detection", msg);
-                }
+                registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTagMap, tag, "tag", iStageId);
             }
-
             for (String mod : iEntry.getMods()) {
-                Set<String> globalStages = globalModMap.get(mod);
-                if (globalStages != null) {
-                    DUAL_PHASE_MODS.computeIfAbsent(mod, k -> new HashSet<>()).addAll(globalStages);
-                    String msg = "Individual stage '" + iStageId + "' mod '" + mod + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-                    addMessage(MessageLevel.INFO, msg);
-                    DebugLogger.info("Dual-Phase Detection", msg);
-                }
+                registerDualPhase(DUAL_PHASE_MODS, DUAL_PHASE_MODS_IND, globalModMap, mod, "mod", iStageId);
+            }
+            for (String dim : iEntry.getDimensions()) {
+                registerDualPhase(DUAL_PHASE_DIMENSIONS, DUAL_PHASE_DIMENSIONS_IND, globalDimensionMap, dim, "dimension", iStageId);
+            }
+            for (String struct : iEntry.getStructures()) {
+                registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructureMap, struct, "structure", iStageId);
+            }
+            for (String entityId : iEntry.getEntities().getAttacklock()) {
+                registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
             }
         }
     }
 
-    public static Map<String, Set<String>> getDualPhaseItems() { return DUAL_PHASE_ITEMS; }
-    public static Map<String, Set<String>> getDualPhaseTags()  { return DUAL_PHASE_TAGS; }
-    public static Map<String, Set<String>> getDualPhaseMods()  { return DUAL_PHASE_MODS; }
+    /** Public entry-point for rebuilding dual-phase maps after stage definitions are updated (e.g. client sync). */
+    public static void rebuildDualPhase() {
+        DUAL_PHASE_ITEMS.clear();
+        DUAL_PHASE_TAGS.clear();
+        DUAL_PHASE_MODS.clear();
+        DUAL_PHASE_DIMENSIONS.clear();
+        DUAL_PHASE_STRUCTURES.clear();
+        DUAL_PHASE_ATTACKLOCK.clear();
+        DUAL_PHASE_ITEMS_IND.clear();
+        DUAL_PHASE_TAGS_IND.clear();
+        DUAL_PHASE_MODS_IND.clear();
+        DUAL_PHASE_DIMENSIONS_IND.clear();
+        DUAL_PHASE_STRUCTURES_IND.clear();
+        DUAL_PHASE_ATTACKLOCK_IND.clear();
+        detectOverlaps();
+    }
+
+    private static void registerDualPhase(Map<String, Set<String>> globalTarget, Map<String, Set<String>> indTarget,
+                                          Map<String, Set<String>> globalMap,
+                                          String entryId, String label, String iStageId) {
+        Set<String> globalStages = globalMap.get(entryId);
+        if (globalStages == null) return;
+        globalTarget.computeIfAbsent(entryId, k -> new HashSet<>()).addAll(globalStages);
+        indTarget.computeIfAbsent(entryId, k -> new HashSet<>()).add(iStageId);
+        String msg = "Individual stage '" + iStageId + "' " + label + " '" + entryId
+                + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
+        addMessage(MessageLevel.INFO, msg);
+        DebugLogger.info("Dual-Phase Detection", msg);
+    }
+
+    public static Map<String, Set<String>> getDualPhaseItems()         { return DUAL_PHASE_ITEMS; }
+    public static Map<String, Set<String>> getDualPhaseTags()          { return DUAL_PHASE_TAGS; }
+    public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE_MODS; }
+    public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
+    public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
+    public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
+    public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
+    public static Map<String, Set<String>> getDualPhaseTagsInd()       { return DUAL_PHASE_TAGS_IND; }
+    public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
+    public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
+    public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
+    public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
 
     public static Map<String, StageEntry> getIndividualStages() {
         return INDIVIDUAL_STAGES;

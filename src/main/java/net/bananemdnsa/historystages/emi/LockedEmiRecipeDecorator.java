@@ -5,6 +5,7 @@ import dev.emi.emi.api.recipe.EmiRecipeDecorator;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.WidgetHolder;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
@@ -54,7 +55,7 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         // 2. Check by output items
         for (EmiStack output : recipe.getOutputs()) {
             ItemStack stack = output.getItemStack();
-            if (!stack.isEmpty() && StageManager.isItemLocked(stack, true)) {
+            if (!stack.isEmpty() && StageLockHelper.isItemLockedForClient(stack)) {
                 return true;
             }
         }

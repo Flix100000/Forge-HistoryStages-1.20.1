@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Popup that shows all entities from a specific mod with checkboxes for spawnlock and attacklock.
@@ -44,6 +45,7 @@ public class ModEntitySelectionPopup {
     private final List<EntityRow> entities = new ArrayList<>();
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
     private final BiConsumer<List<String>, List<String>> onConfirm; // (spawnlock, attacklock)
+    private final Runnable onSkip;
 
     private int panelX, panelY, panelW, panelH;
     private boolean visible = false;
@@ -72,11 +74,13 @@ public class ModEntitySelectionPopup {
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
 
-    public ModEntitySelectionPopup(BiConsumer<List<String>, List<String>> onConfirm) {
+    public ModEntitySelectionPopup(BiConsumer<List<String>, List<String>> onConfirm, Runnable onSkip) {
         this.onConfirm = onConfirm;
+        this.onSkip = onSkip;
     }
 
-    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY) {
+    public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY,
+            List<String> initialSpawnlock, List<String> initialAttacklock) {
         this.modDisplayName = modDisplayName;
         entities.clear();
         entityCache.clear();
@@ -90,7 +94,9 @@ public class ModEntitySelectionPopup {
             ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
             if (key != null && key.getNamespace().equals(modId) && isLivingEntityType(entityType)) {
                 String displayName = entityType.getDescription().getString();
-                entities.add(new EntityRow(key.toString(), displayName, false, false));
+                boolean sLock = initialSpawnlock != null && initialSpawnlock.contains(key.toString());
+                boolean aLock = initialAttacklock != null && initialAttacklock.contains(key.toString());
+                entities.add(new EntityRow(key.toString(), displayName, sLock, aLock));
             }
         }
 
@@ -527,6 +533,7 @@ public class ModEntitySelectionPopup {
             if (mouseX >= skipX && mouseX < skipX + btnW) {
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 hide();
+                if (onSkip != null) onSkip.run();
                 return true;
             }
         }
