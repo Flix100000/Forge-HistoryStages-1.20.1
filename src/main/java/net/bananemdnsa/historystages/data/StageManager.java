@@ -40,22 +40,6 @@ public class StageManager implements IStageManager {
     private static final String GLOBAL_CONFIG_PATH = "global";
     private static final String INDIVIDUAL_CONFIG_PATH = "individual";
 
-
-    // Dual-phase: item/tag/mod ID → set of global stage IDs that share the entry with an individual stage
-    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_TAGS = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_MODS = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK = new HashMap<>();
-    // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
-    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS_IND = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_TAGS_IND = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_MODS_IND = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND = new HashMap<>();
-
     public enum MessageLevel { ERROR, WARN, INFO }
     public record LoadingMessage(MessageLevel level, String message) {}
 
@@ -102,19 +86,6 @@ public class StageManager implements IStageManager {
     public static void load() {
         STAGES.clear();
         INDIVIDUAL_STAGES.clear();
-        DUAL_PHASE_ITEMS.clear();
-        DUAL_PHASE_TAGS.clear();
-        DUAL_PHASE_MODS.clear();
-        DUAL_PHASE_DIMENSIONS.clear();
-        DUAL_PHASE_STRUCTURES.clear();
-        DUAL_PHASE_ATTACKLOCK.clear();
-        DUAL_PHASE_ITEMS_IND.clear();
-        DUAL_PHASE_TAGS_IND.clear();
-        DUAL_PHASE_MODS_IND.clear();
-        DUAL_PHASE_DIMENSIONS_IND.clear();
-        DUAL_PHASE_STRUCTURES_IND.clear();
-        DUAL_PHASE_ATTACKLOCK_IND.clear();
-        LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
         loadGlobalStages();
@@ -863,110 +834,6 @@ public class StageManager implements IStageManager {
             entry.getEntities().getSpawnlock().clear();
         }
     }
-
-    /**
-     * Detects overlaps between individual and global stages.
-     * Overlapping entries are registered as dual-phase: first locked globally
-     * (all paired global stages must be unlocked), then locked per-player.
-     * Covers items, tags, mods, dimensions, structures, and entity attacklock.
-     */
-    private static void detectOverlaps() {
-        // Map each item/tag/mod to the *set* of global stages that contain it
-        // (a single entry can theoretically appear in more than one global stage)
-        Map<String, Set<String>> globalItemMap = new HashMap<>();
-        Map<String, Set<String>> globalTagMap = new HashMap<>();
-        Map<String, Set<String>> globalModMap = new HashMap<>();
-        Map<String, Set<String>> globalDimensionMap = new HashMap<>();
-        Map<String, Set<String>> globalStructureMap = new HashMap<>();
-        Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
-
-        for (Map.Entry<String, StageDefinition> entry : STAGES.entrySet()) {
-            String gStageId = entry.getKey();
-            StageEntry gEntry = entry.getValue();
-            for (String item : gEntry.getAllItemIds())
-                globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId);
-            for (String tag : gEntry.getTags())
-                globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId);
-            for (String mod : gEntry.getMods())
-                globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId);
-            for (String dim : gEntry.getDimensions())
-                globalDimensionMap.computeIfAbsent(dim, k -> new HashSet<>()).add(gStageId);
-            for (String struct : gEntry.getStructures())
-                globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
-            for (String entityId : gEntry.getEntities().getAttacklock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
-            // Spawnlocked entities are also attacklocked globally — count for attacklock dual-phase
-            for (String entityId : gEntry.getEntities().getSpawnlock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
-        }
-
-        for (Map.Entry<String, StageDefinition> entry : INDIVIDUAL_STAGES.entrySet()) {
-            String iStageId = entry.getKey();
-            StageEntry iEntry = entry.getValue();
-
-            for (ItemEntry itemEntry : iEntry.getItemEntries()) {
-                registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItemMap, itemEntry.getId(), "item", iStageId);
-            }
-            for (String tag : iEntry.getTags()) {
-                registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTagMap, tag, "tag", iStageId);
-            }
-            for (String mod : iEntry.getMods()) {
-                registerDualPhase(DUAL_PHASE_MODS, DUAL_PHASE_MODS_IND, globalModMap, mod, "mod", iStageId);
-            }
-            for (String dim : iEntry.getDimensions()) {
-                registerDualPhase(DUAL_PHASE_DIMENSIONS, DUAL_PHASE_DIMENSIONS_IND, globalDimensionMap, dim, "dimension", iStageId);
-            }
-            for (String struct : iEntry.getStructures()) {
-                registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructureMap, struct, "structure", iStageId);
-            }
-            for (String entityId : iEntry.getEntities().getAttacklock()) {
-                registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
-            }
-        }
-    }
-
-    /** Public entry-point for rebuilding dual-phase maps after stage definitions are updated (e.g. client sync). */
-    public static void rebuildDualPhase() {
-        DUAL_PHASE_ITEMS.clear();
-        DUAL_PHASE_TAGS.clear();
-        DUAL_PHASE_MODS.clear();
-        DUAL_PHASE_DIMENSIONS.clear();
-        DUAL_PHASE_STRUCTURES.clear();
-        DUAL_PHASE_ATTACKLOCK.clear();
-        DUAL_PHASE_ITEMS_IND.clear();
-        DUAL_PHASE_TAGS_IND.clear();
-        DUAL_PHASE_MODS_IND.clear();
-        DUAL_PHASE_DIMENSIONS_IND.clear();
-        DUAL_PHASE_STRUCTURES_IND.clear();
-        DUAL_PHASE_ATTACKLOCK_IND.clear();
-        detectOverlaps();
-    }
-
-    private static void registerDualPhase(Map<String, Set<String>> globalTarget, Map<String, Set<String>> indTarget,
-                                          Map<String, Set<String>> globalMap,
-                                          String entryId, String label, String iStageId) {
-        Set<String> globalStages = globalMap.get(entryId);
-        if (globalStages == null) return;
-        globalTarget.computeIfAbsent(entryId, k -> new HashSet<>()).addAll(globalStages);
-        indTarget.computeIfAbsent(entryId, k -> new HashSet<>()).add(iStageId);
-        String msg = "Individual stage '" + iStageId + "' " + label + " '" + entryId
-                + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-        addMessage(MessageLevel.INFO, msg);
-        DebugLogger.info("Dual-Phase Detection", msg);
-    }
-
-    public static Map<String, Set<String>> getDualPhaseItems()         { return DUAL_PHASE_ITEMS; }
-    public static Map<String, Set<String>> getDualPhaseTags()          { return DUAL_PHASE_TAGS; }
-    public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE_MODS; }
-    public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
-    public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
-    public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
-    public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
-    public static Map<String, Set<String>> getDualPhaseTagsInd()       { return DUAL_PHASE_TAGS_IND; }
-    public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
-    public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
-    public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
-    public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
 
     // =============================================
     // SHARED PRIVATE UTILITIES
