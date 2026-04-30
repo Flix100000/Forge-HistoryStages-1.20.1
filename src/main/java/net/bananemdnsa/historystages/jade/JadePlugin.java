@@ -1,10 +1,8 @@
 package net.bananemdnsa.historystages.jade;
 
+import net.astr0.historystages.api.StageScope;
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.data.ItemEntry;
-import net.bananemdnsa.historystages.data.NbtMatcher;
-import net.bananemdnsa.historystages.data.StageDefinition;
-import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.*;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.StageLockHelper;
@@ -46,69 +44,14 @@ public class JadePlugin implements IWailaPlugin {
             if (!Config.CLIENT.jadeShowInfo.get()) return;
 
             Block block = accessor.getBlock();
-            ResourceLocation blockLocation = ForgeRegistries.BLOCKS.getKey(block);
-            if (blockLocation == null) return;
 
-            // Check via the block's item form
-            ItemStack blockItem = new ItemStack(block.asItem());
-            if (blockItem.isEmpty()) return;
+            // TODO: Review if NBT checks are necessary for a block match? Seems too niche to be worth supporting
+            List<StageDefinition> totalRequiredStages = RuntimeStageManager.getInstance().getStagesForBlock(block);
 
-            ResourceLocation itemLocation = ForgeRegistries.ITEMS.getKey(blockItem.getItem());
-            if (itemLocation == null) return;
+            // This block doesn't have any locks. No need to go any further
+            if (totalRequiredStages.isEmpty()) return;
 
-            String itemID = itemLocation.toString();
-            String modID = itemLocation.getNamespace();
-
-            List<StageDefinition> totalRequiredStages = new ArrayList<>();
-            boolean isCurrentlyLocked = false;
-
-            for (Map.Entry<String, StageDefinition> entry : StageManager.getStages().entrySet()) {
-                StageDefinition stage = entry.getValue();
-                String stageID = entry.getKey();
-
-                boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
-                        stage.getItems().contains(itemID) ||
-                        matchesNbtItem(stage, itemID, blockItem) ||
-                        blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
-
-                if (isListed) {
-                    totalRequiredStages.add(stage);
-                    if (!ClientStageCache.isStageUnlocked(stageID)) {
-                        isCurrentlyLocked = true;
-                    }
-                }
-            }
-
-            if (isCurrentlyLocked) {
-                appendStageTooltip(tooltip, totalRequiredStages, false);
-            }
-
-            // Individual stages — only shown when not in Phase 1 of a dual-phase lock
-            if (!StageLockHelper.isDualPhaseGloballyLockedClient(blockItem)) {
-                List<StageDefinition> individualRequiredStages = new ArrayList<>();
-                boolean isIndividuallyLocked = false;
-
-                for (Map.Entry<String, StageEntry> entry : StageManager.getIndividualStages().entrySet()) {
-                    StageDefinition stage = entry.getValue();
-                    String stageID = entry.getKey();
-
-                    boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
-                            stage.getItems().contains(itemID) ||
-                            matchesNbtItem(stage, itemID, blockItem) ||
-                            blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
-
-                    if (isListed) {
-                        individualRequiredStages.add(stage);
-                        if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
-                            isIndividuallyLocked = true;
-                        }
-                    }
-                }
-
-                if (isIndividuallyLocked) {
-                    appendStageTooltip(tooltip, individualRequiredStages, true);
-                }
-            }
+            appendStageTooltip(tooltip, totalRequiredStages);
         }
 
         @Override
@@ -141,72 +84,13 @@ public class JadePlugin implements IWailaPlugin {
             if (items.isEmpty()) return;
 
             List<StageDefinition> totalRequiredStages = new ArrayList<>();
-            boolean isCurrentlyLocked = false;
 
+            //TODO: Re-add compatibility for NBT checking
             for (ItemStack stack : items) {
-                ResourceLocation itemLocation = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                if (itemLocation == null) continue;
-
-                String itemID = itemLocation.toString();
-                String modID = itemLocation.getNamespace();
-
-                for (Map.Entry<String, StageDefinition> entry : StageManager.getStages().entrySet()) {
-                    StageDefinition stage = entry.getValue();
-                    String stageID = entry.getKey();
-
-                    boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
-                            stage.getItems().contains(itemID) ||
-                            matchesNbtItem(stage, itemID, stack) ||
-                            stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
-
-                    if (isListed && !totalRequiredStages.contains(stage)) {
-                        totalRequiredStages.add(stage);
-                        if (!ClientStageCache.isStageUnlocked(stageID)) {
-                            isCurrentlyLocked = true;
-                        }
-                    }
-                }
+                totalRequiredStages.addAll(RuntimeStageManager.getInstance().getStagesForItem(stack.getItem()));
             }
 
-            if (isCurrentlyLocked) {
-                appendStageTooltip(tooltip, totalRequiredStages, false);
-            }
-
-            // Individual stages — only shown when not in Phase 1 of a dual-phase lock
-            boolean anyDualPhaseGlobal = items.stream().anyMatch(StageLockHelper::isDualPhaseGloballyLockedClient);
-            if (!anyDualPhaseGlobal) {
-                List<StageDefinition> individualRequiredStages = new ArrayList<>();
-                boolean isIndividuallyLocked = false;
-
-                for (ItemStack stack : items) {
-                    ResourceLocation indItemLocation = ForgeRegistries.ITEMS.getKey(stack.getItem());
-                    if (indItemLocation == null) continue;
-
-                    String indItemID = indItemLocation.toString();
-                    String indModID = indItemLocation.getNamespace();
-
-                    for (Map.Entry<String, StageDefinition> entry : StageManager.getIndividualStages().entrySet()) {
-                        StageDefinition stage = entry.getValue();
-                        String stageID = entry.getKey();
-
-                        boolean isListed = (stage.getMods().contains(indModID) && !stage.isModExcepted(indItemID, stack)) ||
-                                stage.getItems().contains(indItemID) ||
-                                matchesNbtItem(stage, indItemID, stack) ||
-                                stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
-
-                        if (isListed && !individualRequiredStages.contains(stage)) {
-                            individualRequiredStages.add(stage);
-                            if (!ClientIndividualStageCache.isStageUnlocked(stageID)) {
-                                isIndividuallyLocked = true;
-                            }
-                        }
-                    }
-                }
-
-                if (isIndividuallyLocked) {
-                    appendStageTooltip(tooltip, individualRequiredStages, true);
-                }
-            }
+            appendStageTooltip(tooltip, totalRequiredStages);
         }
 
         @Override
@@ -215,49 +99,75 @@ public class JadePlugin implements IWailaPlugin {
         }
     }
 
-    private static void appendStageTooltip(ITooltip tooltip, List<StageDefinition> totalRequiredStages, boolean individual) {
-        if (Config.CLIENT.jadeStageName.get()) {
-            String header = individual ? "Required Individual Progress:" : "Required Progress:";
-            tooltip.add(Component.literal(header).withStyle(ChatFormatting.DARK_RED));
-
-            Map<String, StageDefinition> stageMap = individual
-                    ? StageManager.getIndividualStages()
-                    : StageManager.getStages();
-
-            for (StageDefinition stage : totalRequiredStages) {
-                String stageID = stageMap.entrySet().stream()
-                        .filter(e -> e.getValue().equals(stage))
-                        .map(Map.Entry::getKey).findFirst().orElse("");
-
-                boolean unlocked = individual
-                        ? ClientIndividualStageCache.isStageUnlocked(stageID)
-                        : ClientStageCache.isStageUnlocked(stageID);
-                boolean showAll = Config.CLIENT.jadeShowAllUntilComplete.get();
-
-                if (totalRequiredStages.size() > 1 && showAll) {
-                    ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
-                    String statusText = unlocked ? " (Unlocked)" : " (Locked)";
-
-                    tooltip.add(Component.literal(" • ")
-                            .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD))
-                            .append(Component.literal(statusText).withStyle(statusColor)));
-                } else if (!unlocked) {
-                    tooltip.add(Component.literal(" • ")
-                            .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD)));
-                }
-            }
-        } else {
+    // This handles both individual AND global stages AND also implements the expected Dual Phase behaviour
+    private static void appendStageTooltip(ITooltip tooltip, List<StageDefinition> totalRequiredStages) {
+        if (!Config.CLIENT.jadeStageName.get()) {
             tooltip.add(Component.literal("This contains locked items!")
                     .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
+            return;
+        }
+
+        int globalEndIndex = 0;
+        boolean anyGlobalLocked = false;
+
+        // Scan the Global section at the start of the list
+        for (StageDefinition stage : totalRequiredStages) {
+            if (stage.getScope() != StageScope.GLOBAL) {
+                break; // We've reached the Individual stages
+            }
+
+            globalEndIndex++;
+            if (!isStageUnlocked(stage)) {
+                anyGlobalLocked = true;
+            }
+        }
+
+        // If any global is locked, we only show global stages (index 0 to globalEndIndex)
+        // If all globals are unlocked, we only show individual stages (index globalEndIndex to size)
+        int startIdx, endIdx;
+        boolean showingGlobal;
+
+        if (globalEndIndex > 0 && anyGlobalLocked) {
+            startIdx = 0;
+            endIdx = globalEndIndex;
+            showingGlobal = true;
+        } else {
+            startIdx = globalEndIndex;
+            endIdx = totalRequiredStages.size();
+            showingGlobal = false;
+        }
+
+        // If the window is empty (e.g., all globals unlocked but no individual locks exist), exit
+        if (startIdx >= endIdx) return;
+
+        String header = showingGlobal ? "Required Global Progress:" : "Required Individual Progress:";
+        tooltip.add(Component.literal(header).withStyle(ChatFormatting.DARK_RED));
+
+        // 4. Render Stages
+        boolean showAll = Config.CLIENT.jadeShowAllUntilComplete.get();
+        for (int i = startIdx; i < endIdx; i++) {
+            StageDefinition stage = totalRequiredStages.get(i);
+            boolean unlocked = isStageUnlocked(stage);
+
+            if (showAll) {
+                ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
+                String statusText = unlocked ? " (Unlocked)" : " (Locked)";
+
+                tooltip.add(Component.literal(" • ")
+                        .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD))
+                    .append(Component.literal(statusText).withStyle(statusColor)));
+            } else if (!unlocked) {
+                tooltip.add(Component.literal(" • ")
+                        .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD)));
+            }
         }
     }
 
-    private static boolean matchesNbtItem(StageDefinition stage, String itemID, ItemStack stack) {
-        for (ItemEntry itemEntry : stage.getItemEntries()) {
-            if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
-                if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
-            }
+    private static boolean isStageUnlocked(StageDefinition stage) {
+        if (stage.getScope() == StageScope.GLOBAL) {
+            return ClientStageCache.isStageUnlocked(stage.getName());
+        } else {
+            return ClientIndividualStageCache.isStageUnlocked(stage.getName());
         }
-        return false;
     }
 }

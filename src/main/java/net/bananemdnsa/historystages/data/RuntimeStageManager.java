@@ -4,9 +4,7 @@ import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.*;
 import net.astr0.historystages.api.IStageManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
@@ -15,6 +13,7 @@ import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 
@@ -46,7 +45,7 @@ public final class RuntimeStageManager implements IStageManager {
     // =================================
     // These are saved to disk as part of the games save state
     // They are loaded from disk at runtime
-    private final HashMap<String, BitSet> PLAYER_UNLOCKED_STAGES = new HashMap<>();
+    private final HashMap<UUID, BitSet> PLAYER_UNLOCKED_STAGES = new HashMap<>();
     private final BitSet GLOBAL_UNLOCKED_STAGES = new BitSet();
 
     // =================================
@@ -57,7 +56,7 @@ public final class RuntimeStageManager implements IStageManager {
     // time bake() is called.
 
     private final Object2IntOpenHashMap<String> stageToBitPositionReferenceMap = new Object2IntOpenHashMap<>();
-    private final Int2ObjectOpenHashMap<String> bitPositionToStageReferenceMap = new Int2ObjectOpenHashMap<>();
+    private final Int2ObjectOpenHashMap<StageDefinition> bitPositionToStageReferenceMap = new Int2ObjectOpenHashMap<>();
     // THIS SHOULD NEVER BE MODIFIED. WE USE THIS FOR EMPTY BITSETS ONLY
     // To save memory, we will assign/return this anytime we know there is no lock.
     // If this instance is modified, we will start getting some really strange bugs
@@ -78,6 +77,26 @@ public final class RuntimeStageManager implements IStageManager {
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> entityLocks = new Object2ObjectOpenHashMap<>(20);
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> structureLocks = new Object2ObjectOpenHashMap<>(20);
 
+
+    public List<StageDefinition> getStagesForBlock(Block block) {
+        BitSet lock = blockLocks.getOrDefault(block, EMPTY_BITSET);
+        return getStageDefinitionsFromLock(lock);
+    }
+
+    @NotNull
+    private List<StageDefinition> getStageDefinitionsFromLock(BitSet lock) {
+        List<StageDefinition> lockingStages = new ArrayList<>();
+
+        for (int i = lock.nextSetBit(0); i >= 0; i = lock.nextSetBit(i + 1)) {
+            //TODO: It should never happen but it may be possible that we try to test a bit position which doesn't correspond
+            // to a stage. Check this code later and consider if this is possible.
+            lockingStages.add(bitPositionToStageReferenceMap.get(i));
+        }
+
+        return lockingStages;
+    }
+
+
     // =========================
     //     Implementation
     // =========================
@@ -92,7 +111,7 @@ public final class RuntimeStageManager implements IStageManager {
         // to have the same order (Alphabetical)
         stages.sort(
             Comparator
-                .comparing((StageDefinition s) -> s.getStageScope() == StageScope.INDIVIDUAL) // false (Global) first
+                .comparing((StageDefinition s) -> s.getScope() == StageScope.INDIVIDUAL) // false (Global) first
                 .thenComparing(StageDefinition::getName, String.CASE_INSENSITIVE_ORDER)
         );
 
@@ -110,7 +129,7 @@ public final class RuntimeStageManager implements IStageManager {
             String stageName  = stage.getName();
 
             stageToBitPositionReferenceMap.put(stageName, STAGE_INDEX);
-            bitPositionToStageReferenceMap.put(STAGE_INDEX, stageName);
+            bitPositionToStageReferenceMap.put(STAGE_INDEX, stage);
 
             //TODO(Astr0): Check if this can be optimised using concurrency for large numbers of stage definitions
             stage.getLockedItems().forEach((item) -> {
@@ -158,16 +177,29 @@ public final class RuntimeStageManager implements IStageManager {
         itemLock.set(stageBit);
     }
 
+    private void lockBlockWithStage(Block block, String stage) {
+        int stageBit = getStageBit(stage);
+        BitSet itemLock = blockLocks.computeIfAbsent(block, k -> new BitSet());
+        itemLock.set(stageBit);
+    }
+
     // Tags aren't loaded until the game world loads and can also be reloaded mid-game.
     // So we have to process tags data separately, so they can be handled correctly
     public void bakeTagEntries(List<StageDefinition> stages) {
 
         for (StageDefinition stage : stages) {
-            List<TagKey<Item>> lockedTags = stage.getLockedItemTags();
+            List<TagKey<Item>> lockedItemTags = stage.getLockedItemTags();
+            List<TagKey<Block>> lockedBlockTags = stage.getLockedBlockTags();
 
-            for (TagKey<Item> tag : lockedTags) {
-                ForgeRegistries.ITEMS.tags().getTag(tag).forEach(item -> {
+            for (TagKey<Item> itemTag : lockedItemTags) {
+                ForgeRegistries.ITEMS.tags().getTag(itemTag).forEach(item -> {
                     lockItemWithStage(item, stage.getName());
+                });
+            }
+
+            for (TagKey<Block> blockTag : lockedBlockTags) {
+                ForgeRegistries.BLOCKS.tags().getTag(blockTag).forEach(block -> {
+                    lockBlockWithStage(block, stage.getName());
                 });
             }
         }
@@ -178,19 +210,9 @@ public final class RuntimeStageManager implements IStageManager {
         return STAGE_WITH_STRUCTURE_EXISTS;
     }
 
-    public List<String> getStagesForItem(Item item) {
-
-        List<String> lockingStages = new ArrayList<>();
-
-        BitSet lockReference = itemLocks.getOrDefault(item, EMPTY_BITSET);
-
-        for (int i = lockReference.nextSetBit(0); i >= 0; i = lockReference.nextSetBit(i + 1)) {
-            //TODO: It should never happen but it may be possible that we try to test a bit position which doesn't correspond
-            // to a stage. Check this code later and consider if this is possible.
-            lockingStages.add(bitPositionToStageReferenceMap.get(i));
-        }
-
-        return lockingStages;
+    public List<StageDefinition> getStagesForItem(Item item) {
+        BitSet lock = itemLocks.getOrDefault(item, EMPTY_BITSET);
+        return getStageDefinitionsFromLock(lock);
     }
 
 
@@ -247,7 +269,7 @@ public final class RuntimeStageManager implements IStageManager {
         // Intrinsically safe operation. If a player does not exist in our stage
         // tracking we can just generate an empty bitset for them and add to list
         // There is never a situation where we wouldn't want to track a player
-        return PLAYER_UNLOCKED_STAGES.computeIfAbsent(getUUIDAsString(player), k -> new BitSet());
+        return PLAYER_UNLOCKED_STAGES.computeIfAbsent(player.getUUID(), k -> new BitSet());
     }
 
     @Override

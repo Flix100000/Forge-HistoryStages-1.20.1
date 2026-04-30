@@ -8,6 +8,7 @@ import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -60,6 +61,9 @@ public class StageDefinition {
         this.entities = new EntityLocks();
     }
 
+    // Compatibility with previous version
+    public String getDisplayName() { return stageName; }
+
     public String getName() {
         return stageName;
     }
@@ -76,13 +80,18 @@ public class StageDefinition {
         return new ArrayList<>();
     }
 
-    public StageScope getStageScope() {
+    public StageScope getScope() {
         return _scope;
     }
 
     public List<TagKey<Item>> getLockedItemTags() {
         List<TagKey<Item>> lockedItemTags = new ArrayList<>();
         return lockedItemTags;
+    }
+
+    public List<TagKey<Block>> getLockedBlockTags() {
+        List<TagKey<Block>> lockedBlockTags = new ArrayList<>();
+        return lockedBlockTags;
     }
 
     /** Returns the custom icon item id, or null if not set (use default). */

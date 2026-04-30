@@ -32,7 +32,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class StageManager implements IStageManager {
-    private static final Map<String, StageDefinition> STAGES = new HashMap<>();
+    private static final List<StageDefinition> STAGES = new ArrayList<>();
     private static final Map<String, StageDefinition> INDIVIDUAL_STAGES = new HashMap<>();
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
@@ -677,7 +677,7 @@ public class StageManager implements IStageManager {
     // STAGE QUERIES — GLOBAL
     // =============================================
 
-    public static Map<String, StageDefinition> getStages() {
+    public static List<StageDefinition> getStages() {
         return STAGES;
     }
 
