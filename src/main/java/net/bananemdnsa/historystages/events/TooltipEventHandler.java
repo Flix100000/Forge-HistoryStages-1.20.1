@@ -9,10 +9,12 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.util.SearchHiddenContents;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -123,11 +125,11 @@ public class TooltipEventHandler {
                         String statusText = unlocked ? " (Unlocked)" : " (Locked)";
 
                         event.getToolTip().add(Component.literal(" • ")
-                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD))
+                                .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GOLD))
                                 .append(Component.literal(statusText).withStyle(statusColor)));
                     } else if (!unlocked) {
                         event.getToolTip().add(Component.literal(" • ")
-                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD)));
+                                .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GOLD)));
                     }
                 }
             } else {
@@ -175,11 +177,11 @@ public class TooltipEventHandler {
                         String statusText = unlocked ? " (Unlocked)" : " (Locked)";
 
                         event.getToolTip().add(Component.literal(" • ")
-                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GRAY))
+                                .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GRAY))
                                 .append(Component.literal(statusText).withStyle(statusColor)));
                     } else if (!unlocked) {
                         event.getToolTip().add(Component.literal(" • ")
-                                .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GRAY)));
+                                .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GRAY)));
                     }
                 }
             } else {
