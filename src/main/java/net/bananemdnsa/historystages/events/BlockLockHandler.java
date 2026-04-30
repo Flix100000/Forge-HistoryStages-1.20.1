@@ -2,14 +2,12 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -43,9 +41,6 @@ public class BlockLockHandler {
         BlockPos pos = event.getPos();
         BlockState state = event.getEntity().level().getBlockState(pos);
         Block block = state.getBlock();
-
-        // Only care about blocks that have a GUI (MenuProvider)
-        if (!(block instanceof MenuProvider) && !(event.getEntity().level().getBlockEntity(pos) instanceof MenuProvider)) return;
 
         ItemStack blockItem = new ItemStack(block.asItem());
         if (blockItem.isEmpty()) return;
