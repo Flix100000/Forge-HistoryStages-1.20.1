@@ -393,7 +393,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         // Clipped scrollable content area
         int clipX = x - 2;
         int clipY = y + 20;
-        int clipW = DEP_PANEL_CONTENT_WIDTH + 10;
+        int clipW = DEP_PANEL_CONTENT_WIDTH + 4;
         int clipH = 115; // Space available before the deposit slot row
 
         guiGraphics.enableScissor(clipX, clipY, clipX + clipW, clipY + clipH);
@@ -416,8 +416,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 int cardH = "item".equals(entry.getType()) ? 22 : 15;
 
                 // Card background + left indicator stripe
-                guiGraphics.fill(-2, currentY - 1, DEP_PANEL_CONTENT_WIDTH + 5, currentY + cardH - 1, bgColor);
-                guiGraphics.fill(-2, currentY - 1, -1, currentY + cardH - 1, borderColor);
+                guiGraphics.fill(2, currentY - 1, DEP_PANEL_CONTENT_WIDTH - 2, currentY + cardH - 1, bgColor);
 
                 if ("item".equals(entry.getType())) {
                     ResourceLocation itemRl = ResourceLocation.tryParse(entry.getId());
