@@ -1,12 +1,25 @@
 package net.bananemdnsa.historystages.jei;
 
+import com.mojang.logging.LogUtils;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
 import mezz.jei.api.registration.IAdvancedRegistration;
+import mezz.jei.api.registration.ISubtypeRegistration;
+import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.init.ModItems;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 import org.slf4j.Logger;
-import com.mojang.logging.LogUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @JeiPlugin
 public class JEIPlugin implements IModPlugin {
@@ -17,10 +30,51 @@ public class JEIPlugin implements IModPlugin {
         return ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "jei_plugin");
     }
 
+    @Override
+    public void registerItemSubtypes(ISubtypeRegistration registration) {
+        // Tell JEI that scrolls with different StageResearch values are different items
+        IIngredientSubtypeInterpreter<ItemStack> interpreter = (stack, context) -> {
+            CustomData data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+            CompoundTag tag = data.copyTag();
+            if (tag.contains("StageResearch")) {
+                return tag.getString("StageResearch");
+            }
+            return IIngredientSubtypeInterpreter.NONE;
+        };
+        registration.registerSubtypeInterpreter(ModItems.RESEARCH_SCROLL.get(), interpreter);
+        registration.registerSubtypeInterpreter(ModItems.CREATIVE_SCROLL.get(), interpreter);
+    }
+
+    @Override
+    public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
+        // Add one scroll variant per stage so they appear in JEI
+        List<ItemStack> scrolls = new ArrayList<>();
+
+        for (String stageId : StageManager.getStages().keySet()) {
+            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+            CompoundTag nbt = new CompoundTag();
+            nbt.putString("StageResearch", stageId);
+            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+            scrolls.add(scroll);
+        }
+
+        for (String stageId : StageManager.getIndividualStages().keySet()) {
+            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+            CompoundTag nbt = new CompoundTag();
+            nbt.putString("StageResearch", stageId);
+            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+            scrolls.add(scroll);
+        }
+
+        if (!scrolls.isEmpty()) {
+            jeiRuntime.getIngredientManager().addIngredientsAtRuntime(VanillaTypes.ITEM_STACK, scrolls);
+            LOGGER.info("[HistoryStages] Added {} research scroll variants to JEI.", scrolls.size());
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public void registerAdvanced(IAdvancedRegistration registration) {
-        // Register decorator for ALL recipe types (vanilla + modded)
         registration.getJeiHelpers().getAllRecipeTypes().forEach(recipeType -> {
             registration.addRecipeCategoryDecorator((mezz.jei.api.recipe.RecipeType) recipeType, new LockedRecipeDecorator<>());
         });
