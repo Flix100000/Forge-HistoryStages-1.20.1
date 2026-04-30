@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.resources.ResourceLocation;
@@ -16,11 +17,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Combines global and individual stage lock checks into a single utility.
@@ -191,37 +188,12 @@ public class StageLockHelper {
      * Returns true when at least one of the paired global stages is not yet client-side unlocked.
      */
     public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId  = res.getNamespace();
+        RuntimeStageManager manager = RuntimeStageManager.getInstance();
+        BitSet lock = manager.getLockForItem(stack.getItem());
 
-        Set<String> itemStages = StageManager.getDualPhaseItems().get(itemId);
-        if (itemStages != null) {
-            for (String stage : itemStages) {
-                if (!ClientStageCache.isStageUnlocked(stage)) return true;
-            }
-        }
-
-        Set<String> modStages = StageManager.getDualPhaseMods().get(modId);
-        if (modStages != null) {
-            for (String stage : modStages) {
-                if (!ClientStageCache.isStageUnlocked(stage)) return true;
-            }
-        }
-
-        Item item = stack.getItem();
-        for (Map.Entry<String, Set<String>> tagEntry : StageManager.getDualPhaseTags().entrySet()) {
-            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, new ResourceLocation(tagEntry.getKey()));
-            if (item.builtInRegistryHolder().is(tagKey)) {
-                for (String stage : tagEntry.getValue()) {
-                    if (!ClientStageCache.isStageUnlocked(stage)) return true;
-                }
-            }
-        }
-
-        return false;
+        // TODO: the lockIsLockedByGlobals gimmick should be handled by a client side cache instead of the stagemanager,
+        // which should only be stateful on the server arguably.
+        return manager.isLockDualPhase(lock) && manager.lockIsLockedByGlobals(lock);
     }
 
     /**
@@ -295,19 +267,10 @@ public class StageLockHelper {
      */
     public static boolean isEnchantmentLockedForPlayer(String enchantmentId, int level, UUID playerUuid) {
         // Check global stages
-        for (var entry : StageManager.getStages().entrySet()) {
-            if (StageData.SERVER_CACHE.contains(entry.getKey())) continue;
-            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
-        }
+        RuntimeStageManager manager = RuntimeStageManager.getInstance();
 
-        // Check individual stages
-        Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
-        for (var entry : StageManager.getIndividualStages().entrySet()) {
-            if (playerStages.contains(entry.getKey())) continue;
-            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
-        }
-
-        return false;
+        //TODO: Re-implement level based locking
+        return manager.isEnchantmentLocked(enchantmentId, manager.getBitSetForPlayerUUID(playerUuid));
     }
 
     /**
@@ -354,26 +317,13 @@ public class StageLockHelper {
     }
 
     private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageDefinition entry) {
-        for (net.bananemdnsa.historystages.data.ItemEntry itemEntry : entry.getItemEntries()) {
-            if (itemEntry.getId().equals(itemId)) {
-                if (itemEntry.hasNbt()) {
-                    if (net.bananemdnsa.historystages.data.NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
-                } else {
-                    return true;
-                }
-            }
-        }
-        if (entry.getMods().contains(modId) && !entry.isModExcepted(itemId, stack)) return true;
 
-        net.minecraft.world.item.Item item = stack.getItem();
-        if (item != null && entry.getTags() != null) {
-            for (String tagId : entry.getTags()) {
-                var tagKey = net.minecraft.tags.TagKey.create(
-                        net.minecraft.core.registries.Registries.ITEM,
-                        ResourceLocation.parse(tagId)
-                );
-                if (item.builtInRegistryHolder().is(tagKey)) return true;
-            }
+        //TODO: re-implement support for NBT locking
+        // this could also be done the other way, which is to loop through all the items in the stage definition
+        // Probably similar performance. This approach is only faster if there are a lottttt of locked items in the given
+        // stage
+        for(StageDefinition stage : RuntimeStageManager.getInstance().getStagesForItem(stack.getItem())) {
+            if (stage.equals(entry)) return true;
         }
 
         return false;

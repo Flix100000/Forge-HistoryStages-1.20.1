@@ -62,6 +62,9 @@ public final class RuntimeStageManager implements IStageManager {
     // If this instance is modified, we will start getting some really strange bugs
     private final BitSet EMPTY_BITSET = new ReadOnlyBitSet();
     private boolean STAGE_WITH_STRUCTURE_EXISTS = false;
+    // Init to -1 so that we crash the game when using bad logic
+    // This will force us to respect the intended use of this value
+    private int LAST_GLOBAL_INDEX = -1;
 
     // TODO(Astr0): To optimise, consider an approach to initialise lock hashmaps at
     // a reasonably size. We want to minimise the amount of resize and rehash operations at runtime
@@ -76,6 +79,7 @@ public final class RuntimeStageManager implements IStageManager {
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> dimensionLocks = new Object2ObjectOpenHashMap<>(20);
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> entityLocks = new Object2ObjectOpenHashMap<>(20);
     private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> structureLocks = new Object2ObjectOpenHashMap<>(20);
+    private final Object2ObjectOpenHashMap<String, BitSet> enchantmentLocks = new Object2ObjectOpenHashMap<>(20);
 
 
     public List<StageDefinition> getStagesForBlock(Block block) {
@@ -106,6 +110,8 @@ public final class RuntimeStageManager implements IStageManager {
     // an arbitrarily ordered list of stage definitions
     public void bake(List<StageDefinition> stages) {
 
+        LAST_GLOBAL_INDEX = -1; // Always reset in case all the global stages have been removed since last bake
+
         // We sort in order to achieve deterministic mappings between bit position and stage
         // If the same stages are loaded on both the client and the server, they are guaranteed
         // to have the same order (Alphabetical)
@@ -127,6 +133,12 @@ public final class RuntimeStageManager implements IStageManager {
 
             StageDefinition stage = stages.get(STAGE_INDEX);
             String stageName  = stage.getName();
+
+            if (stage.getScope() == StageScope.GLOBAL) {
+                // At the end of the bake this will contain the index of the last global stage
+                // The globals are always sorted to be at the start of the stage order (as seen above)
+                LAST_GLOBAL_INDEX = i;
+            }
 
             stageToBitPositionReferenceMap.put(stageName, STAGE_INDEX);
             bitPositionToStageReferenceMap.put(STAGE_INDEX, stage);
@@ -169,6 +181,36 @@ public final class RuntimeStageManager implements IStageManager {
 
         bakeTagEntries(stages);
 
+    }
+
+    public BitSet getLockForItem(Item item) {
+        return itemLocks.getOrDefault(item, EMPTY_BITSET);
+    }
+
+    public boolean isLockDualPhase(BitSet lock) {
+        boolean hasGlobalLocks = false;
+        boolean hasIndividualLocks = false;
+
+        // Loop won't run at all if there are no locks applied
+        for (int i = lock.nextSetBit(0); i >= 0; i = lock.nextSetBit(i + 1)) {
+            if (i > LAST_GLOBAL_INDEX) {
+                hasIndividualLocks = true;
+            } else {
+                hasGlobalLocks = true;
+            }
+        }
+
+        return hasGlobalLocks && hasIndividualLocks;
+    }
+
+    public boolean lockIsLockedByGlobals(BitSet lock) {
+        for (int i = lock.nextSetBit(0); i >= 0; i = lock.nextSetBit(i + 1)) {
+            if (i <= LAST_GLOBAL_INDEX && !GLOBAL_UNLOCKED_STAGES.get(i)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void lockItemWithStage(Item item, String stage) {
@@ -215,6 +257,27 @@ public final class RuntimeStageManager implements IStageManager {
         return getStageDefinitionsFromLock(lock);
     }
 
+
+    public boolean isEnchantmentLocked(String enchantID, BitSet activeMask) {
+        // 1. Get the BitSet via pointer comparison (very fast)
+        BitSet required = enchantmentLocks.get(enchantID);
+        // 2. Null check (Items with no stages aren't in the map)
+        if (required == null) return false;
+
+        // Direct traversal of the required bits
+        // Most items have 1 bit. nextSetBit(0) returns that bit,
+        // nextSetBit is implemented using pure bitwise operations, so its fast
+        //TODO(Astr0): Check if we can implement a long based class to do bitwise operations
+        //on the stack, rather than traversing java heap allocated BitSet
+        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
+            // If the bit is NOT in global AND NOT in the player mask, the item is locked.
+            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
 
     public boolean isItemLocked(Item item, BitSet activeMask) {
@@ -265,11 +328,17 @@ public final class RuntimeStageManager implements IStageManager {
         LogUtils.getLogger().warn("[HistoryStages] Stage is not defined: {}", stage);
     }
 
-    private BitSet getBitSetForPlayer(Player player) {
+    // This should probably be made private, instead just high level check functions
+    // Good enough for now
+    public BitSet getBitSetForPlayer(Player player) {
+        return getBitSetForPlayerUUID(player.getUUID());
+    }
+
+    public BitSet getBitSetForPlayerUUID(UUID playerID) {
         // Intrinsically safe operation. If a player does not exist in our stage
         // tracking we can just generate an empty bitset for them and add to list
         // There is never a situation where we wouldn't want to track a player
-        return PLAYER_UNLOCKED_STAGES.computeIfAbsent(player.getUUID(), k -> new BitSet());
+        return PLAYER_UNLOCKED_STAGES.computeIfAbsent(playerID, k -> new BitSet());
     }
 
     @Override

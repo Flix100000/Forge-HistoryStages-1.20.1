@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.Block;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class StageDefinition {
@@ -89,6 +90,10 @@ public class StageDefinition {
         return lockedItemTags;
     }
 
+    public List<ItemEntry> getItemEntries() {
+        return null;
+    }
+
     public List<TagKey<Block>> getLockedBlockTags() {
         List<TagKey<Block>> lockedBlockTags = new ArrayList<>();
         return lockedBlockTags;
@@ -135,5 +140,10 @@ public class StageDefinition {
 
     public String toJson() {
         return GSON.toJson(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof StageDefinition otherDefinition && Objects.equals(otherDefinition.stageName, this.stageName);
     }
 }
