@@ -81,18 +81,10 @@ public class StageDetailScreen extends Screen {
     private List<DependencyGroup> editDependencies;
 
     // UI state
-    private EditBox stageIdField;
-    private EditBox displayNameField;
-    private EditBox researchTimeField;
     private double scrollOffset = 0;
     private int maxScroll = 0;
     private boolean hasChanges = false;
     private String saveError = "";
-
-    // Original values for change detection
-    private String origStageId;
-    private String origDisplayName;
-    private String origResearchTime;
 
     // Tab state: 0-6, one per section
     private int activeTab = 0;
@@ -269,56 +261,11 @@ public class StageDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        int labelX = 30;
-        String labelId = Component.translatable("editor.historystages.field.stage_id").getString();
-        String labelName = Component.translatable("editor.historystages.field.display_name").getString();
-        String labelTime = Component.translatable("editor.historystages.field.research_time").getString();
-        int maxLabelW = Math.max(this.font.width(labelId),
-                Math.max(this.font.width(labelName), this.font.width(labelTime)));
-        int fieldX = labelX + maxLabelW + 10;
-        int fieldWidth = Math.min(200, this.width - fieldX - 40);
-
-        origStageId = editStageId;
-        origDisplayName = editDisplayName;
-        origResearchTime = String.valueOf(editResearchTime);
-
-        stageIdField = new EditBox(this.font, fieldX, 22, fieldWidth, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.stage_id"));
-        stageIdField.setMaxLength(64);
-        stageIdField.setValue(editStageId);
-        stageIdField.setEditable(isNewStage);
-        stageIdField.setResponder(val -> {
-            editStageId = val;
-            if (!val.equals(origStageId))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(stageIdField);
-
-        displayNameField = new EditBox(this.font, fieldX, 44, fieldWidth, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.display_name"));
-        displayNameField.setMaxLength(128);
-        displayNameField.setValue(editDisplayName);
-        displayNameField.setResponder(val -> {
-            editDisplayName = val;
-            if (!val.equals(origDisplayName))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(displayNameField);
-
-        researchTimeField = new EditBox(this.font, fieldX, 66, 80, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.research_time"));
-        researchTimeField.setMaxLength(5);
-        researchTimeField.setValue(String.valueOf(editResearchTime));
-        researchTimeField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
-        researchTimeField.setResponder(val -> {
-            try {
-                editResearchTime = val.isEmpty() ? 0 : Integer.parseInt(val);
-            } catch (NumberFormatException ignored) {
-            }
-            if (!val.equals(origResearchTime))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(researchTimeField);
+        int maxLabelW = Math.max(
+                this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
+                Math.max(this.font.width(Component.translatable("editor.historystages.field.display_name").getString()),
+                        this.font.width(Component.translatable("editor.historystages.field.research_time").getString())));
+        int fieldX = 30 + maxLabelW + 10;
 
         tabY = 88;
         tabX = new int[TAB_KEYS.length];
@@ -691,40 +638,11 @@ public class StageDetailScreen extends Screen {
             }
         }
 
-        int labelX = 30;
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.stage_id").getString(),
-                labelX, 27, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.display_name").getString(),
-                labelX, 49, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.research_time").getString(), labelX, 71, 0xAAAAAA,
-                false);
-
         guiGraphics.fill(10, tabY - 2, this.width - 10, tabY - 1, 0xFF555555);
 
         // Track tooltip
         String currentTooltipKey = null;
         String currentTooltipText = null;
-
-        // Check field label hovers for tooltips
-        int maxLabelW = Math.max(
-                this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
-                Math.max(this.font.width(Component.translatable("editor.historystages.field.display_name").getString()),
-                        this.font.width(
-                                Component.translatable("editor.historystages.field.research_time").getString())));
-
-        if (mouseX >= labelX && mouseX <= labelX + maxLabelW + 5) {
-            if (mouseY >= 22 && mouseY <= 40) {
-                currentTooltipKey = "field.stage_id";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.stage_id").getString();
-            } else if (mouseY >= 42 && mouseY <= 62) {
-                currentTooltipKey = "field.display_name";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.display_name").getString();
-            } else if (mouseY >= 64 && mouseY <= 84) {
-                currentTooltipKey = "field.research_time";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.research_time").getString();
-            }
-        }
 
         // Animated tab indicator - smoothly slide to active tab
         if (!tabIndicatorInit) {
@@ -2266,42 +2184,11 @@ public class StageDetailScreen extends Screen {
         if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode))
             return true;
 
-        if (Screen.hasControlDown()) {
-            EditBox focused = getFocusedEditBox();
-            if (focused != null) {
-                if (keyCode == 65) { // Ctrl+A
-                    focused.setCursorPosition(focused.getValue().length());
-                    focused.setHighlightPos(0);
-                    return true;
-                }
-                if (keyCode == 67) { // Ctrl+C
-                    String selected = focused.getHighlighted();
-                    if (!selected.isEmpty())
-                        Minecraft.getInstance().keyboardHandler.setClipboard(selected);
-                    return true;
-                }
-            }
-        }
-
-        if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
         if (keyCode == 256) {
             tryClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    private EditBox getFocusedEditBox() {
-        if (stageIdField != null && stageIdField.isFocused())
-            return stageIdField;
-        if (displayNameField != null && displayNameField.isFocused())
-            return displayNameField;
-        if (researchTimeField != null && researchTimeField.isFocused())
-            return researchTimeField;
-        return null;
     }
 
     @Override
@@ -2353,7 +2240,14 @@ public class StageDetailScreen extends Screen {
     }
 
     private void openStageSettings() {
-        this.minecraft.setScreen(new StageSettingsScreen(this, () -> this.hasChanges = true));
+        this.minecraft.setScreen(new StageSettingsScreen(this,
+                editStageId, editDisplayName, editResearchTime, isNewStage,
+                (newId, newName, newTime) -> {
+                    editStageId = newId;
+                    editDisplayName = newName;
+                    editResearchTime = newTime;
+                    hasChanges = true;
+                }));
     }
 
     private void saveStage() {
