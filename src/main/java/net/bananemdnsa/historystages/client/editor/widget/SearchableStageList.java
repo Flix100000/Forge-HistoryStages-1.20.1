@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

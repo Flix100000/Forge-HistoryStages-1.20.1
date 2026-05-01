@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.network;
 
 import com.google.gson.Gson;
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.network.FriendlyByteBuf;

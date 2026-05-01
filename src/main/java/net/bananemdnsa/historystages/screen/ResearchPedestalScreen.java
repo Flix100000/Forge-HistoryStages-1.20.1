@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.init.ModItems;

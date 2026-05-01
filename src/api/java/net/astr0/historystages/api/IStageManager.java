@@ -3,6 +3,9 @@ package net.astr0.historystages.api;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
+import java.util.BitSet;
+import java.util.List;
+
 /**
  * The StageManager object is the central class for interacting with the HistoryStages API.
  * The StageManager provides access to checking, locking and unlocking both individual and global stages.
@@ -49,4 +52,7 @@ public interface IStageManager {
      */
     void lockStageGlobally(String stage);
 
+
+    <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask);
+    <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key);
 }

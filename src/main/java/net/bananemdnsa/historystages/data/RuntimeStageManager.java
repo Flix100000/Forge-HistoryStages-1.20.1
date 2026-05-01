@@ -3,14 +3,13 @@ package net.bananemdnsa.historystages.data;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.*;
-import net.astr0.historystages.api.IStageManager;
-import net.minecraft.resources.ResourceLocation;
+import net.astr0.historystages.api.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
-import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
@@ -66,30 +65,17 @@ public final class RuntimeStageManager implements IStageManager {
     // This will force us to respect the intended use of this value
     private int LAST_GLOBAL_INDEX = -1;
 
-    // TODO(Astr0): To optimise, consider an approach to initialise lock hashmaps at
-    // a reasonably size. We want to minimise the amount of resize and rehash operations at runtime
-    // Either use a reasonably base size or simply assume double whatever the last known value was
-    // could also place this behind a develop config flag. When dev mode is off, we run in a low
-    // mem profile which limits this dict size to the expected size at initialisation
-    // BAKE TIME: Use Reference map for O(1) pointer-equality lookups
-    private final Reference2ObjectMap<Item, BitSet> itemLocks = new Reference2ObjectOpenHashMap<>(300);
-    //TODO: Should we try automatically lock blocks associated with items? Do we maybe already do this?
-    private final Reference2ObjectMap<Block, BitSet> blockLocks = new Reference2ObjectOpenHashMap<>(300);
-    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> modLocks = new Object2ObjectOpenHashMap<>();
-    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> dimensionLocks = new Object2ObjectOpenHashMap<>(20);
-    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> entityLocks = new Object2ObjectOpenHashMap<>(20);
-    private final Object2ObjectOpenHashMap<ResourceLocation, BitSet> structureLocks = new Object2ObjectOpenHashMap<>(20);
-    private final Object2ObjectOpenHashMap<String, BitSet> enchantmentLocks = new Object2ObjectOpenHashMap<>(20);
-
 
     public List<StageDefinition> getStagesForBlock(Block block) {
-        BitSet lock = blockLocks.getOrDefault(block, EMPTY_BITSET);
+        BitSet lock = HistoryStagesAPI.BLOCKS.getLock(block);
         return getStageDefinitionsFromLock(lock);
     }
 
     @NotNull
     private List<StageDefinition> getStageDefinitionsFromLock(BitSet lock) {
         List<StageDefinition> lockingStages = new ArrayList<>();
+
+        if(lock == null) return lockingStages;
 
         for (int i = lock.nextSetBit(0); i >= 0; i = lock.nextSetBit(i + 1)) {
             //TODO: It should never happen but it may be possible that we try to test a bit position which doesn't correspond
@@ -108,9 +94,16 @@ public final class RuntimeStageManager implements IStageManager {
     //NOTE: This function must be deterministic for any given input.
     // The clients must be able to produce the exact same results based on
     // an arbitrarily ordered list of stage definitions
+    // THIS ONLY NEEDS TO BE CALLED WHEN A NEW STAGE IS ADDED
+    // IF EXISTING STAGES ARE UPDATED, THE LOCKS CAN BE APPLIED DIRECTLY
     public void bake(List<StageDefinition> stages) {
 
         LAST_GLOBAL_INDEX = -1; // Always reset in case all the global stages have been removed since last bake
+
+        // Clear out all our previous lock setups as they may now be invalid
+        for (LockCategory<?> category : HistoryStagesAPI.getAllCategories()) {
+            category.clear();
+        }
 
         // We sort in order to achieve deterministic mappings between bit position and stage
         // If the same stages are loaded on both the client and the server, they are guaranteed
@@ -145,8 +138,7 @@ public final class RuntimeStageManager implements IStageManager {
 
             //TODO(Astr0): Check if this can be optimised using concurrency for large numbers of stage definitions
             stage.getLockedItems().forEach((item) -> {
-                BitSet itemLock = itemLocks.computeIfAbsent(item, k -> new BitSet());
-                itemLock.set(STAGE_INDEX);
+                HistoryStagesAPI.ITEMS.applyLock(item, STAGE_INDEX);
             });
 
             // We bake mod locks. This avoids us having to do a string comparison based check on every
@@ -156,15 +148,13 @@ public final class RuntimeStageManager implements IStageManager {
             stage.getLockedMods().forEach((mod) -> {
                 for (Map.Entry<ResourceKey<Item>, Item> entry : ForgeRegistries.ITEMS.getEntries()) {
                     if (entry.getKey().location().getNamespace().equals(mod.getNamespace())) {
-                        BitSet itemLock = itemLocks.computeIfAbsent(entry.getValue(), k -> new BitSet());
-                        itemLock.set(STAGE_INDEX);
+                        HistoryStagesAPI.ITEMS.applyLock(entry.getValue(), STAGE_INDEX);
                     }
                 }
 
                 for (Map.Entry<ResourceKey<Block>, Block> entry : ForgeRegistries.BLOCKS.getEntries()) {
                     if (entry.getKey().location().getNamespace().equals(mod.getNamespace())) {
-                        BitSet blockLock = blockLocks.computeIfAbsent(entry.getValue(), k -> new BitSet());
-                        blockLock.set(STAGE_INDEX);
+                        HistoryStagesAPI.BLOCKS.applyLock(entry.getValue(), STAGE_INDEX);
                     }
                 }
             });
@@ -181,10 +171,6 @@ public final class RuntimeStageManager implements IStageManager {
 
         bakeTagEntries(stages);
 
-    }
-
-    public BitSet getLockForItem(Item item) {
-        return itemLocks.getOrDefault(item, EMPTY_BITSET);
     }
 
     public boolean isLockDualPhase(BitSet lock) {
@@ -215,14 +201,12 @@ public final class RuntimeStageManager implements IStageManager {
 
     private void lockItemWithStage(Item item, String stage) {
         int stageBit = getStageBit(stage);
-        BitSet itemLock = itemLocks.computeIfAbsent(item, k -> new BitSet());
-        itemLock.set(stageBit);
+        HistoryStagesAPI.ITEMS.applyLock(item, stageBit);
     }
 
     private void lockBlockWithStage(Block block, String stage) {
         int stageBit = getStageBit(stage);
-        BitSet itemLock = blockLocks.computeIfAbsent(block, k -> new BitSet());
-        itemLock.set(stageBit);
+        HistoryStagesAPI.BLOCKS.applyLock(block, stageBit);
     }
 
     // Tags aren't loaded until the game world loads and can also be reloaded mid-game.
@@ -252,54 +236,17 @@ public final class RuntimeStageManager implements IStageManager {
         return STAGE_WITH_STRUCTURE_EXISTS;
     }
 
-    public List<StageDefinition> getStagesForItem(Item item) {
-        BitSet lock = itemLocks.getOrDefault(item, EMPTY_BITSET);
-        return getStageDefinitionsFromLock(lock);
+
+    public boolean isEnchantmentLocked(Enchantment enchant, int level, BitSet activeMask) {
+        String id = ForgeRegistries.ENCHANTMENTS.getKey(enchant).toString();
+        return isEnchantmentLocked(id, level, activeMask);
     }
 
-
-    public boolean isEnchantmentLocked(String enchantID, BitSet activeMask) {
-        // 1. Get the BitSet via pointer comparison (very fast)
-        BitSet required = enchantmentLocks.get(enchantID);
-        // 2. Null check (Items with no stages aren't in the map)
-        if (required == null) return false;
-
-        // Direct traversal of the required bits
-        // Most items have 1 bit. nextSetBit(0) returns that bit,
-        // nextSetBit is implemented using pure bitwise operations, so its fast
-        //TODO(Astr0): Check if we can implement a long based class to do bitwise operations
-        //on the stack, rather than traversing java heap allocated BitSet
-        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
-            // If the bit is NOT in global AND NOT in the player mask, the item is locked.
-            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
-                return true;
-            }
-        }
-
-        return false;
+    public boolean isEnchantmentLocked(String enchant, int level, BitSet activeMask) {
+        EnchantmentKey key = EnchantmentKey.of(enchant, level);
+        return isLocked(HistoryStagesAPI.ENCHANTMENTS, key, activeMask);
     }
 
-
-    public boolean isItemLocked(Item item, BitSet activeMask) {
-        // 1. Get the BitSet via pointer comparison (very fast)
-        BitSet required = itemLocks.get(item);
-        // 2. Null check (Items with no stages aren't in the map)
-        if (required == null) return false;
-
-        // Direct traversal of the required bits
-        // Most items have 1 bit. nextSetBit(0) returns that bit,
-        // nextSetBit is implemented using pure bitwise operations, so its fast
-        //TODO(Astr0): Check if we can implement a long based class to do bitwise operations
-        //on the stack, rather than traversing java heap allocated BitSet
-        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
-            // If the bit is NOT in global AND NOT in the player mask, the item is locked.
-            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     // Get the bit position for the given stage
     // This function is private to prevent other classes attempting to directly manipulate
@@ -367,6 +314,35 @@ public final class RuntimeStageManager implements IStageManager {
         int bitPosition = getStageBit(stage);
 
         getBitSetForPlayer(player).clear(bitPosition);
+    }
+
+    /**
+     * UNIFIED CHECK FUNCTION
+     * Replaces isItemLocked, isEnchantmentLocked, isBlockLocked, etc.
+     */
+    public <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask) {
+        BitSet required = category.getLock(key);
+
+        if (required == null || required.isEmpty()) return false;
+
+        // The unified high-performance bit traversal
+        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
+            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * UNIFIED LIST RETRIEVAL
+     * Replaces getStagesForItem, getStagesForBlock, etc.
+     */
+    public <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key) {
+        BitSet lock = category.getLock(key);
+        if (lock == null) return new ArrayList<>(); // Or Collections.emptyList()
+
+        return getStageDefinitionsFromLock(lock);
     }
 
     @Override

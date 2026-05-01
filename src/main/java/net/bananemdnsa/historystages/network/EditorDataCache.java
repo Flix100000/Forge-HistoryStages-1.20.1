@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.network;
 
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 
 import java.util.HashMap;
 import java.util.Map;

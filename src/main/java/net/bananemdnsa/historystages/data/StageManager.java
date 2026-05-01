@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.astr0.historystages.api.IStageManager;
+import net.astr0.historystages.api.LockCategory;
+import net.astr0.historystages.api.StageDefinition;
 import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -28,7 +30,6 @@ import java.io.FileWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 public class StageManager implements IStageManager {
@@ -1038,5 +1039,15 @@ public class StageManager implements IStageManager {
     @Override
     public void lockStageGlobally(String stage) {
 
+    }
+
+    @Override
+    public <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask) {
+        return false;
+    }
+
+    @Override
+    public <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key) {
+        return List.of();
     }
 }

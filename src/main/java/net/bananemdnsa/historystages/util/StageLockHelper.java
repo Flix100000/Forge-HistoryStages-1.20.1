@@ -3,19 +3,16 @@ package net.bananemdnsa.historystages.util;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.RuntimeStageManager;
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
-
-import net.minecraft.core.registries.Registries;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.Item;
 
 import java.util.*;
 
@@ -189,7 +186,7 @@ public class StageLockHelper {
      */
     public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
         RuntimeStageManager manager = RuntimeStageManager.getInstance();
-        BitSet lock = manager.getLockForItem(stack.getItem());
+        BitSet lock = HistoryStagesAPI.ITEMS.getLock(stack.getItem());
 
         // TODO: the lockIsLockedByGlobals gimmick should be handled by a client side cache instead of the stagemanager,
         // which should only be stateful on the server arguably.
@@ -266,11 +263,8 @@ public class StageLockHelper {
      * whose StoredEnchantments NBT criteria match the given enchantment.
      */
     public static boolean isEnchantmentLockedForPlayer(String enchantmentId, int level, UUID playerUuid) {
-        // Check global stages
         RuntimeStageManager manager = RuntimeStageManager.getInstance();
-
-        //TODO: Re-implement level based locking
-        return manager.isEnchantmentLocked(enchantmentId, manager.getBitSetForPlayerUUID(playerUuid));
+        return manager.isEnchantmentLocked(enchantmentId, level, manager.getBitSetForPlayerUUID(playerUuid));
     }
 
     /**

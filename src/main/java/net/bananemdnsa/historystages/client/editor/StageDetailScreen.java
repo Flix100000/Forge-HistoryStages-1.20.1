@@ -18,7 +18,7 @@ import net.bananemdnsa.historystages.client.editor.widget.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
-import net.bananemdnsa.historystages.data.StageDefinition;
+import net.astr0.historystages.api.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;

@@ -1,10 +1,9 @@
-package net.bananemdnsa.historystages.data;
+package net.astr0.historystages.api;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
-import net.astr0.historystages.api.StageScope;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;

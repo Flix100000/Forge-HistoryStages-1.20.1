@@ -1,11 +1,11 @@
 package net.bananemdnsa.historystages.jade;
 
+import net.astr0.historystages.api.StageDefinition;
 import net.astr0.historystages.api.StageScope;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.*;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
-import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -13,13 +13,11 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.registries.ForgeRegistries;
 import snownee.jade.api.*;
 import snownee.jade.api.config.IPluginConfig;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static net.bananemdnsa.historystages.util.ResourceLocationHelper.MOD_RESOURCE_LOCATION;
 
