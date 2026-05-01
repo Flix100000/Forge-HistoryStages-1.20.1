@@ -382,6 +382,14 @@ public class StageDetailScreen extends Screen {
         int iconBtnX = depBtnX + depBtnW + 6;
         this.addRenderableWidget(new IconPickerButton(iconBtnX, 66));
 
+        // Stage Settings button (right of Icon picker button)
+        int settingsBtnX = iconBtnX + 18 + 6;
+        String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
+        int settingsBtnW = this.font.width(settingsLabel) + 12;
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.stage_settings.button"),
+                btn -> openStageSettings(), settingsBtnX, 66, settingsBtnW, FIELD_HEIGHT));
+
         iconSearch = new SearchableItemList(itemId -> {
             String configDefault = net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get();
             editIcon = (itemId != null && itemId.equals(configDefault)) ? null : itemId;
@@ -2342,6 +2350,10 @@ public class StageDetailScreen extends Screen {
                     this.editDependencies = deps;
                     this.hasChanges = true;
                 }));
+    }
+
+    private void openStageSettings() {
+        this.minecraft.setScreen(new StageSettingsScreen(this, () -> this.hasChanges = true));
     }
 
     private void saveStage() {

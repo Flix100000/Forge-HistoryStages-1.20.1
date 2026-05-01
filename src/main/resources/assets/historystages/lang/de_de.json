@@ -179,6 +179,8 @@
   "tooltip.historystages.dual_phase_lock_desc": "Nach globalem Freischalten: individuelle Sperre aktiv",
   "editor.historystages.dep.title": "Abh\u00e4ngigkeiten",
   "editor.historystages.icon.title": "Stage-Symbol",
+  "editor.historystages.stage_settings.button": "Einstellungen",
+  "editor.historystages.stage_settings.title": "Stage-Einstellungen",
   "editor.historystages.icon.tooltip": "W\u00e4hle ein Item als Symbol f\u00fcr diese Stage. Wird in Freischalt-Benachrichtigungen angezeigt.",
   "editor.historystages.dep.configured": "\u2699 Deps\naktiviert",
   "editor.historystages.dep.no_groups": "Keine Gruppen. Klicke '+ Gruppe' um eine hinzuzuf\u00fcgen.",
