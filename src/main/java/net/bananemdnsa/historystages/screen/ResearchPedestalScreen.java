@@ -414,7 +414,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         // Clipping area for content (Scissor uses screen coordinates)
         int clipX = x - 2;
         int clipY = y + 20;
-        int clipW = DEP_PANEL_CONTENT_WIDTH + 10;
+        int clipW = DEP_PANEL_CONTENT_WIDTH + 4;
         int clipH = 115; // Space before the deposit slot
 
         // Correct scissor calculation: (leftPos + relX) * scale
@@ -435,15 +435,13 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             for (DependencyResult.EntryResult entry : group.getEntries()) {
                 boolean fulfilled = entry.isFulfilled();
                 int bgColor = fulfilled ? 0x202E8B57 : 0x20AA3333; // Subtle tint
-                int borderColor = fulfilled ? 0x802E8B57 : 0x80AA3333;
 
                 int cardH = 22;
                 if (!"item".equals(entry.getType()))
                     cardH = 15;
 
                 // Card background
-                guiGraphics.fill(-2, currentY - 1, DEP_PANEL_CONTENT_WIDTH + 5, currentY + cardH - 1, bgColor);
-                guiGraphics.fill(-2, currentY - 1, -1, currentY + cardH - 1, borderColor); // Indicator line
+                guiGraphics.fill(2, currentY - 1, DEP_PANEL_CONTENT_WIDTH - 2, currentY + cardH - 1, bgColor);
 
                 if ("item".equals(entry.getType())) {
                     ResourceLocation itemRl = ResourceLocation.tryParse(entry.getId());
