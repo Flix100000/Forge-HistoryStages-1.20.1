@@ -15,10 +15,13 @@ public class StageSettingsScreen extends Screen {
     }
 
     private static final int FIELD_HEIGHT = 18;
+    private static final float SMALL_SCALE = 0.85f;
 
     private final Screen parent;
     private final boolean isNewStage;
     private final SaveCallback onSave;
+
+    private String saveError = "";
 
     private String editStageId;
     private String editDisplayName;
@@ -109,6 +112,20 @@ public class StageSettingsScreen extends Screen {
     }
 
     private void save() {
+        String id = editStageId.trim();
+        if (id.isEmpty()) {
+            saveError = Component.translatable("editor.historystages.id_empty").getString();
+            return;
+        }
+        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
+            saveError = Component.translatable("editor.historystages.id_invalid").getString();
+            return;
+        }
+        if (editDisplayName.trim().isEmpty()) {
+            saveError = Component.translatable("editor.historystages.display_name_empty").getString();
+            return;
+        }
+        saveError = "";
         onSave.onSave(editStageId, editDisplayName, editResearchTime);
         hasChanges = false;
         this.minecraft.setScreen(parent);
@@ -166,5 +183,30 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.drawString(this.font,
                 Component.translatable("editor.historystages.field.research_time").getString(),
                 labelX, 71, 0xAAAAAA, false);
+
+        // Unsaved changes animation (left of Save button)
+        if (hasChanges) {
+            float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
+            pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
+            int dotAlpha = (int) (pulse * 255);
+            String unsavedLabel = Component.translatable("editor.historystages.unsaved").getString();
+            int unsavedW = (int) (this.font.width(unsavedLabel) * SMALL_SCALE);
+            int dotX = this.width - 60 - 8 - 6;
+            guiGraphics.fill(dotX - unsavedW - 4, this.height - 18, dotX - unsavedW + 2, this.height - 12,
+                    (dotAlpha << 24) | 0xFFCC00);
+            drawSmallText(guiGraphics, unsavedLabel, dotX - unsavedW + 5, this.height - 18, 0xFFCC00);
+        }
+
+        if (!saveError.isEmpty()) {
+            guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 38, 0xFF5555);
+        }
+    }
+
+    private void drawSmallText(GuiGraphics g, String text, int x, int y, int color) {
+        g.pose().pushPose();
+        g.pose().translate(x, y, 0);
+        g.pose().scale(SMALL_SCALE, SMALL_SCALE, 1.0f);
+        g.drawString(this.font, text, 0, 0, color, false);
+        g.pose().popPose();
     }
 }
