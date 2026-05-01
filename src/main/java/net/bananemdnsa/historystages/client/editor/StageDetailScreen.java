@@ -115,6 +115,9 @@ public class StageDetailScreen extends Screen {
     private String pendingTooltipKey = null;
     private String pendingTooltipText = null;
 
+    // Scrollbar drag state
+    private boolean scrollBarDragging = false;
+
     // Animation state
     private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
     private float tabIndicatorX = 0;
@@ -197,7 +200,7 @@ public class StageDetailScreen extends Screen {
     private static final int TAB_ARROW_WIDTH = 12;
 
     // Layout constants
-    private static final int HEADER_HEIGHT = 104;
+    private static final int HEADER_HEIGHT = 62;
     private static final int CARD_HEIGHT = 22;
     private static final int CARD_GAP = 3;
     private static final int ADD_ROW_HEIGHT = 22;
@@ -261,13 +264,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        int maxLabelW = Math.max(
-                this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
-                Math.max(this.font.width(Component.translatable("editor.historystages.field.display_name").getString()),
-                        this.font.width(Component.translatable("editor.historystages.field.research_time").getString())));
-        int fieldX = 30 + maxLabelW + 10;
-
-        tabY = 88;
+        tabY = 44;
         tabX = new int[TAB_KEYS.length];
         tabW = new int[TAB_KEYS.length];
         int tabMargin = 20;
@@ -311,31 +308,28 @@ public class StageDetailScreen extends Screen {
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
-                btn -> tryClose(), 10, this.height - 30, 60, 20));
+                btn -> tryClose(), 10, this.height - 25, 50, 18));
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
-                btn -> saveStage(), this.width / 2 - 50, this.height - 30, 100, 20));
+                btn -> saveStage(), this.width - 60, this.height - 25, 50, 18));
 
-        // Dependencies button (same row as research time)
-        String depLabel = Component.translatable("editor.historystages.dep.title").getString();
-        int depBtnW = this.font.width(depLabel) + 12;
-        int depBtnX = fieldX + 80 + 10; // right after the research time field
-        this.addRenderableWidget(StyledButton.of(
-                Component.translatable("editor.historystages.dep.title"),
-                btn -> openDependencyEditor(), depBtnX, 66, depBtnW, FIELD_HEIGHT));
-
-        // Icon picker button (right of Dependencies button)
-        int iconBtnX = depBtnX + depBtnW + 6;
-        this.addRenderableWidget(new IconPickerButton(iconBtnX, 66));
-
-        // Stage Settings button (right of Icon picker button)
-        int settingsBtnX = iconBtnX + 18 + 6;
+        // Top-left button row (y=22): Settings | Dependencies | Icon
         String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
         int settingsBtnW = this.font.width(settingsLabel) + 12;
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.stage_settings.button"),
-                btn -> openStageSettings(), settingsBtnX, 66, settingsBtnW, FIELD_HEIGHT));
+                btn -> openStageSettings(), 10, 22, settingsBtnW, FIELD_HEIGHT));
+
+        String depLabel = Component.translatable("editor.historystages.dep.title").getString();
+        int depBtnW = this.font.width(depLabel) + 12;
+        int depBtnX = 10 + settingsBtnW + 6;
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.dep.title"),
+                btn -> openDependencyEditor(), depBtnX, 22, depBtnW, FIELD_HEIGHT));
+
+        int iconBtnX = depBtnX + depBtnW + 6;
+        this.addRenderableWidget(new IconPickerButton(iconBtnX, 22));
 
         iconSearch = new SearchableItemList(itemId -> {
             String configDefault = net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get();
@@ -615,7 +609,13 @@ public class StageDetailScreen extends Screen {
             guiGraphics.drawString(this.font, "\u00A77[Individual]", 10, 8, 0xBBBBBB, false);
         }
 
-        // Lock status indicator (top right) - display only
+        // Thin separator between title and button row
+        guiGraphics.fill(10, 19, this.width - 10, 20, 0x40FFFFFF);
+
+        // Right-side indicators inline with the button row (y=22..40)
+        int indicatorRight = this.width - 10;
+
+        // Lock status indicator
         if (!isNewStage) {
             boolean unlocked = ClientStageCache.isStageUnlocked(originalStageId);
             String statusIcon = unlocked ? "\u2714" : "\uD83D\uDD12";
@@ -623,17 +623,23 @@ public class StageDetailScreen extends Screen {
             String statusText = Component
                     .translatable(unlocked ? "editor.historystages.unlocked" : "editor.historystages.locked")
                     .getString();
-            drawSmallText(guiGraphics, statusIcon + " " + statusText, this.width - 90, 8, statusColor);
+            String full = statusIcon + " " + statusText;
+            int lockW = (int) (this.font.width(full) * SMALL_SCALE);
+            drawSmallText(guiGraphics, full, indicatorRight - lockW, 27, statusColor);
+            indicatorRight = indicatorRight - lockW - 10;
         }
 
-        // Dependency indicator (under lock status, top right)
+        // Dependency active indicator
         if (editDependencies != null && editDependencies.stream().anyMatch(g -> !g.isEmpty())) {
             String depText = Component.translatable("editor.historystages.dep.configured").getString();
             String[] lines = depText.split("\n");
-            int dy = 20;
+            int depMaxW = 0;
+            for (String line : lines)
+                depMaxW = Math.max(depMaxW, (int) (this.font.width(line) * SMALL_SCALE));
+            int depX = indicatorRight - depMaxW;
+            int dy = 23;
             for (String line : lines) {
-                drawSmallText(guiGraphics, line, this.width - (int) (this.font.width(line) * SMALL_SCALE) - 10, dy,
-                        0xAAAA55);
+                drawSmallText(guiGraphics, line, depX, dy, 0xAAAA55);
                 dy += 9;
             }
         }
@@ -1003,21 +1009,30 @@ public class StageDetailScreen extends Screen {
             int barHeight = Math.max(20,
                     (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
             int barY = listTop + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
-            guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
+            int barX = contentRight + 2;
+            boolean barHovered = mouseX >= barX - 2 && mouseX <= barX + 7
+                    && mouseY >= barY && mouseY <= barY + barHeight;
+            // Track
+            guiGraphics.fill(barX, listTop, barX + 5, listBottom, 0x30FFFFFF);
+            // Thumb
+            int barColor = (scrollBarDragging || barHovered) ? 0xCCFFFFFF : 0x80FFFFFF;
+            guiGraphics.fill(barX, barY, barX + 5, barY + barHeight, barColor);
         }
 
         if (hasChanges) {
             float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
             pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
             int dotAlpha = (int) (pulse * 255);
-            int dotX = this.width / 2 + 55;
-            guiGraphics.fill(dotX, this.height - 20, dotX + 6, this.height - 14, (dotAlpha << 24) | 0xFFCC00);
-            drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9,
-                    this.height - 20, 0xFFCC00);
+            int dotX = this.width - 60 - 8 - 6;
+            String unsavedLabel = Component.translatable("editor.historystages.unsaved").getString();
+            int unsavedW = (int) (this.font.width(unsavedLabel) * SMALL_SCALE);
+            guiGraphics.fill(dotX - unsavedW - 4, this.height - 18, dotX - unsavedW + 2, this.height - 12,
+                    (dotAlpha << 24) | 0xFFCC00);
+            drawSmallText(guiGraphics, unsavedLabel, dotX - unsavedW + 5, this.height - 18, 0xFFCC00);
         }
 
         if (!saveError.isEmpty()) {
-            guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 42, 0xFF5555);
+            guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 38, 0xFF5555);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -1747,6 +1762,15 @@ public class StageDetailScreen extends Screen {
         int listBottom = this.height - 40;
         int contentLeft = 30;
         int contentRight = this.width - 30;
+
+        // Scrollbar drag start
+        if (button == 0 && maxScroll > 0 && mouseX >= contentRight + 1 && mouseX <= contentRight + 8
+                && mouseY >= listTop && mouseY <= listBottom) {
+            scrollBarDragging = true;
+            updateScrollFromMouse(mouseY, listTop, listBottom);
+            return true;
+        }
+
         if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom)
             return false;
 
@@ -2086,6 +2110,10 @@ public class StageDetailScreen extends Screen {
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
             return true;
+        if (scrollBarDragging) {
+            updateScrollFromMouse(mouseY, HEADER_HEIGHT, this.height - 40);
+            return true;
+        }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
@@ -2113,7 +2141,23 @@ public class StageDetailScreen extends Screen {
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
             return true;
+        if (scrollBarDragging) {
+            scrollBarDragging = false;
+            return true;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
+        int listH = listBottom - listTop;
+        int thumbHeight = Math.max(20, (int) ((float) listH / (maxScroll + listH) * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listTop - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollOffset = Math.round(ratio * maxScroll);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        }
     }
 
     @Override
