@@ -192,6 +192,8 @@
   "editor.historystages.config.showDependencyScreenInPedestal": "Dependency Screen in Pedestal",
 
   "editor.historystages.dep.title": "Dependencies",
+  "editor.historystages.stage_settings.button": "Settings",
+  "editor.historystages.stage_settings.title": "Stage Settings",
   "editor.historystages.dep.configured": "\u2699 Deps Active",
   "editor.historystages.dep.no_groups": "No groups. Click '+ Group' to add one.",
   "editor.historystages.dep.group": "Group %d",

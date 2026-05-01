@@ -192,6 +192,8 @@
   "editor.historystages.config.showDependencyScreenInPedestal": "Abh\u00e4ngigkeits-Checkliste im Podest",
 
   "editor.historystages.dep.title": "Abh\u00e4ngigkeiten",
+  "editor.historystages.stage_settings.button": "Einstellungen",
+  "editor.historystages.stage_settings.title": "Stage-Einstellungen",
   "editor.historystages.dep.configured": "\u2699 Deps aktiv",
   "editor.historystages.dep.no_groups": "Keine Gruppen. Klicke '+ Gruppe' um eine hinzuzuf\u00fcgen.",
   "editor.historystages.dep.group": "Gruppe %d",

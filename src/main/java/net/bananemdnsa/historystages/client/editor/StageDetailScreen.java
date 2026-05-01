@@ -329,6 +329,14 @@ public class StageDetailScreen extends Screen {
         this.addRenderableWidget(iconPickerBtn);
         iconSearch = createIconSearch();
 
+        // Stage Settings button (right of Icon picker button)
+        int settingsBtnX = iconBtnX + FIELD_HEIGHT + 6;
+        String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
+        int settingsBtnW = this.font.width(settingsLabel) + 12;
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.stage_settings.button"),
+                btn -> openStageSettings(), settingsBtnX, 66, settingsBtnW, FIELD_HEIGHT));
+
         tabY = 88;
         tabX = new int[TAB_KEYS.length];
         tabW = new int[TAB_KEYS.length];
@@ -1959,6 +1967,10 @@ public class StageDetailScreen extends Screen {
             this.minecraft.setScreen(new ConfirmDialog(this, Component.translatable("editor.historystages.unsaved_warning_title"),
                     Component.translatable("editor.historystages.unsaved_warning"), () -> Minecraft.getInstance().setScreen(overview)));
         } else { this.minecraft.setScreen(parent); }
+    }
+
+    private void openStageSettings() {
+        this.minecraft.setScreen(new StageSettingsScreen(this, () -> this.hasChanges = true));
     }
 
     private void saveStage() {
