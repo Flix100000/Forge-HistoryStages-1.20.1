@@ -2,22 +2,19 @@ package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
+import net.fabricmc.fabric.api.object.builder.v1.block.entity.FabricBlockEntityTypeBuilder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
-public class ModBlockEntities {
-    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
-            DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, HistoryStages.MOD_ID);
+public final class ModBlockEntities {
+    public static BlockEntityType<ResearchPedestalBlockEntity> RESEARCH_PEDESTAL;
 
-    public static final RegistryObject<BlockEntityType<ResearchPedestalBlockEntity>> RESEARCH_PEDESTAL_BE =
-            BLOCK_ENTITIES.register("research_pedestal_be", () ->
-                    BlockEntityType.Builder.of(ResearchPedestalBlockEntity::new,
-                            ModBlocks.RESEARCH_PEDESTAL.get()).build(null));
+    private ModBlockEntities() {
+    }
 
-    public static void register(IEventBus eventBus) {
-        BLOCK_ENTITIES.register(eventBus);
+    public static void register() {
+        RESEARCH_PEDESTAL = Registry.register(BuiltInRegistries.BLOCK_ENTITY_TYPE, HistoryStages.id("research_pedestal"),
+                FabricBlockEntityTypeBuilder.create(ResearchPedestalBlockEntity::new, ModBlocks.RESEARCH_PEDESTAL).build());
     }
 }

@@ -1,11 +1,13 @@
 package net.bananemdnsa.historystages.util;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class ClientStageCache {
+public final class ClientStageCache {
     private static volatile List<String> unlockedStages = new CopyOnWriteArrayList<>();
+
+    private ClientStageCache() {
+    }
 
     public static void setUnlockedStages(List<String> stages) {
         unlockedStages = new CopyOnWriteArrayList<>(stages);

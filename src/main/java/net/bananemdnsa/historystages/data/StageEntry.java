@@ -33,10 +33,7 @@ public class StageEntry {
 
     private List<String> recipes;
     private List<String> dimensions;
-
-    @JsonAdapter(StructureLocksAdapter.class)
-    private StructureLocks structures;
-
+    private List<String> structures;
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
@@ -47,7 +44,7 @@ public class StageEntry {
         this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
-        this.structures = new StructureLocks();
+        this.structures = new ArrayList<>();
         this.entities = new EntityLocks();
     }
 
@@ -134,11 +131,7 @@ public class StageEntry {
     }
 
     public List<String> getStructures() {
-        return structures != null ? structures.getStructures() : new ArrayList<>();
-    }
-
-    public List<String> getStructureModLinked() {
-        return structures != null ? structures.getModLinked() : new ArrayList<>();
+        return structures != null ? structures : new ArrayList<>();
     }
 
     public EntityLocks getEntities() {
@@ -217,13 +210,7 @@ public class StageEntry {
     }
 
     public void setStructures(List<String> structures) {
-        if (this.structures == null) this.structures = new StructureLocks();
-        this.structures.setStructures(structures);
-    }
-
-    public void setStructureModLinked(List<String> modLinked) {
-        if (this.structures == null) this.structures = new StructureLocks();
-        this.structures.setModLinked(modLinked);
+        this.structures = structures != null ? new ArrayList<>(structures) : new ArrayList<>();
     }
 
     public void setEntities(EntityLocks entities) {
@@ -246,7 +233,6 @@ public class StageEntry {
         copy.setRecipes(getRecipes());
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
-        copy.setStructureModLinked(getStructureModLinked());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());

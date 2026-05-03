@@ -4,7 +4,9 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
 
@@ -21,7 +23,7 @@ public class IndividualStageData extends SavedData {
         SERVER_CACHE.clear();
     }
 
-    public static IndividualStageData load(CompoundTag nbt) {
+    public static IndividualStageData load(CompoundTag nbt, HolderLookup.Provider provider) {
         IndividualStageData data = new IndividualStageData();
         SERVER_CACHE.clear();
 
@@ -48,7 +50,7 @@ public class IndividualStageData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider provider) {
         CompoundTag playersTag = new CompoundTag();
         for (Map.Entry<UUID, Set<String>> entry : playerStages.entrySet()) {
             ListTag list = new ListTag();
@@ -77,7 +79,7 @@ public class IndividualStageData extends SavedData {
     public static IndividualStageData get(Level level) {
         if (level instanceof ServerLevel serverLevel) {
             IndividualStageData data = serverLevel.getServer().overworld().getDataStorage()
-                    .computeIfAbsent(IndividualStageData::load, IndividualStageData::new, DATA_NAME);
+                    .computeIfAbsent(new Factory<>(IndividualStageData::new, IndividualStageData::load, DataFixTypes.LEVEL), DATA_NAME);
             data.refreshCache();
             return data;
         }

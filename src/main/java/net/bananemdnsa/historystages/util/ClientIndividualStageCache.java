@@ -3,8 +3,11 @@ package net.bananemdnsa.historystages.util;
 import java.util.HashSet;
 import java.util.Set;
 
-public class ClientIndividualStageCache {
+public final class ClientIndividualStageCache {
     private static Set<String> unlockedStages = new HashSet<>();
+
+    private ClientIndividualStageCache() {
+    }
 
     public static void setUnlockedStages(Set<String> stages) {
         unlockedStages = new HashSet<>(stages);

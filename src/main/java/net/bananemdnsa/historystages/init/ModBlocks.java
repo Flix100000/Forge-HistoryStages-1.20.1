@@ -1,26 +1,31 @@
 package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.block.ResearchPedestalBlock; // WICHTIGER IMPORT
+import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
+import net.minecraft.world.level.material.MapColor;
 
-public class ModBlocks {
-    public static final DeferredRegister<Block> BLOCKS =
-            DeferredRegister.create(ForgeRegistries.BLOCKS, HistoryStages.MOD_ID);
+public final class ModBlocks {
+    public static final Block RESEARCH_PEDESTAL = new ResearchPedestalBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.STONE)
+            .strength(3.5F)
+            .sound(SoundType.STONE)
+            .lightLevel(state -> 0));
 
-    // Geändert: Benutzt jetzt "new ResearchStationBlock" statt "new Block"
-    public static final RegistryObject<Block> RESEARCH_PEDESTAL = BLOCKS.register("research_pedestal",
-            () -> new ResearchPedestalBlock(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK)
-                    .strength(5.0f)
-                    .requiresCorrectToolForDrops()));
+    private ModBlocks() {
+    }
 
-    public static void register(IEventBus eventBus) {
-        BLOCKS.register(eventBus);
+    public static void register() {
+        Registry.register(BuiltInRegistries.BLOCK, HistoryStages.id("research_pedestal"), RESEARCH_PEDESTAL);
+    }
+
+    public static BlockItem createPedestalItem() {
+        return new BlockItem(RESEARCH_PEDESTAL, new Item.Properties());
     }
 }

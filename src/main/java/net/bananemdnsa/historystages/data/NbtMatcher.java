@@ -4,8 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.*;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.CustomData;
 
 /**
  * Matches ItemStack NBT data against JSON-defined NBT criteria.
@@ -20,7 +22,7 @@ public class NbtMatcher {
     public static boolean matches(ItemStack stack, JsonObject nbtCriteria) {
         if (nbtCriteria == null || nbtCriteria.size() == 0) return true;
 
-        CompoundTag tag = stack.getTag();
+        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         if (tag == null) return false;
 
         return matchesCompound(tag, nbtCriteria);
