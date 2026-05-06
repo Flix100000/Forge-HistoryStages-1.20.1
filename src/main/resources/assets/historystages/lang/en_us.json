@@ -179,6 +179,8 @@
   "tooltip.historystages.dual_phase_lock_desc": "After global unlock: individual lock applies",
   "editor.historystages.dep.title": "Dependencies",
   "editor.historystages.icon.title": "Stage Icon",
+  "editor.historystages.stage_settings.button": "Settings",
+  "editor.historystages.stage_settings.title": "Stage Settings",
   "editor.historystages.icon.tooltip": "Choose an item to use as this stage's icon. Shown in unlock toast notifications.",
   "editor.historystages.dep.configured": "\u2699 Deps\nActive",
   "editor.historystages.dep.no_groups": "No groups. Click '+ Group' to add one.",

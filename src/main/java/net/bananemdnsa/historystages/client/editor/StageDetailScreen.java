@@ -80,18 +80,10 @@ public class StageDetailScreen extends Screen {
     private List<DependencyGroup> editDependencies;
 
     // UI state
-    private EditBox stageIdField;
-    private EditBox displayNameField;
-    private EditBox researchTimeField;
     private double scrollOffset = 0;
     private int maxScroll = 0;
     private boolean hasChanges = false;
     private String saveError = "";
-
-    // Original values for change detection
-    private String origStageId;
-    private String origDisplayName;
-    private String origResearchTime;
 
     // Tab state: 0-6, one per section
     private int activeTab = 0;
@@ -122,6 +114,9 @@ public class StageDetailScreen extends Screen {
     private String pendingTooltipKey = null;
     private String pendingTooltipText = null;
 
+    // Scrollbar drag state
+    private boolean scrollBarDragging = false;
+
     // Animation state
     private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
     private float tabIndicatorX = 0;
@@ -129,6 +124,19 @@ public class StageDetailScreen extends Screen {
     private boolean tabIndicatorInit = false;
     private long tabSwitchTime = 0;
     private float smoothScrollOffset = 0;
+
+    // Category search box (inline header, next to icon button)
+    private EditBox categorySearchBox;
+    private String categorySearchFilter = "";
+    private boolean categoryDropdownVisible = false;
+    private List<String> categoryDropdownSuggestions = new ArrayList<>();
+    private int categorySearchBoxX;
+    private int categorySearchBoxW;
+    private float categorySearchHoverProgress = 0.0f;
+    private static final int DROPDOWN_ENTRY_H = 13;
+    private static final int MAX_DROPDOWN_ENTRIES = 8;   // visible rows
+    private static final int MAX_DROPDOWN_COLLECT = 50;  // max suggestions collected
+    private int categoryDropdownScrollOffset = 0;
 
     // Marquee state for card entries
     private int hoveredCardIndex = -1;
@@ -204,7 +212,7 @@ public class StageDetailScreen extends Screen {
     private static final int TAB_ARROW_WIDTH = 12;
 
     // Layout constants
-    private static final int HEADER_HEIGHT = 104;
+    private static final int HEADER_HEIGHT = 62;
     private static final int CARD_HEIGHT = 22;
     private static final int CARD_GAP = 3;
     private static final int ADD_ROW_HEIGHT = 22;
@@ -268,58 +276,7 @@ public class StageDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        int labelX = 30;
-        String labelId = Component.translatable("editor.historystages.field.stage_id").getString();
-        String labelName = Component.translatable("editor.historystages.field.display_name").getString();
-        String labelTime = Component.translatable("editor.historystages.field.research_time").getString();
-        int maxLabelW = Math.max(this.font.width(labelId),
-                Math.max(this.font.width(labelName), this.font.width(labelTime)));
-        int fieldX = labelX + maxLabelW + 10;
-        int fieldWidth = Math.min(200, this.width - fieldX - 40);
-
-        origStageId = editStageId;
-        origDisplayName = editDisplayName;
-        origResearchTime = String.valueOf(editResearchTime);
-
-        stageIdField = new EditBox(this.font, fieldX, 22, fieldWidth, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.stage_id"));
-        stageIdField.setMaxLength(64);
-        stageIdField.setValue(editStageId);
-        stageIdField.setEditable(isNewStage);
-        stageIdField.setResponder(val -> {
-            editStageId = val;
-            if (!val.equals(origStageId))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(stageIdField);
-
-        displayNameField = new EditBox(this.font, fieldX, 44, fieldWidth, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.display_name"));
-        displayNameField.setMaxLength(128);
-        displayNameField.setValue(editDisplayName);
-        displayNameField.setResponder(val -> {
-            editDisplayName = val;
-            if (!val.equals(origDisplayName))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(displayNameField);
-
-        researchTimeField = new EditBox(this.font, fieldX, 66, 80, FIELD_HEIGHT,
-                Component.translatable("editor.historystages.field.research_time"));
-        researchTimeField.setMaxLength(5);
-        researchTimeField.setValue(String.valueOf(editResearchTime));
-        researchTimeField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
-        researchTimeField.setResponder(val -> {
-            try {
-                editResearchTime = val.isEmpty() ? 0 : Integer.parseInt(val);
-            } catch (NumberFormatException ignored) {
-            }
-            if (!val.equals(origResearchTime))
-                hasChanges = true;
-        });
-        this.addRenderableWidget(researchTimeField);
-
-        tabY = 88;
+        tabY = 44;
         tabX = new int[TAB_KEYS.length];
         tabW = new int[TAB_KEYS.length];
         int tabMargin = 20;
@@ -363,23 +320,45 @@ public class StageDetailScreen extends Screen {
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
-                btn -> tryClose(), 10, this.height - 30, 60, 20));
+                btn -> tryClose(), 10, this.height - 25, 50, 18));
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
-                btn -> saveStage(), this.width / 2 - 50, this.height - 30, 100, 20));
+                btn -> saveStage(), this.width - 60, this.height - 25, 50, 18));
 
-        // Dependencies button (same row as research time)
+        // Top-left button row (y=22): Settings | Dependencies | Icon
+        String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
+        int settingsBtnW = this.font.width(settingsLabel) + 12;
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.stage_settings.button"),
+                btn -> openStageSettings(), 10, 22, settingsBtnW, FIELD_HEIGHT));
+
         String depLabel = Component.translatable("editor.historystages.dep.title").getString();
         int depBtnW = this.font.width(depLabel) + 12;
-        int depBtnX = fieldX + 80 + 10; // right after the research time field
+        int depBtnX = 10 + settingsBtnW + 6;
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.dep.title"),
-                btn -> openDependencyEditor(), depBtnX, 66, depBtnW, FIELD_HEIGHT));
+                btn -> openDependencyEditor(), depBtnX, 22, depBtnW, FIELD_HEIGHT));
 
-        // Icon picker button (right of Dependencies button)
         int iconBtnX = depBtnX + depBtnW + 6;
-        this.addRenderableWidget(new IconPickerButton(iconBtnX, 66));
+        this.addRenderableWidget(new IconPickerButton(iconBtnX, 22));
+
+        // Category search box — capped width, inline right of icon button
+        categorySearchFilter = "";
+        categoryDropdownVisible = false;
+        categoryDropdownSuggestions = new ArrayList<>();
+        int cSearchX = iconBtnX + FIELD_HEIGHT + 8;
+        categorySearchBoxW = Math.max(40, Math.min(140, this.width - cSearchX - 80));
+        categorySearchBoxX = cSearchX;
+        categorySearchBox = new CategorySearchEditBox(cSearchX + 4, 22, categorySearchBoxW - 8, FIELD_HEIGHT);
+
+        categorySearchBox.setValue("");
+        categorySearchBox.setResponder(val -> {
+            categorySearchFilter = val;
+            updateCategoryDropdown();
+            categoryDropdownVisible = !val.isEmpty();
+        });
+        this.addRenderableWidget(categorySearchBox);
 
         iconSearch = new SearchableItemList(itemId -> {
             String configDefault = net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get();
@@ -606,6 +585,79 @@ public class StageDetailScreen extends Screen {
         }
     }
 
+    /**
+     * EditBox variant that replaces the default hard-blink cursor with a smooth
+     * gold sine-wave pulse. Everything else (key handling, text storage, click
+     * detection) comes from EditBox unchanged.
+     */
+    private class CategorySearchEditBox extends EditBox {
+        CategorySearchEditBox(int x, int y, int w, int h) {
+            super(StageDetailScreen.this.font, x, y, w, h, Component.empty());
+            setBordered(false);
+            setMaxLength(128);
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            String val = getValue();
+            String highlighted = getHighlighted();
+            int textX = getX() + 2;
+            int textY = getY() + (getHeight() - 8) / 2;
+            int maxW = getWidth() - 4;
+
+            // Show the tail of the string so cursor stays visible while typing
+            String display;
+            int displayStart;
+            if (font.width(val) <= maxW) {
+                display = val;
+                displayStart = 0;
+            } else {
+                String rev = new StringBuilder(val).reverse().toString();
+                String revDisplay = font.plainSubstrByWidth(rev, maxW);
+                displayStart = val.length() - revDisplay.length();
+                display = val.substring(displayStart);
+            }
+
+            // Blue selection highlight
+            if (!highlighted.isEmpty()) {
+                int selInFull = val.indexOf(highlighted);
+                if (selInFull >= 0) {
+                    int selStart = Math.max(0, selInFull - displayStart);
+                    int selEnd = Math.min(display.length(), selInFull + highlighted.length() - displayStart);
+                    if (selEnd > selStart) {
+                        int selX = textX + font.width(display.substring(0, selStart));
+                        int selW = font.width(display.substring(selStart, selEnd));
+                        g.fill(selX, textY - 1, selX + selW, textY + 9, 0x7F0077FF);
+                    }
+                }
+            }
+
+            g.drawString(font, display, textX, textY, 0xFFFFFF, false);
+
+            if (isFocused()) {
+                int cursorX = textX + font.width(display);
+                float pulse = (float) (0.45 + 0.55 * Math.sin(System.currentTimeMillis() / 250.0));
+                int alpha = (int) (pulse * 255);
+                g.drawString(font, "_", cursorX, textY, (alpha << 24) | 0xFFCC00, false);
+            }
+        }
+    }
+
+
+
+    private void updateCategoryDropdown() {
+        categoryDropdownSuggestions = new ArrayList<>();
+        categoryDropdownScrollOffset = 0;
+        if (categorySearchFilter.isEmpty()) return;
+        String query = categorySearchFilter.toLowerCase();
+        for (String entry : getActiveList()) {
+            if (entry.toLowerCase().contains(query)) {
+                categoryDropdownSuggestions.add(entry);
+                if (categoryDropdownSuggestions.size() >= MAX_DROPDOWN_COLLECT) break;
+            }
+        }
+    }
+
     private void switchTab(int tab) {
         if (isTabDisabled(tab))
             return;
@@ -616,6 +668,11 @@ public class StageDetailScreen extends Screen {
             tabSwitchTime = System.currentTimeMillis();
             cardHoverProgress.clear();
             updateMaxScroll();
+            // Reset category search when switching tabs
+            categorySearchFilter = "";
+            categoryDropdownVisible = false;
+            categoryDropdownSuggestions = new ArrayList<>();
+            if (categorySearchBox != null) categorySearchBox.setValue("");
         }
     }
 
@@ -659,63 +716,16 @@ public class StageDetailScreen extends Screen {
             guiGraphics.drawString(this.font, "\u00A77[Individual]", 10, 8, 0xBBBBBB, false);
         }
 
-        // Lock status indicator (top right) - display only
-        if (!isNewStage) {
-            boolean unlocked = ClientStageCache.isStageUnlocked(originalStageId);
-            String statusIcon = unlocked ? "\u2714" : "\uD83D\uDD12";
-            int statusColor = unlocked ? 0x55FF55 : 0xFF5555;
-            String statusText = Component
-                    .translatable(unlocked ? "editor.historystages.unlocked" : "editor.historystages.locked")
-                    .getString();
-            drawSmallText(guiGraphics, statusIcon + " " + statusText, this.width - 90, 8, statusColor);
-        }
+        // Thin separator between title and button row
+        guiGraphics.fill(10, 19, this.width - 10, 20, 0x40FFFFFF);
 
-        // Dependency indicator (under lock status, top right)
-        if (editDependencies != null && editDependencies.stream().anyMatch(g -> !g.isEmpty())) {
-            String depText = Component.translatable("editor.historystages.dep.configured").getString();
-            String[] lines = depText.split("\n");
-            int dy = 20;
-            for (String line : lines) {
-                drawSmallText(guiGraphics, line, this.width - (int) (this.font.width(line) * SMALL_SCALE) - 10, dy,
-                        0xAAAA55);
-                dy += 9;
-            }
-        }
-
-        int labelX = 30;
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.stage_id").getString(),
-                labelX, 27, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.display_name").getString(),
-                labelX, 49, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.research_time").getString(), labelX, 71, 0xAAAAAA,
-                false);
+        // Right-side indicators inline with the button row (y=22..40)
 
         guiGraphics.fill(10, tabY - 2, this.width - 10, tabY - 1, 0xFF555555);
 
         // Track tooltip
         String currentTooltipKey = null;
         String currentTooltipText = null;
-
-        // Check field label hovers for tooltips
-        int maxLabelW = Math.max(
-                this.font.width(Component.translatable("editor.historystages.field.stage_id").getString()),
-                Math.max(this.font.width(Component.translatable("editor.historystages.field.display_name").getString()),
-                        this.font.width(
-                                Component.translatable("editor.historystages.field.research_time").getString())));
-
-        if (mouseX >= labelX && mouseX <= labelX + maxLabelW + 5) {
-            if (mouseY >= 22 && mouseY <= 40) {
-                currentTooltipKey = "field.stage_id";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.stage_id").getString();
-            } else if (mouseY >= 42 && mouseY <= 62) {
-                currentTooltipKey = "field.display_name";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.display_name").getString();
-            } else if (mouseY >= 64 && mouseY <= 84) {
-                currentTooltipKey = "field.research_time";
-                currentTooltipText = Component.translatable("editor.historystages.tooltip.research_time").getString();
-            }
-        }
 
         // Animated tab indicator - smoothly slide to active tab
         if (!tabIndicatorInit) {
@@ -732,10 +742,13 @@ public class StageDetailScreen extends Screen {
         if (Math.abs(tabIndicatorW - targetW) < 0.5f)
             tabIndicatorW = targetW;
 
-        // Suppress hover when overlays are open
+        // Suppress hover when overlays are open or mouse is over the category search dropdown
         boolean overlayOpen = isAnyOverlayVisible();
-        int effectiveMouseX = overlayOpen ? -1 : mouseX;
-        int effectiveMouseY = overlayOpen ? -1 : mouseY;
+        boolean overDropdown = categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()
+                && mouseX >= categorySearchBoxX && mouseX < categorySearchBoxX + categorySearchBoxW
+                && mouseY >= 42 && mouseY < 42 + Math.min(MAX_DROPDOWN_ENTRIES, categoryDropdownSuggestions.size()) * DROPDOWN_ENTRY_H + 4;
+        int effectiveMouseX = (overlayOpen || overDropdown) ? -1 : mouseX;
+        int effectiveMouseY = (overlayOpen || overDropdown) ? -1 : mouseY;
 
         // Tab scroll arrows
         int tabAreaLeft = 20;
@@ -1076,27 +1089,120 @@ public class StageDetailScreen extends Screen {
             int barHeight = Math.max(20,
                     (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
             int barY = listTop + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
-            guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
+            int barX = contentRight + 2;
+            boolean barHovered = mouseX >= barX - 2 && mouseX <= barX + 7
+                    && mouseY >= barY && mouseY <= barY + barHeight;
+            // Track
+            guiGraphics.fill(barX, listTop, barX + 5, listBottom, 0x30FFFFFF);
+            // Thumb
+            int barColor = (scrollBarDragging || barHovered) ? 0xCCFFFFFF : 0x80FFFFFF;
+            guiGraphics.fill(barX, barY, barX + 5, barY + barHeight, barColor);
         }
 
         if (hasChanges) {
             float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
             pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
             int dotAlpha = (int) (pulse * 255);
-            int dotX = this.width / 2 + 55;
-            guiGraphics.fill(dotX, this.height - 20, dotX + 6, this.height - 14, (dotAlpha << 24) | 0xFFCC00);
-            drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9,
-                    this.height - 20, 0xFFCC00);
+            int dotX = this.width - 60 - 8 - 6;
+            String unsavedLabel = Component.translatable("editor.historystages.unsaved").getString();
+            int unsavedW = (int) (this.font.width(unsavedLabel) * SMALL_SCALE);
+            guiGraphics.fill(dotX - unsavedW - 4, this.height - 18, dotX - unsavedW + 2, this.height - 12,
+                    (dotAlpha << 24) | 0xFFCC00);
+            drawSmallText(guiGraphics, unsavedLabel, dotX - unsavedW + 5, this.height - 18, 0xFFCC00);
         }
 
         if (!saveError.isEmpty()) {
-            guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 42, 0xFF5555);
+            guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 38, 0xFF5555);
+        }
+
+        // Category search box — button-style background with focus/hover animation
+        if (categorySearchBox != null) {
+            boolean csFocused = categorySearchBox.isFocused();
+            boolean csHovered = mouseX >= categorySearchBoxX && mouseX < categorySearchBoxX + categorySearchBoxW
+                    && mouseY >= 22 && mouseY < 22 + FIELD_HEIGHT && !overlayOpen;
+            if (csFocused || csHovered)
+                categorySearchHoverProgress = Math.min(1.0f, categorySearchHoverProgress + 0.10f);
+            else
+                categorySearchHoverProgress = Math.max(0.0f, categorySearchHoverProgress - 0.08f);
+            float hp = categorySearchHoverProgress;
+
+            // Background — subtle white tint, brightens when focused/hovered
+            int bgAlpha = (int) (0x25 + hp * 0x18);
+            guiGraphics.fill(categorySearchBoxX, 22, categorySearchBoxX + categorySearchBoxW, 22 + FIELD_HEIGHT,
+                    (bgAlpha << 24) | 0xFFFFFF);
+            // Top + side edge highlights (same as StyledButton)
+            guiGraphics.fill(categorySearchBoxX, 22, categorySearchBoxX + categorySearchBoxW, 23, 0x20FFFFFF);
+            guiGraphics.fill(categorySearchBoxX, 22, categorySearchBoxX + 1, 22 + FIELD_HEIGHT, 0x15FFFFFF);
+            guiGraphics.fill(categorySearchBoxX + categorySearchBoxW - 1, 22,
+                    categorySearchBoxX + categorySearchBoxW, 22 + FIELD_HEIGHT, 0x15FFFFFF);
+            // Bottom accent: gold when focused, subtle otherwise
+            int accentAlpha = csFocused ? (int) (0xCC + hp * 0x33) : (int) (0x40 + hp * 0x40);
+            int accentRGB = csFocused ? 0xFFCC00 : 0x888888;
+            guiGraphics.fill(categorySearchBoxX, 22 + FIELD_HEIGHT - 2,
+                    categorySearchBoxX + categorySearchBoxW, 22 + FIELD_HEIGHT,
+                    (accentAlpha << 24) | accentRGB);
+
+            // Placeholder text (rendered before super.render so the EditBox text draws over it)
+            if (categorySearchFilter.isEmpty() && !csFocused) {
+                guiGraphics.drawString(this.font, "Search...", categorySearchBoxX + 5,
+                        22 + (FIELD_HEIGHT - 8) / 2, 0x555555, false);
+            }
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
+
+        // Category search dropdown (close if a modal overlay is open)
+        if (categoryDropdownVisible && isAnyOverlayVisible()) {
+            categoryDropdownVisible = false;
+        }
+        if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
+            int total = categoryDropdownSuggestions.size();
+            int maxScroll = Math.max(0, total - MAX_DROPDOWN_ENTRIES);
+            categoryDropdownScrollOffset = Math.max(0, Math.min(categoryDropdownScrollOffset, maxScroll));
+            int visibleCount = Math.min(MAX_DROPDOWN_ENTRIES, total);
+            boolean hasScroll = maxScroll > 0;
+
+            int dropX = categorySearchBoxX;
+            int dropY = 42;
+            int dropW = categorySearchBoxW;
+            int dropH = visibleCount * DROPDOWN_ENTRY_H + 4;
+            int scrollBarW = hasScroll ? 4 : 0;
+            int textAreaW = dropW - scrollBarW - (hasScroll ? 2 : 0);
+
+            // Border + background
+            guiGraphics.fill(dropX - 1, dropY - 1, dropX + dropW + 1, dropY + dropH + 1, 0xFF444444);
+            guiGraphics.fill(dropX, dropY, dropX + dropW, dropY + dropH, 0xFF1A1A1A);
+            // Gold top accent line
+            guiGraphics.fill(dropX, dropY, dropX + dropW, dropY + 1, 0xFFFFCC00);
+
+            for (int i = 0; i < visibleCount; i++) {
+                String sug = categoryDropdownSuggestions.get(categoryDropdownScrollOffset + i);
+                int sugY = dropY + 2 + i * DROPDOWN_ENTRY_H;
+                boolean sugHov = mouseX >= dropX && mouseX < dropX + dropW - scrollBarW
+                        && mouseY >= sugY && mouseY < sugY + DROPDOWN_ENTRY_H;
+                if (sugHov) guiGraphics.fill(dropX, sugY, dropX + textAreaW, sugY + DROPDOWN_ENTRY_H, 0x30FFCC00);
+                int availW = textAreaW - 8;
+                String display = this.font.width(sug) > availW
+                        ? this.font.plainSubstrByWidth(sug, availW - 8) + "..."
+                        : sug;
+                guiGraphics.drawString(this.font, display, dropX + 4, sugY + 2,
+                        sugHov ? 0xFFFFFF : 0xBBBBBB, false);
+            }
+
+            // Scrollbar
+            if (hasScroll) {
+                int barX = dropX + dropW - scrollBarW;
+                int trackH = dropH - 2;
+                guiGraphics.fill(barX, dropY + 1, barX + scrollBarW, dropY + dropH - 1, 0x30FFFFFF);
+                int thumbH = Math.max(8, trackH * MAX_DROPDOWN_ENTRIES / total);
+                int thumbY = dropY + 1 + (trackH - thumbH) * categoryDropdownScrollOffset / maxScroll;
+                guiGraphics.fill(barX, thumbY, barX + scrollBarW, thumbY + thumbH, 0xAAFFCC00);
+            }
+        }
+
         itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
         if (iconSearch != null)
             iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -1787,6 +1893,52 @@ public class StageDetailScreen extends Screen {
                 return true;
         }
 
+        // Unfocus/clear category search when clicking outside the box + dropdown
+        if (categorySearchBox != null && categorySearchBox.isFocused()) {
+            boolean inSearchBox = mouseX >= categorySearchBoxX && mouseX < categorySearchBoxX + categorySearchBoxW
+                    && mouseY >= 22 && mouseY < 22 + FIELD_HEIGHT;
+            int dropH = Math.min(MAX_DROPDOWN_ENTRIES, categoryDropdownSuggestions.size()) * DROPDOWN_ENTRY_H + 4;
+            boolean inDropdown = categoryDropdownVisible && mouseX >= categorySearchBoxX
+                    && mouseX < categorySearchBoxX + categorySearchBoxW
+                    && mouseY >= 42 && mouseY < 42 + dropH;
+            if (!inSearchBox && !inDropdown) {
+                categoryDropdownVisible = false;
+                categorySearchFilter = "";
+                categorySearchBox.setValue("");
+                categorySearchBox.setFocused(false);
+            }
+        }
+
+        // Category search dropdown clicks
+        if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
+            int dropX = categorySearchBoxX;
+            int dropY = 42;
+            int dropW = categorySearchBoxW;
+            int visibleRows = Math.min(MAX_DROPDOWN_ENTRIES, categoryDropdownSuggestions.size());
+            int dropH = visibleRows * DROPDOWN_ENTRY_H + 4;
+            if (mouseX >= dropX && mouseX < dropX + dropW && mouseY >= dropY && mouseY < dropY + dropH) {
+                int visIdx = (int) (mouseY - dropY - 2) / DROPDOWN_ENTRY_H;
+                int idx = visIdx + categoryDropdownScrollOffset;
+                if (idx >= 0 && idx < categoryDropdownSuggestions.size()) {
+                    String target = categoryDropdownSuggestions.get(idx);
+                    // Scroll main list so the target entry is visible
+                    List<String> list = getActiveList();
+                    int targetIdx = list.indexOf(target);
+                    if (targetIdx >= 0) {
+                        int targetY = targetIdx * (CARD_HEIGHT + CARD_GAP);
+                        scrollOffset = Math.max(0, Math.min(maxScroll, targetY));
+                        smoothScrollOffset = (float) scrollOffset;
+                    }
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                }
+                categoryDropdownVisible = false;
+                categorySearchFilter = "";
+                if (categorySearchBox != null) categorySearchBox.setValue("");
+                return true;
+            }
+        }
+
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             // Tab scroll arrow clicks
             if (maxTabScroll > 0) {
@@ -1820,6 +1972,15 @@ public class StageDetailScreen extends Screen {
         int listBottom = this.height - 40;
         int contentLeft = 30;
         int contentRight = this.width - 30;
+
+        // Scrollbar drag start
+        if (button == 0 && maxScroll > 0 && mouseX >= contentRight + 1 && mouseX <= contentRight + 8
+                && mouseY >= listTop && mouseY <= listBottom) {
+            scrollBarDragging = true;
+            updateScrollFromMouse(mouseY, listTop, listBottom);
+            return true;
+        }
+
         if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom)
             return false;
 
@@ -1954,6 +2115,7 @@ public class StageDetailScreen extends Screen {
     }
 
     private void openAddDialog() {
+        categoryDropdownVisible = false;
         int contentLeft = 30;
         int contentRight = this.width - 30;
         int cw = contentRight - contentLeft;
@@ -2159,6 +2321,10 @@ public class StageDetailScreen extends Screen {
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
             return true;
+        if (scrollBarDragging) {
+            updateScrollFromMouse(mouseY, HEADER_HEIGHT, this.height - 40);
+            return true;
+        }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
@@ -2186,11 +2352,39 @@ public class StageDetailScreen extends Screen {
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
             return true;
+        if (scrollBarDragging) {
+            scrollBarDragging = false;
+            return true;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
+        int listH = listBottom - listTop;
+        int thumbHeight = Math.max(20, (int) ((float) listH / (maxScroll + listH) * listH));
+        float usableH = listH - thumbHeight;
+        if (usableH > 0) {
+            float ratio = (float) (mouseY - listTop - thumbHeight / 2.0) / usableH;
+            ratio = Math.max(0, Math.min(1, ratio));
+            scrollOffset = Math.round(ratio * maxScroll);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        // Scroll inside category search dropdown
+        if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
+            int total = categoryDropdownSuggestions.size();
+            int maxScroll = Math.max(0, total - MAX_DROPDOWN_ENTRIES);
+            int dropH = Math.min(MAX_DROPDOWN_ENTRIES, total) * DROPDOWN_ENTRY_H + 4;
+            if (mouseX >= categorySearchBoxX && mouseX < categorySearchBoxX + categorySearchBoxW
+                    && mouseY >= 42 && mouseY < 42 + dropH) {
+                categoryDropdownScrollOffset = Math.max(0, Math.min(maxScroll,
+                        categoryDropdownScrollOffset - (int) Math.signum(delta)));
+                return true;
+            }
+        }
         if (modEntityPopup.isVisible() && modEntityPopup.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseScrolled(mouseX, mouseY, delta))
@@ -2257,42 +2451,23 @@ public class StageDetailScreen extends Screen {
         if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode))
             return true;
 
-        if (Screen.hasControlDown()) {
-            EditBox focused = getFocusedEditBox();
-            if (focused != null) {
-                if (keyCode == 65) { // Ctrl+A
-                    focused.setCursorPosition(focused.getValue().length());
-                    focused.setHighlightPos(0);
-                    return true;
-                }
-                if (keyCode == 67) { // Ctrl+C
-                    String selected = focused.getHighlighted();
-                    if (!selected.isEmpty())
-                        Minecraft.getInstance().keyboardHandler.setClipboard(selected);
-                    return true;
-                }
-            }
-        }
-
-        if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
+        // Forward all key events to the category search box when it has focus
+        // (ensures Ctrl+A/C/V reach EditBox's built-in handlers reliably)
+        if (categorySearchBox != null && categorySearchBox.isFocused()
+                && categorySearchBox.keyPressed(keyCode, scanCode, modifiers))
+            return true;
 
         if (keyCode == 256) {
+            if (categoryDropdownVisible) {
+                categoryDropdownVisible = false;
+                categorySearchFilter = "";
+                if (categorySearchBox != null) categorySearchBox.setValue("");
+                return true;
+            }
             tryClose();
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    private EditBox getFocusedEditBox() {
-        if (stageIdField != null && stageIdField.isFocused())
-            return stageIdField;
-        if (displayNameField != null && displayNameField.isFocused())
-            return displayNameField;
-        if (researchTimeField != null && researchTimeField.isFocused())
-            return researchTimeField;
-        return null;
     }
 
     @Override
@@ -2340,6 +2515,17 @@ public class StageDetailScreen extends Screen {
                 .setScreen(new DependencyEditorScreen(this, editDependencies, isIndividual, originalStageId, deps -> {
                     this.editDependencies = deps;
                     this.hasChanges = true;
+                }));
+    }
+
+    private void openStageSettings() {
+        this.minecraft.setScreen(new StageSettingsScreen(this,
+                editStageId, editDisplayName, editResearchTime, isNewStage,
+                (newId, newName, newTime) -> {
+                    editStageId = newId;
+                    editDisplayName = newName;
+                    editResearchTime = newTime;
+                    hasChanges = true;
                 }));
     }
 
