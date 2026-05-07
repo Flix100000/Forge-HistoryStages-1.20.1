@@ -71,6 +71,10 @@ repositories {
     maven {
         url "https://api.modrinth.com/maven"
     }
+    maven {
+        name = "Curios"
+        url = "https://maven.theillusivec4.top/"
+    }
     mavenCentral()
 }
 
@@ -99,6 +103,9 @@ dependencies {
     
     //Jade
     implementation fg.deobf("curse.maven:jade-324717:6855440")
+
+    // Curios (optional)
+    compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1:api")
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -117,6 +124,7 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,
