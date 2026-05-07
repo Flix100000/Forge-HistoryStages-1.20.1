@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.astr0.historystages.api.HistoryStagesAPI;
+import net.astr0.historystages.api.ItemKey;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.astr0.historystages.api.StageDefinition;
@@ -186,7 +187,7 @@ public class StageLockHelper {
      */
     public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
         RuntimeStageManager manager = RuntimeStageManager.getInstance();
-        BitSet lock = HistoryStagesAPI.ITEMS.getLock(stack.getItem());
+        BitSet lock = HistoryStagesAPI.ITEMS.getLock(ItemKey.of(stack.getItem()));
 
         // TODO: the lockIsLockedByGlobals gimmick should be handled by a client side cache instead of the stagemanager,
         // which should only be stateful on the server arguably.
@@ -312,11 +313,12 @@ public class StageLockHelper {
 
     private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageDefinition entry) {
 
-        //TODO: re-implement support for NBT locking
-        // this could also be done the other way, which is to loop through all the items in the stage definition
+        RuntimeStageManager manager = RuntimeStageManager.getInstance();
+        List<StageDefinition> stages = manager.getStagesFor(HistoryStagesAPI.ITEMS, stack.getItem());
+        //TODO: this could also be done the other way, which is to loop through all the items in the stage definition
         // Probably similar performance. This approach is only faster if there are a lottttt of locked items in the given
         // stage
-        for(StageDefinition stage : RuntimeStageManager.getInstance().getStagesForItem(stack.getItem())) {
+        for(StageDefinition stage : stages) {
             if (stage.equals(entry)) return true;
         }
 

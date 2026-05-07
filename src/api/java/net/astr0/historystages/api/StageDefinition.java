@@ -45,7 +45,10 @@ public class StageDefinition {
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
+    @Deprecated
+    public StageDefinition() {
 
+    }
 
     public StageDefinition(String stage, StageScope scope) {
         stageName = stage;

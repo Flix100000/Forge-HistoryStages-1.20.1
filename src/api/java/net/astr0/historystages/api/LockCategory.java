@@ -5,7 +5,7 @@ import java.util.BitSet;
 
 public class LockCategory<T> {
     private final String id;
-    private final Map<T, BitSet> map;
+    protected final Map<T, BitSet> map;
 
     /**
      * @param id A unique identifier (e.g., "item", "dimension")

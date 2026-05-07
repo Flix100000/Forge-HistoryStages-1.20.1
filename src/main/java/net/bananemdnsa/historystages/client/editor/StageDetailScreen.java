@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.client.editor;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
@@ -19,11 +20,13 @@ import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
 import net.astr0.historystages.api.StageDefinition;
+import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
 import net.bananemdnsa.historystages.util.AllRecipesCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.util.RegistryHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -46,13 +49,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Quaternionf;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class StageDetailScreen extends Screen {
     private final Screen parent;
@@ -226,9 +223,9 @@ public class StageDetailScreen extends Screen {
         this.originalStageId = stageId;
         this.isIndividual = isIndividual;
         this.isNewStage = (stageId == null
-                || (!StageManager.getStages().containsKey(stageId)
-                        && !StageManager.getIndividualStages().containsKey(stageId)));
+                || (StageManager.getStages().stream().noneMatch(stageDefinition -> Objects.equals(stageDefinition.getName(), stageId))));
 
+        //TODO: Refactor this. There is messy logic and some hidden bugs
         StageDefinition e = entry != null ? entry : new StageDefinition();
         this.editStageId = stageId != null ? stageId : "";
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
@@ -893,6 +890,8 @@ public class StageDetailScreen extends Screen {
                 boolean isDualPhase = false;
                 {
                     String entry = list.get(i);
+
+                    RuntimeStageManager.getInstance().isLockDualPhase(HistoryStagesAPI.ITEMS.getLock())
                     // Individual view: map holds entry → global stage IDs
                     // Global view: map holds entry → individual stage IDs
                     Map<String, Set<String>> dualMap = isIndividual

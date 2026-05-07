@@ -115,12 +115,13 @@ public final class RuntimeStageManager implements IStageManager {
         );
 
         // TODO: Explain why I decided to include this. Short answer: performance
-        stages.add(0, new StageDefinition("DummyStage", StageScope.GLOBAL));
+        stages.add(0, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
+        stages.add(1, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
 
         // Load our quick lookup tables for bit position <--> stage
         // We use these to achieve O(1) forward and reverse lookups of bit positions corresponding
         // to each stage, and vice versa.
-        for(int i = 1; i < stages.size(); i++) {
+        for(int i = 2; i < stages.size(); i++) {
 
             final int STAGE_INDEX = i; // Needed for compiler reasons
 
@@ -138,7 +139,7 @@ public final class RuntimeStageManager implements IStageManager {
 
             //TODO(Astr0): Check if this can be optimised using concurrency for large numbers of stage definitions
             stage.getLockedItems().forEach((item) -> {
-                HistoryStagesAPI.ITEMS.applyLock(item, STAGE_INDEX);
+                HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(item), STAGE_INDEX);
             });
 
             // We bake mod locks. This avoids us having to do a string comparison based check on every
@@ -148,7 +149,7 @@ public final class RuntimeStageManager implements IStageManager {
             stage.getLockedMods().forEach((mod) -> {
                 for (Map.Entry<ResourceKey<Item>, Item> entry : ForgeRegistries.ITEMS.getEntries()) {
                     if (entry.getKey().location().getNamespace().equals(mod.getNamespace())) {
-                        HistoryStagesAPI.ITEMS.applyLock(entry.getValue(), STAGE_INDEX);
+                        HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(entry.getValue()), STAGE_INDEX);
                     }
                 }
 
@@ -201,7 +202,7 @@ public final class RuntimeStageManager implements IStageManager {
 
     private void lockItemWithStage(Item item, String stage) {
         int stageBit = getStageBit(stage);
-        HistoryStagesAPI.ITEMS.applyLock(item, stageBit);
+        HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(item), stageBit);
     }
 
     private void lockBlockWithStage(Block block, String stage) {
@@ -344,6 +345,18 @@ public final class RuntimeStageManager implements IStageManager {
 
         return getStageDefinitionsFromLock(lock);
     }
+
+
+    public List<StageDefinition> getStagesFor(ItemLockCategory category, ItemKey key) {
+
+
+
+        BitSet lock = category.getLock(key);
+        if (lock == null) return new ArrayList<>(); // Or Collections.emptyList()
+
+        return getStageDefinitionsFromLock(lock);
+    }
+
 
     @Override
     public void lockStageGlobally(String stage) {
