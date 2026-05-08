@@ -61,7 +61,7 @@ public abstract class RecipeLayoutMixin {
             for (var slot : outputSlots) {
                 Optional<ItemStack> displayed = slot.getDisplayedItemStack();
                 if (displayed.isPresent() && !displayed.get().isEmpty()) {
-                    if (StageLockHelper.isItemLockedForClient(displayed.get())) {
+                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")) {
                         return true;
                     }
                 }

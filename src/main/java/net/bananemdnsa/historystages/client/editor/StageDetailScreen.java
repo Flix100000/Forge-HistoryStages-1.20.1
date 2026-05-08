@@ -68,8 +68,11 @@ public class StageDetailScreen extends Screen {
     private String editIcon;
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
+    private final Map<Integer, List<String>> editItemLockActions;
     private final List<String> editTags;
+    private final Map<Integer, List<String>> editTagLockActions;
     private final List<String> editMods;
+    private final Map<Integer, List<String>> editModLockActions;
     private final List<String> editModExceptions;
     private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
     private final List<String> editRecipes;
@@ -144,6 +147,23 @@ public class StageDetailScreen extends Screen {
     private long cardHoverStartTime = 0;
     private static final long CARD_MARQUEE_DELAY_MS = 800;
     private static final float CARD_MARQUEE_SPEED = 25.0f;
+
+    // Lock Actions popup state
+    private boolean lockActionsPopupVisible = false;
+    private int lockActionsPopupTab = -1;   // tab that opened it (0=items, 1=tags, 2=mods)
+    private int lockActionsPopupIdx = -1;   // entry index
+    private List<String> lockActionsPopupCurrent = new ArrayList<>(); // working copy
+    private int cachedLockPopupX, cachedLockPopupY, cachedLockPopupW, cachedLockPopupH;
+
+    // All recognized lock actions in display order
+    private static final String[] LOCK_ACTION_KEYS = {"equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"};
+
+    // Grouped layout for the popup. First element is the group key (resolved via lang).
+    private static final String[][] LOCK_ACTION_GROUPS = {
+            {"item",   "use",   "attack", "equip", "pickup"},
+            {"block",  "place", "break",  "gui"},
+            {"output", "loot",  "recipe", "icon"}
+    };
 
     // Recipe detail popup state
     private boolean recipePopupVisible = false;
@@ -244,15 +264,35 @@ public class StageDetailScreen extends Screen {
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get() : e.getResearchTime();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
+        this.editItemLockActions = new HashMap<>();
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = e.getItemEntries();
         for (int idx = 0; idx < itemEntries.size(); idx++) {
             net.bananemdnsa.historystages.data.ItemEntry ie = itemEntries.get(idx);
             if (ie.hasNbt()) {
                 editItemNbt.put(idx, ie.getNbt().deepCopy());
             }
+            if (ie.hasLockActions()) {
+                editItemLockActions.put(idx, new ArrayList<>(ie.getLockActions()));
+            }
         }
         this.editTags = new ArrayList<>(e.getTags());
+        this.editTagLockActions = new HashMap<>();
+        List<net.bananemdnsa.historystages.data.NamedLockEntry> tagEntries = e.getTagEntries();
+        for (int idx = 0; idx < tagEntries.size(); idx++) {
+            net.bananemdnsa.historystages.data.NamedLockEntry te = tagEntries.get(idx);
+            if (te.hasLockActions()) {
+                editTagLockActions.put(idx, new ArrayList<>(te.getLockActions()));
+            }
+        }
         this.editMods = new ArrayList<>(e.getMods());
+        this.editModLockActions = new HashMap<>();
+        List<net.bananemdnsa.historystages.data.NamedLockEntry> modEntries = e.getModEntries();
+        for (int idx = 0; idx < modEntries.size(); idx++) {
+            net.bananemdnsa.historystages.data.NamedLockEntry me = modEntries.get(idx);
+            if (me.hasLockActions()) {
+                editModLockActions.put(idx, new ArrayList<>(me.getLockActions()));
+            }
+        }
         this.editModExceptions = new ArrayList<>(e.getAllModExceptionIds());
         this.editModExceptionNbt = new HashMap<>();
         List<net.bananemdnsa.historystages.data.ItemEntry> modExEntries = e.getModExceptionEntries();
@@ -493,9 +533,11 @@ public class StageDetailScreen extends Screen {
     }
 
     private boolean isAnyOverlayVisible() {
-        return itemSearch.isVisible() || modExceptionSearch.isVisible() || modSearch.isVisible() || entitySearch.isVisible()
-                || tagSearch.isVisible() || dimensionSearch.isVisible() || recipeSearch.isVisible()
-                || structureSearch.isVisible() || iconSearch.isVisible()
+        return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
+                || modExceptionSearch.isVisible() || modSearch.isVisible()
+                || entitySearch.isVisible()
+                || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
+                || recipeSearch.isVisible() || lockActionsPopupVisible
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
     }
@@ -907,6 +949,21 @@ public class StageDetailScreen extends Screen {
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0xFFCC00, false);
                 }
 
+                // Lock-Actions badge: shows how many actions are blocked out of total
+                List<String> entryLockActions = null;
+                if (activeTab == 0) entryLockActions = editItemLockActions.get(i);
+                else if (activeTab == 1) entryLockActions = editTagLockActions.get(i);
+                else if (activeTab == 2) entryLockActions = editModLockActions.get(i);
+                if (entryLockActions != null) {
+                    int blockedCount = entryLockActions.size();
+                    String label = Component.translatable("editor.historystages.badge.actions").getString();
+                    String lockBadge = "[" + label + ": " + blockedCount + "/" + LOCK_ACTION_KEYS.length + "]";
+                    int lBadgeW = this.font.width(lockBadge) + 4;
+                    guiGraphics.drawString(this.font, lockBadge, contentRight - badgeW - lBadgeW, cardY + 7,
+                            0xCCAA66, false);
+                    badgeW += lBadgeW;
+                }
+
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
                         || (activeTab == 8 && editStructureModLinked.contains(list.get(i)))) {
@@ -1118,6 +1175,7 @@ public class StageDetailScreen extends Screen {
         modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
         modStructurePopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
+        if (lockActionsPopupVisible) renderLockActionsPopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Tooltip rendering
@@ -1646,6 +1704,290 @@ public class StageDetailScreen extends Screen {
         }
     }
 
+    // =============================================
+    // LOCK ACTIONS POPUP
+    // =============================================
+
+    private Map<Integer, List<String>> getLockActionsMapForTab(int tab) {
+        return switch (tab) {
+            case 0 -> editItemLockActions;
+            case 1 -> editTagLockActions;
+            case 2 -> editModLockActions;
+            default -> null;
+        };
+    }
+
+    private void openLockActionsPopup(int tab, int idx) {
+        lockActionsPopupTab = tab;
+        lockActionsPopupIdx = idx;
+        Map<Integer, List<String>> map = getLockActionsMapForTab(tab);
+        if (map != null && map.containsKey(idx)) {
+            lockActionsPopupCurrent = new ArrayList<>(map.get(idx));
+        } else {
+            // All actions locked by default
+            lockActionsPopupCurrent = new ArrayList<>(java.util.Arrays.asList(LOCK_ACTION_KEYS));
+        }
+        lockActionsPopupVisible = true;
+    }
+
+    private void saveLockActionsPopup() {
+        Map<Integer, List<String>> map = getLockActionsMapForTab(lockActionsPopupTab);
+        if (map == null) return;
+        // If all actions are selected → remove from map (null = all locked = default, no JSON bloat)
+        boolean allLocked = lockActionsPopupCurrent.size() == LOCK_ACTION_KEYS.length;
+        if (allLocked) {
+            map.remove(lockActionsPopupIdx);
+        } else {
+            map.put(lockActionsPopupIdx, new ArrayList<>(lockActionsPopupCurrent));
+        }
+        hasChanges = true;
+        lockActionsPopupVisible = false;
+    }
+
+    // Layout constants for the popup
+    private static final int LP_PAD          = 8;
+    private static final int LP_WIDTH        = 232;
+    private static final int LP_COLS         = 3;
+    private static final int LP_HEADER_H     = 18;   // title block (title + underline)
+    private static final int LP_HINT_H       = 10;
+    private static final int LP_GROUP_HEAD_H = 10;
+    private static final int LP_TOGGLE_H     = 14;
+    private static final int LP_TOGGLE_GAP   = 2;
+    private static final int LP_GROUP_GAP    = 5;
+    private static final int LP_DESC_H       = 11;
+    private static final int LP_FOOTER_H     = 20;
+
+    private boolean handleLockActionsPopupClick(double mouseX, double mouseY, int button) {
+        int popupW = cachedLockPopupW, popupH = cachedLockPopupH;
+        int popupX = cachedLockPopupX, popupY = cachedLockPopupY;
+        if (popupW == 0) return true; // not yet rendered
+
+        int btnH = 14;
+        int btnY = popupY + popupH - btnH - 6;
+
+        // Done button (right, gold)
+        int doneW = 48;
+        int doneX = popupX + popupW - doneW - LP_PAD;
+        if (mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH) {
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            saveLockActionsPopup();
+            return true;
+        }
+
+        // All button (left)
+        int qBtnW = 34;
+        int allX = popupX + LP_PAD;
+        if (mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            lockActionsPopupCurrent = new ArrayList<>(java.util.Arrays.asList(LOCK_ACTION_KEYS));
+            return true;
+        }
+
+        // None button (next to All)
+        int noneX = allX + qBtnW + 3;
+        if (mouseX >= noneX && mouseX < noneX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            lockActionsPopupCurrent.clear();
+            return true;
+        }
+
+        // Toggle clicks — walk the grouped layout
+        int curY = popupY + LP_HEADER_H + LP_HINT_H + 3;
+        int toggleW = (popupW - 2 * LP_PAD - (LP_COLS - 1) * 3) / LP_COLS;
+        for (String[] group : LOCK_ACTION_GROUPS) {
+            curY += LP_GROUP_HEAD_H;
+            int actionCount = group.length - 1;
+            for (int j = 0; j < actionCount; j++) {
+                String action = group[j + 1];
+                int col = j % LP_COLS;
+                int row = j / LP_COLS;
+                int tx = popupX + LP_PAD + col * (toggleW + 3);
+                int ty = curY + row * (LP_TOGGLE_H + LP_TOGGLE_GAP);
+                if (mouseX >= tx && mouseX < tx + toggleW && mouseY >= ty && mouseY < ty + LP_TOGGLE_H) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    if (lockActionsPopupCurrent.contains(action)) {
+                        lockActionsPopupCurrent.remove(action);
+                    } else {
+                        lockActionsPopupCurrent.add(action);
+                    }
+                    return true;
+                }
+            }
+            int rowsInGroup = (actionCount + LP_COLS - 1) / LP_COLS;
+            curY += rowsInGroup * LP_TOGGLE_H + (rowsInGroup - 1) * LP_TOGGLE_GAP + LP_GROUP_GAP;
+        }
+
+        // Click outside closes (and discards changes)
+        if (mouseX < popupX || mouseX > popupX + popupW || mouseY < popupY || mouseY > popupY + popupH) {
+            lockActionsPopupVisible = false;
+        }
+        return true;
+    }
+
+    private void renderLockActionsPopup(GuiGraphics g, int mouseX, int mouseY) {
+        // Compute popup height from group structure
+        int contentH = 0;
+        for (String[] group : LOCK_ACTION_GROUPS) {
+            int actionCount = group.length - 1;
+            int rowsInGroup = (actionCount + LP_COLS - 1) / LP_COLS;
+            contentH += LP_GROUP_HEAD_H + rowsInGroup * LP_TOGGLE_H + (rowsInGroup - 1) * LP_TOGGLE_GAP + LP_GROUP_GAP;
+        }
+        contentH -= LP_GROUP_GAP; // no gap after last group
+
+        int popupW = LP_WIDTH;
+        int popupH = LP_HEADER_H + LP_HINT_H + 3 + contentH + LP_DESC_H + LP_FOOTER_H;
+        int popupX = this.width / 2 - popupW / 2;
+        int popupY = this.height / 2 - popupH / 2;
+
+        cachedLockPopupX = popupX;
+        cachedLockPopupY = popupY;
+        cachedLockPopupW = popupW;
+        cachedLockPopupH = popupH;
+
+        // Backdrop dim
+        g.fill(0, 0, this.width, this.height, 0x88000000);
+        // Drop shadow
+        g.fill(popupX + 3, popupY + 3, popupX + popupW + 3, popupY + popupH + 3, 0x50000000);
+        // Outer border + inner background (matches editor dialog style)
+        g.fill(popupX - 1, popupY - 1, popupX + popupW + 1, popupY + popupH + 1, 0xFF333333);
+        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, 0xFF1A1A1A);
+
+        // Title with subtle gold underline
+        g.drawCenteredString(this.font,
+                Component.translatable("editor.historystages.lock_actions.title"),
+                popupX + popupW / 2, popupY + 5, 0xFFFFFFFF);
+        int accentW = 40;
+        int accentX = popupX + (popupW - accentW) / 2;
+        g.fill(accentX, popupY + 15, accentX + accentW, popupY + 16, 0xFFFFCC00);
+
+        // Hint
+        g.drawCenteredString(this.font,
+                Component.translatable("editor.historystages.lock_actions.hint"),
+                popupX + popupW / 2, popupY + LP_HEADER_H, 0x888888);
+
+        // Render groups
+        int curY = popupY + LP_HEADER_H + LP_HINT_H + 3;
+        int toggleW = (popupW - 2 * LP_PAD - (LP_COLS - 1) * 3) / LP_COLS;
+        String hoveredAction = null;
+
+        for (String[] group : LOCK_ACTION_GROUPS) {
+            String groupKey = group[0];
+            Component groupLabel = Component.translatable("editor.historystages.lock_actions.group." + groupKey);
+
+            // Group header — subtle label with thin separator line
+            g.drawString(this.font, groupLabel, popupX + LP_PAD, curY + 1, 0xCCCCCC, false);
+            int textW = this.font.width(groupLabel);
+            int sepX = popupX + LP_PAD + textW + 5;
+            int sepY = curY + 4;
+            g.fill(sepX, sepY, popupX + popupW - LP_PAD, sepY + 1, 0xFF2E2E2E);
+            curY += LP_GROUP_HEAD_H;
+
+            int actionCount = group.length - 1;
+            for (int j = 0; j < actionCount; j++) {
+                String action = group[j + 1];
+                int col = j % LP_COLS;
+                int row = j / LP_COLS;
+                int tx = popupX + LP_PAD + col * (toggleW + 3);
+                int ty = curY + row * (LP_TOGGLE_H + LP_TOGGLE_GAP);
+
+                boolean blocked = lockActionsPopupCurrent.contains(action);
+                boolean hovered = mouseX >= tx && mouseX < tx + toggleW && mouseY >= ty && mouseY < ty + LP_TOGGLE_H;
+                if (hovered) hoveredAction = action;
+
+                // Background
+                int bg = blocked
+                        ? (hovered ? 0x40FFCC00 : 0x25FFCC00)
+                        : (hovered ? 0x25FFFFFF : 0x10FFFFFF);
+                g.fill(tx, ty, tx + toggleW, ty + LP_TOGGLE_H, bg);
+
+                // Bottom accent line
+                int accent = blocked
+                        ? (hovered ? 0xFFFFCC00 : 0xB0FFCC00)
+                        : (hovered ? 0x40FFFFFF : 0x20FFFFFF);
+                g.fill(tx, ty + LP_TOGGLE_H - 1, tx + toggleW, ty + LP_TOGGLE_H, accent);
+
+                // Indicator dot + label
+                int textColor = blocked ? 0xFFFFFF : 0x999999;
+                int dotColor  = blocked ? 0xFFFFCC00 : 0xFF555555;
+                g.fill(tx + 4, ty + 6, tx + 7, ty + 9, dotColor);
+                g.drawString(this.font,
+                        Component.translatable("editor.historystages.lock_actions.action." + action),
+                        tx + 10, ty + 3, textColor, false);
+            }
+            int rowsInGroup = (actionCount + LP_COLS - 1) / LP_COLS;
+            curY += rowsInGroup * LP_TOGGLE_H + (rowsInGroup - 1) * LP_TOGGLE_GAP + LP_GROUP_GAP;
+        }
+
+        // Description line — shows hovered action's description, or a generic hint
+        int descY = popupY + popupH - LP_FOOTER_H - LP_DESC_H + 1;
+        g.fill(popupX + LP_PAD, descY - 1, popupX + popupW - LP_PAD, descY, 0xFF2E2E2E);
+        Component descText;
+        int descColor;
+        if (hoveredAction != null) {
+            descText = Component.translatable("editor.historystages.lock_actions.action." + hoveredAction)
+                    .append(Component.literal(" — "))
+                    .append(Component.translatable("editor.historystages.lock_actions.desc." + hoveredAction));
+            descColor = 0xCCCCCC;
+        } else {
+            int blockedCount = lockActionsPopupCurrent.size();
+            descText = Component.translatable("editor.historystages.lock_actions.status",
+                    blockedCount, LOCK_ACTION_KEYS.length);
+            descColor = 0x888888;
+        }
+        g.drawCenteredString(this.font, descText, popupX + popupW / 2, descY + 2, descColor);
+
+        // Footer buttons
+        int btnH = 14;
+        int btnY = popupY + popupH - btnH - 6;
+        int qBtnW = 34;
+
+        // All
+        int allX = popupX + LP_PAD;
+        boolean allHov = mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH;
+        g.fill(allX, btnY, allX + qBtnW, btnY + btnH, allHov ? 0x25FFFFFF : 0x10FFFFFF);
+        g.fill(allX, btnY + btnH - 1, allX + qBtnW, btnY + btnH, allHov ? 0x80FFFFFF : 0x40FFFFFF);
+        g.drawCenteredString(this.font,
+                Component.translatable("editor.historystages.lock_actions.btn_all"),
+                allX + qBtnW / 2, btnY + 3, allHov ? 0xFFFFFF : 0xCCCCCC);
+
+        // None
+        int noneX = allX + qBtnW + 3;
+        boolean noneHov = mouseX >= noneX && mouseX < noneX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH;
+        g.fill(noneX, btnY, noneX + qBtnW, btnY + btnH, noneHov ? 0x25FFFFFF : 0x10FFFFFF);
+        g.fill(noneX, btnY + btnH - 1, noneX + qBtnW, btnY + btnH, noneHov ? 0x80FFFFFF : 0x40FFFFFF);
+        g.drawCenteredString(this.font,
+                Component.translatable("editor.historystages.lock_actions.btn_none"),
+                noneX + qBtnW / 2, btnY + 3, noneHov ? 0xFFFFFF : 0xCCCCCC);
+
+        // Done (gold accent)
+        int doneW = 48;
+        int doneX = popupX + popupW - doneW - LP_PAD;
+        boolean doneHov = mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH;
+        g.fill(doneX, btnY, doneX + doneW, btnY + btnH, doneHov ? 0x50FFCC00 : 0x25FFCC00);
+        g.fill(doneX, btnY + btnH - 1, doneX + doneW, btnY + btnH, doneHov ? 0xFFFFCC00 : 0x80FFCC00);
+        g.drawCenteredString(this.font,
+                Component.translatable("editor.historystages.lock_actions.btn_done"),
+                doneX + doneW / 2, btnY + 3, doneHov ? 0xFFFFFF : 0xEEEEEE);
+    }
+
+    /** Removes the entry at removedIdx and shifts all higher indices down by 1. */
+    private static void shiftLockActionsMap(Map<Integer, List<String>> map, int removedIdx) {
+        map.remove(removedIdx);
+        Map<Integer, List<String>> shifted = new HashMap<>();
+        for (var e : map.entrySet()) {
+            int key = e.getKey();
+            shifted.put(key > removedIdx ? key - 1 : key, e.getValue());
+        }
+        map.clear();
+        map.putAll(shifted);
+    }
+
+    // =============================================
+
     private void drawSmallText(GuiGraphics guiGraphics, String text, int x, int y, int color) {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(x, y, 0);
@@ -1658,6 +2000,7 @@ public class StageDetailScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (modEntityPopup.isVisible()) { return modEntityPopup.mouseClicked(mouseX, mouseY); }
         if (modStructurePopup.isVisible()) { return modStructurePopup.mouseClicked(mouseX, mouseY); }
+        if (lockActionsPopupVisible) { return handleLockActionsPopupClick(mouseX, mouseY, button); }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
@@ -1799,7 +2142,12 @@ public class StageDetailScreen extends Screen {
                     final int tabIdx = activeTab;
                     contextMenu = new ContextMenu();
                     if (tabIdx == 0) {
-                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openNbtEditScreen(entryIdx, entryValue));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
+                                () -> openNbtEditScreen(entryIdx, entryValue));
+                    }
+                    if (tabIdx == 0 || tabIdx == 1 || tabIdx == 2) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.lock_actions").getString(),
+                                () -> openLockActionsPopup(tabIdx, entryIdx));
                     }
                     if (tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
@@ -1828,12 +2176,13 @@ public class StageDetailScreen extends Screen {
                                 });
                     }
                     if (tabIdx == 3) {
-                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
+                                () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).remove(entryIdx);
-                        // When removing an item, shift NBT indices
+                        // When removing an item, shift NBT and lockActions indices
                         if (tabIdx == 0) {
                             editItemNbt.remove(entryIdx);
                             Map<Integer, com.google.gson.JsonObject> shifted = new HashMap<>();
@@ -1843,6 +2192,15 @@ public class StageDetailScreen extends Screen {
                             }
                             editItemNbt.clear();
                             editItemNbt.putAll(shifted);
+                            shiftLockActionsMap(editItemLockActions, entryIdx);
+                        }
+                        // When removing a tag, shift lockActions indices
+                        if (tabIdx == 1) {
+                            shiftLockActionsMap(editTagLockActions, entryIdx);
+                        }
+                        // When removing a mod, shift lockActions indices
+                        if (tabIdx == 2) {
+                            shiftLockActionsMap(editModLockActions, entryIdx);
                         }
                         // When removing a mod exception, shift NBT indices
                         if (tabIdx == 3) {
@@ -2218,11 +2576,22 @@ public class StageDetailScreen extends Screen {
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {
             com.google.gson.JsonObject nbt = editItemNbt.get(idx);
-            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editItems.get(idx), nbt));
+            List<String> lockActions = editItemLockActions.get(idx);
+            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editItems.get(idx), nbt, lockActions));
         }
         newEntry.setItemEntries(itemEntries);
-        newEntry.setTags(editTags);
-        newEntry.setMods(editMods);
+        List<net.bananemdnsa.historystages.data.NamedLockEntry> tagEntries = new ArrayList<>();
+        for (int idx = 0; idx < editTags.size(); idx++) {
+            tagEntries.add(new net.bananemdnsa.historystages.data.NamedLockEntry(
+                    editTags.get(idx), editTagLockActions.get(idx)));
+        }
+        newEntry.setTagEntries(tagEntries);
+        List<net.bananemdnsa.historystages.data.NamedLockEntry> modEntries = new ArrayList<>();
+        for (int idx = 0; idx < editMods.size(); idx++) {
+            modEntries.add(new net.bananemdnsa.historystages.data.NamedLockEntry(
+                    editMods.get(idx), editModLockActions.get(idx)));
+        }
+        newEntry.setModEntries(modEntries);
         List<net.bananemdnsa.historystages.data.ItemEntry> modExceptionEntries = new ArrayList<>();
         for (int idx = 0; idx < editModExceptions.size(); idx++) {
             com.google.gson.JsonObject nbt = editModExceptionNbt.get(idx);

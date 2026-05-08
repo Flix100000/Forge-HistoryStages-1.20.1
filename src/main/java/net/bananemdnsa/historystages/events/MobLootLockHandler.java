@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -39,7 +40,7 @@ public class MobLootLockHandler {
             ItemStack stack = itemEntity.getItem();
             if (stack.isEmpty()) continue;
 
-            if (StageManager.isItemLockedForServer(stack)) {
+            if (StageLockHelper.isActionLockedForServer(stack, "loot")) {
                 if (Config.COMMON.useReplacements.get()) {
                     itemEntity.setItem(getReplacement(stack.getCount()));
                 } else {
@@ -54,7 +55,7 @@ public class MobLootLockHandler {
         if (replacedCount > 0) {
             ResourceLocation entityType = BuiltInRegistries.ENTITY_TYPE.getKey(event.getEntity().getType());
             DebugLogger.runtimeThrottled("Mob Loot Lock", "mobloot_" + entityType,
-                    "Replaced " + replacedCount + " locked drop(s) from '" + entityType + "'");
+                    "Replaced " + replacedCount + " locked drop(s) from '" + entityType + "' [action: loot]");
         }
     }
 

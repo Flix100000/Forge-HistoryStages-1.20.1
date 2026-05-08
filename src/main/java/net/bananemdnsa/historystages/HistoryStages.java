@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages;
 
 import com.mojang.logging.LogUtils;
+import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
@@ -284,12 +285,13 @@ public class HistoryStages {
         ItemStack stack = event.getItemEntity().getItem();
         if (stack.isEmpty()) return;
 
-        // Individual stages: prevent pickup of individually-locked items
-        if (StageLockHelper.isItemLockedByIndividualStage(stack, player.getUUID())) {
+        // Individual stages: prevent pickup of individually-locked items (respects lock_actions)
+        if (Config.COMMON.individualLockItemPickup.get()
+                && StageLockHelper.isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
             event.setCanPickup(TriState.FALSE);
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Pickup of individually-locked item blocked: " + itemRL);
+                    "<" + player.getName().getString() + "> Pickup of '" + itemRL + "' blocked [action: pickup]");
             return;
         }
 
@@ -297,7 +299,7 @@ public class HistoryStages {
         if (StageManager.isItemLockedForServer(stack)) {
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Picked up locked item: " + itemRL + " x" + stack.getCount());
+                    "<" + player.getName().getString() + "> Picked up locked '" + itemRL + "' x" + stack.getCount() + " [action: pickup]");
         }
     }
 

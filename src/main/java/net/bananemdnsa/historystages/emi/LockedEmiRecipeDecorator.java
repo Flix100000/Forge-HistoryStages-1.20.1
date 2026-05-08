@@ -55,7 +55,7 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         // 2. Check by output items
         for (EmiStack output : recipe.getOutputs()) {
             ItemStack stack = output.getItemStack();
-            if (!stack.isEmpty() && StageLockHelper.isItemLockedForClient(stack)) {
+            if (!stack.isEmpty() && StageLockHelper.isActionLockedForClient(stack, "recipe")) {
                 return true;
             }
         }

@@ -70,6 +70,9 @@ public class StageManager {
     private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
             "structures", "mod_linked"
     );
+    private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
+            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
+    );
 
     public static void load() {
         STAGES.clear();
@@ -318,6 +321,17 @@ public class StageManager {
             }
         }
 
+        // --- Lock actions: validate per-entry lock_actions lists ---
+        for (ItemEntry item : entry.getItemEntries()) {
+            validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
+        }
+        for (NamedLockEntry tag : entry.getTagEntries()) {
+            validateLockActions(tag.getLockActions(), stageId, tag.getId(), "tags");
+        }
+        for (NamedLockEntry mod : entry.getModEntries()) {
+            validateLockActions(mod.getLockActions(), stageId, mod.getId(), "mods");
+        }
+
         // --- Dependencies validation ---
         if (entry.hasDependencies()) {
             int groupIdx = 0;
@@ -486,6 +500,31 @@ public class StageManager {
         }
     }
 
+    /**
+     * Validates a single lock_actions list: reports unknown actions and duplicates without modifying the list.
+     */
+    private static void validateLockActions(List<String> actions, String stageId, String entryId, String fieldPath) {
+        if (actions == null || actions.isEmpty()) return;
+
+        // Unknown actions
+        for (String action : actions) {
+            if (action == null || !KNOWN_LOCK_ACTIONS.contains(action)) {
+                addMessage(MessageLevel.WARN, "Unknown lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+                DebugLogger.warn("Invalid Lock Actions",
+                        "Unknown lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + "). Known actions: " + KNOWN_LOCK_ACTIONS + ".");
+            }
+        }
+
+        // Duplicates
+        Set<String> seen = new HashSet<>();
+        for (String action : actions) {
+            if (!seen.add(action)) {
+                DebugLogger.info("Duplicates",
+                        "Duplicate lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+            }
+        }
+    }
+
     private static void checkDuplicates(List<String> list, String stageId, String field) {
         Set<String> seen = new HashSet<>();
         List<String> duplicates = new ArrayList<>();
@@ -623,12 +662,12 @@ public class StageManager {
             if (data.getMods() != null && data.getMods().contains(modId)
                     && !isModException(itemId, null, data)) return stageName;
 
-            if (data.getTags() != null) {
+            List<NamedLockEntry> tags = data.getTagEntries();
+            if (!tags.isEmpty()) {
                 Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
                 if (item != null) {
-                    for (String tagId : data.getTags()) {
-                        var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
-                        if (item.builtInRegistryHolder().is(tagKey)) return stageName;
+                    for (NamedLockEntry tagEntry : tags) {
+                        if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return stageName;
                     }
                 }
             }
@@ -683,7 +722,7 @@ public class StageManager {
 
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
         List<String> allFoundStages = new ArrayList<>();
-        Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+        Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String stageName = entry.getKey();
@@ -711,10 +750,9 @@ public class StageManager {
                 }
             }
             // Check Tags
-            if (!match && item != null && data.getTags() != null) {
-                for (String tagId : data.getTags()) {
-                    var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
-                    if (item.builtInRegistryHolder().is(tagKey)) {
+            if (!match && item != null) {
+                for (NamedLockEntry tagEntry : data.getTagEntries()) {
+                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
                         match = true;
                         break;
                     }
@@ -730,6 +768,47 @@ public class StageManager {
 
     private static boolean isModException(String itemId, ItemStack stack, StageEntry data) {
         return data.isModExcepted(itemId, stack);
+    }
+
+    /**
+     * Checks whether a specific lock action applies to an item in the given stage entry.
+     * Returns true when the item matches this stage AND the action is restricted
+     * (either because no lock_actions list is set — all actions locked — or because
+     * the action is explicitly listed).
+     * Returns false when the item does not match this stage at all.
+     */
+    public static boolean isItemActionLockedForStage(String itemId, String modId,
+            net.minecraft.world.item.ItemStack stack, String action, StageEntry data) {
+        Item item = stack != null ? stack.getItem() : null;
+
+        for (ItemEntry entry : data.getItemEntries()) {
+            if (!entry.getId().equals(itemId)) continue;
+            boolean nbtMatch = !entry.hasNbt() || (stack != null && NbtMatcher.matches(stack, entry.getNbt()));
+            if (nbtMatch) {
+                return isActionInList(entry.getLockActions(), action);
+            }
+        }
+
+        for (NamedLockEntry modEntry : data.getModEntries()) {
+            if (modEntry.getId().equals(modId) && !isModException(itemId, stack, data)) {
+                return isActionInList(modEntry.getLockActions(), action);
+            }
+        }
+
+        if (item != null) {
+            for (NamedLockEntry tagEntry : data.getTagEntries()) {
+                if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
+                    return isActionInList(tagEntry.getLockActions(), action);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isActionInList(List<String> lockActions, String action) {
+        if (lockActions == null) return true;
+        return lockActions.contains(action);
     }
 
     public static int getResearchTimeInTicks(String stageId) {
@@ -1069,6 +1148,17 @@ public class StageManager {
             return false;
         });
 
+        // --- Lock actions: validate per-entry lock_actions lists ---
+        for (ItemEntry item : entry.getItemEntries()) {
+            validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
+        }
+        for (NamedLockEntry tag : entry.getTagEntries()) {
+            validateLockActions(tag.getLockActions(), stageId, tag.getId(), "tags");
+        }
+        for (NamedLockEntry mod : entry.getModEntries()) {
+            validateLockActions(mod.getLockActions(), stageId, mod.getId(), "mods");
+        }
+
         if (entry.getDisplayName().equals("Unknown Stage")) {
             addMessage(MessageLevel.WARN, "Individual stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
         }
@@ -1201,7 +1291,7 @@ public class StageManager {
 
     public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
         List<String> allFoundStages = new ArrayList<>();
-        Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+        Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
             String stageName = entry.getKey();
@@ -1226,10 +1316,9 @@ public class StageManager {
                     match = true;
                 }
             }
-            if (!match && item != null && data.getTags() != null) {
-                for (String tagId : data.getTags()) {
-                    var tagKey = net.minecraft.tags.TagKey.create(Registries.ITEM, ResourceLocation.parse(tagId));
-                    if (item.builtInRegistryHolder().is(tagKey)) {
+            if (!match && item != null) {
+                for (NamedLockEntry tagEntry : data.getTagEntries()) {
+                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
                         match = true;
                         break;
                     }
