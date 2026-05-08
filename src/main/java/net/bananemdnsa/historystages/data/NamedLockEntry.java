@@ -12,8 +12,16 @@ import java.util.List;
  * A named entry (tag or mod ID) with an optional list of locked actions.
  * When lockActions is null, all actions are locked (default behaviour).
  * When lockActions is an empty list, no actions are locked.
+ *
+ * In JSON the field is written as {@code unlock_actions} (the complement — actions that are
+ * NOT locked). {@code null} / no field means all actions are locked.
  */
 public class NamedLockEntry {
+
+    /** Canonical ordered list of all recognised lock actions. */
+    public static final List<String> ALL_ACTIONS = List.of(
+            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
+    );
 
     private final String id;
     private final List<String> lockActions; // null = all actions locked, empty = none locked
