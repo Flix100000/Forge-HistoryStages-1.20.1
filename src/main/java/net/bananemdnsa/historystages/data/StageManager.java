@@ -321,7 +321,7 @@ public class StageManager {
             }
         }
 
-        // --- Lock actions: validate per-entry lock_actions lists ---
+        // --- Lock actions: validate per-entry unlock_actions lists ---
         for (ItemEntry item : entry.getItemEntries()) {
             validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
         }
@@ -501,7 +501,8 @@ public class StageManager {
     }
 
     /**
-     * Validates a single lock_actions list: reports unknown actions and duplicates without modifying the list.
+     * Validates a single lock-actions list (internal representation — locked actions):
+     * reports unknown actions and duplicates without modifying the list.
      */
     private static void validateLockActions(List<String> actions, String stageId, String entryId, String fieldPath) {
         if (actions == null || actions.isEmpty()) return;
@@ -509,9 +510,9 @@ public class StageManager {
         // Unknown actions
         for (String action : actions) {
             if (action == null || !KNOWN_LOCK_ACTIONS.contains(action)) {
-                addMessage(MessageLevel.WARN, "Unknown lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+                addMessage(MessageLevel.WARN, "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
                 DebugLogger.warn("Invalid Lock Actions",
-                        "Unknown lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + "). Known actions: " + KNOWN_LOCK_ACTIONS + ".");
+                        "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + "). Known actions: " + KNOWN_LOCK_ACTIONS + ".");
             }
         }
 
@@ -520,7 +521,7 @@ public class StageManager {
         for (String action : actions) {
             if (!seen.add(action)) {
                 DebugLogger.info("Duplicates",
-                        "Duplicate lock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+                        "Duplicate unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
             }
         }
     }
@@ -773,8 +774,8 @@ public class StageManager {
     /**
      * Checks whether a specific lock action applies to an item in the given stage entry.
      * Returns true when the item matches this stage AND the action is restricted
-     * (either because no lock_actions list is set — all actions locked — or because
-     * the action is explicitly listed).
+     * (either because no unlock_actions field is set — all actions locked — or because
+     * the action is NOT in the unlock_actions list).
      * Returns false when the item does not match this stage at all.
      */
     public static boolean isItemActionLockedForStage(String itemId, String modId,
@@ -806,6 +807,12 @@ public class StageManager {
         return false;
     }
 
+    /**
+     * Returns true when the action should be blocked:
+     * null = all actions locked (default, no unlock_actions field in JSON).
+     * empty list = no actions locked (all unlocked).
+     * non-empty list = only the listed actions are locked.
+     */
     private static boolean isActionInList(List<String> lockActions, String action) {
         if (lockActions == null) return true;
         return lockActions.contains(action);
@@ -1148,7 +1155,7 @@ public class StageManager {
             return false;
         });
 
-        // --- Lock actions: validate per-entry lock_actions lists ---
+        // --- Lock actions: validate per-entry unlock_actions lists ---
         for (ItemEntry item : entry.getItemEntries()) {
             validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
         }
