@@ -3,6 +3,8 @@ package net.bananemdnsa.historystages.util;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
+import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.minecraftforge.fml.ModList;
@@ -129,9 +131,9 @@ public class DebugLogger {
             int totalRecipes = 0, totalDimensions = 0, totalStructures = 0;
             int totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
-                totalItems += entry.getAllItemIds().size();
-                totalTags += entry.getTags().size();
-                totalMods += entry.getMods().size();
+                totalItems += entry.getItemEntries().size();
+                totalTags += entry.getTagEntries().size();
+                totalMods += entry.getModEntries().size();
                 totalModExceptions += entry.getAllModExceptionIds().size();
                 totalRecipes += entry.getRecipes().size();
                 totalDimensions += entry.getDimensions().size();
@@ -260,7 +262,7 @@ public class DebugLogger {
         List<String> spawnlock = ent.getSpawnlock();
         List<String> entModLinked = ent.getModLinked();
 
-        int entryCount = s.getAllItemIds().size() + s.getTags().size() + s.getMods().size()
+        int entryCount = s.getItemEntries().size() + s.getTagEntries().size() + s.getModEntries().size()
                 + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
                 + structures.size() + attacklock.size() + spawnlock.size();
 
@@ -270,9 +272,9 @@ public class DebugLogger {
         if (s.getIcon() != null) pw.println("  Icon: " + s.getIcon());
         pw.println("  Total entries: " + entryCount);
 
-        printList(pw, "Items", s.getAllItemIds());
-        printList(pw, "Tags", s.getTags());
-        printList(pw, "Mods", s.getMods());
+        printItemEntries(pw, "Items", s.getItemEntries());
+        printNamedLockEntries(pw, "Tags", s.getTagEntries());
+        printNamedLockEntries(pw, "Mods", s.getModEntries());
         if (!modExceptions.isEmpty()) printList(pw, "Mod Exceptions", modExceptions);
         printList(pw, "Recipes", s.getRecipes());
         printList(pw, "Dimensions", s.getDimensions());
@@ -318,6 +320,27 @@ public class DebugLogger {
         pw.println("  " + label + " (" + list.size() + "):");
         for (String entry : list) {
             pw.println("    - " + entry);
+        }
+    }
+
+    private static void printItemEntries(PrintWriter pw, String label, List<ItemEntry> items) {
+        if (items == null || items.isEmpty()) return;
+        pw.println("  " + label + " (" + items.size() + "):");
+        for (ItemEntry entry : items) {
+            StringBuilder sb = new StringBuilder("    - ").append(entry.getId());
+            if (entry.hasNbt()) sb.append(" [nbt]");
+            if (entry.hasLockActions()) sb.append(" [lock: ").append(String.join(", ", entry.getLockActions())).append("]");
+            pw.println(sb.toString());
+        }
+    }
+
+    private static void printNamedLockEntries(PrintWriter pw, String label, List<NamedLockEntry> entries) {
+        if (entries == null || entries.isEmpty()) return;
+        pw.println("  " + label + " (" + entries.size() + "):");
+        for (NamedLockEntry entry : entries) {
+            StringBuilder sb = new StringBuilder("    - ").append(entry.getId());
+            if (entry.hasLockActions()) sb.append(" [lock: ").append(String.join(", ", entry.getLockActions())).append("]");
+            pw.println(sb.toString());
         }
     }
 

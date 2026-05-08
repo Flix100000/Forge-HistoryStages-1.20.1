@@ -4,39 +4,38 @@ import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
-import com.google.gson.internal.Streams;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
+/**
+ * Gson adapter for List<NamedLockEntry> that supports both the compact
+ * string format ("minecraft:swords") and the full object format
+ * ({ "id": "minecraft:swords", "lock_actions": ["use", "attack"] }).
+ * Entries without lock_actions are written as plain strings.
+ */
+public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>> {
 
     @Override
-    public void write(JsonWriter out, List<ItemEntry> entries) throws IOException {
+    public void write(JsonWriter out, List<NamedLockEntry> entries) throws IOException {
         if (entries == null) {
             out.nullValue();
             return;
         }
         out.beginArray();
-        for (ItemEntry entry : entries) {
-            if (!entry.hasNbt() && !entry.hasLockActions()) {
+        for (NamedLockEntry entry : entries) {
+            if (!entry.hasLockActions()) {
                 out.value(entry.getId());
             } else {
                 out.beginObject();
                 out.name("id").value(entry.getId());
-                if (entry.hasNbt()) {
-                    out.name("nbt");
-                    Streams.write(entry.getNbt(), out);
+                out.name("lock_actions");
+                out.beginArray();
+                for (String action : entry.getLockActions()) {
+                    out.value(action);
                 }
-                if (entry.hasLockActions()) {
-                    out.name("lock_actions");
-                    out.beginArray();
-                    for (String action : entry.getLockActions()) {
-                        out.value(action);
-                    }
-                    out.endArray();
-                }
+                out.endArray();
                 out.endObject();
             }
         }
@@ -44,20 +43,19 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
     }
 
     @Override
-    public List<ItemEntry> read(JsonReader in) throws IOException {
+    public List<NamedLockEntry> read(JsonReader in) throws IOException {
         if (in.peek() == JsonToken.NULL) {
             in.nextNull();
             return new ArrayList<>();
         }
-        List<ItemEntry> entries = new ArrayList<>();
+        List<NamedLockEntry> entries = new ArrayList<>();
         in.beginArray();
         while (in.hasNext()) {
             if (in.peek() == JsonToken.STRING) {
-                entries.add(new ItemEntry(in.nextString()));
+                entries.add(new NamedLockEntry(in.nextString()));
             } else {
                 JsonObject obj = JsonParser.parseReader(in).getAsJsonObject();
                 String id = obj.has("id") ? obj.get("id").getAsString() : "";
-                JsonObject nbt = obj.has("nbt") ? obj.getAsJsonObject("nbt") : null;
                 List<String> lockActions = null;
                 if (obj.has("lock_actions") && obj.get("lock_actions").isJsonArray()) {
                     lockActions = new ArrayList<>();
@@ -65,7 +63,7 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
                         lockActions.add(el.getAsString());
                     }
                 }
-                entries.add(new ItemEntry(id, nbt, lockActions));
+                entries.add(new NamedLockEntry(id, lockActions));
             }
         }
         in.endArray();

@@ -97,6 +97,112 @@ public class StageLockHelper {
         return false;
     }
 
+    // =============================================
+    // ACTION-SPECIFIC SERVER-SIDE CHECKS
+    // =============================================
+
+    /**
+     * Checks if a specific action is locked for an item in any locked global stage.
+     * Server-side only.
+     */
+    public static boolean isActionLockedForPlayer(ItemStack stack, UUID playerUuid, String action) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+                : StageManager.getStages().entrySet()) {
+            if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a specific action is locked for an item in any locked global stage.
+     * Server-side only. Does not require a player UUID — uses the global SERVER_CACHE.
+     * Used for loot/recipe checks where no player context is available.
+     */
+    public static boolean isActionLockedForServer(ItemStack stack, String action) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+                : StageManager.getStages().entrySet()) {
+            if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a specific action is locked for an item in any locked individual stage for this player.
+     * Server-side only.
+     */
+    public static boolean isActionLockedByIndividualStage(ItemStack stack, UUID playerUuid, String action) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        Set<String> playerStages = IndividualStageData.SERVER_CACHE
+                .getOrDefault(playerUuid, Collections.emptySet());
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+                : StageManager.getIndividualStages().entrySet()) {
+            if (playerStages.contains(e.getKey())) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        }
+        return false;
+    }
+
+    // =============================================
+    // ACTION-SPECIFIC CLIENT-SIDE CHECKS
+    // =============================================
+
+    /**
+     * Checks if a specific action is locked for an item in any locked global stage.
+     * Client-side only.
+     */
+    public static boolean isActionLockedForClient(ItemStack stack, String action) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+                : StageManager.getStages().entrySet()) {
+            if (ClientStageCache.isStageUnlocked(e.getKey())) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a specific action is locked for an item in any locked individual stage.
+     * Client-side only.
+     */
+    public static boolean isActionLockedByIndividualStageClient(ItemStack stack, String action) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+                : StageManager.getIndividualStages().entrySet()) {
+            if (ClientIndividualStageCache.isStageUnlocked(e.getKey())) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        }
+        return false;
+    }
+
     /**
      * Checks if a dimension is locked for a specific player (global OR individual).
      * Server-side only.

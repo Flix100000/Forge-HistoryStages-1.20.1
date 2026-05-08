@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -24,7 +25,12 @@ public class RecipeHandler {
 
         if (result.isEmpty()) return false;
 
-        return StageManager.isItemLocked(result, isClientSide);
+        // Respects lock_actions["recipe"]: if "recipe" is explicitly allowed, the recipe stays visible/craftable
+        if (isClientSide) {
+            return StageLockHelper.isActionLockedForClient(result, "recipe");
+        } else {
+            return StageLockHelper.isActionLockedForServer(result, "recipe");
+        }
     }
 
     /** Overload without side info — defaults to server-side check. */

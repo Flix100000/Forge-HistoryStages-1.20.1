@@ -1,9 +1,6 @@
 package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
-import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -11,9 +8,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.client.IItemDecorator;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.registries.ForgeRegistries;
-
-import java.util.List;
 
 public class LockDecorator implements IItemDecorator {
     private static final ResourceLocation LOCK_ICON            = new ResourceLocation("historystages", "textures/gui/lock_overlay_global.png");
@@ -58,21 +52,10 @@ public class LockDecorator implements IItemDecorator {
     }
 
     private boolean isGloballyLocked(ItemStack stack) {
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (res == null) return false;
-
-        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-        if (requiredStages.isEmpty()) return false;
-
-        for (String stage : requiredStages) {
-            if (!ClientStageCache.isStageUnlocked(stage)) {
-                return true;
-            }
-        }
-        return false;
+        return StageLockHelper.isActionLockedForClient(stack, "icon");
     }
 
     private boolean isIndividuallyLocked(ItemStack stack) {
-        return StageLockHelper.isItemLockedByIndividualStageClient(stack);
+        return StageLockHelper.isActionLockedByIndividualStageClient(stack, "icon");
     }
 }

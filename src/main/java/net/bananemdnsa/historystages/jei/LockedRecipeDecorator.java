@@ -76,7 +76,7 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
             var displayed = slot.getDisplayedItemStack();
             if (displayed.isPresent()) {
                 ItemStack stack = displayed.get();
-                if (!stack.isEmpty() && StageLockHelper.isItemLockedForClient(stack)) {
+                if (!stack.isEmpty() && StageLockHelper.isActionLockedForClient(stack, "recipe")) {
                     return true;
                 }
             }
