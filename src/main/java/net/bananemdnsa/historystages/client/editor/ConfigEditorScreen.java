@@ -966,6 +966,7 @@ public class ConfigEditorScreen extends Screen {
                             }
                             itemOverlay = null;
                         });
+                        itemOverlay.setMultiSelect(true);
                         itemOverlay.show(this.width / 2, this.height / 2, this.width);
                     }, this.width / 2 - 50, this.height - 30, 100, 20));
 
