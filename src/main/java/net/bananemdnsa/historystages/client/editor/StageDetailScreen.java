@@ -408,10 +408,13 @@ public class StageDetailScreen extends Screen {
         });
 
         itemSearch = new SearchableItemList(itemId -> {
-            getActiveList().add(itemId);
-            hasChanges = true;
+            if (!getActiveList().contains(itemId)) {
+                getActiveList().add(itemId);
+                hasChanges = true;
+            }
             updateMaxScroll();
         });
+        itemSearch.setMultiSelect(true);
 
         modExceptionSearch = createModExceptionSearch();
 
@@ -2514,10 +2517,13 @@ public class StageDetailScreen extends Screen {
                 getListForSection(tabIdx).set(entryIdx, itemId);
                 hasChanges = true;
                 itemSearch = new SearchableItemList(id -> {
-                    getActiveList().add(id);
-                    hasChanges = true;
+                    if (!getActiveList().contains(id)) {
+                        getActiveList().add(id);
+                        hasChanges = true;
+                    }
                     updateMaxScroll();
                 });
+                itemSearch.setMultiSelect(true);
             });
             itemSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 1) {
@@ -2647,10 +2653,13 @@ public class StageDetailScreen extends Screen {
 
     private SearchableItemList createModExceptionSearch() {
         SearchableItemList search = new SearchableItemList(itemId -> {
-            editModExceptions.add(itemId);
-            hasChanges = true;
+            if (!editModExceptions.contains(itemId)) {
+                editModExceptions.add(itemId);
+                hasChanges = true;
+            }
             updateMaxScroll();
         });
+        search.setMultiSelect(true);
         search.setModFilter(new java.util.HashSet<>(editMods));
         return search;
     }
