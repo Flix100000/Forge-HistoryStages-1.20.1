@@ -1049,10 +1049,13 @@ public class NbtItemEditScreen extends Screen {
             int centerX = this.width / 2;
             int centerY = this.height / 2 - 30;
 
-            inputField = new EditBox(this.font, centerX - 120, centerY, 240, 20, Component.literal(title));
+            // EditBox with bordered=false draws text at its y; shift +6 to vertically center in the 20px bg.
+            inputField = new EditBox(this.font, centerX - 120 + 4, centerY + 6, 240 - 4, 20, Component.literal(title));
             inputField.setMaxLength(512);
             inputField.setValue(currentValue);
             inputField.setBordered(false);
+            inputField.setTextColor(0xFFFFFF);
+            inputField.moveCursorToEnd();
             inputField.setResponder(val -> {
                 updateSuggestions(val);
                 suggestionScroll = 0;
@@ -1060,14 +1063,17 @@ public class NbtItemEditScreen extends Screen {
             this.addRenderableWidget(inputField);
             this.setFocused(inputField);
 
+            int btnY = centerY + 26
+                    + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT
+                    + 6;
             this.addRenderableWidget(StyledButton.of(
                     Component.literal("OK"),
                     btn -> confirm(),
-                    centerX - 50,
-                    centerY + 26
-                            + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT
-                            + 6,
-                    100, 20));
+                    centerX - 105, btnY, 100, 20));
+            this.addRenderableWidget(StyledButton.of(
+                    Component.literal("Cancel"),
+                    btn -> this.minecraft.setScreen(parent),
+                    centerX + 5, btnY, 100, 20));
 
             updateSuggestions(currentValue);
         }
@@ -1102,14 +1108,15 @@ public class NbtItemEditScreen extends Screen {
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
 
-            g.drawString(this.font, title, dlgX + 10, dlgY + 8, 0xFFCC00);
+            g.drawCenteredString(this.font, title, centerX, dlgY + 10, 0xFFCC00);
 
-            // Input field background
+            // Input field background — focus-aware border
             int fieldX = centerX - 120;
             int fieldY = centerY;
             int fieldW = 240;
             int fieldH = 20;
-            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + fieldH + 1, 0xFF4A4A4A);
+            int borderColor = inputField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
+            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + fieldH + 1, borderColor);
             g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, 0xFF0D0D0D);
 
             // Suggestions list
@@ -1251,23 +1258,29 @@ public class NbtItemEditScreen extends Screen {
             int centerX = this.width / 2;
             int centerY = this.height / 2;
 
-            keyField = new EditBox(this.font, centerX - 120, centerY - 24, 240, 20, Component.literal("Key"));
+            keyField = new EditBox(this.font, centerX - 120 + 4, centerY - 14 + 6, 240 - 4, 20, Component.literal("Key"));
             keyField.setMaxLength(128);
-            keyField.setHint(Component.literal("NBT Key..."));
+            keyField.setHint(Component.literal("e.g. CustomModelData"));
             keyField.setBordered(false);
+            keyField.setTextColor(0xFFFFFF);
             this.addRenderableWidget(keyField);
             this.setFocused(keyField);
 
-            valueField = new EditBox(this.font, centerX - 120, centerY + 2, 240, 20, Component.literal("Value"));
+            valueField = new EditBox(this.font, centerX - 120 + 4, centerY + 30 + 6, 240 - 4, 20, Component.literal("Value"));
             valueField.setMaxLength(512);
-            valueField.setHint(Component.literal("Value..."));
+            valueField.setHint(Component.literal("value"));
             valueField.setBordered(false);
+            valueField.setTextColor(0xFFFFFF);
             this.addRenderableWidget(valueField);
 
             this.addRenderableWidget(StyledButton.of(
                     Component.literal("OK"),
                     btn -> confirm(),
-                    centerX - 50, centerY + 30, 100, 20));
+                    centerX - 105, centerY + 60, 100, 20));
+            this.addRenderableWidget(StyledButton.of(
+                    Component.literal("Cancel"),
+                    btn -> this.minecraft.setScreen(parent),
+                    centerX + 5, centerY + 60, 100, 20));
         }
 
         @Override
@@ -1277,22 +1290,26 @@ public class NbtItemEditScreen extends Screen {
             int centerY = this.height / 2;
 
             int dlgW = 280;
-            int dlgH = 110;
+            int dlgH = 160;
             int dlgX = centerX - dlgW / 2;
             int dlgY = centerY - dlgH / 2;
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
 
-            g.drawString(this.font, "Custom NBT Key", dlgX + 10, dlgY + 8, 0xFFCC00);
+            g.drawCenteredString(this.font, "Custom NBT Key", centerX, dlgY + 10, 0xFFCC00);
 
-            // keyField background
-            int kx = centerX - 120, ky = centerY - 24, kw = 240, kh = 20;
-            g.fill(kx - 1, ky - 1, kx + kw + 1, ky + kh + 1, 0xFF4A4A4A);
+            // Key label + field
+            g.drawString(this.font, "Key", centerX - 120, centerY - 26, 0x999999);
+            int kx = centerX - 120, ky = centerY - 14, kw = 240, kh = 20;
+            int kBorder = keyField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
+            g.fill(kx - 1, ky - 1, kx + kw + 1, ky + kh + 1, kBorder);
             g.fill(kx, ky, kx + kw, ky + kh, 0xFF0D0D0D);
 
-            // valueField background
-            int vx = centerX - 120, vy = centerY + 2, vw = 240, vh = 20;
-            g.fill(vx - 1, vy - 1, vx + vw + 1, vy + vh + 1, 0xFF4A4A4A);
+            // Value label + field
+            g.drawString(this.font, "Value", centerX - 120, centerY + 18, 0x999999);
+            int vx = centerX - 120, vy = centerY + 30, vw = 240, vh = 20;
+            int vBorder = valueField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
+            g.fill(vx - 1, vy - 1, vx + vw + 1, vy + vh + 1, vBorder);
             g.fill(vx, vy, vx + vw, vy + vh, 0xFF0D0D0D);
 
             super.render(g, mouseX, mouseY, partialTick);
