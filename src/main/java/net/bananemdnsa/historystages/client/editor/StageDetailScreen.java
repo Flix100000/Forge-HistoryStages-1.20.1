@@ -413,7 +413,7 @@ public class StageDetailScreen extends Screen {
                 hasChanges = true;
             }
             updateMaxScroll();
-        });
+        }, () -> getActiveList());
         itemSearch.setMultiSelect(true);
 
         modExceptionSearch = createModExceptionSearch();
@@ -484,7 +484,8 @@ public class StageDetailScreen extends Screen {
         });
 
         modSearch = new SearchableModList(modId -> {
-            editMods.add(modId);
+            if (!editMods.contains(modId))
+                editMods.add(modId);
             hasChanges = true;
             updateMaxScroll();
             pendingModId = modId;
@@ -497,39 +498,44 @@ public class StageDetailScreen extends Screen {
                 modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
                         editStructures);
             }
-        });
+        }, () -> editMods);
 
         entitySearch = new SearchableEntityList(entityId -> {
-            getActiveList().add(entityId);
+            if (!getActiveList().contains(entityId))
+                getActiveList().add(entityId);
             hasChanges = true;
             updateMaxScroll();
-        });
+        }, () -> getActiveList());
 
         tagSearch = new SearchableTagList(tagId -> {
-            editTags.add(tagId);
+            if (!editTags.contains(tagId))
+                editTags.add(tagId);
             hasChanges = true;
             updateMaxScroll();
-        });
+        }, () -> editTags);
 
         dimensionSearch = new SearchableDimensionList(dimId -> {
-            editDimensions.add(dimId);
+            if (!editDimensions.contains(dimId))
+                editDimensions.add(dimId);
             hasChanges = true;
             updateMaxScroll();
-        });
+        }, () -> editDimensions);
 
         structureSearch = new SearchableStructureList(structId -> {
-            editStructures.add(structId);
+            if (!editStructures.contains(structId))
+                editStructures.add(structId);
             hasChanges = true;
             updateMaxScroll();
-        });
+        }, () -> editStructures);
 
         recipeSearch = new SearchableRecipeList(recipeId -> {
             showRecipePreview(recipeId, () -> {
-                editRecipes.add(recipeId);
+                if (!editRecipes.contains(recipeId))
+                    editRecipes.add(recipeId);
                 hasChanges = true;
                 updateMaxScroll();
             });
-        });
+        }, () -> editRecipes);
         recipeSearch.setKeepVisibleOnSelect(true);
 
         contextMenu = new ContextMenu();
@@ -2658,7 +2664,7 @@ public class StageDetailScreen extends Screen {
                 hasChanges = true;
             }
             updateMaxScroll();
-        });
+        }, () -> editModExceptions);
         search.setMultiSelect(true);
         search.setModFilter(new java.util.HashSet<>(editMods));
         return search;
