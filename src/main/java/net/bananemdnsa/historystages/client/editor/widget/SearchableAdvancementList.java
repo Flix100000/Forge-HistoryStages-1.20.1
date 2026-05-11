@@ -1,17 +1,18 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
-import net.minecraft.advancements.AdvancementNode;
+import net.minecraft.advancements.Advancement;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Searchable overlay list of all known advancements.
@@ -20,22 +21,20 @@ import java.util.function.Consumer;
 public class SearchableAdvancementList {
     private static final int ROW_HEIGHT = 16;
     private static final int VISIBLE_ROWS = 10;
-    private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
     private static final int PANEL_WIDTH = 300;
 
     private final List<String> allAdvancements = new ArrayList<>();
     private final List<String> filteredAdvancements = new ArrayList<>();
     private final Consumer<String> onSelect;
+    private final Supplier<Collection<String>> alreadyAddedSupplier;
+    private final SearchBar searchBar;
 
     private int panelX, panelY, panelW, panelH;
     private boolean visible = false;
     private int scrollRow = 0;
     private int maxScrollRow = 0;
-    private String filter = "";
-    private boolean searchFocused = true;
     private boolean draggingScrollbar = false;
-    private boolean allSelected = false;
 
     // Marquee
     private int hoveredRow = -1;
@@ -44,7 +43,18 @@ public class SearchableAdvancementList {
     private static final float MARQUEE_SPEED = 25.0f;
 
     public SearchableAdvancementList(Consumer<String> onSelect) {
+        this(onSelect, null);
+    }
+
+    public SearchableAdvancementList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
+        this.alreadyAddedSupplier = alreadyAddedSupplier;
+        this.searchBar = new SearchBar("Search advancements...").onChange(this::applyFilter);
+        if (alreadyAddedSupplier != null) {
+            searchBar.filters().addOption("hide_added", "Hide already added", null);
+        }
+        searchBar.filters().addOption("only_vanilla", "Only vanilla", "source");
+        searchBar.filters().addOption("only_modded", "Only modded", "source");
         rebuildList();
     }
 
@@ -53,11 +63,11 @@ public class SearchableAdvancementList {
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         if (connection != null) {
             try {
-                // In 1.21, advancements are exposed via AdvancementTree and AdvancementNode
-                for (AdvancementNode node : connection.getAdvancements().getTree().nodes()) {
+                for (net.minecraft.advancements.AdvancementNode node : connection.getAdvancements().getTree().nodes()) {
                     allAdvancements.add(node.holder().id().toString());
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         allAdvancements.sort(String::compareToIgnoreCase);
     }
@@ -65,34 +75,58 @@ public class SearchableAdvancementList {
     public void show(int centerX, int centerY, int parentWidth) {
         rebuildList();
         panelW = PANEL_WIDTH;
-        panelH = SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
+        panelH = SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
-        this.filter = "";
-        this.searchFocused = true;
-        setFilter("");
+        searchBar.setFocused(true);
+        searchBar.setText("");
     }
 
-    public void hide() { this.visible = false; }
-    public boolean isVisible() { return visible; }
+    public void hide() {
+        this.visible = false;
+    }
+
+    public boolean isVisible() {
+        return visible;
+    }
 
     public void setFilter(String filter) {
-        this.filter = filter.toLowerCase();
+        searchBar.setText(filter);
+    }
+
+    private void applyFilter(String filter) {
         this.scrollRow = 0;
         filteredAdvancements.clear();
-        if (this.filter.isEmpty()) {
-            filteredAdvancements.addAll(allAdvancements);
-        } else {
-            for (String adv : allAdvancements) {
-                if (adv.toLowerCase().contains(this.filter)) filteredAdvancements.add(adv);
+        for (String adv : allAdvancements) {
+            if (!matchesDropdownFilters(adv))
+                continue;
+            if (filter.isEmpty() || adv.toLowerCase().contains(filter)) {
+                filteredAdvancements.add(adv);
             }
         }
         updateMaxScroll();
+    }
+
+    private boolean matchesDropdownFilters(String id) {
+        if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
+            Collection<String> added = alreadyAddedSupplier.get();
+            if (added != null && added.contains(id))
+                return false;
+        }
+        String namespace = id.contains(":") ? id.substring(0, id.indexOf(':')) : "";
+        boolean isVanilla = "minecraft".equals(namespace);
+        if (searchBar.filters().isActive("only_vanilla") && !isVanilla)
+            return false;
+        if (searchBar.filters().isActive("only_modded") && isVanilla)
+            return false;
+        return true;
     }
 
     private void updateMaxScroll() {
@@ -100,47 +134,34 @@ public class SearchableAdvancementList {
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
         int searchX = panelX + PADDING;
         int searchY = panelY + PADDING;
-        int searchW = panelW - PADDING * 2;
-        guiGraphics.fill(searchX - 1, searchY - 1, searchX + searchW + 1, searchY + SEARCH_HEIGHT + 1, 0xFF4A4A4A);
-        guiGraphics.fill(searchX, searchY, searchX + searchW, searchY + SEARCH_HEIGHT, 0xFF0D0D0D);
-
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "\u00A77Search advancements..." : filter;
-
-        if (allSelected && !filter.isEmpty()) {
-            int textW = font.width(filter);
-            guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
-        }
-
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF, false);
-
-        if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
-            guiGraphics.fill(cursorX, searchY + 4, cursorX + 1, searchY + SEARCH_HEIGHT - 4, 0xFFFFFFFF);
-        }
-        guiGraphics.pose().popPose();
+        searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
+        searchBar.render(guiGraphics, font, mouseX, mouseY);
 
         int listX = panelX + PADDING;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
+        boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         boolean anyRowHovered = false;
+
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
-            boolean rowHovered = mouseX >= listX && mouseX < listX + listW
+            boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered) anyRowHovered = true;
-            guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT, rowHovered ? 0xFF353535 : 0xFF252525);
+            if (rowHovered)
+                anyRowHovered = true;
+            guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
+                    rowHovered ? 0xFF353535 : 0xFF252525);
 
             if (index < filteredAdvancements.size()) {
                 String text = filteredAdvancements.get(index);
@@ -148,9 +169,11 @@ public class SearchableAdvancementList {
                 int textAvailW = listW - 6;
                 int textColor = rowHovered ? 0xFFFFFF : 0xBBBBBB;
 
-                if (rowHovered && hoveredRow != index) {
-                    hoveredRow = index;
-                    hoverStartTime = System.currentTimeMillis();
+                if (rowHovered) {
+                    if (hoveredRow != index) {
+                        hoveredRow = index;
+                        hoverStartTime = System.currentTimeMillis();
+                    }
                 }
 
                 if (textW > textAvailW && rowHovered && hoveredRow == index) {
@@ -165,16 +188,19 @@ public class SearchableAdvancementList {
                         guiGraphics.drawString(font, text, listX + 3 - scrollOff, rowY + 4, textColor, false);
                         guiGraphics.disableScissor();
                     } else {
-                        guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3, rowY + 4, textColor, false);
+                        guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                                rowY + 4, textColor, false);
                     }
                 } else if (textW > textAvailW) {
-                    guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3, rowY + 4, textColor, false);
+                    guiGraphics.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...", listX + 3,
+                            rowY + 4, textColor, false);
                 } else {
                     guiGraphics.drawString(font, text, listX + 3, rowY + 4, textColor, false);
                 }
             }
         }
-        if (!anyRowHovered) hoveredRow = -1;
+        if (!anyRowHovered)
+            hoveredRow = -1;
 
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -182,21 +208,26 @@ public class SearchableAdvancementList {
             int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-            int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
+            int thumbHeight = Math.max(10,
+                    (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
+        if (searchBar.mouseClicked(mouseX, mouseY))
+            return true;
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
-            hide(); return true;
+            hide();
+            return true;
         }
 
         if (maxScrollRow > 0) {
             int searchY = panelY + PADDING;
-            int listY = searchY + SEARCH_HEIGHT + PADDING;
+            int listY = searchY + SearchBar.HEIGHT + PADDING;
             int listW = panelW - PADDING * 2 - 8;
             int scrollBarX = panelX + PADDING + listW + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
@@ -209,7 +240,7 @@ public class SearchableAdvancementList {
 
         int searchY = panelY + PADDING;
         int listX = panelX + PADDING;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
         for (int i = 0; i < VISIBLE_ROWS; i++) {
@@ -217,26 +248,31 @@ public class SearchableAdvancementList {
             int rowY = listY + i * ROW_HEIGHT;
             if (index < filteredAdvancements.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(filteredAdvancements.get(index));
                 hide();
                 return true;
             }
         }
-        searchFocused = true;
+        searchBar.setFocused(true);
         return true;
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar) return false;
+        if (!visible || !draggingScrollbar)
+            return false;
         int searchY = panelY + PADDING;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         updateScrollFromMouse(mouseY, listY);
         return true;
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) { draggingScrollbar = false; return true; }
+        if (draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
         return false;
     }
 
@@ -253,8 +289,10 @@ public class SearchableAdvancementList {
         }
     }
 
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible) return false;
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        double delta = scrollY;
+        if (!visible)
+            return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
@@ -263,30 +301,20 @@ public class SearchableAdvancementList {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible || !searchFocused) return false;
-        if (keyCode == 256) { hide(); return true; }
-        if (keyCode == 259) {
-            if (allSelected) { allSelected = false; setFilter(""); }
-            else if (!filter.isEmpty()) setFilter(filter.substring(0, filter.length() - 1));
+        if (!visible)
+            return false;
+        if (searchBar.keyPressed(keyCode))
             return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 65) { if (!filter.isEmpty()) allSelected = true; return true; }
-        if (Screen.hasControlDown() && keyCode == 67) { if (!filter.isEmpty()) Minecraft.getInstance().keyboardHandler.setClipboard(filter); return true; }
-        if (Screen.hasControlDown() && keyCode == 86) {
-            String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
-            if (clipboard != null && !clipboard.isEmpty()) { setFilter(allSelected ? clipboard : filter + clipboard); allSelected = false; }
+        if (keyCode == 256) {
+            hide();
             return true;
         }
         return false;
     }
 
     public boolean charTyped(char c) {
-        if (!visible || !searchFocused) return false;
-        if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.' || c == ':' || c == '/' || c == ' ') {
-            setFilter(allSelected ? String.valueOf(c) : filter + c);
-            allSelected = false;
-            return true;
-        }
-        return false;
+        if (!visible)
+            return false;
+        return searchBar.charTyped(c);
     }
 }

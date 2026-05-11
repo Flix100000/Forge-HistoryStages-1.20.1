@@ -3,18 +3,15 @@ package net.bananemdnsa.historystages.client.editor.widget;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
@@ -25,10 +22,12 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import org.joml.Quaternionf;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Searchable list of all registered LivingEntity types with 3D preview.
@@ -38,7 +37,6 @@ public class SearchableEntityList {
     private static final int SLOT_SIZE = 18;
     private static final int ROW_HEIGHT = 20;
     private static final int VISIBLE_ROWS = 8;
-    private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
     private static final int PANEL_WIDTH = 260;
     private static final int TAB_HEIGHT = 14;
@@ -48,6 +46,8 @@ public class SearchableEntityList {
     private final List<EntityEntry> allEntities = new ArrayList<>();
     private final List<EntityEntry> filteredEntities = new ArrayList<>();
     private final Consumer<String> onSelect;
+    private final Supplier<Collection<String>> alreadyAddedSupplier;
+    private final SearchBar searchBar;
 
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
 
@@ -56,10 +56,7 @@ public class SearchableEntityList {
     private boolean visible = false;
     private int scrollRow = 0;
     private int maxScrollRow = 0;
-    private String filter = "";
-    private boolean searchFocused = true;
     private boolean draggingScrollbar = false;
-    private boolean allSelected = false;
 
     private boolean inventoryMode = false;
     private int selectedInventorySlot = -1;
@@ -73,7 +70,18 @@ public class SearchableEntityList {
     private float addHoverProgress = 0.0f;
 
     public SearchableEntityList(Consumer<String> onSelect) {
+        this(onSelect, null);
+    }
+
+    public SearchableEntityList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
+        this.alreadyAddedSupplier = alreadyAddedSupplier;
+        this.searchBar = new SearchBar("Search entities...").onChange(this::applyFilter);
+        if (alreadyAddedSupplier != null) {
+            searchBar.filters().addOption("hide_added", "Hide already added", null);
+        }
+        searchBar.filters().addOption("only_vanilla", "Only vanilla", "source");
+        searchBar.filters().addOption("only_modded", "Only modded", "source");
 
         for (EntityType<?> entityType : BuiltInRegistries.ENTITY_TYPE) {
             ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
@@ -92,7 +100,8 @@ public class SearchableEntityList {
             if (Minecraft.getInstance().level != null) {
                 Entity entity = type.create(Minecraft.getInstance().level);
                 boolean isLiving = entity instanceof LivingEntity;
-                if (entity != null) entity.discard();
+                if (entity != null)
+                    entity.discard();
                 return isLiving;
             }
             return type.getCategory() != net.minecraft.world.entity.MobCategory.MISC;
@@ -102,21 +111,27 @@ public class SearchableEntityList {
     }
 
     private LivingEntity getOrCreateEntity(String entityId) {
-        if (entityCache.containsKey(entityId)) return entityCache.get(entityId);
-        if (Minecraft.getInstance().level == null) return null;
+        if (entityCache.containsKey(entityId))
+            return entityCache.get(entityId);
+        if (Minecraft.getInstance().level == null)
+            return null;
 
         try {
             ResourceLocation rl = ResourceLocation.tryParse(entityId);
-            if (rl == null) return null;
+            if (rl == null)
+                return null;
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
-            if (type == null) return null;
+            if (type == null)
+                return null;
             Entity entity = type.create(Minecraft.getInstance().level);
             if (entity instanceof LivingEntity living) {
                 entityCache.put(entityId, living);
                 return living;
             }
-            if (entity != null) entity.discard();
-        } catch (Exception ignored) {}
+            if (entity != null)
+                entity.discard();
+        } catch (Exception ignored) {
+        }
         entityCache.put(entityId, null);
         return null;
     }
@@ -125,9 +140,11 @@ public class SearchableEntityList {
      * Returns the entity type ID for a spawn egg item, or null if not a spawn egg.
      */
     private String getEntityIdFromSpawnEgg(ItemStack stack) {
-        if (stack.isEmpty() || !(stack.getItem() instanceof SpawnEggItem spawnEgg)) return null;
+        if (stack.isEmpty() || !(stack.getItem() instanceof SpawnEggItem spawnEgg))
+            return null;
         EntityType<?> type = spawnEgg.getType(stack);
-        if (type == null) return null;
+        if (type == null)
+            return null;
         ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(type);
         return key != null ? key.toString() : null;
     }
@@ -137,20 +154,16 @@ public class SearchableEntityList {
         this.centerY = centerY;
         this.visible = true;
         this.scrollRow = 0;
-        this.filter = "";
-        this.searchFocused = true;
+        searchBar.setFocused(true);
         this.inventoryMode = false;
         this.selectedInventorySlot = -1;
         this.tabIndicatorInit = false;
-        filteredEntities.clear();
-        filteredEntities.addAll(allEntities);
-        updateMaxScroll();
+        searchBar.setText("");
         recalcPanelSize();
     }
 
     private void recalcPanelSize() {
         if (inventoryMode) {
-            // Same layout as SearchableItemList inventory mode + entity preview panel on the right
             int gridW = SLOT_SIZE * 9;
             int invPanelW = PADDING + gridW + PADDING + 8;
             int topAreaH = 4 * SLOT_SIZE + 4;
@@ -160,13 +173,11 @@ public class SearchableEntityList {
                     + 3 * SLOT_SIZE + 6
                     + SLOT_SIZE + 6
                     + addButtonH + PADDING;
-
-            // Add preview panel width
             panelW = invPanelW + 4 + PREVIEW_SIZE + PADDING;
             panelH = invPanelH;
         } else {
             panelW = PANEL_WIDTH;
-            panelH = TAB_HEIGHT + 4 + SEARCH_HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
+            panelH = TAB_HEIGHT + 4 + SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
         }
 
         panelX = centerX - panelW / 2;
@@ -177,10 +188,14 @@ public class SearchableEntityList {
     private void clampToScreen() {
         int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        if (panelX < 4) panelX = 4;
-        if (panelY < 4) panelY = 4;
-        if (panelX + panelW > screenW - 4) panelX = screenW - panelW - 4;
-        if (panelY + panelH > screenH - 4) panelY = screenH - panelH - 4;
+        if (panelX < 4)
+            panelX = 4;
+        if (panelY < 4)
+            panelY = 4;
+        if (panelX + panelW > screenW - 4)
+            panelX = screenW - panelW - 4;
+        if (panelY + panelH > screenH - 4)
+            panelY = screenH - panelH - 4;
     }
 
     public void hide() {
@@ -192,19 +207,37 @@ public class SearchableEntityList {
     }
 
     public void setFilter(String filter) {
-        this.filter = filter.toLowerCase();
+        searchBar.setText(filter);
+    }
+
+    private void applyFilter(String filter) {
         this.scrollRow = 0;
         filteredEntities.clear();
-        if (this.filter.isEmpty()) {
-            filteredEntities.addAll(allEntities);
-        } else {
-            for (EntityEntry entry : allEntities) {
-                if (entry.id.contains(this.filter) || entry.searchName.contains(this.filter)) {
-                    filteredEntities.add(entry);
-                }
+        for (EntityEntry entry : allEntities) {
+            if (!matchesDropdownFilters(entry.id))
+                continue;
+            if (filter.isEmpty()
+                    || entry.id.contains(filter)
+                    || entry.searchName.contains(filter)) {
+                filteredEntities.add(entry);
             }
         }
         updateMaxScroll();
+    }
+
+    private boolean matchesDropdownFilters(String id) {
+        if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
+            Collection<String> added = alreadyAddedSupplier.get();
+            if (added != null && added.contains(id))
+                return false;
+        }
+        String namespace = id.contains(":") ? id.substring(0, id.indexOf(':')) : "";
+        boolean isVanilla = "minecraft".equals(namespace);
+        if (searchBar.filters().isActive("only_vanilla") && !isVanilla)
+            return false;
+        if (searchBar.filters().isActive("only_modded") && isVanilla)
+            return false;
+        return true;
     }
 
     private void updateMaxScroll() {
@@ -215,12 +248,10 @@ public class SearchableEntityList {
         }
     }
 
-    // --- Rendering ---
-
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible) return;
+        if (!visible)
+            return;
 
-        // Panel background
         guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
@@ -235,7 +266,7 @@ public class SearchableEntityList {
 
     private void renderTabs(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int tabY = panelY + PADDING;
-        String[] labels = {"Registry", "Inventory"};
+        String[] labels = { "Registry", "Inventory" };
         int[] tabXs = new int[2];
         int[] tabWs = new int[2];
 
@@ -257,8 +288,10 @@ public class SearchableEntityList {
         float targetW = tabWs[activeIdx];
         tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
         tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+        if (Math.abs(tabIndicatorX - targetX) < 0.5f)
+            tabIndicatorX = targetX;
+        if (Math.abs(tabIndicatorW - targetW) < 0.5f)
+            tabIndicatorW = targetW;
 
         for (int i = 0; i < 2; i++) {
             boolean active = (i == activeIdx);
@@ -272,50 +305,31 @@ public class SearchableEntityList {
             guiGraphics.drawString(font, labels[i], tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
         }
 
-        // Sliding gold underline
         guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2,
                 (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
 
-        guiGraphics.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1, 0xFF555555);
+        guiGraphics.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1,
+                0xFF555555);
     }
 
     private void renderRegistryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int topOffset = PADDING + TAB_HEIGHT + 4;
-
-        // Search bar
         int searchX = panelX + PADDING;
         int searchY = panelY + topOffset;
-        int searchW = panelW - PADDING * 2;
-        guiGraphics.fill(searchX - 1, searchY - 1, searchX + searchW + 1, searchY + SEARCH_HEIGHT + 1, 0xFF4A4A4A);
-        guiGraphics.fill(searchX, searchY, searchX + searchW, searchY + SEARCH_HEIGHT, 0xFF0D0D0D);
+        searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
+        searchBar.render(guiGraphics, font, mouseX, mouseY);
 
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "\u00A77Search entities..." : filter;
-
-        if (allSelected && !filter.isEmpty()) {
-            int textW = font.width(filter);
-            guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
-        }
-
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF, false);
-
-        if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
-            guiGraphics.fill(cursorX, searchY + 4, cursorX + 1, searchY + SEARCH_HEIGHT - 4, 0xFFFFFFFF);
-        }
-        guiGraphics.pose().popPose();
-
-        // List area
         int listX = panelX + PADDING;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
+
+        boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
 
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
-            boolean rowHovered = mouseX >= listX && mouseX < listX + listW
+            boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
@@ -331,10 +345,11 @@ public class SearchableEntityList {
                         int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
                         renderSpinningEntity(guiGraphics, listX + 9, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
                         guiGraphics.disableScissor();
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
 
-                String text = entry.displayName + " \u00A77(" + entry.id + ")";
+                String text = entry.displayName + " §7(" + entry.id + ")";
                 if (font.width(text) > listW - 22) {
                     text = font.plainSubstrByWidth(text, listW - 28) + "...";
                 }
@@ -342,7 +357,6 @@ public class SearchableEntityList {
             }
         }
 
-        // Scrollbar
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
             int scrollBarTop = listY;
@@ -351,7 +365,8 @@ public class SearchableEntityList {
 
             guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
 
-            int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
+            int thumbHeight = Math.max(10,
+                    (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
@@ -359,7 +374,8 @@ public class SearchableEntityList {
 
     private void renderInventoryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return;
+        if (player == null)
+            return;
 
         int[] layout = getInvLayout();
         int gridX = layout[0];
@@ -368,34 +384,29 @@ public class SearchableEntityList {
         int hotbarY = layout[3];
         int previewX = layout[4];
 
-        // --- Top area: Armor | Player Entity | Offhand ---
         int armorX = gridX;
         int entityAreaX = gridX + SLOT_SIZE + 4;
         int entityAreaW = 9 * SLOT_SIZE - 2 * (SLOT_SIZE + 4);
         int entityAreaH = 4 * SLOT_SIZE;
         int offhandX = gridX + 9 * SLOT_SIZE - SLOT_SIZE;
 
-        // Armor slots
-        int[] armorSlots = {39, 38, 37, 36};
-        String[] armorLabels = {"H", "C", "L", "F"};
+        int[] armorSlots = { 39, 38, 37, 36 };
+        String[] armorLabels = { "H", "C", "L", "F" };
         for (int i = 0; i < 4; i++) {
             renderInventorySlot(guiGraphics, font, armorX, topY + i * SLOT_SIZE,
                     player.getInventory().getItem(armorSlots[i]), armorSlots[i], mouseX, mouseY, armorLabels[i]);
         }
 
-        // Player entity
         guiGraphics.fill(entityAreaX, topY, entityAreaX + entityAreaW, topY + entityAreaH, 0xFF0D0D0D);
         int entityCenterX = entityAreaX + entityAreaW / 2;
         int entityBottomY = topY + entityAreaH - 3;
         InventoryScreen.renderEntityInInventoryFollowsMouse(guiGraphics,
-                entityCenterX - 25, entityBottomY - 50, entityCenterX + 25, entityBottomY,
-                25, 0.0625F, (float) mouseX, (float) mouseY, player);
+                entityAreaX, topY, entityAreaX + entityAreaW, topY + entityAreaH, 25,
+                0.0625f, (float) (entityCenterX - mouseX), (float) (entityBottomY - 50 - mouseY), player);
 
-        // Offhand
         renderInventorySlot(guiGraphics, font, offhandX, topY + 3 * SLOT_SIZE,
                 player.getInventory().getItem(40), 40, mouseX, mouseY, "O");
 
-        // Main inventory (slots 9-35)
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 int slotIndex = 9 + row * 9 + col;
@@ -404,25 +415,22 @@ public class SearchableEntityList {
             }
         }
 
-        // Separator
         guiGraphics.fill(gridX, hotbarY - 3, gridX + 9 * SLOT_SIZE, hotbarY - 2, 0xFF333333);
 
-        // Hotbar (slots 0-8)
         for (int col = 0; col < 9; col++) {
             renderInventorySlot(guiGraphics, font, gridX + col * SLOT_SIZE, hotbarY,
                     player.getInventory().getItem(col), col, mouseX, mouseY, null);
         }
 
-        // --- Entity preview panel on the right ---
         int previewY = topY;
-        int previewH = panelY + panelH - PADDING - 20 - 6 - previewY; // extend to above add button
+        int previewH = panelY + panelH - PADDING - 20 - 6 - previewY;
         guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF0D0D0D);
         guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + 1, 0xFF333333);
         guiGraphics.fill(previewX, previewY, previewX + 1, previewY + previewH, 0xFF333333);
-        guiGraphics.fill(previewX + PREVIEW_SIZE - 1, previewY, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF333333);
+        guiGraphics.fill(previewX + PREVIEW_SIZE - 1, previewY, previewX + PREVIEW_SIZE, previewY + previewH,
+                0xFF333333);
         guiGraphics.fill(previewX, previewY + previewH - 1, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF333333);
 
-        // Determine selected entity
         String selectedEntityId = null;
         if (selectedInventorySlot >= 0) {
             ItemStack selectedStack = player.getInventory().getItem(selectedInventorySlot);
@@ -430,21 +438,22 @@ public class SearchableEntityList {
         }
 
         if (selectedEntityId != null) {
-            // Render spinning entity preview
             LivingEntity previewEntity = getOrCreateEntity(selectedEntityId);
             if (previewEntity != null) {
                 try {
                     float angle = (System.currentTimeMillis() % 7200) / 20.0f;
-                    int entityScale = (int) Math.max(8, 30.0f / Math.max(previewEntity.getBbWidth(), previewEntity.getBbHeight()));
+                    int entityScale = (int) Math.max(8,
+                            30.0f / Math.max(previewEntity.getBbWidth(), previewEntity.getBbHeight()));
                     int prevCenterX = previewX + PREVIEW_SIZE / 2;
                     int prevCenterY = previewY + previewH / 2 + entityScale;
-                    guiGraphics.enableScissor(previewX + 1, previewY + 1, previewX + PREVIEW_SIZE - 1, previewY + previewH - 1);
+                    guiGraphics.enableScissor(previewX + 1, previewY + 1, previewX + PREVIEW_SIZE - 1,
+                            previewY + previewH - 1);
                     renderSpinningEntity(guiGraphics, prevCenterX, prevCenterY, entityScale, angle, previewEntity);
                     guiGraphics.disableScissor();
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
 
-            // Entity name below preview
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.tryParse(selectedEntityId));
             if (type != null) {
                 String entityName = type.getDescription().getString();
@@ -460,7 +469,6 @@ public class SearchableEntityList {
                 guiGraphics.pose().popPose();
             }
         } else {
-            // Empty state
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(0, 0, 300);
             String hint1 = "Select a";
@@ -472,7 +480,6 @@ public class SearchableEntityList {
             guiGraphics.pose().popPose();
         }
 
-        // --- Add button ---
         int addBtnW = panelW - PADDING * 2;
         int addBtnH = 20;
         int addBtnX = panelX + PADDING;
@@ -482,7 +489,8 @@ public class SearchableEntityList {
 
         boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
                 && mouseY >= addBtnY && mouseY < addBtnY + addBtnH;
-        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f) : Math.max(0.0f, addHoverProgress - 0.08f);
+        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
+                : Math.max(0.0f, addHoverProgress - 0.08f);
 
         if (canAdd) {
             renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, addBtnH, "Add Entity", addHoverProgress);
@@ -497,7 +505,6 @@ public class SearchableEntityList {
                     addBtnY + (addBtnH - 8) / 2, textColor, false);
         }
 
-        // Tooltip
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
         int hoveredSlot = getInventorySlotAt(mouseX, mouseY);
@@ -507,9 +514,9 @@ public class SearchableEntityList {
                 ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 if (key != null) {
                     String eggEntityId = getEntityIdFromSpawnEgg(stack);
-                    String tooltip = stack.getHoverName().getString() + " \u00A77(" + key + ")";
+                    String tooltip = stack.getHoverName().getString() + " §7(" + key + ")";
                     if (eggEntityId != null) {
-                        tooltip += " \u00A7a\u2714";
+                        tooltip += " §a✔";
                     }
                     renderTooltip(guiGraphics, font, mouseX, mouseY, tooltip);
                 }
@@ -519,13 +526,12 @@ public class SearchableEntityList {
     }
 
     private void renderInventorySlot(GuiGraphics guiGraphics, Font font, int x, int y,
-                                      ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
+            ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
         boolean isEmpty = stack.isEmpty();
         boolean isSpawnEgg = !isEmpty && stack.getItem() instanceof SpawnEggItem;
         boolean isSelected = selectedInventorySlot == slotIndex;
         boolean isHovered = !isEmpty && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
 
-        // Gold border for selected, dim non-spawn-egg items
         int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
         int bgColor = isSelected ? 0xFF2A2510 : (isHovered ? 0xFF353535 : 0xFF1A1A1A);
 
@@ -538,24 +544,24 @@ public class SearchableEntityList {
                 guiGraphics.pose().pushPose();
                 guiGraphics.pose().translate(0, 0, 200);
                 String count = String.valueOf(stack.getCount());
-                guiGraphics.drawString(font, count, x + SLOT_SIZE - 1 - font.width(count), y + SLOT_SIZE - 9, 0xFFFFFF, true);
+                guiGraphics.drawString(font, count, x + SLOT_SIZE - 1 - font.width(count), y + SLOT_SIZE - 9, 0xFFFFFF,
+                        true);
                 guiGraphics.pose().popPose();
             }
-            // Dim overlay for non-spawn-egg items
             if (!isSpawnEgg) {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x80000000);
             }
-            // Gold highlight for selected
             if (isSelected) {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x40FFCC00);
             }
         } else if (placeholder != null) {
-            guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444, false);
+            guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444,
+                    false);
         }
     }
 
     private void renderStyledButton(GuiGraphics guiGraphics, Font font, int x, int y, int w, int h,
-                                     String text, float hoverProgress) {
+            String text, float hoverProgress) {
         int bgAlpha = (int) (0x30 + hoverProgress * 0x20);
         int bgR = 0xFF;
         int bgG = (int) (0xFF - hoverProgress * 0x33);
@@ -581,19 +587,21 @@ public class SearchableEntityList {
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
         int tooltipX = mouseX + 12;
         int tooltipY = mouseY - 12;
-        if (tooltipX + tooltipW + 2 > screenW - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > screenH - 4) tooltipY = screenH - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
+        if (tooltipX + tooltipW + 2 > screenW - 4)
+            tooltipX = mouseX - tooltipW - 4;
+        if (tooltipY + tooltipH + 2 > screenH - 4)
+            tooltipY = screenH - tooltipH - 6;
+        if (tooltipX < 4)
+            tooltipX = 4;
+        if (tooltipY < 4)
+            tooltipY = 4;
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF1A1A1A);
         guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D1A);
         guiGraphics.drawString(font, text, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
     }
 
-    /**
-     * Renders a LivingEntity spinning around its Y axis.
-     */
-    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees, LivingEntity entity) {
+    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees,
+            LivingEntity entity) {
         float origBodyRot = entity.yBodyRot;
         float origYRot = entity.getYRot();
         float origXRot = entity.getXRot();
@@ -647,8 +655,6 @@ public class SearchableEntityList {
         }
     }
 
-    // --- Hit detection ---
-
     private int[] getInvLayout() {
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int gridX = panelX + PADDING + 4;
@@ -657,12 +663,13 @@ public class SearchableEntityList {
         int mainY = topY + topAreaH + 4;
         int hotbarY = mainY + 3 * SLOT_SIZE + 6;
         int previewX = gridX + 9 * SLOT_SIZE + 8;
-        return new int[]{gridX, topY, mainY, hotbarY, previewX};
+        return new int[] { gridX, topY, mainY, hotbarY, previewX };
     }
 
     private int getInventorySlotAt(double mouseX, double mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return -1;
+        if (player == null)
+            return -1;
 
         int[] layout = getInvLayout();
         int gridX = layout[0];
@@ -673,8 +680,7 @@ public class SearchableEntityList {
         int armorX = gridX;
         int offhandX = gridX + 9 * SLOT_SIZE - SLOT_SIZE;
 
-        // Armor
-        int[] armorSlots = {39, 38, 37, 36};
+        int[] armorSlots = { 39, 38, 37, 36 };
         for (int i = 0; i < 4; i++) {
             int slotY = topY + i * SLOT_SIZE;
             if (mouseX >= armorX && mouseX < armorX + SLOT_SIZE && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
@@ -682,13 +688,12 @@ public class SearchableEntityList {
             }
         }
 
-        // Offhand
         int offhandY = topY + 3 * SLOT_SIZE;
-        if (mouseX >= offhandX && mouseX < offhandX + SLOT_SIZE && mouseY >= offhandY && mouseY < offhandY + SLOT_SIZE) {
+        if (mouseX >= offhandX && mouseX < offhandX + SLOT_SIZE && mouseY >= offhandY
+                && mouseY < offhandY + SLOT_SIZE) {
             return 40;
         }
 
-        // Main inventory
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 int slotIndex = 9 + row * 9 + col;
@@ -700,7 +705,6 @@ public class SearchableEntityList {
             }
         }
 
-        // Hotbar
         for (int col = 0; col < 9; col++) {
             int slotX = gridX + col * SLOT_SIZE;
             if (mouseX >= slotX && mouseX < slotX + SLOT_SIZE && mouseY >= hotbarY && mouseY < hotbarY + SLOT_SIZE) {
@@ -714,7 +718,7 @@ public class SearchableEntityList {
     private int getTabAt(double mouseX, double mouseY) {
         Font font = Minecraft.getInstance().font;
         int tabY = panelY + PADDING;
-        String[] labels = {"Registry", "Inventory"};
+        String[] labels = { "Registry", "Inventory" };
         int x = panelX + PADDING;
         for (int i = 0; i < 2; i++) {
             int w = font.width(labels[i]) + TAB_PAD * 2;
@@ -726,32 +730,35 @@ public class SearchableEntityList {
         return -1;
     }
 
-    // --- Input handling ---
-
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible) return false;
+        if (!visible)
+            return false;
 
-        // Check outside panel (for inventory mode, also check preview panel area)
+        if (!inventoryMode && searchBar.mouseClicked(mouseX, mouseY))
+            return true;
+
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
             return true;
         }
 
-        // Tab clicks
         int clickedTab = getTabAt(mouseX, mouseY);
         if (clickedTab == 0 && inventoryMode) {
             inventoryMode = false;
             selectedInventorySlot = -1;
-            searchFocused = true;
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            searchBar.setFocused(true);
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             recalcPanelSize();
             return true;
         }
         if (clickedTab == 1 && !inventoryMode) {
             inventoryMode = true;
             selectedInventorySlot = -1;
-            searchFocused = false;
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            searchBar.setFocused(false);
+            searchBar.filters().close();
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             recalcPanelSize();
             return true;
         }
@@ -765,9 +772,9 @@ public class SearchableEntityList {
 
     private boolean handleInventoryClick(double mouseX, double mouseY) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null) return true;
+        if (player == null)
+            return true;
 
-        // Add button
         int addBtnW = panelW - PADDING * 2;
         int addBtnH = 20;
         int addBtnX = panelX + PADDING;
@@ -778,7 +785,8 @@ public class SearchableEntityList {
                 ItemStack stack = player.getInventory().getItem(selectedInventorySlot);
                 String entityId = getEntityIdFromSpawnEgg(stack);
                 if (entityId != null) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     onSelect.accept(entityId);
                     hide();
                     return true;
@@ -787,12 +795,12 @@ public class SearchableEntityList {
             return true;
         }
 
-        // Inventory slot clicks
         int clickedSlot = getInventorySlotAt(mouseX, mouseY);
         if (clickedSlot >= 0) {
             ItemStack stack = player.getInventory().getItem(clickedSlot);
             if (!stack.isEmpty()) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 selectedInventorySlot = (selectedInventorySlot == clickedSlot) ? -1 : clickedSlot;
             }
             return true;
@@ -804,10 +812,9 @@ public class SearchableEntityList {
     private boolean handleRegistryClick(double mouseX, double mouseY) {
         int topOffset = PADDING + TAB_HEIGHT + 4;
 
-        // Scrollbar
         if (maxScrollRow > 0) {
             int searchY = panelY + topOffset;
-            int listY = searchY + SEARCH_HEIGHT + PADDING;
+            int listY = searchY + SearchBar.HEIGHT + PADDING;
             int listW = panelW - PADDING * 2 - 8;
             int scrollBarX = panelX + PADDING + listW + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
@@ -818,10 +825,9 @@ public class SearchableEntityList {
             }
         }
 
-        // List clicks
         int searchY = panelY + topOffset;
         int listX = panelX + PADDING;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         int listW = panelW - PADDING * 2 - 8;
 
         for (int i = 0; i < VISIBLE_ROWS; i++) {
@@ -829,22 +835,24 @@ public class SearchableEntityList {
             int rowY = listY + i * ROW_HEIGHT;
             if (index < filteredEntities.size() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
-                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 onSelect.accept(filteredEntities.get(index).id);
                 hide();
                 return true;
             }
         }
 
-        searchFocused = true;
+        searchBar.setFocused(true);
         return true;
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar || inventoryMode) return false;
+        if (!visible || !draggingScrollbar || inventoryMode)
+            return false;
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
-        int listY = searchY + SEARCH_HEIGHT + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
         updateScrollFromMouse(mouseY, listY);
         return true;
     }
@@ -871,31 +879,33 @@ public class SearchableEntityList {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (!visible || inventoryMode) return false;
+        double delta = scrollY;
+        if (!visible || inventoryMode)
+            return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
-            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) scrollY));
+            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
         }
         return false;
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible) return false;
-
-        if (keyCode == 256) { // ESC
-            hide();
-            return true;
-        }
+        if (!visible)
+            return false;
 
         if (inventoryMode) {
-            // Enter confirms
-            if (keyCode == 257 && selectedInventorySlot >= 0) {
+            if (keyCode == 256) {
+                hide();
+                return true;
+            }
+            if (keyCode == 257 && selectedInventorySlot >= 0) { // Enter
                 LocalPlayer player = Minecraft.getInstance().player;
                 if (player != null) {
                     ItemStack stack = player.getInventory().getItem(selectedInventorySlot);
                     String entityId = getEntityIdFromSpawnEgg(stack);
                     if (entityId != null) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                         onSelect.accept(entityId);
                         hide();
                         return true;
@@ -905,47 +915,21 @@ public class SearchableEntityList {
             return true;
         }
 
-        if (!searchFocused) return false;
-
-        if (keyCode == 259) { // BACKSPACE
-            if (allSelected) {
-                allSelected = false;
-                setFilter("");
-            } else if (!filter.isEmpty()) {
-                setFilter(filter.substring(0, filter.length() - 1));
-            }
+        if (searchBar.keyPressed(keyCode))
             return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 65) { // Ctrl+A
-            if (!filter.isEmpty()) allSelected = true;
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 67) { // Ctrl+C
-            if (!filter.isEmpty()) {
-                Minecraft.getInstance().keyboardHandler.setClipboard(filter);
-            }
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 86) { // Ctrl+V
-            String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
-            if (clipboard != null && !clipboard.isEmpty()) {
-                setFilter(allSelected ? clipboard : filter + clipboard);
-                allSelected = false;
-            }
+        if (keyCode == 256) {
+            hide();
             return true;
         }
         return false;
     }
 
     public boolean charTyped(char c) {
-        if (!visible || !searchFocused || inventoryMode) return false;
-        if (Character.isLetterOrDigit(c) || c == '_' || c == ':' || c == '.' || c == ' ' || c == '-') {
-            setFilter(allSelected ? String.valueOf(c) : filter + c);
-            allSelected = false;
-            return true;
-        }
-        return false;
+        if (!visible || inventoryMode)
+            return false;
+        return searchBar.charTyped(c);
     }
 
-    private record EntityEntry(String id, String displayName, String searchName) {}
+    private record EntityEntry(String id, String displayName, String searchName) {
+    }
 }

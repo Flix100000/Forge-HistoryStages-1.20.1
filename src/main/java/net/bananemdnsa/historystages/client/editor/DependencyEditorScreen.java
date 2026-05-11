@@ -184,44 +184,54 @@ public class DependencyEditorScreen extends Screen {
                     hasChanges = true;
                 }, 10, this.height - 50, LEFT_PANEL_W - 20, 16));
 
-        // Searchable widgets
+        // Searchable widgets. Already-added suppliers map the dependency-wrapper
+        // lists (DependencyItem/EntityKillDep/etc.) back to plain string IDs so
+        // the FilterDropdown's "Hide already added" toggle can match entries.
         itemSearch = new SearchableItemList(id -> {
             if (hasGroup()) {
                 currentGroup().getItems().add(new DependencyItem(id, 1));
                 hasChanges = true;
             }
-        });
+        }, () -> hasGroup()
+                ? currentGroup().getItems().stream().map(DependencyItem::getId).toList()
+                : java.util.Collections.emptyList());
         entitySearch = new SearchableEntityList(id -> {
             if (hasGroup()) {
                 currentGroup().getEntityKills().add(new EntityKillDep(id, 1));
                 hasChanges = true;
             }
-        });
+        }, () -> hasGroup()
+                ? currentGroup().getEntityKills().stream().map(EntityKillDep::getEntityId).toList()
+                : java.util.Collections.emptyList());
         globalStageSearch = new SearchableStageList(id -> {
             if (hasGroup()) {
                 currentGroup().getStages().add(id);
                 hasChanges = true;
             }
-        }, false);
+        }, false, () -> hasGroup() ? currentGroup().getStages() : java.util.Collections.emptyList());
         globalStageSearch.setExcludeStageId(currentStageId);
         individualStageSearch = new SearchableStageList(id -> {
             if (hasGroup()) {
                 currentGroup().getIndividualStages().add(new IndividualStageDep(id, "all_online"));
                 hasChanges = true;
             }
-        }, true);
+        }, true, () -> hasGroup()
+                ? currentGroup().getIndividualStages().stream().map(IndividualStageDep::getStageId).toList()
+                : java.util.Collections.emptyList());
         advancementSearch = new SearchableAdvancementList(id -> {
             if (hasGroup()) {
                 currentGroup().getAdvancements().add(id);
                 hasChanges = true;
             }
-        });
+        }, () -> hasGroup() ? currentGroup().getAdvancements() : java.util.Collections.emptyList());
         statSearch = new SearchableStatList(id -> {
             if (hasGroup()) {
                 currentGroup().getStats().add(new StatDep(id, 1));
                 hasChanges = true;
             }
-        });
+        }, () -> hasGroup()
+                ? currentGroup().getStats().stream().map(StatDep::getStatId).toList()
+                : java.util.Collections.emptyList());
 
         contextMenu = new ContextMenu();
         computeTabLayout();
@@ -1799,13 +1809,13 @@ public class DependencyEditorScreen extends Screen {
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (globalStageSearch != null && globalStageSearch.isVisible())
-            return globalStageSearch.mouseScrolled(mouseX, mouseY, delta);
+            return globalStageSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (individualStageSearch != null && individualStageSearch.isVisible())
-            return individualStageSearch.mouseScrolled(mouseX, mouseY, delta);
+            return individualStageSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (advancementSearch != null && advancementSearch.isVisible())
-            return advancementSearch.mouseScrolled(mouseX, mouseY, delta);
+            return advancementSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (statSearch != null && statSearch.isVisible())
-            return statSearch.mouseScrolled(mouseX, mouseY, delta);
+            return statSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (countDialogType != null)
             return true;
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {

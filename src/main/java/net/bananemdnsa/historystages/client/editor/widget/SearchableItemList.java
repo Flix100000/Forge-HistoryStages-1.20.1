@@ -3,7 +3,6 @@ package net.bananemdnsa.historystages.client.editor.widget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
@@ -15,22 +14,24 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Creative menu-style item grid with search bar.
  * Supports a Registry tab, an Inventory tab, and — when multi-select is
  * enabled — a "Selected" tab that lists all currently selected items for
- * review and deselection. The Selected tab has its own filtering search bar.
+ * review and deselection. The Selected tab reuses the shared SearchBar with
+ * a different placeholder.
  */
 public class SearchableItemList {
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLS = 9;
     private static final int GRID_ROWS = 5;
-    private static final int SEARCH_HEIGHT = 20;
     private static final int PADDING = 6;
     private static final int TAB_HEIGHT = 14;
     private static final int TAB_PAD = 4;
@@ -45,26 +46,25 @@ public class SearchableItemList {
     private final List<ItemEntry> allItems = new ArrayList<>();
     private final List<ItemEntry> filteredItems = new ArrayList<>();
     /**
-     * Snapshot of selected items taken when the Selected tab is entered.
-     * Stays stable while on the tab — toggling deselect/reselect modifies the
+     * Snapshot of selected items taken when the Selected tab is entered. Stays
+     * stable while on the tab — toggling deselect/reselect modifies the
      * underlying sets but leaves the snapshot intact, so the grid doesn't
-     * shift under the cursor and the user can undo a misclick. Cleared on
-     * tab exit; rebuilt on next entry.
+     * shift under the cursor and the user can undo a misclick. Cleared on tab
+     * exit; rebuilt on next entry.
      */
     private final List<SelectedRef> selectedSnapshot = new ArrayList<>();
     /** Filtered view of {@link #selectedSnapshot} for the current search filter. */
     private final List<SelectedRef> selectedView = new ArrayList<>();
     private final Consumer<String> onSelect;
+    private final Supplier<Collection<String>> alreadyAddedSupplier;
+    private final SearchBar searchBar;
 
     private int panelX, panelY, panelW, panelH;
     private int centerX, centerY;
     private boolean visible = false;
     private int scrollRow = 0;
     private int maxScrollRow = 0;
-    private String filter = "";
-    private boolean searchFocused = true;
     private boolean draggingScrollbar = false;
-    private boolean allSelected = false;
 
     private int currentTab = TAB_REGISTRY;
     private boolean multiSelect = false;
@@ -80,7 +80,18 @@ public class SearchableItemList {
     private Set<String> modFilterSet = null;
 
     public SearchableItemList(Consumer<String> onSelect) {
+        this(onSelect, null);
+    }
+
+    public SearchableItemList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
+        this.alreadyAddedSupplier = alreadyAddedSupplier;
+        this.searchBar = new SearchBar("Search items...").onChange(this::applyFilter);
+        if (alreadyAddedSupplier != null) {
+            searchBar.filters().addOption("hide_added", "Hide already added", null);
+        }
+        searchBar.filters().addOption("only_vanilla", "Only vanilla", "source");
+        searchBar.filters().addOption("only_modded", "Only modded", "source");
 
         for (Item item : BuiltInRegistries.ITEM) {
             ResourceLocation key = BuiltInRegistries.ITEM.getKey(item);
@@ -102,12 +113,13 @@ public class SearchableItemList {
         this.centerY = centerY;
         this.visible = true;
         this.scrollRow = 0;
-        this.searchFocused = true;
+        searchBar.setFocused(true);
         this.currentTab = TAB_REGISTRY;
         this.selectedRegistryIds.clear();
         this.selectedInventorySlots.clear();
         this.tabIndicatorInit = false;
-        setFilter("");
+        searchBar.setPlaceholder("Search items...");
+        searchBar.setText("");
         recalcPanelSize();
     }
 
@@ -157,7 +169,7 @@ public class SearchableItemList {
                     + ADD_BTN_H + PADDING;
         } else {
             panelW = GRID_COLS * SLOT_SIZE + PADDING * 2 + 8;
-            panelH = TAB_HEIGHT + 4 + SEARCH_HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4
+            panelH = TAB_HEIGHT + 4 + SearchBar.HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4
                     + ADD_BTN_H + PADDING;
         }
 
@@ -193,11 +205,14 @@ public class SearchableItemList {
 
     public void setModFilter(Set<String> modIds) {
         this.modFilterSet = modIds;
-        setFilter(this.filter);
+        applyFilter(searchBar.getText());
     }
 
     public void setFilter(String filter) {
-        this.filter = filter.toLowerCase();
+        searchBar.setText(filter);
+    }
+
+    private void applyFilter(String filter) {
         this.scrollRow = 0;
 
         filteredItems.clear();
@@ -210,7 +225,7 @@ public class SearchableItemList {
             }
         }
         for (ItemEntry entry : baseItems) {
-            if (matchesFilter(entry, this.filter))
+            if (matchesFilter(entry, filter))
                 filteredItems.add(entry);
         }
 
@@ -228,6 +243,8 @@ public class SearchableItemList {
     }
 
     private boolean matchesFilter(ItemEntry entry, String f) {
+        if (!matchesDropdownFilters(entry.id))
+            return false;
         if (f.isEmpty())
             return true;
         if (f.startsWith("@")) {
@@ -236,6 +253,21 @@ public class SearchableItemList {
             return modId.contains(modFilter);
         }
         return entry.id.contains(f) || entry.searchName.contains(f);
+    }
+
+    private boolean matchesDropdownFilters(String id) {
+        if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
+            Collection<String> added = alreadyAddedSupplier.get();
+            if (added != null && added.contains(id))
+                return false;
+        }
+        String namespace = id.contains(":") ? id.substring(0, id.indexOf(':')) : "";
+        boolean isVanilla = "minecraft".equals(namespace);
+        if (searchBar.filters().isActive("only_vanilla") && !isVanilla)
+            return false;
+        if (searchBar.filters().isActive("only_modded") && isVanilla)
+            return false;
+        return true;
     }
 
     /** Captures the current selection sets as the frozen Selected-tab snapshot. */
@@ -268,8 +300,9 @@ public class SearchableItemList {
     /** Filters the snapshot by the current search filter into the rendered view. */
     private void applySelectedFilter() {
         selectedView.clear();
+        String f = searchBar.getText();
         for (SelectedRef ref : selectedSnapshot) {
-            if (matchesFilter(ref.entry, this.filter))
+            if (matchesFilter(ref.entry, f))
                 selectedView.add(ref);
         }
     }
@@ -364,30 +397,6 @@ public class SearchableItemList {
                 0xFF555555);
     }
 
-    private void renderSearchBar(GuiGraphics guiGraphics, Font font, int searchX, int searchY, int searchW,
-            String placeholder) {
-        guiGraphics.fill(searchX - 1, searchY - 1, searchX + searchW + 1, searchY + SEARCH_HEIGHT + 1, 0xFF4A4A4A);
-        guiGraphics.fill(searchX, searchY, searchX + searchW, searchY + SEARCH_HEIGHT, 0xFF0D0D0D);
-
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 300);
-        String displayFilter = filter.isEmpty() ? "§7" + placeholder : filter;
-
-        if (allSelected && !filter.isEmpty()) {
-            int textW = font.width(filter);
-            guiGraphics.fill(searchX + 3, searchY + 3, searchX + 5 + textW, searchY + SEARCH_HEIGHT - 3, 0xFF4A6A9A);
-        }
-
-        guiGraphics.drawString(font, displayFilter, searchX + 4, searchY + 6, filter.isEmpty() ? 0x666666 : 0xFFFFFF,
-                false);
-
-        if (searchFocused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = searchX + 4 + (filter.isEmpty() ? 0 : font.width(filter));
-            guiGraphics.fill(cursorX, searchY + 4, cursorX + 1, searchY + SEARCH_HEIGHT - 4, 0xFFFFFFFF);
-        }
-        guiGraphics.pose().popPose();
-    }
-
     private void renderRegistryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int topOffset = PADDING + TAB_HEIGHT + 4;
 
@@ -398,12 +407,13 @@ public class SearchableItemList {
 
         int searchX = panelX + PADDING;
         int searchY = panelY + topOffset;
-        int searchW = panelW - PADDING * 2;
-        renderSearchBar(guiGraphics, font, searchX, searchY, searchW, "Search items...");
+        searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
+        searchBar.render(guiGraphics, font, mouseX, mouseY);
 
         int gridX = getGridStartX(true);
-        int gridY = searchY + SEARCH_HEIGHT + PADDING;
+        int gridY = searchY + SearchBar.HEIGHT + PADDING;
 
+        boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         int startIndex = scrollRow * GRID_COLS;
         for (int row = 0; row < GRID_ROWS; row++) {
             for (int col = 0; col < GRID_COLS; col++) {
@@ -411,7 +421,7 @@ public class SearchableItemList {
                 int slotX = gridX + col * SLOT_SIZE;
                 int slotY = gridY + row * SLOT_SIZE;
 
-                boolean slotHovered = mouseX >= slotX && mouseX < slotX + SLOT_SIZE
+                boolean slotHovered = !filterUiHovered && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
                         && mouseY >= slotY && mouseY < slotY + SLOT_SIZE;
                 guiGraphics.fill(slotX, slotY, slotX + SLOT_SIZE, slotY + SLOT_SIZE,
                         slotHovered ? 0xFF4A4A4A : 0xFF252525);
@@ -443,17 +453,19 @@ public class SearchableItemList {
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
-        for (int row = 0; row < GRID_ROWS; row++) {
-            for (int col = 0; col < GRID_COLS; col++) {
-                int index = startIndex + row * GRID_COLS + col;
-                int slotX = gridX + col * SLOT_SIZE;
-                int slotY = gridY + row * SLOT_SIZE;
+        if (!filterUiHovered) {
+            for (int row = 0; row < GRID_ROWS; row++) {
+                for (int col = 0; col < GRID_COLS; col++) {
+                    int index = startIndex + row * GRID_COLS + col;
+                    int slotX = gridX + col * SLOT_SIZE;
+                    int slotY = gridY + row * SLOT_SIZE;
 
-                if (index < filteredItems.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
-                        && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
-                    ItemEntry entry = filteredItems.get(index);
-                    renderTooltip(guiGraphics, font, mouseX, mouseY,
-                            entry.stack.getHoverName().getString() + " §7(" + entry.id + ")");
+                    if (index < filteredItems.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
+                            && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
+                        ItemEntry entry = filteredItems.get(index);
+                        renderTooltip(guiGraphics, font, mouseX, mouseY,
+                                entry.stack.getHoverName().getString() + " §7(" + entry.id + ")");
+                    }
                 }
             }
         }
@@ -554,14 +566,14 @@ public class SearchableItemList {
     }
 
     private boolean isItemAllowedByModFilter(ItemStack stack) {
-        if (modFilterSet == null)
-            return true;
         if (stack.isEmpty())
             return false;
         ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (key == null)
             return false;
-        return modFilterSet.contains(key.getNamespace());
+        if (modFilterSet != null && !modFilterSet.contains(key.getNamespace()))
+            return false;
+        return matchesDropdownFilters(key.toString());
     }
 
     private void renderInventoryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -640,13 +652,13 @@ public class SearchableItemList {
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchX = panelX + PADDING;
         int searchY = panelY + topOffset;
-        int searchW = panelW - PADDING * 2;
-        renderSearchBar(guiGraphics, font, searchX, searchY, searchW,
-                "Search selected (" + totalSelectionCount() + ")...");
+        searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
+        searchBar.render(guiGraphics, font, mouseX, mouseY);
 
         int gridX = getGridStartX(true);
-        int gridY = searchY + SEARCH_HEIGHT + PADDING;
+        int gridY = searchY + SearchBar.HEIGHT + PADDING;
 
+        boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         int startIndex = scrollRow * GRID_COLS;
         for (int row = 0; row < GRID_ROWS; row++) {
             for (int col = 0; col < GRID_COLS; col++) {
@@ -655,7 +667,7 @@ public class SearchableItemList {
                 int slotY = gridY + row * SLOT_SIZE;
 
                 if (index < selectedView.size()) {
-                    boolean slotHovered = mouseX >= slotX && mouseX < slotX + SLOT_SIZE
+                    boolean slotHovered = !filterUiHovered && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
                             && mouseY >= slotY && mouseY < slotY + SLOT_SIZE;
                     SelectedRef ref = selectedView.get(index);
                     boolean active = isStillSelected(ref);
@@ -674,7 +686,6 @@ public class SearchableItemList {
                         guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
                                 0x40FFCC00);
                     } else {
-                        // Darken + red wash for deselected ghost entries.
                         guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
                                 0xB0000000);
                         guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
@@ -695,17 +706,19 @@ public class SearchableItemList {
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
-        for (int row = 0; row < GRID_ROWS; row++) {
-            for (int col = 0; col < GRID_COLS; col++) {
-                int index = startIndex + row * GRID_COLS + col;
-                int slotX = gridX + col * SLOT_SIZE;
-                int slotY = gridY + row * SLOT_SIZE;
+        if (!filterUiHovered) {
+            for (int row = 0; row < GRID_ROWS; row++) {
+                for (int col = 0; col < GRID_COLS; col++) {
+                    int index = startIndex + row * GRID_COLS + col;
+                    int slotX = gridX + col * SLOT_SIZE;
+                    int slotY = gridY + row * SLOT_SIZE;
 
-                if (index < selectedView.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
-                        && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
-                    ItemEntry entry = selectedView.get(index).entry;
-                    renderTooltip(guiGraphics, font, mouseX, mouseY,
-                            entry.stack.getHoverName().getString() + " §7(" + entry.id + ")");
+                    if (index < selectedView.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
+                            && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
+                        ItemEntry entry = selectedView.get(index).entry;
+                        renderTooltip(guiGraphics, font, mouseX, mouseY,
+                                entry.stack.getHoverName().getString() + " §7(" + entry.id + ")");
+                    }
                 }
             }
         }
@@ -860,6 +873,12 @@ public class SearchableItemList {
         if (!visible)
             return false;
 
+        // Funnel/popup gets first crack — the popup may extend outside the panel.
+        // Skipped on Inventory tab (no search bar there).
+        if (!isInventoryTab() && searchBar.mouseClicked(mouseX, mouseY)) {
+            return true;
+        }
+
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
             return true;
@@ -886,18 +905,21 @@ public class SearchableItemList {
     private void switchTab(int newTab) {
         int oldTab = currentTab;
         currentTab = newTab;
-        searchFocused = currentTab != TAB_INVENTORY;
+        searchBar.filters().close();
+        searchBar.setFocused(currentTab != TAB_INVENTORY);
         Minecraft.getInstance().getSoundManager()
                 .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
         scrollRow = 0;
-        allSelected = false;
-        // Leaving Selected drops any deselected-but-still-shown ghosts from the
-        // snapshot. Entering Selected freezes the current set as a new snapshot.
         if (oldTab == TAB_SELECTED && newTab != TAB_SELECTED) {
             selectedSnapshot.clear();
             selectedView.clear();
         }
-        setFilter("");
+        if (newTab == TAB_SELECTED) {
+            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+        } else {
+            searchBar.setPlaceholder("Search items...");
+        }
+        searchBar.setText("");
         if (currentTab == TAB_SELECTED) {
             rebuildSelectedSnapshot();
         }
@@ -1011,7 +1033,7 @@ public class SearchableItemList {
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
         int gridX = getGridStartX(true);
-        int gridY = searchY + SEARCH_HEIGHT + PADDING;
+        int gridY = searchY + SearchBar.HEIGHT + PADDING;
 
         if (maxScrollRow > 0) {
             int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
@@ -1040,7 +1062,7 @@ public class SearchableItemList {
             }
         }
 
-        searchFocused = true;
+        searchBar.setFocused(true);
         return true;
     }
 
@@ -1053,7 +1075,7 @@ public class SearchableItemList {
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
         int gridX = getGridStartX(true);
-        int gridY = searchY + SEARCH_HEIGHT + PADDING;
+        int gridY = searchY + SearchBar.HEIGHT + PADDING;
 
         if (maxScrollRow > 0) {
             int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
@@ -1081,7 +1103,7 @@ public class SearchableItemList {
                 }
             }
         }
-        searchFocused = true;
+        searchBar.setFocused(true);
         return true;
     }
 
@@ -1111,7 +1133,7 @@ public class SearchableItemList {
             return false;
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
-        int gridY = searchY + SEARCH_HEIGHT + PADDING;
+        int gridY = searchY + SearchBar.HEIGHT + PADDING;
         updateScrollFromMouse(mouseY, gridY);
         return true;
     }
@@ -1154,6 +1176,8 @@ public class SearchableItemList {
             return false;
 
         if (keyCode == 256) { // ESC
+            if (searchBar.keyPressed(keyCode))
+                return true;
             hide();
             return true;
         }
@@ -1166,50 +1190,13 @@ public class SearchableItemList {
         if (isInventoryTab())
             return true;
 
-        if (!searchFocused)
-            return false;
-
-        if (keyCode == 259) { // BACKSPACE
-            if (allSelected) {
-                allSelected = false;
-                setFilter("");
-            } else if (!filter.isEmpty()) {
-                setFilter(filter.substring(0, filter.length() - 1));
-            }
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 65) { // Ctrl+A
-            if (!filter.isEmpty())
-                allSelected = true;
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 67) { // Ctrl+C
-            if (!filter.isEmpty()) {
-                Minecraft.getInstance().keyboardHandler.setClipboard(filter);
-            }
-            return true;
-        }
-        if (Screen.hasControlDown() && keyCode == 86) { // Ctrl+V
-            String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
-            if (clipboard != null && !clipboard.isEmpty()) {
-                setFilter(allSelected ? clipboard : filter + clipboard);
-                allSelected = false;
-            }
-            return true;
-        }
-        return false;
+        return searchBar.keyPressed(keyCode);
     }
 
     public boolean charTyped(char c) {
-        if (!visible || !searchFocused || isInventoryTab())
+        if (!visible || isInventoryTab())
             return false;
-
-        if (Character.isLetterOrDigit(c) || c == '_' || c == ':' || c == '.' || c == ' ' || c == '-' || c == '@') {
-            setFilter(allSelected ? String.valueOf(c) : filter + c);
-            allSelected = false;
-            return true;
-        }
-        return false;
+        return searchBar.charTyped(c);
     }
 
     private record ItemEntry(String id, ItemStack stack, String searchName) {
