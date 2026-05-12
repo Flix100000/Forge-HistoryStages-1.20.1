@@ -88,6 +88,15 @@ public class HistoryStages {
             }
         }
 
+        if (ModList.get().isLoaded("curios")) {
+            try {
+                NeoForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.CuriosEquipLockHandler.class);
+                LOGGER.info("[HistoryStages] Curios integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load Curios integration.", e);
+            }
+        }
+
         NeoForge.EVENT_BUS.register(this);
     }
 

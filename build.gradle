@@ -43,6 +43,10 @@ repositories {
             includeGroup "dev.architectury"
         }
     }
+    maven {
+        name = "Curios"
+        url "https://maven.theillusivec4.top/"
+    }
 }
 
 base {
@@ -161,6 +165,9 @@ dependencies {
     implementation("dev.ftb.mods:ftb-teams-neoforge:2100.1.0")   { transitive = false }
     implementation("dev.ftb.mods:ftb-quests-neoforge:2100.1.4")  { transitive = false }
     implementation("dev.architectury:architectury-neoforge:13.0.2") { transitive = false }
+
+    // Curios (optional integration) — compileOnly so users don't need it at runtime
+    compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
