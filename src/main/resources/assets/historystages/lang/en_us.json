@@ -121,7 +121,7 @@
   "editor.historystages.config.researchTimeInSeconds": "Research Time (seconds)",
   "editor.historystages.config.useReplacements": "Use Replacements",
   "editor.historystages.config.replacementItems": "Replacement Items",
-  "editor.historystages.config.replacementTag": "Replacement Tag",
+  "editor.historystages.config.replacementTags": "Replacement Tags",
 
   "editor.historystages.duplicate": "Duplicate",
   "editor.historystages.id_empty": "Stage ID cannot be empty!",

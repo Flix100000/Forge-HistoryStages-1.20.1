@@ -121,7 +121,7 @@
   "editor.historystages.config.researchTimeInSeconds": "Forschungszeit (Sekunden)",
   "editor.historystages.config.useReplacements": "Ersetzungen nutzen",
   "editor.historystages.config.replacementItems": "Ersetzungs-Items",
-  "editor.historystages.config.replacementTag": "Ersetzungs-Tag",
+  "editor.historystages.config.replacementTags": "Ersetzungs-Tags",
 
   "editor.historystages.duplicate": "Duplizieren",
   "editor.historystages.id_empty": "Stufen-ID darf nicht leer sein!",
