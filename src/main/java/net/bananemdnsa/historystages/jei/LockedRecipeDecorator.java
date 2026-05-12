@@ -10,7 +10,6 @@ import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -31,9 +30,9 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
         int width = category.getWidth();
         int height = category.getHeight();
 
-        // Push pose and translate to z=400 so overlay renders above item icons (items are ~200)
+        // Push pose and translate to z=300 so overlay renders above item icons (~200) but below tooltips (~400)
         guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
+        guiGraphics.pose().translate(0, 0, 300);
 
         // Semi-transparent dark overlay
         guiGraphics.fill(0, 0, width, height, 0xBB000000);
@@ -45,20 +44,6 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
         guiGraphics.drawString(font, text, (width - textWidth) / 2, height / 2 - 4, 0xFFFFFF, true);
 
         guiGraphics.pose().popPose();
-    }
-
-    @Override
-    public List<Component> decorateExistingTooltips(List<Component> tooltips, T recipe,
-                                                     IRecipeCategory<T> category,
-                                                     IRecipeSlotsView recipeSlotsView,
-                                                     double mouseX, double mouseY) {
-        if (isRecipeLocked(recipe, recipeSlotsView)) {
-            tooltips.add(Component.empty());
-            tooltips.add(Component.literal("\u00A7c\u00A7lStage Locked"));
-            tooltips.add(Component.literal("\u00A77This recipe requires a stage that"));
-            tooltips.add(Component.literal("\u00A77has not been unlocked yet."));
-        }
-        return tooltips;
     }
 
     private boolean isRecipeLocked(T recipe, IRecipeSlotsView recipeSlotsView) {
