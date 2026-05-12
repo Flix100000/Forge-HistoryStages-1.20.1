@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.mixin.jei;
 
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
@@ -65,7 +66,7 @@ public abstract class RecipeLayoutMixin {
             for (var slot : outputSlots) {
                 Optional<ItemStack> displayed = slot.getDisplayedItemStack();
                 if (displayed.isPresent() && !displayed.get().isEmpty()) {
-                    if (StageManager.isItemLocked(displayed.get(), true)) {
+                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")) {
                         return true;
                     }
                 }

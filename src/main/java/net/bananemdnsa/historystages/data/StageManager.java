@@ -58,6 +58,9 @@ public class StageManager implements IStageManager {
     private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
             "structures", "mod_linked"
     );
+    private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
+            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
+    );
 
     /*
      * In my opinion(Astr0), moving towards singleton approaches will be cleaner overall.
@@ -439,6 +442,17 @@ public class StageManager implements IStageManager {
                 }
             }
 
+        // --- Lock actions: validate per-entry unlock_actions lists ---
+        for (ItemEntry item : entry.getItemEntries()) {
+            validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
+        }
+        for (NamedLockEntry tag : entry.getTagEntries()) {
+            validateLockActions(tag.getLockActions(), stageId, tag.getId(), "tags");
+        }
+        for (NamedLockEntry mod : entry.getModEntries()) {
+            validateLockActions(mod.getLockActions(), stageId, mod.getId(), "mods");
+        }
+
         // --- Dependencies validation ---
         if (entry.hasDependencies()) {
             int groupIdx = 0;
@@ -581,6 +595,34 @@ public class StageManager implements IStageManager {
             }
         }
     }
+
+
+    /**
+     * Validates a single lock-actions list (internal representation — locked actions):
+     * reports unknown actions and duplicates without modifying the list.
+     */
+    private static void validateLockActions(List<String> actions, String stageId, String entryId, String fieldPath) {
+        if (actions == null || actions.isEmpty()) return;
+
+        // Unknown actions
+        for (String action : actions) {
+            if (action == null || !KNOWN_LOCK_ACTIONS.contains(action)) {
+                addMessage(MessageLevel.WARN, "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+                DebugLogger.warn("Invalid Lock Actions",
+                        "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + "). Known actions: " + KNOWN_LOCK_ACTIONS + ".");
+            }
+        }
+
+        // Duplicates
+        Set<String> seen = new HashSet<>();
+        for (String action : actions) {
+            if (!seen.add(action)) {
+                DebugLogger.info("Duplicates",
+                        "Duplicate unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+            }
+        }
+    }
+
 
     private static void checkDuplicates(List<String> list, String stageId, String field) {
         Set<String> seen = new HashSet<>();

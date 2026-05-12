@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages;
 
 import com.mojang.logging.LogUtils;
 import net.astr0.historystages.api.HistoryStagesAPI;
+import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
@@ -77,6 +78,15 @@ public class HistoryStages {
                 LOGGER.info("[HistoryStages] FTB Quests integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load FTB Quests integration.", e);
+            }
+        }
+
+        if (ModList.get().isLoaded("curios")) {
+            try {
+                MinecraftForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.CuriosEquipLockHandler.class);
+                LOGGER.info("[HistoryStages] Curios integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load Curios integration.", e);
             }
         }
 
@@ -290,12 +300,14 @@ public class HistoryStages {
         if (stack.isEmpty())
             return;
 
-        // Individual stages: prevent pickup of individually-locked items
-        if (net.bananemdnsa.historystages.util.StageLockHelper.isItemLockedByIndividualStage(stack, player.getUUID())) {
+        // Individual stages: prevent pickup of individually-locked items (respects lock_actions)
+        if (Config.COMMON.individualLockItemPickup.get()
+                && net.bananemdnsa.historystages.util.StageLockHelper
+                        .isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
             event.setCanceled(true);
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Pickup of individually-locked item blocked: " + itemRL);
+                    "<" + player.getName().getString() + "> Pickup of '" + itemRL + "' blocked [action: pickup]");
             return;
         }
 
@@ -303,8 +315,7 @@ public class HistoryStages {
         if (StageManager.isItemLockedForServer(stack)) {
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Picked up locked item: " + itemRL + " x"
-                            + stack.getCount());
+                    "<" + player.getName().getString() + "> Picked up locked '" + itemRL + "' x" + stack.getCount() + " [action: pickup]");
         }
     }
 

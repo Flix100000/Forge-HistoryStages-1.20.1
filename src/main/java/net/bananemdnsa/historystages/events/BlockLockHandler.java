@@ -47,29 +47,36 @@ public class BlockLockHandler {
 
         boolean locked = false;
 
-        // Check global lock
+        // Check global lock — respects lock_actions["gui"]
         if (Config.COMMON.lockBlockInteraction.get()) {
             if (isClient) {
-                locked = StageLockHelper.isItemLockedForClient(blockItem);
+                locked = StageLockHelper.isActionLockedForClient(blockItem, "gui");
             } else {
-                locked = StageLockHelper.isItemLockedForPlayer(blockItem, event.getEntity().getUUID());
+                locked = StageLockHelper.isActionLockedForPlayer(blockItem, event.getEntity().getUUID(), "gui");
             }
         }
 
-        // Check individual lock
+        // Check individual lock — respects lock_actions["gui"]
         if (!locked && Config.COMMON.individualLockBlockInteraction.get()) {
             if (isClient) {
-                locked = StageLockHelper.isItemLockedByIndividualStageClient(blockItem);
+                locked = StageLockHelper.isActionLockedByIndividualStageClient(blockItem, "gui");
             } else {
-                locked = StageLockHelper.isItemLockedByIndividualStage(blockItem, event.getEntity().getUUID());
+                locked = StageLockHelper.isActionLockedByIndividualStage(blockItem, event.getEntity().getUUID(), "gui");
             }
         }
 
         if (locked) {
-            event.setCanceled(true);
-            if (!isClient && event.getEntity() instanceof ServerPlayer sp) {
-                DebugLogger.runtimeThrottled("Block Lock", "interact_" + sp.getUUID() + "_" + ForgeRegistries.BLOCKS.getKey(block),
-                        "<" + sp.getName().getString() + "> GUI open of locked block '" + ForgeRegistries.BLOCKS.getKey(block) + "' at " + pos.toShortString() + " blocked");
+            // Only deny the block's own interaction (GUI opening), not the item use.
+            // setCanceled(true) would also block placing items on locked block surfaces.
+            event.setUseBlock(net.minecraftforge.eventbus.api.Event.Result.DENY);
+
+            // Only show the "block locked" message when the block actually has a GUI to open.
+            // Blocks without a MenuProvider (plain stone, dirt, etc.) don't need a message —
+            // the player was just clicking a surface, not trying to open anything.
+            boolean hasGui = !isClient && state.getMenuProvider(event.getEntity().level(), pos) != null;
+            if (hasGui && event.getEntity() instanceof ServerPlayer sp) {
+                DebugLogger.runtimeThrottled("Block Lock", "gui_" + sp.getUUID() + "_" + ForgeRegistries.BLOCKS.getKey(block),
+                        "<" + sp.getName().getString() + "> GUI open of '" + ForgeRegistries.BLOCKS.getKey(block) + "' at " + pos.toShortString() + " blocked [action: gui]");
 
                 long now = System.currentTimeMillis();
                 Long last = MESSAGE_COOLDOWNS.get(sp.getUUID());
@@ -93,13 +100,13 @@ public class BlockLockHandler {
 
         boolean isClient = event.getEntity().level().isClientSide();
 
-        // Check global lock
+        // Check global lock — respects lock_actions["break"]
         if (Config.COMMON.lockBlockBreaking.get()) {
             boolean globalLocked;
             if (isClient) {
-                globalLocked = StageLockHelper.isItemLockedForClient(blockItem);
+                globalLocked = StageLockHelper.isActionLockedForClient(blockItem, "break");
             } else {
-                globalLocked = StageLockHelper.isItemLockedForPlayer(blockItem, event.getEntity().getUUID());
+                globalLocked = StageLockHelper.isActionLockedForPlayer(blockItem, event.getEntity().getUUID(), "break");
             }
             if (globalLocked) {
                 float newSpeed = event.getOriginalSpeed() * Config.COMMON.lockedBlockBreakSpeedMultiplier.get().floatValue();
@@ -108,13 +115,13 @@ public class BlockLockHandler {
             }
         }
 
-        // Check individual lock
+        // Check individual lock — respects lock_actions["break"]
         if (Config.COMMON.individualLockBlockBreaking.get()) {
             boolean individualLocked;
             if (isClient) {
-                individualLocked = StageLockHelper.isItemLockedByIndividualStageClient(blockItem);
+                individualLocked = StageLockHelper.isActionLockedByIndividualStageClient(blockItem, "break");
             } else {
-                individualLocked = StageLockHelper.isItemLockedByIndividualStage(blockItem, event.getEntity().getUUID());
+                individualLocked = StageLockHelper.isActionLockedByIndividualStage(blockItem, event.getEntity().getUUID(), "break");
             }
             if (individualLocked) {
                 float newSpeed = event.getOriginalSpeed() * Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().floatValue();
@@ -133,20 +140,20 @@ public class BlockLockHandler {
 
         boolean locked = false;
 
-        // Check global lock
-        if (Config.COMMON.lockBlockBreaking.get() && StageLockHelper.isItemLockedForPlayer(blockItem, event.getPlayer().getUUID())) {
+        // Check global lock — respects lock_actions["break"]: if break is explicitly allowed, the block can be broken
+        if (Config.COMMON.lockBlockBreaking.get() && StageLockHelper.isActionLockedForPlayer(blockItem, event.getPlayer().getUUID(), "break")) {
             locked = true;
         }
 
         // Check individual lock
-        if (!locked && Config.COMMON.individualLockBlockBreaking.get() && StageLockHelper.isItemLockedByIndividualStage(blockItem, event.getPlayer().getUUID())) {
+        if (!locked && Config.COMMON.individualLockBlockBreaking.get() && StageLockHelper.isActionLockedByIndividualStage(blockItem, event.getPlayer().getUUID(), "break")) {
             locked = true;
         }
 
         if (locked) {
             event.setCanceled(true);
-            DebugLogger.runtimeThrottled("Block Lock", "block_" + event.getPlayer().getUUID() + "_" + state.getBlock(),
-                    "<" + event.getPlayer().getName().getString() + "> Break of locked block '" + ForgeRegistries.BLOCKS.getKey(state.getBlock()) + "' at " + event.getPos().toShortString() + " — removed without drops");
+            DebugLogger.runtimeThrottled("Block Lock", "break_" + event.getPlayer().getUUID() + "_" + state.getBlock(),
+                    "<" + event.getPlayer().getName().getString() + "> Break of '" + ForgeRegistries.BLOCKS.getKey(state.getBlock()) + "' at " + event.getPos().toShortString() + " blocked — no drops [action: break]");
 
             // Manually remove block without drops
             BlockPos pos = event.getPos();

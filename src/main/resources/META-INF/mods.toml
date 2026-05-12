@@ -67,3 +67,11 @@ mandatory=false
 versionRange="[2001,)"
 ordering="AFTER"
 side="BOTH"
+
+# Optional: Curios API (Curios slot equip restriction)
+[[dependencies.historystages]]
+modId="curios"
+mandatory=false
+versionRange="[5,)"
+ordering="AFTER"
+side="BOTH"

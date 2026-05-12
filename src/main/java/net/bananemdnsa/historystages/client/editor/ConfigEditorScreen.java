@@ -993,7 +993,8 @@ public class ConfigEditorScreen extends Screen {
                                 updateMaxScroll();
                             }
                             itemOverlay = null;
-                        });
+                        }, () -> items);
+                        itemOverlay.setMultiSelect(true);
                         itemOverlay.show(this.width / 2, this.height / 2, this.width);
                     }, this.width / 2 - 50, this.height - 30, 100, 20));
 
@@ -1250,7 +1251,7 @@ public class ConfigEditorScreen extends Screen {
                                 updateMaxScroll();
                             }
                             tagOverlay = null;
-                        });
+                        }, () -> tags);
                         tagOverlay.show(this.width / 2, this.height / 2, this.width);
                     }, this.width / 2 - 50, this.height - 30, 100, 20));
 

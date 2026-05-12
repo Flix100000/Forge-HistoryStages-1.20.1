@@ -1,9 +1,6 @@
 package net.bananemdnsa.historystages.data;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.TypeAdapter;
-import com.google.gson.internal.Streams;
+import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
@@ -12,62 +9,69 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
+/**
+ * Gson adapter for List&lt;NamedLockEntry&gt; that supports both the compact string format
+ * ("minecraft:swords") and the full object format with per-entry action overrides.
+ *
+ * <p>Write format: {@code { "id": "…", "unlock_actions": ["pickup"] }} — the list contains
+ * the actions that are <em>not</em> locked. Absent field / plain string = all actions locked.
+ *
+ * <p>Read: accepts the current {@code unlock_actions} key and the legacy {@code lock_actions}
+ * key (backwards-compatible). Legacy entries are converted on load.
+ */
+public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>> {
 
     @Override
-    public void write(JsonWriter out, List<ItemEntry> entries) throws IOException {
+    public void write(JsonWriter out, List<NamedLockEntry> entries) throws IOException {
         if (entries == null) {
             out.nullValue();
             return;
         }
         out.beginArray();
-        for (ItemEntry entry : entries) {
-            if (!entry.hasNbt() && !entry.hasLockActions()) {
+        for (NamedLockEntry entry : entries) {
+            if (!entry.hasLockActions()) {
+                // null = all actions locked → plain string, no field needed
                 out.value(entry.getId());
             } else {
-                out.beginObject();
-                out.name("id").value(entry.getId());
-                if (entry.hasNbt()) {
-                    out.name("nbt");
-                    Streams.write(entry.getNbt(), out);
+                // Compute unlock_actions = all known actions minus the locked ones
+                List<String> locked = entry.getLockActions();
+                List<String> unlocked = new ArrayList<>();
+                for (String action : NamedLockEntry.ALL_ACTIONS) {
+                    if (!locked.contains(action)) unlocked.add(action);
                 }
-                if (entry.hasLockActions()) {
-                    // Compute unlock_actions = all known actions minus the locked ones
-                    List<String> locked = entry.getLockActions();
-                    List<String> unlocked = new ArrayList<>();
-                    for (String action : NamedLockEntry.ALL_ACTIONS) {
-                        if (!locked.contains(action)) unlocked.add(action);
+                if (unlocked.isEmpty()) {
+                    // All actions are locked — same as null, write as plain string
+                    out.value(entry.getId());
+                } else {
+                    out.beginObject();
+                    out.name("id").value(entry.getId());
+                    out.name("unlock_actions");
+                    out.beginArray();
+                    for (String action : unlocked) {
+                        out.value(action);
                     }
-                    if (!unlocked.isEmpty()) {
-                        out.name("unlock_actions");
-                        out.beginArray();
-                        for (String action : unlocked) {
-                            out.value(action);
-                        }
-                        out.endArray();
-                    }
+                    out.endArray();
+                    out.endObject();
                 }
-                out.endObject();
             }
         }
         out.endArray();
     }
 
     @Override
-    public List<ItemEntry> read(JsonReader in) throws IOException {
+    public List<NamedLockEntry> read(JsonReader in) throws IOException {
         if (in.peek() == JsonToken.NULL) {
             in.nextNull();
             return new ArrayList<>();
         }
-        List<ItemEntry> entries = new ArrayList<>();
+        List<NamedLockEntry> entries = new ArrayList<>();
         in.beginArray();
         while (in.hasNext()) {
             if (in.peek() == JsonToken.STRING) {
-                entries.add(new ItemEntry(in.nextString()));
+                entries.add(new NamedLockEntry(in.nextString()));
             } else {
                 JsonObject obj = JsonParser.parseReader(in).getAsJsonObject();
                 String id = obj.has("id") ? obj.get("id").getAsString() : "";
-                JsonObject nbt = obj.has("nbt") ? obj.getAsJsonObject("nbt") : null;
                 List<String> lockActions = null;
                 if (obj.has("unlock_actions") && obj.get("unlock_actions").isJsonArray()) {
                     // Current format: unlock_actions lists the NOT-locked actions → invert to get locked
@@ -86,7 +90,7 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
                         lockActions.add(el.getAsString());
                     }
                 }
-                entries.add(new ItemEntry(id, nbt, lockActions));
+                entries.add(new NamedLockEntry(id, lockActions));
             }
         }
         in.endArray();

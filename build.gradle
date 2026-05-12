@@ -72,10 +72,24 @@ minecraft {
 }
 
 repositories {
-    flatDir { dir 'libs' }
-    maven { name = "TerraformersMC"; url = "https://maven.terraformersmc.com/" }
-    maven { url "https://cursemaven.com" }
-    maven { url "https://api.modrinth.com/maven" }
+    flatDir {
+        dir 'libs'
+    }
+    maven {
+        name = "TerraformersMC"
+        url = "https://maven.terraformersmc.com/"
+    }
+
+    maven {
+        url "https://cursemaven.com"
+    }
+    maven {
+        url "https://api.modrinth.com/maven"
+    }
+    maven {
+        name = "Curios"
+        url = "https://maven.theillusivec4.top/"
+    }
     mavenCentral()
 }
 
@@ -92,11 +106,31 @@ dependencies {
     implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
     implementation fg.deobf("curse.maven:jade-324717:6855440")
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
+
+    // Curios (optional)
+    compileOnly fg.deobf("top.theillusivec4.curios:curios-forge:5.14.1+1.20.1:api")
 }
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_description: mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
 
 // This builds the "Full" mod jar (contains Main + API)
 tasks.named('jar', Jar).configure {
     from sourceSets.api.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,

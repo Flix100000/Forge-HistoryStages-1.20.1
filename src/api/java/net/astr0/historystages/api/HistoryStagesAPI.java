@@ -49,9 +49,6 @@ public class HistoryStagesAPI {
     );
 
 
-
-
-
     // Internal method. For use in testing bridge between main mod and API
     @Deprecated
     public static void _APIHelloWorld() {

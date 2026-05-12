@@ -42,12 +42,12 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
+        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "use")) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "use_" + event.getEntity().getUUID() + "_" + itemRL,
-                        "<" + event.getEntity().getName().getString() + "> Right-click use of '" + itemRL + "' blocked");
+                        "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL + "' blocked [action: use]");
                 showMessage(event.getEntity());
             }
         }
@@ -56,6 +56,7 @@ public class ItemUseLockHandler {
     /**
      * Prevents using locked items on blocks (placing, tilling, etc.)
      * but still allows block interaction (opening chests, crafting tables).
+     * Also prevents consumables (food, potions) from being used while looking at a block.
      * Cancelled on BOTH sides to prevent ghost blocks and item consumption.
      */
     @SubscribeEvent
@@ -66,7 +67,8 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
+        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "place")
+                || isActionLockedForEntity(heldItem, event.getEntity(), isClient, "use")) {
             event.setUseItem(Event.Result.DENY);
         }
     }
@@ -83,12 +85,12 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isItemLockedForEntity(heldItem, event.getEntity(), isClient)) {
+        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "break")) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
-                DebugLogger.runtimeThrottled("Item Use Lock", "mine_" + event.getEntity().getUUID() + "_" + itemRL,
-                        "<" + event.getEntity().getName().getString() + "> Mining with locked tool '" + itemRL + "' blocked");
+                DebugLogger.runtimeThrottled("Item Use Lock", "break_" + event.getEntity().getUUID() + "_" + itemRL,
+                        "<" + event.getEntity().getName().getString() + "> Mining with '" + itemRL + "' blocked [action: break]");
                 showMessage(event.getEntity());
             }
         }
@@ -111,12 +113,12 @@ public class ItemUseLockHandler {
         ItemStack weapon = event.getEntity().getMainHandItem();
         if (weapon.isEmpty()) return;
 
-        if (isItemLockedForEntity(weapon, event.getEntity(), isClient)) {
+        if (isActionLockedForEntity(weapon, event.getEntity(), isClient, "attack")) {
             event.setCanceled(true);
             if (!isClient) {
                 ResourceLocation weaponRL = ForgeRegistries.ITEMS.getKey(weapon.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "attack_" + event.getEntity().getUUID() + "_" + weaponRL,
-                        "<" + event.getEntity().getName().getString() + "> Attack with locked weapon '" + weaponRL + "' blocked");
+                        "<" + event.getEntity().getName().getString() + "> Attack with '" + weaponRL + "' blocked [action: attack]");
                 showMessage(event.getEntity());
             }
         }
@@ -141,12 +143,14 @@ public class ItemUseLockHandler {
         // Only handle armor and offhand slots — players can still hold locked items in main hand
         if (slot.getType() != EquipmentSlot.Type.ARMOR && slot != EquipmentSlot.OFFHAND) return;
 
-        boolean locked = (Config.COMMON.lockItemUsage.get() && StageLockHelper.isItemLockedForPlayer(newItem, player))
-                || (Config.COMMON.individualLockItemUsage.get() && StageLockHelper.isItemLockedByIndividualStage(newItem, player.getUUID()));
+        boolean locked = (Config.COMMON.lockItemUsage.get()
+                    && StageLockHelper.isActionLockedForPlayer(newItem, player.getUUID(), "equip"))
+                || (Config.COMMON.individualLockItemUsage.get()
+                    && StageLockHelper.isActionLockedByIndividualStage(newItem, player.getUUID(), "equip"));
         if (locked) {
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(newItem.getItem());
             DebugLogger.runtime("Item Use Lock", player.getName().getString(),
-                    "Equipped locked item '" + itemRL + "' in slot " + slot.getName() + " — removed and returned to inventory");
+                    "'" + itemRL + "' in slot " + slot.getName() + " removed and returned to inventory [action: equip]");
             suppressEquipmentCheck = true;
             try {
                 player.setItemSlot(slot, ItemStack.EMPTY);
@@ -162,22 +166,20 @@ public class ItemUseLockHandler {
         }
     }
 
-    private static boolean isItemLockedForEntity(ItemStack item, Player player, boolean isClient) {
-        // Check global lock
+    private static boolean isActionLockedForEntity(ItemStack item, Player player, boolean isClient, String action) {
         if (Config.COMMON.lockItemUsage.get()) {
             if (isClient) {
-                if (StageLockHelper.isItemLockedForClient(item)) return true;
+                if (StageLockHelper.isActionLockedForClient(item, action)) return true;
             } else {
-                if (StageLockHelper.isItemLockedForPlayer(item, player.getUUID())) return true;
+                if (StageLockHelper.isActionLockedForPlayer(item, player.getUUID(), action)) return true;
             }
         }
 
-        // Check individual lock
         if (Config.COMMON.individualLockItemUsage.get()) {
             if (isClient) {
-                if (StageLockHelper.isItemLockedByIndividualStageClient(item)) return true;
+                if (StageLockHelper.isActionLockedByIndividualStageClient(item, action)) return true;
             } else {
-                if (StageLockHelper.isItemLockedByIndividualStage(item, player.getUUID())) return true;
+                if (StageLockHelper.isActionLockedByIndividualStage(item, player.getUUID(), action)) return true;
             }
         }
 
