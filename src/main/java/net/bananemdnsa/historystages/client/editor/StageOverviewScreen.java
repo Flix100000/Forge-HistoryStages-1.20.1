@@ -712,6 +712,11 @@ public class StageOverviewScreen extends Screen {
         }
 
         @Override
+        public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            // No-op — avoid 1.21's menu blur shader; parent render in render() supplies the backdrop
+        }
+
+        @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
             // Render parent screen behind overlay
             if (parent != null) {
