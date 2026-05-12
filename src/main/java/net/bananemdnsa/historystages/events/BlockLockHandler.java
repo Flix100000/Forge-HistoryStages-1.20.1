@@ -9,7 +9,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
@@ -32,8 +31,9 @@ public class BlockLockHandler {
     private static final long COOLDOWN_MS = 2000;
 
     /**
-     * Prevents opening the GUI of locked blocks (chests, furnaces, crafting tables, etc.)
-     * Only blocks that have a MenuProvider (i.e., a GUI) are affected.
+     * Denies right-click interaction on locked blocks (chest GUIs, doors, levers, buttons, …).
+     * The "block locked" chat message is only shown for blocks that actually have a
+     * MenuProvider, to avoid spamming on every right-click of plain stone/dirt.
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -43,9 +43,6 @@ public class BlockLockHandler {
         BlockPos pos = event.getPos();
         BlockState state = event.getEntity().level().getBlockState(pos);
         Block block = state.getBlock();
-
-        // Only care about blocks that have a GUI (MenuProvider)
-        if (!(block instanceof MenuProvider) && !(event.getEntity().level().getBlockEntity(pos) instanceof MenuProvider)) return;
 
         ItemStack blockItem = new ItemStack(block.asItem());
         if (blockItem.isEmpty()) return;
