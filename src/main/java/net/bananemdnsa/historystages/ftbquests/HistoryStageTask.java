@@ -61,14 +61,14 @@ public class HistoryStageTask extends AbstractBooleanTask {
     public void fillConfigGroup(ConfigGroup config) {
         super.fillConfigGroup(config);
         config.addString("stage", stage, v -> stage = v, "")
-                .setNameKey("ftbquests.historystages.config.stage");
+                .setNameKey("ftbquests.task.historystages.history_stage.stage");
         config.addBool("individual", individual, v -> individual = v, false)
-                .setNameKey("ftbquests.historystages.config.individual");
+                .setNameKey("ftbquests.task.historystages.history_stage.individual");
     }
 
     @Override
     public MutableComponent getAltTitle() {
-        return Component.translatable("ftbquests.historystages.task.title", stage);
+        return Component.translatable("ftbquests.task.historystages.history_stage.title", stage);
     }
 
     @Override
