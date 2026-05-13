@@ -1,4 +1,4 @@
-**History Stages**
+## History Stages
 
 History Stages is a progression and gatekeeping mod for
 Minecraft. It allows modpack creators to
@@ -8,10 +8,10 @@ behind custom research stages.
 
 For full documentation on commands, configuration, Forge
 events, and advanced usage, see the Wiki:
-https://github.com/Flix100000/History-Stages/wiki
+[here](https://github.com/Flix100000/History-Stages/wiki)
 
 ----------------------------------------------------------------
-1. KEY FEATURES
+### 1. KEY FEATURES
 ----------------------------------------------------------------
 
 PROGRESSION MODES:
@@ -140,17 +140,17 @@ OTHER:
 - Localization: English and German translations included.
 
 ----------------------------------------------------------------
-2. HOW TO USE
+### 2. HOW TO USE
 ----------------------------------------------------------------
 
 GLOBAL STAGES:
 Global stages are defined via JSON files in:
-  /config/historystages/global/
+  `/config/historystages/global/`
 When a global stage is unlocked, it applies to all players.
 
 INDIVIDUAL STAGES:
 Individual (per-player) stages are defined via JSON files in:
-  /config/historystages/individual/
+  `/config/historystages/individual/`
 Each player unlocks individual stages independently.
 Dimensions and entities can overlap between global and
 individual stages.
@@ -166,6 +166,7 @@ stage unlocked when Phase 1 completes, they gain access
 immediately.
 
 Example format:
+```json
 {
   "display_name": "Bronze Age",
   "research_time": 60,
@@ -188,8 +189,10 @@ Example format:
     {"type": "individual_stage", "stage": "stone_age"}
   ]
 }
+```
 
 Items can also be specified with NBT criteria:
+```json
 {
   "items": [
     "minecraft:diamond_sword",
@@ -203,6 +206,7 @@ Items can also be specified with NBT criteria:
     }
   ]
 }
+```
 
 FIELDS:
 - display_name: Human-readable name shown in messages and tooltips.
@@ -260,7 +264,7 @@ for the pedestal or scrolls. You MUST add them yourself using
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
-3. IN-GAME STAGE EDITOR
+### 3. IN-GAME STAGE EDITOR
 ----------------------------------------------------------------
 
 History Stages includes a full in-game editor for creating,
@@ -269,12 +273,12 @@ the game or manually edit JSON files. All stage configs and
 mod settings can be managed directly from within the GUI.
 
 ----------------------------------------------------------------
-4. ADMIN COMMANDS & CONFIGURATION
+### 4. ADMIN COMMANDS & CONFIGURATION
 ----------------------------------------------------------------
 
 See the Wiki for a full command reference, all config options,
 and Forge event documentation:
-https://github.com/Flix100000/History-Stages/wiki
+[here](https://github.com/Flix100000/History-Stages/wiki)
 
 Quick reference:
 /history global unlock|lock <stage>
@@ -286,7 +290,7 @@ Scrolls can also be obtained via command:
 /give @s historystages:research_scroll{StageResearch:"stage_id"}
 
 ----------------------------------------------------------------
-5. FTB QUESTS INTEGRATION
+### 5. FTB QUESTS INTEGRATION
 ----------------------------------------------------------------
 
 If FTB Quests is installed, History Stages adds two new types
@@ -310,7 +314,7 @@ The integration is fully optional and crash-safe. If FTB Quests
 is not installed, the mod works normally without it.
 
 ----------------------------------------------------------------
-6. DEPENDENCIES
+### 6. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
