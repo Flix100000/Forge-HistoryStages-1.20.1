@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.data;
 
+import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.*;
@@ -9,6 +10,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.block.Block;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -87,6 +89,15 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
 
+    class Iota {
+        static int iota = -1;
+
+        public static int next() {return ++iota;}
+        public static int limit() {return iota + 1;}
+    }
+
+    private static int META_DUMMY_BIT = Iota.next();
+    private static int META_NBT_BIT = Iota.next();
     // =========================
     //     Implementation
     // =========================
@@ -97,6 +108,7 @@ public final class RuntimeStageManager implements IStageManager {
     // THIS ONLY NEEDS TO BE CALLED WHEN A NEW STAGE IS ADDED
     // IF EXISTING STAGES ARE UPDATED, THE LOCKS CAN BE APPLIED DIRECTLY
     public void bake(List<StageDefinition> stages) {
+
 
         LAST_GLOBAL_INDEX = -1; // Always reset in case all the global stages have been removed since last bake
 
@@ -115,13 +127,13 @@ public final class RuntimeStageManager implements IStageManager {
         );
 
         // TODO: Explain why I decided to include this. Short answer: performance
-        stages.add(0, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
-        stages.add(1, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
+        stages.add(META_DUMMY_BIT, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
+        stages.add(META_NBT_BIT, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
 
         // Load our quick lookup tables for bit position <--> stage
         // We use these to achieve O(1) forward and reverse lookups of bit positions corresponding
         // to each stage, and vice versa.
-        for(int i = 2; i < stages.size(); i++) {
+        for(int i = Iota.limit(); i < stages.size(); i++) {
 
             final int STAGE_INDEX = i; // Needed for compiler reasons
 
@@ -139,7 +151,7 @@ public final class RuntimeStageManager implements IStageManager {
 
             //TODO(Astr0): Check if this can be optimised using concurrency for large numbers of stage definitions
             stage.getLockedItems().forEach((item) -> {
-                HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(item), STAGE_INDEX);
+                HistoryStagesAPI.ITEMS.applyLock(item, STAGE_INDEX);
             });
 
             // We bake mod locks. This avoids us having to do a string comparison based check on every
@@ -149,7 +161,7 @@ public final class RuntimeStageManager implements IStageManager {
             stage.getLockedMods().forEach((mod) -> {
                 for (Map.Entry<ResourceKey<Item>, Item> entry : ForgeRegistries.ITEMS.getEntries()) {
                     if (entry.getKey().location().getNamespace().equals(mod.getNamespace())) {
-                        HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(entry.getValue()), STAGE_INDEX);
+                        HistoryStagesAPI.ITEMS.applyLock(entry.getValue(), STAGE_INDEX);
                     }
                 }
 
@@ -202,7 +214,7 @@ public final class RuntimeStageManager implements IStageManager {
 
     private void lockItemWithStage(Item item, String stage) {
         int stageBit = getStageBit(stage);
-        HistoryStagesAPI.ITEMS.applyLock(ItemKey.of(item), stageBit);
+        HistoryStagesAPI.ITEMS.applyLock(item, stageBit);
     }
 
     private void lockBlockWithStage(Block block, String stage) {
@@ -336,24 +348,52 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     /**
-     * UNIFIED LIST RETRIEVAL
-     * Replaces getStagesForItem, getStagesForBlock, etc.
+     *
+     * @param category Instance of {@link LockCategory} to check
+     * @param lockedObject The object which you want to check the lock for.
+     * @return
+     * @param <T>
      */
-    public <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key) {
-        BitSet lock = category.getLock(key);
+    public <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T lockedObject) {
+        BitSet lock = category.getLock(lockedObject);
         if (lock == null) return new ArrayList<>(); // Or Collections.emptyList()
 
         return getStageDefinitionsFromLock(lock);
     }
 
 
-    public List<StageDefinition> getStagesFor(ItemLockCategory category, ItemKey key) {
+    private final HashMap<Item, List<NBTLock>> itemNbtLocks = new HashMap<>();
 
 
+    record NBTLock(StageDefinition stage, JsonObject lockCriteria) {
 
-        BitSet lock = category.getLock(key);
-        if (lock == null) return new ArrayList<>(); // Or Collections.emptyList()
+    }
 
+
+    /**
+     * Get the stages for a given item stack. This method considers both the underlying item as well as any Nbt locks that apply to that item.
+     * To simply check any item lock without considering Nbt data, it is better to use {@link RuntimeStageManager#getStagesFor(LockCategory, Object)}
+     * @param itemLockCategory
+     * @param stack
+     * @return A list of stages which lock this item stack
+     */
+    public List<StageDefinition> getStagesFor(LockCategory<Item> itemLockCategory, ItemStack stack) {
+
+        BitSet lock = itemLockCategory.getLock(stack.getItem());
+
+        if (lock == null) return new ArrayList<>();
+        List<StageDefinition> stages =  getStageDefinitionsFromLock(lock);
+
+        if(lock.get(META_NBT_BIT)) {
+            for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
+
+                if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
+                    stages.add(nbtLock.stage());
+                }
+            }
+        }
+
+        if (lock == null) return new ArrayList<>();
         return getStageDefinitionsFromLock(lock);
     }
 
