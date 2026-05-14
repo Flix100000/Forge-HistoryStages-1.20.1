@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Random;
 
 @Mod.EventBusSubscriber(modid = "historystages", bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class LootLockHandler {
+public class LootLockHandler extends AbstractHandlerGroup {
     private static final Random RANDOM = new Random();
 
     @SubscribeEvent

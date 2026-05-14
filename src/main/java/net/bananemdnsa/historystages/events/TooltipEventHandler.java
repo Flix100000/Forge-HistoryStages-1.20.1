@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
-public class TooltipEventHandler {
+public class TooltipEventHandler extends AbstractHandlerGroup {
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {

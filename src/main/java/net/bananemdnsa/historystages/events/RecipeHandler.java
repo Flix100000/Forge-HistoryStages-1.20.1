@@ -7,7 +7,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
 
-public class RecipeHandler {
+public class RecipeHandler extends AbstractHandlerGroup {
     /**
      * Checks if a recipe's output is locked based on history stages.
      * Uses ClientStageCache on the client side, SERVER_CACHE on the server side.

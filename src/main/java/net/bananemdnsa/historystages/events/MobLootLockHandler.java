@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Random;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class MobLootLockHandler {
+public class MobLootLockHandler extends AbstractHandlerGroup {
     private static final Random RANDOM = new Random();
 
     @SubscribeEvent

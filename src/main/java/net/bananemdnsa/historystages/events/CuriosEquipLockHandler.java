@@ -21,11 +21,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class CuriosEquipLockHandler {
+public class CuriosEquipLockHandler extends AbstractHandlerGroup {
 
     private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
     private static final long COOLDOWN_MS = 2000;
-    private static final RuntimeStageManager manager = RuntimeStageManager.getInstance();
 
     @SubscribeEvent
     public static void onCurioEquip(CurioEquipEvent event) {
@@ -55,10 +54,10 @@ public class CuriosEquipLockHandler {
     // all TODO tags will need to be cleaned up prior to main merge
     private static boolean isItemLocked(ItemStack item, Player player) {
         if (Config.COMMON.lockItemUsage.get()) {
-             return manager.isLocked(HistoryStagesAPI.ITEMS, item, player);
+             return stageManager.isLocked(HistoryStagesAPI.ITEMS, item, player);
         }
         if (Config.COMMON.individualLockItemUsage.get()) {
-            return manager.isLocked(HistoryStagesAPI.ITEMS, item, player);
+            return stageManager.isLocked(HistoryStagesAPI.ITEMS, item, player);
         }
 
         return false;

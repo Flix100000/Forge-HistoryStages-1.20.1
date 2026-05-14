@@ -18,7 +18,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.*;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class MobLockHandler {
+public class MobLockHandler extends AbstractHandlerGroup {
 
     private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
     private static final long COOLDOWN_MS = 2000;

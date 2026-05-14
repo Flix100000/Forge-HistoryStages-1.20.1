@@ -1,7 +1,9 @@
 package net.bananemdnsa.historystages.events;
 
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
@@ -24,7 +26,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class BlockLockHandler {
+public class BlockLockHandler extends AbstractHandlerGroup {
 
     private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
     private static final long COOLDOWN_MS = 2000;
@@ -49,10 +51,8 @@ public class BlockLockHandler {
 
         // Check global lock — respects lock_actions["gui"]
         if (Config.COMMON.lockBlockInteraction.get()) {
-            if (isClient) {
-                locked = StageLockHelper.isActionLockedForClient(blockItem, "gui");
-            } else {
-                locked = StageLockHelper.isActionLockedForPlayer(blockItem, event.getEntity().getUUID(), "gui");
+            if (RuntimeStageManager.getInstance().isLocked(HistoryStagesAPI.BLOCKS, block, event.getEntity())) {
+                locked = true;
             }
         }
 

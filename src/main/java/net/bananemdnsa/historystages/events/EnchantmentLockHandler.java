@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class EnchantmentLockHandler {
+public class EnchantmentLockHandler extends AbstractHandlerGroup {
 
     private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
     private static final long COOLDOWN_MS = 2000;

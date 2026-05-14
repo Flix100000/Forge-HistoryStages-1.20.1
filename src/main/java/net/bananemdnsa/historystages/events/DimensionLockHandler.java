@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class DimensionLockHandler {
+public class DimensionLockHandler extends AbstractHandlerGroup {
 
     @SubscribeEvent
     public static void onDimensionTravel(EntityTravelToDimensionEvent event) {
@@ -28,13 +28,11 @@ public class DimensionLockHandler {
 
         ResourceLocation targetDim = event.getDimension().location();
 
-        RuntimeStageManager manager = RuntimeStageManager.getInstance();
-
-        if (manager.isLocked(HistoryStagesAPI.DIMENSIONS, targetDim, player)) {
+        if (stageManager.isLocked(HistoryStagesAPI.DIMENSIONS, targetDim, player)) {
 
             event.setCanceled(true);
 
-            List<StageDefinition> lockedStages = manager.getMissingStageFor(HistoryStagesAPI.DIMENSIONS, targetDim, player);
+            List<StageDefinition> lockedStages = stageManager.getMissingStageFor(HistoryStagesAPI.DIMENSIONS, targetDim, player);
             DebugLogger.runtime("Dimension Lock", player.getName().getString(),
                     "Blocked travel to '" + targetDim + "' — missing stages: " + lockedStages);
 

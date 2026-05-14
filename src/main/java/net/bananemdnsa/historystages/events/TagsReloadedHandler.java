@@ -6,7 +6,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class TagsReloadedHandler {
+public class TagsReloadedHandler extends AbstractHandlerGroup {
 
     @SubscribeEvent
     public void onTagsUpdated(TagsUpdatedEvent event) {

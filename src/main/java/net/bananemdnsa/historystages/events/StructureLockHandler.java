@@ -32,7 +32,7 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.*;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class StructureLockHandler {
+public class StructureLockHandler extends AbstractHandlerGroup {
 
     private static final Map<UUID, PlayerState> STATE = new HashMap<>();
     /** Radius (in chunks) to scan around the player when looking for structure starts. */
