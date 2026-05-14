@@ -1,7 +1,10 @@
 package net.bananemdnsa.historystages.events;
 
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.RegistryHelper;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -22,6 +25,7 @@ public class CuriosEquipLockHandler {
 
     private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
     private static final long COOLDOWN_MS = 2000;
+    private static final RuntimeStageManager manager = RuntimeStageManager.getInstance();
 
     @SubscribeEvent
     public static void onCurioEquip(CurioEquipEvent event) {
@@ -32,12 +36,12 @@ public class CuriosEquipLockHandler {
         if (stack.isEmpty()) return;
 
         boolean isClient = player.level().isClientSide();
-        boolean locked = isItemLocked(stack, player, isClient);
+        boolean locked = isItemLocked(stack, player);
 
         if (locked) {
             event.setResult(Event.Result.DENY);
             if (!isClient) {
-                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
+                ResourceLocation itemRL = RegistryHelper.getResourceLocationFromRegistry(event.getStack().getItem());
                 DebugLogger.runtime("Curios Lock", player.getName().getString(),
                         "Equipping locked item '" + itemRL + "' in curio slot '"
                                 + event.getSlotContext().identifier() + "' — blocked");
@@ -46,21 +50,17 @@ public class CuriosEquipLockHandler {
         }
     }
 
-    private static boolean isItemLocked(ItemStack item, Player player, boolean isClient) {
+    // TODO(Bug): this technically causes a bug in the current state as it no longer respects the individual settings
+    // for global vs individual item locks. For now we will intentionally cause this issue just so we can get to testing
+    // all TODO tags will need to be cleaned up prior to main merge
+    private static boolean isItemLocked(ItemStack item, Player player) {
         if (Config.COMMON.lockItemUsage.get()) {
-            if (isClient) {
-                if (StageLockHelper.isItemLockedForClient(item)) return true;
-            } else {
-                if (StageLockHelper.isItemLockedForPlayer(item, player.getUUID())) return true;
-            }
+             return manager.isLocked(HistoryStagesAPI.ITEMS, item, player);
         }
         if (Config.COMMON.individualLockItemUsage.get()) {
-            if (isClient) {
-                if (StageLockHelper.isItemLockedByIndividualStageClient(item)) return true;
-            } else {
-                if (StageLockHelper.isItemLockedByIndividualStage(item, player.getUUID())) return true;
-            }
+            return manager.isLocked(HistoryStagesAPI.ITEMS, item, player);
         }
+
         return false;
     }
 
