@@ -10,8 +10,10 @@ import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 public class FTBQuestsIntegration {
 
@@ -32,15 +34,31 @@ public class FTBQuestsIntegration {
         ).setDisplayName(Component.translatable("ftbquests.historystages.reward.history_stage"));
 
         MinecraftForge.EVENT_BUS.addListener((StageEvent.Unlocked event) ->
-                HistoryStageTask.onStageUnlocked(event.getStageId())
+                HistoryStageTask.onGlobalStageChanged(event.getStageId(), true)
+        );
+
+        MinecraftForge.EVENT_BUS.addListener((StageEvent.Locked event) ->
+                HistoryStageTask.onGlobalStageChanged(event.getStageId(), false)
         );
 
         MinecraftForge.EVENT_BUS.addListener((StageEvent.IndividualUnlocked event) -> {
-            net.minecraft.server.level.ServerPlayer player = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer()
-                    .getPlayerList().getPlayer(event.getPlayerUUID());
+            ServerPlayer player = resolvePlayer(event.getPlayerUUID());
             if (player != null) {
-                HistoryStageTask.onIndividualStageUnlocked(event.getStageId(), player);
+                HistoryStageTask.onIndividualStageChanged(event.getStageId(), player, true);
             }
         });
+
+        MinecraftForge.EVENT_BUS.addListener((StageEvent.IndividualLocked event) -> {
+            ServerPlayer player = resolvePlayer(event.getPlayerUUID());
+            if (player != null) {
+                HistoryStageTask.onIndividualStageChanged(event.getStageId(), player, false);
+            }
+        });
+    }
+
+    private static ServerPlayer resolvePlayer(java.util.UUID uuid) {
+        var server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return null;
+        return server.getPlayerList().getPlayer(uuid);
     }
 }

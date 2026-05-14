@@ -1,10 +1,13 @@
 package net.bananemdnsa.historystages.ftbquests;
 
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
+import dev.ftb.mods.ftblibrary.icon.Icon;
+import dev.ftb.mods.ftblibrary.icon.ItemIcon;
 import dev.ftb.mods.ftbquests.quest.Quest;
 import dev.ftb.mods.ftbquests.quest.reward.Reward;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -25,6 +28,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraftforge.common.MinecraftForge;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 public class HistoryStageReward extends Reward {
     private String stage = "";
@@ -75,7 +79,8 @@ public class HistoryStageReward extends Reward {
     @Override
     public void fillConfigGroup(ConfigGroup config) {
         super.fillConfigGroup(config);
-        config.addString("stage", stage, v -> stage = v, "")
+        config.addEnum("stage", stage, v -> stage = v,
+                        HistoryStageTask.buildStageNameMap(individual, stage), "")
                 .setNameKey("ftbquests.historystages.config.stage");
         config.addBool("remove", remove, v -> remove = v, false)
                 .setNameKey("ftbquests.historystages.config.remove");
@@ -88,8 +93,10 @@ public class HistoryStageReward extends Reward {
         if (stage.isEmpty()) return;
 
         if (individual) {
+            if (!StageManager.getIndividualStages().containsKey(stage)) return;
             claimIndividual(player);
         } else {
+            if (!StageManager.getStages().containsKey(stage)) return;
             claimGlobal(player);
         }
     }
@@ -104,6 +111,13 @@ public class HistoryStageReward extends Reward {
             data.removeStage(stage);
             data.setDirty();
             MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stage, displayName));
+
+            if (player.server != null) {
+                player.server.getCommands().performPrefixedCommand(
+                        player.server.createCommandSourceStack().withSuppressedOutput(),
+                        "history reload"
+                );
+            }
             broadcastLockEffects(player, displayName);
         } else {
             if (data.hasStage(stage)) return;
@@ -117,7 +131,8 @@ public class HistoryStageReward extends Reward {
                         "history reload"
                 );
             }
-            broadcastUnlockEffects(player, displayName);
+            String iconId = (entry != null && !entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
+            broadcastUnlockEffects(player, displayName, iconId);
         }
 
         StageData.refreshCache(data.getUnlockedStages());
@@ -161,7 +176,7 @@ public class HistoryStageReward extends Reward {
                 String configChat = Config.COMMON.individualUnlockMessageFormat.get();
                 String finalChat = configChat.replace("{stage}", displayName)
                         .replace("{player}", player.getName().getString())
-                        .replace("&", "\u00a7");
+                        .replace("&", "§");
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GRAY)
                                 .append(Component.literal(finalChat))
@@ -171,14 +186,15 @@ public class HistoryStageReward extends Reward {
                 String configChat = Config.COMMON.individualUnlockMessageFormat.get();
                 String finalChat = configChat.replace("{stage}", displayName)
                         .replace("{player}", player.getName().getString())
-                        .replace("&", "\u00a7");
+                        .replace("&", "§");
                 player.displayClientMessage(Component.literal(finalChat), true);
             }
             if (Config.COMMON.individualUseSounds.get()) {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
             if (Config.COMMON.individualUseToasts.get()) {
-                String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
+                String iconId = (entry != null && !entry.getIcon().isEmpty())
+                        ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
                 PacketHandler.INSTANCE.send(
                         net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
                         new StageUnlockedToastPacket(displayName, iconId)
@@ -194,9 +210,9 @@ public class HistoryStageReward extends Reward {
         // No recipe reload needed for individual stages
     }
 
-    private void broadcastUnlockEffects(ServerPlayer source, String stageName) {
+    private void broadcastUnlockEffects(ServerPlayer source, String stageName, String iconId) {
         String configChat = Config.COMMON.unlockMessageFormat.get();
-        String finalChat = configChat.replace("{stage}", stageName).replace("&", "\u00a7");
+        String finalChat = configChat.replace("{stage}", stageName).replace("&", "§");
 
         source.server.getPlayerList().getPlayers().forEach(player -> {
             if (Config.COMMON.broadcastChat.get()) {
@@ -208,7 +224,7 @@ public class HistoryStageReward extends Reward {
             }
             if (Config.COMMON.useActionbar.get()) {
                 player.displayClientMessage(
-                        Component.literal("\u00a76New Era: " + stageName + " \u00a7aUnlocked!"), true
+                        Component.literal("§6New Era: " + stageName + " §aUnlocked!"), true
                 );
             }
             if (Config.COMMON.useSounds.get()) {
@@ -217,8 +233,6 @@ public class HistoryStageReward extends Reward {
         });
 
         if (Config.COMMON.useToasts.get()) {
-            var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stage);
-            String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
             PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName, iconId));
         }
     }
@@ -226,7 +240,7 @@ public class HistoryStageReward extends Reward {
     private void broadcastLockEffects(ServerPlayer source, String stageName) {
         Component chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
                 .append(Component.literal("The knowledge of " + stageName + " has been forgotten...").withStyle(ChatFormatting.WHITE));
-        Component actionMsg = Component.literal("\u00a7cStage Locked: " + stageName);
+        Component actionMsg = Component.literal("§cStage Locked: " + stageName);
 
         source.server.getPlayerList().getPlayers().forEach(player -> {
             if (Config.COMMON.broadcastChat.get()) {
@@ -243,10 +257,33 @@ public class HistoryStageReward extends Reward {
 
     @Override
     public MutableComponent getAltTitle() {
+        String displayName = resolveDisplayName();
         if (remove) {
-            return Component.translatable("ftbquests.historystages.reward.title.lock", stage);
+            return Component.translatable("ftbquests.historystages.reward.title.lock", displayName);
         }
-        return Component.translatable("ftbquests.historystages.reward.title.unlock", stage);
+        return Component.translatable("ftbquests.historystages.reward.title.unlock", displayName);
+    }
+
+    @Override
+    public Icon getAltIcon() {
+        Map<String, StageEntry> source = individual
+                ? StageManager.getIndividualStages()
+                : StageManager.getStages();
+        StageEntry entry = source.get(stage);
+        String iconId = (entry != null && !entry.getIcon().isEmpty())
+                ? entry.getIcon()
+                : Config.COMMON.defaultStageIcon.get();
+        if (iconId == null || iconId.isEmpty()) return super.getAltIcon();
+        return ItemIcon.getItemIcon(iconId);
+    }
+
+    private String resolveDisplayName() {
+        if (stage.isEmpty()) return stage;
+        Map<String, StageEntry> source = individual
+                ? StageManager.getIndividualStages()
+                : StageManager.getStages();
+        StageEntry entry = source.get(stage);
+        return entry != null ? entry.getDisplayName() : stage;
     }
 
     @Override
