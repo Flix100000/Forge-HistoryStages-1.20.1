@@ -1,10 +1,13 @@
 package net.bananemdnsa.historystages.data;
 
+import com.google.gson.annotations.JsonAdapter;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class EntityLocks {
-    private List<String> spawnlock;
+    @JsonAdapter(EntitySpawnLockEntryListAdapter.class)
+    private List<EntitySpawnLockEntry> spawnlock;
     private List<String> attacklock;
     private List<String> modLinked;
 
@@ -14,7 +17,7 @@ public class EntityLocks {
         this.modLinked = new ArrayList<>();
     }
 
-    public List<String> getSpawnlock() {
+    public List<EntitySpawnLockEntry> getSpawnlock() {
         return spawnlock != null ? spawnlock : new ArrayList<>();
     }
 
@@ -26,8 +29,14 @@ public class EntityLocks {
         return modLinked != null ? modLinked : new ArrayList<>();
     }
 
-    public void setSpawnlock(List<String> spawnlock) {
-        this.spawnlock = spawnlock != null ? new ArrayList<>(spawnlock) : new ArrayList<>();
+    public void setSpawnlock(List<EntitySpawnLockEntry> spawnlock) {
+        if (spawnlock == null) {
+            this.spawnlock = new ArrayList<>();
+            return;
+        }
+        List<EntitySpawnLockEntry> copy = new ArrayList<>(spawnlock.size());
+        for (EntitySpawnLockEntry e : spawnlock) copy.add(e.copy());
+        this.spawnlock = copy;
     }
 
     public void setAttacklock(List<String> attacklock) {
@@ -36,5 +45,12 @@ public class EntityLocks {
 
     public void setModLinked(List<String> modLinked) {
         this.modLinked = modLinked != null ? new ArrayList<>(modLinked) : new ArrayList<>();
+    }
+
+    /** Convenience: returns just the entity IDs in spawnlock (without source detail). */
+    public List<String> getSpawnlockIds() {
+        List<String> ids = new ArrayList<>(getSpawnlock().size());
+        for (EntitySpawnLockEntry e : getSpawnlock()) ids.add(e.getId());
+        return ids;
     }
 }

@@ -169,7 +169,10 @@ public class StageCommand {
         }
         if (!entry.getEntities().getSpawnlock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Spawnlock):"), false);
-            entry.getEntities().getSpawnlock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
+            entry.getEntities().getSpawnlock().forEach(e -> {
+                String suffix = e.hasLockSources() ? " §8[" + String.join(", ", e.getLockSources()) + "]" : "";
+                source.sendSuccess(() -> Component.literal("  §8• §7" + e.getId() + suffix), false);
+            });
         }
         return 1;
     }
