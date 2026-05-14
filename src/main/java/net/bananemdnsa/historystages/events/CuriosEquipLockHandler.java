@@ -70,7 +70,7 @@ public class CuriosEquipLockHandler {
         MESSAGE_COOLDOWNS.put(player.getUUID(), now);
 
         player.displayClientMessage(
-                Component.translatable("message.historystages.item_locked")
+                net.bananemdnsa.historystages.util.LockMessages.itemLocked()
                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                 true
         );

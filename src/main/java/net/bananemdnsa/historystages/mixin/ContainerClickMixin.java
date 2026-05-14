@@ -59,7 +59,7 @@ public class ContainerClickMixin {
             if (last == null || (now - last) >= COOLDOWN_MS) {
                 CONTAINER_MSG_COOLDOWNS.put(serverPlayer.getUUID(), now);
                 serverPlayer.displayClientMessage(
-                        Component.translatable("message.historystages.item_locked")
+                        net.bananemdnsa.historystages.util.LockMessages.itemLocked()
                                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                         true
                 );
@@ -129,7 +129,7 @@ public class ContainerClickMixin {
         if (last == null || (now - last) >= COOLDOWN_MS) {
             CONTAINER_MSG_COOLDOWNS.put(serverPlayer.getUUID(), now);
             serverPlayer.displayClientMessage(
-                    Component.translatable("message.historystages.item_locked")
+                    net.bananemdnsa.historystages.util.LockMessages.itemLocked()
                             .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                     true
             );

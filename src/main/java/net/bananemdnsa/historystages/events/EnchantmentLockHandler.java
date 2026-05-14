@@ -56,7 +56,7 @@ public class EnchantmentLockHandler {
             if (last == null || (now - last) >= COOLDOWN_MS) {
                 MESSAGE_COOLDOWNS.put(serverPlayer.getUUID(), now);
                 serverPlayer.displayClientMessage(
-                        Component.translatable("message.historystages.enchantment_locked")
+                        net.bananemdnsa.historystages.util.LockMessages.enchantmentLocked()
                                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                         true
                 );

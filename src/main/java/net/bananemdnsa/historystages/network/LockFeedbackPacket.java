@@ -62,9 +62,6 @@ public record LockFeedbackPacket(byte kind, List<String> displayNames) implement
             String chatKey = isDimension
                     ? "message.historystages.dimension_locked"
                     : "message.historystages.mob_locked";
-            String actionbarKey = isDimension
-                    ? "message.historystages.dimension_unknown"
-                    : "message.historystages.mob_unknown";
 
             if (showChat) {
                 MutableComponent chatMsg = Component.translatable(chatKey);
@@ -77,9 +74,11 @@ public record LockFeedbackPacket(byte kind, List<String> displayNames) implement
             }
 
             if (useActionbar) {
+                MutableComponent actionbarMsg = isDimension
+                        ? net.bananemdnsa.historystages.util.LockMessages.dimensionUnknown()
+                        : net.bananemdnsa.historystages.util.LockMessages.mobUnknown();
                 mc.player.displayClientMessage(
-                        Component.translatable(actionbarKey)
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
+                        actionbarMsg.withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                         true
                 );
             }

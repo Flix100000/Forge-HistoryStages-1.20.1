@@ -110,6 +110,12 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 case "structureMessageEnabled" -> Config.COMMON.structureMessageEnabled.set(Boolean.parseBoolean(value));
                 case "structureLockMessageFormat" -> Config.COMMON.structureLockMessageFormat.set(value);
                 case "structureLockInChat" -> Config.COMMON.structureLockInChat.set(Boolean.parseBoolean(value));
+                case "msgDimensionUnknown" -> Config.COMMON.msgDimensionUnknown.set(value);
+                case "msgMobUnknown" -> Config.COMMON.msgMobUnknown.set(value);
+                case "msgItemLocked" -> Config.COMMON.msgItemLocked.set(value);
+                case "msgBlockLocked" -> Config.COMMON.msgBlockLocked.set(value);
+                case "msgEntityItemLocked" -> Config.COMMON.msgEntityItemLocked.set(value);
+                case "msgEnchantmentLocked" -> Config.COMMON.msgEnchantmentLocked.set(value);
             }
         }
     }

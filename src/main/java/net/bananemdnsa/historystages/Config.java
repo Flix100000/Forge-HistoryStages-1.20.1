@@ -189,6 +189,14 @@ public class Config {
         public final ModConfigSpec.ConfigValue<String> structureLockMessageFormat;
         public final ModConfigSpec.BooleanValue structureLockInChat;
 
+        // Lock-Message Overrides (leer = Translation Key wird verwendet)
+        public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
+        public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
+        public final ModConfigSpec.ConfigValue<String> msgItemLocked;
+        public final ModConfigSpec.ConfigValue<String> msgBlockLocked;
+        public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
+        public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
+
         public Common(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -389,6 +397,39 @@ public class Config {
                     .defineInRange("damageInterval", 20, 1, 600);
 
             builder.pop(); // structure_lock
+
+            // --- LOCK MESSAGES SECTION ---
+            builder.comment(
+                    "Override the displayed text for the six 'is locked' / 'unknown' messages.",
+                    "Leave a value empty (\"\") to fall back to the default messages.",
+                    "Use & for color codes (e.g. &c for red)."
+            ).push("lock_messages");
+
+            msgDimensionUnknown = builder
+                    .comment("Actionbar message when entering a locked dimension. Lang key: message.historystages.dimension_unknown")
+                    .define("dimensionUnknown", "");
+
+            msgMobUnknown = builder
+                    .comment("Actionbar message when attacking a locked mob. Lang key: message.historystages.mob_unknown")
+                    .define("mobUnknown", "");
+
+            msgItemLocked = builder
+                    .comment("Actionbar message when interacting with a locked item. Lang key: message.historystages.item_locked")
+                    .define("itemLocked", "");
+
+            msgBlockLocked = builder
+                    .comment("Actionbar message when interacting with a locked block. Lang key: message.historystages.block_locked")
+                    .define("blockLocked", "");
+
+            msgEntityItemLocked = builder
+                    .comment("Actionbar message when interacting with armor stands / item frames holding locked items. Lang key: message.historystages.entity_item_locked")
+                    .define("entityItemLocked", "");
+
+            msgEnchantmentLocked = builder
+                    .comment("Actionbar message when applying a locked enchantment. Lang key: message.historystages.enchantment_locked")
+                    .define("enchantmentLocked", "");
+
+            builder.pop(); // lock_messages
         }
     }
 

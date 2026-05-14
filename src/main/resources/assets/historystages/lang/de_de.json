@@ -193,6 +193,14 @@
   "editor.historystages.config.structureDamageAmount": "Schadensmenge",
   "editor.historystages.config.structureDamageInterval": "Schadensintervall (Ticks)",
 
+  "editor.historystages.config.lock_messages": "Lock-Nachrichten",
+  "editor.historystages.config.msgDimensionUnknown": "Dimension unbekannt",
+  "editor.historystages.config.msgMobUnknown": "Wesen unbekannt",
+  "editor.historystages.config.msgItemLocked": "Gegenstand gesperrt",
+  "editor.historystages.config.msgBlockLocked": "Block gesperrt",
+  "editor.historystages.config.msgEntityItemLocked": "Auslage gesperrt",
+  "editor.historystages.config.msgEnchantmentLocked": "Verzauberung gesperrt",
+
   "editor.historystages.config.dependencies": "Abh\u00e4ngigkeiten",
   "editor.historystages.config.showDependenciesOnScroll": "Abh\u00e4ngigkeiten auf Rolle zeigen",
   "editor.historystages.config.hideFulfilledDependencies": "Erf\u00fcllte ausblenden",

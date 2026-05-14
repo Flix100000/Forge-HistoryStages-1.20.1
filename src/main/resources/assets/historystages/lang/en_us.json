@@ -193,6 +193,14 @@
   "editor.historystages.config.structureDamageAmount": "Damage Amount",
   "editor.historystages.config.structureDamageInterval": "Damage Interval (ticks)",
 
+  "editor.historystages.config.lock_messages": "Lock Messages",
+  "editor.historystages.config.msgDimensionUnknown": "Dimension Unknown",
+  "editor.historystages.config.msgMobUnknown": "Mob Unknown",
+  "editor.historystages.config.msgItemLocked": "Item Locked",
+  "editor.historystages.config.msgBlockLocked": "Block Locked",
+  "editor.historystages.config.msgEntityItemLocked": "Entity Item Locked",
+  "editor.historystages.config.msgEnchantmentLocked": "Enchantment Locked",
+
   "editor.historystages.config.dependencies": "Dependencies",
   "editor.historystages.config.showDependenciesOnScroll": "Show Dependencies on Scroll",
   "editor.historystages.config.hideFulfilledDependencies": "Hide Fulfilled Dependencies",

@@ -77,6 +77,12 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("structureMessageEnabled", Config.COMMON.structureMessageEnabled.get().toString());
         values.put("structureLockMessageFormat", Config.COMMON.structureLockMessageFormat.get());
         values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
+        values.put("msgDimensionUnknown", Config.COMMON.msgDimensionUnknown.get());
+        values.put("msgMobUnknown", Config.COMMON.msgMobUnknown.get());
+        values.put("msgItemLocked", Config.COMMON.msgItemLocked.get());
+        values.put("msgBlockLocked", Config.COMMON.msgBlockLocked.get());
+        values.put("msgEntityItemLocked", Config.COMMON.msgEntityItemLocked.get());
+        values.put("msgEnchantmentLocked", Config.COMMON.msgEnchantmentLocked.get());
         return new SyncConfigPacket(values);
     }
 
