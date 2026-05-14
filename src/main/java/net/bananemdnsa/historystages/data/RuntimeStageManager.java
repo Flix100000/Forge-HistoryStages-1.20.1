@@ -330,7 +330,7 @@ public final class RuntimeStageManager implements IStageManager {
 
     @Override
     public boolean isStageUnlockedForPlayer(Player player, String stage) {
-        return getBitSetForPlayer(player).get(getStageBit(stage));
+        return getBitSetForPlayer(player).get(getStageBit(stage)) || isStageUnlockedGlobally(stage);
     }
 
     @Override
@@ -360,18 +360,31 @@ public final class RuntimeStageManager implements IStageManager {
      * UNIFIED CHECK FUNCTION
      * Replaces isItemLocked, isEnchantmentLocked, isBlockLocked, etc.
      */
-    public <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask) {
+    public <T> boolean isLocked(LockCategory<T> category, T key, Player player) {
         BitSet required = category.getLock(key);
+
+        BitSet playerUnlockedStage = getBitSetForPlayer(player);
 
         if (required == null || required.isEmpty()) return false;
 
         // The unified high-performance bit traversal
+        // TODO: check if we directly set global bits across all players and simplify this check.
+        // May not be wise to do for various reasons, but needs to be considered
         for (int i = required.nextSetBit(START_NONMETA_POSITION); i >= 0; i = required.nextSetBit(i + 1)) {
-            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
+            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !playerUnlockedStage.get(i)) {
                 return true;
             }
         }
         return false;
+    }
+
+    //TODO: Clean this up. Also check if we can do it in a more performance friendly way. For now, this will do
+    public <T> List<StageDefinition> getMissingStageFor(LockCategory<T> category, T lockedObject, Player player) {
+        return getStagesFor(category, lockedObject)
+                .stream()
+                .filter(
+                        stageDefinition -> !isStageUnlockedForPlayer(player, stageDefinition.getName())
+                ).toList();
     }
 
     /**

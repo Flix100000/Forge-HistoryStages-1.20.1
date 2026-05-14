@@ -1,7 +1,9 @@
 package net.bananemdnsa.historystages.events;
 
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.astr0.historystages.api.StageDefinition;
+import net.bananemdnsa.historystages.data.RuntimeStageManager;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.LockFeedbackPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -25,44 +27,27 @@ public class DimensionLockHandler {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         ResourceLocation targetDim = event.getDimension().location();
-        String dimId = targetDim.toString();
 
-        // Check global stages
-        List<String> requiredStageIds = StageManager.getAllStagesForDimension(dimId);
-        List<String> lockedStages = new ArrayList<>();
-        for (String stageId : requiredStageIds) {
-            if (!StageData.SERVER_CACHE.contains(stageId)) {
-                lockedStages.add(stageId);
-            }
-        }
+        RuntimeStageManager manager = RuntimeStageManager.getInstance();
 
-        // Check individual stages
-        List<String> individualStageIds = StageManager.getAllIndividualStagesForDimension(dimId);
-        if (!individualStageIds.isEmpty()) {
-            java.util.Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(player.getUUID(), java.util.Collections.emptySet());
-            for (String stageId : individualStageIds) {
-                if (!playerStages.contains(stageId)) {
-                    lockedStages.add(stageId);
-                }
-            }
-        }
+        if (manager.isLocked(HistoryStagesAPI.DIMENSIONS, targetDim, player)) {
 
-        if (requiredStageIds.isEmpty() && individualStageIds.isEmpty()) return;
-
-        if (!lockedStages.isEmpty()) {
             event.setCanceled(true);
+
+            List<StageDefinition> lockedStages = manager.getMissingStageFor(HistoryStagesAPI.DIMENSIONS, targetDim, player);
             DebugLogger.runtime("Dimension Lock", player.getName().getString(),
-                    "Blocked travel to '" + dimId + "' — missing stages: " + lockedStages);
+                    "Blocked travel to '" + targetDim + "' — missing stages: " + lockedStages);
+
 
             List<String> displayNames = new ArrayList<>(lockedStages.size());
-            for (String stageId : lockedStages) {
-                StageDefinition stageEntry = StageManager.getStages().get(stageId);
-                if (stageEntry == null) {
-                    stageEntry = StageManager.getIndividualStages().get(stageId);
-                }
-                displayNames.add(stageEntry != null ? stageEntry.getDisplayName() : stageId);
+            for (StageDefinition stage : lockedStages) {
+                displayNames.add(stage.getDisplayName());
             }
 
+            // TODO: investigate what is being sent, how it is handled, and if we can rely on our new deterministic state synchronisation.
+            // For example: it might be possible to simply send the dimension ID and then the client can then unpack all the needed stages
+            // Since the new system will ensure that client and server data always remain in sync, if we tell the client it can't go to dimension X,
+            // it will already have all the data it needs to work out WHY it can't go to X.
             PacketHandler.sendLockFeedbackToPlayer(
                     new LockFeedbackPacket(LockFeedbackPacket.KIND_DIMENSION, displayNames),
                     player
