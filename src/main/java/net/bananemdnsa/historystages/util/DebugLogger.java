@@ -242,7 +242,7 @@ public class DebugLogger {
         List<String> structures = s.getStructures();
         List<String> modExceptions = s.getAllModExceptionIds();
         List<String> attacklock = ent.getAttacklock();
-        List<String> spawnlock = ent.getSpawnlock();
+        List<String> spawnlock = ent.getSpawnlockIds();
 
         int entryCount = s.getItemEntries().size() + s.getTagEntries().size() + s.getModEntries().size()
                 + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
@@ -274,7 +274,7 @@ public class DebugLogger {
         }
 
         printList(pw, "Entities (attacklock)", ent.getAttacklock());
-        printList(pw, "Entities (spawnlock)", ent.getSpawnlock());
+        printSpawnlockEntries(pw, ent.getSpawnlock());
         printList(pw, "Entities (mod-linked)", ent.getModLinked());
 
         if (s.hasDependencies()) {
@@ -318,6 +318,16 @@ public class DebugLogger {
             StringBuilder sb = new StringBuilder("    - ").append(entry.getId());
             if (entry.hasNbt()) sb.append(" [nbt]");
             if (entry.hasLockActions()) sb.append(" [lock: ").append(String.join(", ", entry.getLockActions())).append("]");
+            pw.println(sb.toString());
+        }
+    }
+
+    private static void printSpawnlockEntries(PrintWriter pw, List<net.bananemdnsa.historystages.data.EntitySpawnLockEntry> entries) {
+        if (entries == null || entries.isEmpty()) return;
+        pw.println("  Entities (spawnlock) (" + entries.size() + "):");
+        for (net.bananemdnsa.historystages.data.EntitySpawnLockEntry entry : entries) {
+            StringBuilder sb = new StringBuilder("    - ").append(entry.getId());
+            if (entry.hasLockSources()) sb.append(" [sources: ").append(String.join(", ", entry.getLockSources())).append("]");
             pw.println(sb.toString());
         }
     }

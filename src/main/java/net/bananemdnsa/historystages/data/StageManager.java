@@ -73,6 +73,9 @@ public class StageManager {
     private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
             "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
     );
+    private static final Set<String> KNOWN_SPAWN_SOURCES = Set.of(
+            "natural", "spawner", "structure", "breeding", "summon", "spawn_egg"
+    );
 
     public static void load() {
         STAGES.clear();
@@ -191,7 +194,7 @@ public class StageManager {
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getStructures(), stageId, "structures");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-        removeEmptyStrings(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
+        removeEmptySpawnlockEntries(entry.getEntities().getSpawnlock(), stageId);
 
         checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
@@ -201,7 +204,7 @@ public class StageManager {
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getStructures(), stageId, "structures");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-        checkDuplicates(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
+        checkDuplicateSpawnlock(entry.getEntities().getSpawnlock(), stageId);
 
         entry.getItemEntries().removeIf(item -> {
             String itemId = item.getId();
@@ -290,7 +293,8 @@ public class StageManager {
             return false;
         });
 
-        entry.getEntities().getSpawnlock().removeIf(entityId -> {
+        entry.getEntities().getSpawnlock().removeIf(spEntry -> {
+            String entityId = spEntry.getId();
             if (!isValidResourceLocation(entityId)) {
                 addMessage(MessageLevel.WARN, "Entity spawnlock '" + entityId + "' invalid format (Stage: " + stageId + "). Removed.");
                 DebugLogger.warn("Invalid Entities", "Entity spawnlock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
@@ -299,8 +303,15 @@ public class StageManager {
             return false;
         });
 
-        for (String entityId : entry.getEntities().getSpawnlock()) {
-            if (entry.getEntities().getAttacklock().contains(entityId)) {
+        // Validate per-entry unlock_sources lists
+        for (EntitySpawnLockEntry spEntry : entry.getEntities().getSpawnlock()) {
+            validateLockSources(spEntry.getLockSources(), stageId, spEntry.getId());
+        }
+
+        for (EntitySpawnLockEntry spEntry : entry.getEntities().getSpawnlock()) {
+            String entityId = spEntry.getId();
+            // Only "block all sources" entries imply attacklock — selective ones don't.
+            if (!spEntry.hasLockSources() && entry.getEntities().getAttacklock().contains(entityId)) {
                 addMessage(MessageLevel.INFO, "Entity '" + entityId + "' in both attacklock and spawnlock (Stage: " + stageId + "). Redundant.");
                 DebugLogger.info("Redundant Entities", "Entity '" + entityId + "' is in both attacklock and spawnlock (Stage: " + stageId + "). Spawnlock already implies attacklock — the attacklock entry is redundant.");
             }
@@ -526,6 +537,44 @@ public class StageManager {
         }
     }
 
+    private static void removeEmptySpawnlockEntries(List<EntitySpawnLockEntry> list, String stageId) {
+        int removed = 0;
+        var it = list.iterator();
+        while (it.hasNext()) {
+            EntitySpawnLockEntry entry = it.next();
+            if (entry.getId() == null || entry.getId().isBlank()) {
+                it.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            addMessage(MessageLevel.WARN, "Removed " + removed + " empty entry(s) from 'entities.spawnlock' (Stage: " + stageId + ").");
+            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty/blank entry(s) from 'entities.spawnlock' (Stage: " + stageId + ").");
+        }
+    }
+
+    private static void checkDuplicateSpawnlock(List<EntitySpawnLockEntry> list, String stageId) {
+        Set<String> seen = new HashSet<>();
+        for (EntitySpawnLockEntry entry : list) {
+            if (!seen.add(entry.getId())) {
+                addMessage(MessageLevel.INFO, "Duplicate '" + entry.getId() + "' in 'entities.spawnlock' (Stage: " + stageId + ").");
+                DebugLogger.info("Duplicates", "Duplicate entry '" + entry.getId() + "' in 'entities.spawnlock' (Stage: " + stageId + ").");
+            }
+        }
+    }
+
+    /** Validates per-entry unlock_sources lists (internal representation = locked sources). */
+    private static void validateLockSources(List<String> sources, String stageId, String entryId) {
+        if (sources == null || sources.isEmpty()) return;
+        for (String src : sources) {
+            if (src == null || !KNOWN_SPAWN_SOURCES.contains(src)) {
+                addMessage(MessageLevel.WARN, "Unknown unlock_source '" + src + "' on '" + entryId + "' in entities.spawnlock (Stage: " + stageId + ").");
+                DebugLogger.warn("Invalid Spawn Sources",
+                        "Unknown unlock_source '" + src + "' on '" + entryId + "' in entities.spawnlock (Stage: " + stageId + "). Known sources: " + KNOWN_SPAWN_SOURCES + ".");
+            }
+        }
+    }
+
     private static void checkDuplicates(List<String> list, String stageId, String field) {
         Set<String> seen = new HashSet<>();
         List<String> duplicates = new ArrayList<>();
@@ -599,7 +648,8 @@ public class StageManager {
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", attacklock). Typo or missing mod?");
                 }
             }
-            for (String entityId : entry.getEntities().getSpawnlock()) {
+            for (EntitySpawnLockEntry spEntry : entry.getEntities().getSpawnlock()) {
+                String entityId = spEntry.getId();
                 if (!isValidResourceLocation(entityId)) continue;
                 ResourceLocation rl = ResourceLocation.parse(entityId);
                 if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
@@ -680,18 +730,48 @@ public class StageManager {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             EntityLocks locks = entry.getValue().getEntities();
-            if (locks.getAttacklock().contains(entityId) || locks.getSpawnlock().contains(entityId)) {
+            if (locks.getAttacklock().contains(entityId)) {
                 allFoundStages.add(entry.getKey());
+                continue;
+            }
+            // A spawnlock entry implies attacklock only when it blocks ALL sources.
+            for (EntitySpawnLockEntry spEntry : locks.getSpawnlock()) {
+                if (spEntry.getId().equals(entityId) && !spEntry.hasLockSources()) {
+                    allFoundStages.add(entry.getKey());
+                    break;
+                }
             }
         }
         return allFoundStages;
     }
 
-    public static List<String> getAllStagesForSpawnLockedEntity(String entityId) {
+    /**
+     * Returns the stages that block the given entity for the given spawn source.
+     * A stage blocks the source if its spawnlock contains an entry for the entity that
+     * either has no source filter (= block all) or explicitly lists this source.
+     */
+    public static List<String> getAllStagesForSpawnLockedEntity(String entityId, String source) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getEntities().getSpawnlock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
+            for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
+                if (spEntry.getId().equals(entityId) && spEntry.blocksSource(source)) {
+                    allFoundStages.add(entry.getKey());
+                    break;
+                }
+            }
+        }
+        return allFoundStages;
+    }
+
+    /** Returns stages that have an entry for this entity (any source). Used by EntityJoinLevel fallback. */
+    public static List<String> getAllStagesWithSpawnlockEntry(String entityId) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
+                if (spEntry.getId().equals(entityId)) {
+                    allFoundStages.add(entry.getKey());
+                    break;
+                }
             }
         }
         return allFoundStages;
@@ -1208,9 +1288,10 @@ public class StageManager {
                 globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
             for (String entityId : gEntry.getEntities().getAttacklock())
                 globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
-            // Spawnlocked entities are also attacklocked globally — count for attacklock dual-phase
-            for (String entityId : gEntry.getEntities().getSpawnlock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
+            // Spawnlocked entities are also attacklocked globally — but only when the entry blocks all sources.
+            for (EntitySpawnLockEntry spEntry : gEntry.getEntities().getSpawnlock())
+                if (!spEntry.hasLockSources())
+                    globalAttacklockMap.computeIfAbsent(spEntry.getId(), k -> new HashSet<>()).add(gStageId);
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {

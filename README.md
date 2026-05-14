@@ -181,8 +181,13 @@ FIELDS:
 - dimensions: List of dimension IDs to block access to.
 - entities: Object with two optional subcategories:
   - attacklock: Entities that cannot be attacked by players.
-  - spawnlock: Entities that are prevented from spawning entirely.
-    Spawnlocked entities are also automatically attacklocked.
+  - spawnlock: Entities that are prevented from spawning. Plain
+    string entries block ALL spawn sources (and also imply
+    attacklock). For per-source control, use the object form:
+      { "id": "minecraft:zombie", "unlock_sources": ["spawner", "summon"] }
+    `unlock_sources` lists the sources that are NOT blocked.
+    Recognised sources: natural, spawner, structure, breeding,
+    summon, spawn_egg.
 
 Note: JSON files prefixed with underscore (e.g. _exampleStage.json)
 are ignored during loading.

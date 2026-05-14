@@ -274,5 +274,22 @@
   "editor.historystages.lock_actions.desc.gui": "Block-GUI öffnen",
   "editor.historystages.lock_actions.desc.loot": "Container- / Mob-Drops",
   "editor.historystages.lock_actions.desc.recipe": "In JEI / EMI anzeigen",
-  "editor.historystages.lock_actions.desc.icon": "Schloss-Overlay auf Slot"
+  "editor.historystages.lock_actions.desc.icon": "Schloss-Overlay auf Slot",
+  "editor.historystages.context.spawn_sources": "Spawn-Quellen",
+  "editor.historystages.badge.sources": "Quellen",
+  "editor.historystages.spawn_sources.title": "Blockierte Spawn-Quellen",
+  "editor.historystages.spawn_sources.hint": "Klicken um zu wählen welche Spawn-Quellen blockiert werden",
+  "editor.historystages.spawn_sources.status": "%s von %s Quellen blockiert",
+  "editor.historystages.spawn_sources.source.natural": "Natürlich",
+  "editor.historystages.spawn_sources.source.spawner": "Spawner",
+  "editor.historystages.spawn_sources.source.structure": "Struktur",
+  "editor.historystages.spawn_sources.source.breeding": "Zucht",
+  "editor.historystages.spawn_sources.source.summon": "Beschwören",
+  "editor.historystages.spawn_sources.source.spawn_egg": "Spawn-Ei",
+  "editor.historystages.spawn_sources.desc.natural": "Mobs die natürlich in der Welt erscheinen, z.B. Zombies nachts [NATURAL, CHUNK_GENERATION]",
+  "editor.historystages.spawn_sources.desc.spawner": "Spawner-Blöcke: Dungeons, Trial-Kammern, Monster-Räume [SPAWNER, TRIAL_SPAWNER, TRIGGERED, MOB_SUMMONED]",
+  "editor.historystages.spawn_sources.desc.structure": "Mobs die zu Strukturen gehören: Pillager-Patrouillen, Raids [STRUCTURE, PATROL, EVENT]",
+  "editor.historystages.spawn_sources.desc.breeding": "Babys aus Zucht und Mob-Umwandlungen, z.B. Zombie→Ertrunkener [BREEDING, CONVERSION, REINFORCEMENT, JOCKEY]",
+  "editor.historystages.spawn_sources.desc.summon": "Mobs die per /summon-Befehl beschworen werden [COMMAND]",
+  "editor.historystages.spawn_sources.desc.spawn_egg": "Spawn-Eier, Eimer-Freilassung (Fische, Axolotl), Werfer [SPAWN_EGG, BUCKET, DISPENSER]"
 }
