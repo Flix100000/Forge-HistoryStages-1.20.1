@@ -196,7 +196,7 @@ public class ItemUseLockHandler {
         MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
 
         sp.displayClientMessage(
-                Component.translatable("message.historystages.item_locked")
+                net.bananemdnsa.historystages.util.LockMessages.itemLocked()
                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                 true
         );

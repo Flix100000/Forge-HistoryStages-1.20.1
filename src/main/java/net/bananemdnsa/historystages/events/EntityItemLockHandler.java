@@ -135,7 +135,7 @@ public class EntityItemLockHandler {
         MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
 
         sp.displayClientMessage(
-                Component.translatable("message.historystages.entity_item_locked")
+                net.bananemdnsa.historystages.util.LockMessages.entityItemLocked()
                         .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                 true
         );

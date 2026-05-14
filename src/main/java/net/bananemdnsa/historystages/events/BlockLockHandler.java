@@ -83,7 +83,7 @@ public class BlockLockHandler {
                 if (last == null || (now - last) >= COOLDOWN_MS) {
                     MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
                     sp.displayClientMessage(
-                            Component.translatable("message.historystages.block_locked")
+                            net.bananemdnsa.historystages.util.LockMessages.blockLocked()
                                     .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
                             true
                     );
