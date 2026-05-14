@@ -11,6 +11,7 @@ import net.bananemdnsa.historystages.init.ModItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
@@ -34,16 +35,31 @@ public class FTBQuestsIntegration {
         ).setDisplayName(Component.translatable("ftbquests.reward.historystages.history_stage"));
 
         NeoForge.EVENT_BUS.addListener((StageEvent.Unlocked event) ->
-                HistoryStageTask.onStageUnlocked(event.getStageId())
+                HistoryStageTask.onGlobalStageChanged(event.getStageId(), true)
+        );
+
+        NeoForge.EVENT_BUS.addListener((StageEvent.Locked event) ->
+                HistoryStageTask.onGlobalStageChanged(event.getStageId(), false)
         );
 
         NeoForge.EVENT_BUS.addListener((StageEvent.IndividualUnlocked event) -> {
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server == null) return;
-            net.minecraft.server.level.ServerPlayer player = server.getPlayerList().getPlayer(event.getPlayerUUID());
+            ServerPlayer player = resolvePlayer(event.getPlayerUUID());
             if (player != null) {
-                HistoryStageTask.onIndividualStageUnlocked(event.getStageId(), player);
+                HistoryStageTask.onIndividualStageChanged(event.getStageId(), player, true);
             }
         });
+
+        NeoForge.EVENT_BUS.addListener((StageEvent.IndividualLocked event) -> {
+            ServerPlayer player = resolvePlayer(event.getPlayerUUID());
+            if (player != null) {
+                HistoryStageTask.onIndividualStageChanged(event.getStageId(), player, false);
+            }
+        });
+    }
+
+    private static ServerPlayer resolvePlayer(java.util.UUID uuid) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return null;
+        return server.getPlayerList().getPlayer(uuid);
     }
 }

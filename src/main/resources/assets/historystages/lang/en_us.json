@@ -153,12 +153,14 @@
 
   "ftbquests.task.historystages.history_stage": "History Stage",
   "ftbquests.task.historystages.history_stage.title": "History Stage: %s",
-  "ftbquests.task.historystages.history_stage.stage": "Stage ID",
+  "ftbquests.task.historystages.history_stage.title.negated": "Not in History Stage: %s",
+  "ftbquests.task.historystages.history_stage.stage": "Stage",
   "ftbquests.task.historystages.history_stage.individual": "Individual Stage",
+  "ftbquests.task.historystages.history_stage.negate": "Completed When Stage Is Locked",
   "ftbquests.reward.historystages.history_stage": "History Stage",
   "ftbquests.reward.historystages.history_stage.title.unlock": "Unlock History Stage: %s",
   "ftbquests.reward.historystages.history_stage.title.lock": "Lock History Stage: %s",
-  "ftbquests.reward.historystages.history_stage.stage": "Stage ID",
+  "ftbquests.reward.historystages.history_stage.stage": "Stage",
   "ftbquests.reward.historystages.history_stage.remove": "Lock instead of Unlock",
   "ftbquests.reward.historystages.history_stage.individual": "Individual Stage",
 

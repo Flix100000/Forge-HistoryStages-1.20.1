@@ -1,10 +1,13 @@
 package net.bananemdnsa.historystages.ftbquests;
 
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
+import dev.ftb.mods.ftblibrary.icon.Icon;
+import dev.ftb.mods.ftblibrary.icon.ItemIcon;
 import dev.ftb.mods.ftbquests.quest.Quest;
 import dev.ftb.mods.ftbquests.quest.reward.Reward;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.events.StageEvent;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -74,7 +77,8 @@ public class HistoryStageReward extends Reward {
     @Override
     public void fillConfigGroup(ConfigGroup config) {
         super.fillConfigGroup(config);
-        config.addString("stage", stage, v -> stage = v, "")
+        config.addEnum("stage", stage, v -> stage = v,
+                        HistoryStageTask.buildStageNameMap(individual, stage), "")
                 .setNameKey("ftbquests.reward.historystages.history_stage.stage");
         config.addBool("remove", remove, v -> remove = v, false)
                 .setNameKey("ftbquests.reward.historystages.history_stage.remove");
@@ -87,8 +91,10 @@ public class HistoryStageReward extends Reward {
         if (stage.isEmpty()) return;
 
         if (individual) {
+            if (!StageManager.getIndividualStages().containsKey(stage)) return;
             claimIndividual(player);
         } else {
+            if (!StageManager.getStages().containsKey(stage)) return;
             claimGlobal(player);
         }
     }
@@ -103,6 +109,13 @@ public class HistoryStageReward extends Reward {
             data.removeStage(stage);
             data.setDirty();
             NeoForge.EVENT_BUS.post(new StageEvent.Locked(stage, displayName));
+
+            if (player.server != null) {
+                player.server.getCommands().performPrefixedCommand(
+                        player.server.createCommandSourceStack().withSuppressedOutput(),
+                        "history reload"
+                );
+            }
             broadcastLockEffects(player, displayName);
         } else {
             if (data.hasStage(stage)) return;
@@ -117,7 +130,7 @@ public class HistoryStageReward extends Reward {
                 );
             }
             String iconId = (entry != null && !entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
-        broadcastUnlockEffects(player, displayName, iconId);
+            broadcastUnlockEffects(player, displayName, iconId);
         }
 
         PacketHandler.sendToAll(new SyncStagesPacket(data.getUnlockedStages()));
@@ -239,10 +252,33 @@ public class HistoryStageReward extends Reward {
 
     @Override
     public MutableComponent getAltTitle() {
+        String displayName = resolveDisplayName();
         if (remove) {
-            return Component.translatable("ftbquests.reward.historystages.history_stage.title.lock", stage);
+            return Component.translatable("ftbquests.reward.historystages.history_stage.title.lock", displayName);
         }
-        return Component.translatable("ftbquests.reward.historystages.history_stage.title.unlock", stage);
+        return Component.translatable("ftbquests.reward.historystages.history_stage.title.unlock", displayName);
+    }
+
+    @Override
+    public Icon getAltIcon() {
+        java.util.Map<String, StageEntry> source = individual
+                ? StageManager.getIndividualStages()
+                : StageManager.getStages();
+        StageEntry entry = source.get(stage);
+        String iconId = (entry != null && !entry.getIcon().isEmpty())
+                ? entry.getIcon()
+                : Config.COMMON.defaultStageIcon.get();
+        if (iconId == null || iconId.isEmpty()) return super.getAltIcon();
+        return ItemIcon.getItemIcon(iconId);
+    }
+
+    private String resolveDisplayName() {
+        if (stage.isEmpty()) return stage;
+        java.util.Map<String, StageEntry> source = individual
+                ? StageManager.getIndividualStages()
+                : StageManager.getStages();
+        StageEntry entry = source.get(stage);
+        return entry != null ? entry.getDisplayName() : stage;
     }
 
     @Override

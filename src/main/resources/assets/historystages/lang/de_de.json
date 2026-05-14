@@ -153,12 +153,14 @@
 
   "ftbquests.task.historystages.history_stage": "History Stage",
   "ftbquests.task.historystages.history_stage.title": "History Stage: %s",
-  "ftbquests.task.historystages.history_stage.stage": "Stufen-ID",
+  "ftbquests.task.historystages.history_stage.title.negated": "Nicht in History Stage: %s",
+  "ftbquests.task.historystages.history_stage.stage": "Stufe",
   "ftbquests.task.historystages.history_stage.individual": "Individuelle Stufe",
+  "ftbquests.task.historystages.history_stage.negate": "Abgeschlossen wenn Stufe gesperrt ist",
   "ftbquests.reward.historystages.history_stage": "History Stage",
   "ftbquests.reward.historystages.history_stage.title.unlock": "History Stage freischalten: %s",
   "ftbquests.reward.historystages.history_stage.title.lock": "History Stage sperren: %s",
-  "ftbquests.reward.historystages.history_stage.stage": "Stufen-ID",
+  "ftbquests.reward.historystages.history_stage.stage": "Stufe",
   "ftbquests.reward.historystages.history_stage.remove": "Sperren statt Freischalten",
   "ftbquests.reward.historystages.history_stage.individual": "Individuelle Stufe",
 
