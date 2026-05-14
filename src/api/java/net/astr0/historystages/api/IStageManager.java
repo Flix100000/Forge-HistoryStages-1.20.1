@@ -22,7 +22,7 @@ public interface IStageManager {
      * @param stage the stage to check
      * @return true if the player has unlocked the provided stage
      */
-    boolean isStageUnlockedForPlayer(ServerPlayer player, String stage);
+    boolean isStageUnlockedForPlayer(Player player, String stage);
 
     /**
      * Check if a stage has been unlocked globally
@@ -35,7 +35,7 @@ public interface IStageManager {
     /**
      * Unlock the provided stage for the provided player
      */
-    void unlockStageForPlayer(ServerPlayer player, String stage);
+    void unlockStageForPlayer(Player player, String stage);
 
     /**
      * Unlock the provided stage for all players
@@ -45,7 +45,7 @@ public interface IStageManager {
     /**
      * Lock the provided stage for the provided player
      */
-    void lockStageForPlayer(ServerPlayer player, String stage);
+    void lockStageForPlayer(Player player, String stage);
 
     /**
      * Lock the provided stage for all players

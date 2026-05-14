@@ -88,7 +88,8 @@ public final class RuntimeStageManager implements IStageManager {
         return lockingStages;
     }
 
-
+    // Small util class to assign sequential numbers
+    // Just makes it easier to make sure no numbers are ever doubled up
     class Iota {
         static int iota = -1;
 
@@ -96,8 +97,31 @@ public final class RuntimeStageManager implements IStageManager {
         public static int limit() {return iota + 1;}
     }
 
-    private static int META_DUMMY_BIT = Iota.next();
-    private static int META_NBT_BIT = Iota.next();
+    // This explanation is very hard to understand. I will try again sometime soon.
+    /**
+     * For certain functions to be possible using the BitSet based locking system, we sometimes
+     * need to be able to track additional special information. To do this, we reserve some bits
+     * at the start of every BitSet to store our own metadata/enable specific behaviours. For example,
+     * the DUMMY_META_POSITION points to a reserved position in every BitSet and is provided for crash prevention.
+     * By reserving the "dummy" bit, we ensure there is always a bit which can be toggled without impacting behaviour.
+     * <p>
+     * For example, consider the case where our locking system somehow ends up in a bad state and all our stage definitions get corrupted.
+     * If we then attempted to lock or unlock the bit for a given stage, our system would no longer be able to work out which bit position
+     * corresponds to that stage. To resolve this, we know we can always simply toggle the dummy bit without accidentally effecting anything,
+     * because the dummy bit does nothing.
+     */
+    private static final int DUMMY_META_POSITION = Iota.next();
+    // If an item or block has at least one NBT lock associated with it, this bit should be set
+    // This means an automatic lock check will fail until the NBT bit is explicitly cleared for that item.
+    private static final int NBT_META_POSITION = Iota.next();
+
+
+    /**
+     * Integer representing the index at which standard stage definitions start
+     * in the sequence of lock bits. This is the first position after the last "metadata" bit.
+     * For more information about the metadata bits, refer to {@link #DUMMY_META_POSITION}
+     */
+    private static final int START_NONMETA_POSITION = Iota.limit();
     // =========================
     //     Implementation
     // =========================
@@ -127,13 +151,13 @@ public final class RuntimeStageManager implements IStageManager {
         );
 
         // TODO: Explain why I decided to include this. Short answer: performance
-        stages.add(META_DUMMY_BIT, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
-        stages.add(META_NBT_BIT, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
+        stages.add(DUMMY_META_POSITION, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
+        stages.add(NBT_META_POSITION, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
 
         // Load our quick lookup tables for bit position <--> stage
         // We use these to achieve O(1) forward and reverse lookups of bit positions corresponding
         // to each stage, and vice versa.
-        for(int i = Iota.limit(); i < stages.size(); i++) {
+        for(int i = START_NONMETA_POSITION; i < stages.size(); i++) {
 
             final int STAGE_INDEX = i; // Needed for compiler reasons
 
@@ -267,11 +291,12 @@ public final class RuntimeStageManager implements IStageManager {
     // Will return 0 if the stage is not present in the global state -> This will always correspond
     // to the "DummyState", which we can safely modify in any way without impacting game state.
     private int getStageBit(String stage) {
-
-        //Todo: Pick which one of these error behaviours to use
-        ASSERT_VALID_STAGE(stage);
         FAIL_GRACEFULLY(stage);
-        return stageToBitPositionReferenceMap.getOrDefault(stage, 0);
+        return stageToBitPositionReferenceMap.getOrDefault(stage, DUMMY_META_POSITION);
+    }
+
+    private int getStageBit(StageDefinition stage) {
+        return getStageBit(stage.getName());
     }
 
     private String getUUIDAsString(Player player) {
@@ -285,7 +310,9 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     private void FAIL_GRACEFULLY(String stage) {
-        LogUtils.getLogger().warn("[HistoryStages] Stage is not defined: {}", stage);
+        if (!stageToBitPositionReferenceMap.containsKey(stage)) {
+            LogUtils.getLogger().warn("[HistoryStages] Stage is not defined: {}", stage);
+        }
     }
 
     // This should probably be made private, instead just high level check functions
@@ -302,7 +329,7 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     @Override
-    public boolean isStageUnlockedForPlayer(ServerPlayer player, String stage) {
+    public boolean isStageUnlockedForPlayer(Player player, String stage) {
         return getBitSetForPlayer(player).get(getStageBit(stage));
     }
 
@@ -312,7 +339,7 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     @Override
-    public void unlockStageForPlayer(ServerPlayer player, String stage) {
+    public void unlockStageForPlayer(Player player, String stage) {
         int bitPosition = getStageBit(stage);
         getBitSetForPlayer(player).set(bitPosition);
     }
@@ -323,7 +350,7 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     @Override
-    public void lockStageForPlayer(ServerPlayer player, String stage) {
+    public void lockStageForPlayer(Player player, String stage) {
         int bitPosition = getStageBit(stage);
 
         getBitSetForPlayer(player).clear(bitPosition);
@@ -339,7 +366,7 @@ public final class RuntimeStageManager implements IStageManager {
         if (required == null || required.isEmpty()) return false;
 
         // The unified high-performance bit traversal
-        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
+        for (int i = required.nextSetBit(START_NONMETA_POSITION); i >= 0; i = required.nextSetBit(i + 1)) {
             if (!GLOBAL_UNLOCKED_STAGES.get(i) && !activeMask.get(i)) {
                 return true;
             }
@@ -384,19 +411,62 @@ public final class RuntimeStageManager implements IStageManager {
         if (lock == null) return new ArrayList<>();
         List<StageDefinition> stages =  getStageDefinitionsFromLock(lock);
 
-        if(lock.get(META_NBT_BIT)) {
+        if(lock.get(NBT_META_POSITION)) {
             for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
 
+                // If there is an NBT lock on this item, and it matches the tested item stack
+                // then we should list this stage as locking it
                 if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
                     stages.add(nbtLock.stage());
                 }
             }
         }
 
-        if (lock == null) return new ArrayList<>();
-        return getStageDefinitionsFromLock(lock);
+        return stages;
     }
 
+    public boolean isLocked(LockCategory<Item> itemLockCategory, ItemStack stack, Player player) {
+        BitSet lock = itemLockCategory.getLock(stack.getItem());
+
+        if (lock == null || lock.isEmpty()) return false;
+        BitSet playerUnlockedStages = getBitSetForPlayer(player);
+
+
+
+        // The unified high-performance bit traversal. BitSet.nextSetBit() is highly optimised and will allow us
+        // to jump directly to set bits, and ignore any stages that don't apply to this item
+        // As soon as we find a lock bit which isn't satisfied by the global or player stages, we return true -> the item is still locked
+        for (int i = lock.nextSetBit(START_NONMETA_POSITION); i >= 0; i = lock.nextSetBit(i + 1)) {
+            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !playerUnlockedStages.get(i)) {
+                return true;
+            }
+        }
+
+        // If the item itself is not locked by any stages, check our metadata to see if we need to check for any NBT
+        // locks. If we do, check for any matches, if there is a match, return true -> the item is locked by an NBT condition
+        // This is still pretty fast, but it's way more performance intensive than a simple item check.
+        // Users of the NBT locking system should be warned, too many NBT locked items will begin to slow down the game (would need to be a lot)
+        if(lock.get(NBT_META_POSITION)) {
+            for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
+                if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
+                    int stageBitPosition = getStageBit(nbtLock.stage());
+
+                    // If this stage has already been unlocked then continue to check the rest of the NBT locks
+                    if(playerUnlockedStages.get(stageBitPosition) || GLOBAL_UNLOCKED_STAGES.get(stageBitPosition)) continue;
+
+                    // We only reach this point if:
+                    // 1. The item has any NBT locks
+                    // 2. If a tested NBT lock matches against the current itemstack
+                    // AND 3. The stage that provides that NBT lock has NOT been unlocked yet
+                    // Therefore the item is still locked, so we return true
+                    return true;
+                }
+            }
+        }
+
+        // All our checks succeeded, return false -> this item is NOT locked
+        return false;
+    }
 
     @Override
     public void lockStageGlobally(String stage) {
