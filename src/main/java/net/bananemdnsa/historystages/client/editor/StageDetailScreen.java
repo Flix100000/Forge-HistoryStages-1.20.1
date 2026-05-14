@@ -2758,6 +2758,11 @@ public class StageDetailScreen extends Screen {
         }
 
         @Override
+        public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            // No-op — avoid 1.21's menu blur shader; render() draws its own backdrop
+        }
+
+        @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
             guiGraphics.fill(0, 0, this.width, this.height, 0xC0000000);
             int boxW = 260;
