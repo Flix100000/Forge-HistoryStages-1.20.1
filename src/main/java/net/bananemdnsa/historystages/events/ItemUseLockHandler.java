@@ -2,33 +2,27 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.StageLockHelper;
-import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
+import net.bananemdnsa.historystages.util.LockFeedback;
+import net.bananemdnsa.historystages.util.LockGate;
+import net.bananemdnsa.historystages.util.LockMessages;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.event.entity.living.LivingEquipmentChangeEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.eventbus.api.Event;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class ItemUseLockHandler {
 
-    private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
-    private static final long COOLDOWN_MS = 2000;
+    private static final String FEEDBACK_CATEGORY = "item";
     private static boolean suppressEquipmentCheck = false;
 
     /**
@@ -39,13 +33,12 @@ public class ItemUseLockHandler {
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
 
-        boolean isClient = event.getEntity().level().isClientSide();
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "use")) {
+        if (isActionLocked(heldItem, event.getEntity(), "use")) {
             event.setCanceled(true);
-            if (!isClient) {
+            if (!event.getEntity().level().isClientSide()) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "use_" + event.getEntity().getUUID() + "_" + itemRL,
                         "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL + "' blocked [action: use]");
@@ -64,12 +57,11 @@ public class ItemUseLockHandler {
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
 
-        boolean isClient = event.getEntity().level().isClientSide();
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "place")
-                || isActionLockedForEntity(heldItem, event.getEntity(), isClient, "use")) {
+        if (isActionLocked(heldItem, event.getEntity(), "place")
+                || isActionLocked(heldItem, event.getEntity(), "use")) {
             event.setUseItem(Event.Result.DENY);
         }
     }
@@ -82,13 +74,12 @@ public class ItemUseLockHandler {
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
         if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
 
-        boolean isClient = event.getEntity().level().isClientSide();
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "break")) {
+        if (isActionLocked(heldItem, event.getEntity(), "break")) {
             event.setCanceled(true);
-            if (!isClient) {
+            if (!event.getEntity().level().isClientSide()) {
                 ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "break_" + event.getEntity().getUUID() + "_" + itemRL,
                         "<" + event.getEntity().getName().getString() + "> Mining with '" + itemRL + "' blocked [action: break]");
@@ -96,10 +87,6 @@ public class ItemUseLockHandler {
             }
         }
     }
-
-    // Note: LeftClickEmpty is NOT cancelable in Forge, so we cannot prevent
-    // the swing animation when left-clicking air with a locked item.
-    // LeftClickBlock and AttackEntity already handle the important cases.
 
     /**
      * Prevents attacking entities with a locked weapon/tool in hand.
@@ -110,13 +97,12 @@ public class ItemUseLockHandler {
     public static void onAttackEntity(AttackEntityEvent event) {
         if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
 
-        boolean isClient = event.getEntity().level().isClientSide();
         ItemStack weapon = event.getEntity().getMainHandItem();
         if (weapon.isEmpty()) return;
 
-        if (isActionLockedForEntity(weapon, event.getEntity(), isClient, "attack")) {
+        if (isActionLocked(weapon, event.getEntity(), "attack")) {
             event.setCanceled(true);
-            if (!isClient) {
+            if (!event.getEntity().level().isClientSide()) {
                 ResourceLocation weaponRL = ForgeRegistries.ITEMS.getKey(weapon.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "attack_" + event.getEntity().getUUID() + "_" + weaponRL,
                         "<" + event.getEntity().getName().getString() + "> Attack with '" + weaponRL + "' blocked [action: attack]");
@@ -144,10 +130,10 @@ public class ItemUseLockHandler {
         // Only handle armor and offhand slots — players can still hold locked items in main hand
         if (slot.getType() != EquipmentSlot.Type.ARMOR && slot != EquipmentSlot.OFFHAND) return;
 
-        boolean locked = (Config.COMMON.lockItemUsage.get()
-                    && StageLockHelper.isActionLockedForPlayer(newItem, player.getUUID(), "equip"))
-                || (Config.COMMON.individualLockItemUsage.get()
-                    && StageLockHelper.isActionLockedByIndividualStage(newItem, player.getUUID(), "equip"));
+        boolean locked = LockGate.isActionLockedServer(
+                newItem, player, "equip",
+                Config.COMMON.lockItemUsage,
+                Config.COMMON.individualLockItemUsage);
         if (locked) {
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(newItem.getItem());
             DebugLogger.runtime("Item Use Lock", player.getName().getString(),
@@ -167,38 +153,14 @@ public class ItemUseLockHandler {
         }
     }
 
-    private static boolean isActionLockedForEntity(ItemStack item, Player player, boolean isClient, String action) {
-        if (Config.COMMON.lockItemUsage.get()) {
-            if (isClient) {
-                if (StageLockHelper.isActionLockedForClient(item, action)) return true;
-            } else {
-                if (StageLockHelper.isActionLockedForPlayer(item, player.getUUID(), action)) return true;
-            }
-        }
-
-        if (Config.COMMON.individualLockItemUsage.get()) {
-            if (isClient) {
-                if (StageLockHelper.isActionLockedByIndividualStageClient(item, action)) return true;
-            } else {
-                if (StageLockHelper.isActionLockedByIndividualStage(item, player.getUUID(), action)) return true;
-            }
-        }
-
-        return false;
+    private static boolean isActionLocked(ItemStack item, Player player, String action) {
+        return LockGate.isActionLocked(item, player, action,
+                Config.COMMON.lockItemUsage,
+                Config.COMMON.individualLockItemUsage);
     }
 
     private static void showMessage(Player player) {
         if (!(player instanceof ServerPlayer sp)) return;
-
-        long now = System.currentTimeMillis();
-        Long last = MESSAGE_COOLDOWNS.get(sp.getUUID());
-        if (last != null && (now - last) < COOLDOWN_MS) return;
-        MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
-
-        sp.displayClientMessage(
-                net.bananemdnsa.historystages.util.LockMessages.itemLocked()
-                        .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                true
-        );
+        LockFeedback.sendActionbar(sp, FEEDBACK_CATEGORY, LockMessages.itemLocked());
     }
 }
