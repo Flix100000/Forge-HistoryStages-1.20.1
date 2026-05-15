@@ -53,9 +53,12 @@ public interface IStageManager {
     void lockStageGlobally(String stage);
 
 
-    <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask);
-    <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key);
-
     boolean hasMissingStages(BitSet requiredLocks, Player player);
     boolean isBitPositionLocked(int bitPosition, Player player);
+
+    int getStageBit(StageDefinition stage);
+
+    List<StageDefinition> getStageDefinitionsFromLock(BitSet lock);
+
+    int registerMetadataBit(String name);
 }

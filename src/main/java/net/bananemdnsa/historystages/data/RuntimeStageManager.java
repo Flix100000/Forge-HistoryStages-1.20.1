@@ -27,10 +27,11 @@ public final class RuntimeStageManager implements IStageManager {
      * - The server then redistributes the config to all other clients.
      * - The clients and server all deterministically bake the locks
      */
-
     private static RuntimeStageManager INSTANCE;
 
-    private RuntimeStageManager() {}
+    private RuntimeStageManager() {
+        DUMMY_META_POSITION = registerMetadataBit("DummyData");
+    }
 
     public static RuntimeStageManager getInstance() {
         if (INSTANCE == null) {
@@ -68,6 +69,8 @@ public final class RuntimeStageManager implements IStageManager {
     private int LAST_GLOBAL_INDEX = -1;
 
 
+
+
     public List<StageDefinition> getStagesForBlock(Block block) {
         BitSet lock = HistoryStagesAPI.BLOCKS.getLock(block);
         return getStageDefinitionsFromLock(lock);
@@ -88,14 +91,6 @@ public final class RuntimeStageManager implements IStageManager {
         return lockingStages;
     }
 
-    // Small util class to assign sequential numbers
-    // Just makes it easier to make sure no numbers are ever doubled up
-    class Iota {
-        static int iota = -1;
-
-        public static int next() {return ++iota;}
-        public static int limit() {return iota + 1;}
-    }
 
     // This explanation is very hard to understand. I will try again sometime soon.
     /**
@@ -110,18 +105,18 @@ public final class RuntimeStageManager implements IStageManager {
      * corresponds to that stage. To resolve this, we know we can always simply toggle the dummy bit without accidentally effecting anything,
      * because the dummy bit does nothing.
      */
-    private static final int DUMMY_META_POSITION = Iota.next();
-    // If an item or block has at least one NBT lock associated with it, this bit should be set
-    // This means an automatic lock check will fail until the NBT bit is explicitly cleared for that item.
-    private static final int NBT_META_POSITION = Iota.next();
+    private final int DUMMY_META_POSITION;
 
+    private int NEXT_META_DATA_BIT = 0;
+    private final ArrayList<String> metadataFields = new ArrayList<>();
+    @Override
+    public int registerMetadataBit(String metadataName) {
+        //NOTE: The postfix operator is essential here.
+        //Only increment the number AFTER returning the original value
+        metadataFields.add(metadataName);
+        return NEXT_META_DATA_BIT++;
+    }
 
-    /**
-     * Integer representing the index at which standard stage definitions start
-     * in the sequence of lock bits. This is the first position after the last "metadata" bit.
-     * For more information about the metadata bits, refer to {@link #DUMMY_META_POSITION}
-     */
-    private static final int START_NONMETA_POSITION = Iota.limit();
     // =========================
     //     Implementation
     // =========================
@@ -151,13 +146,14 @@ public final class RuntimeStageManager implements IStageManager {
         );
 
         // TODO: Explain why I decided to include this. Short answer: performance
-        stages.add(DUMMY_META_POSITION, new StageDefinition("DUMMY_STAGE", StageScope.GLOBAL));
-        stages.add(NBT_META_POSITION, new StageDefinition("NBT_LOCKED", StageScope.GLOBAL));
+        for (int m = 0; m < metadataFields.size(); m++) {
+            stages.add(m, new StageDefinition(metadataFields.get(m), StageScope.GLOBAL));
+        }
 
         // Load our quick lookup tables for bit position <--> stage
         // We use these to achieve O(1) forward and reverse lookups of bit positions corresponding
         // to each stage, and vice versa.
-        for(int i = START_NONMETA_POSITION; i < stages.size(); i++) {
+        for(int i = NEXT_META_DATA_BIT; i < stages.size(); i++) {
 
             final int STAGE_INDEX = i; // Needed for compiler reasons
 
@@ -273,10 +269,27 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     /**
+     * Highly optimized check to see if a given BitSet contains any stages
+     * that the player and the server have NOT unlocked.
+     */
+    public boolean hasMissingStages(BitSet requiredLocks, Player player) {
+        if (requiredLocks == null || requiredLocks.isEmpty()) return false;
+
+        BitSet playerUnlocked = getBitSetForPlayer(player);
+
+        for (int i = requiredLocks.nextSetBit(NEXT_META_DATA_BIT); i >= 0; i = requiredLocks.nextSetBit(i + 1)) {
+            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !playerUnlocked.get(i)) {
+                return true; // We found a lock that isn't satisfied
+            }
+        }
+        return false;
+    }
+
+    /**
      * Checks if a specific individual bit position is locked.
      */
     public boolean isBitPositionLocked(int bitPosition, Player player) {
-         return !GLOBAL_UNLOCKED_STAGES.get(bitPosition) && !getBitSetForPlayer(player).get(bitPosition);
+        return !GLOBAL_UNLOCKED_STAGES.get(bitPosition) && !getBitSetForPlayer(player).get(bitPosition);
     }
 
     // Get the bit position for the given stage
@@ -289,7 +302,7 @@ public final class RuntimeStageManager implements IStageManager {
         return stageToBitPositionReferenceMap.getOrDefault(stage, DUMMY_META_POSITION);
     }
 
-    private int getStageBit(StageDefinition stage) {
+    public int getStageBit(StageDefinition stage) {
         return getStageBit(stage.getName());
     }
 

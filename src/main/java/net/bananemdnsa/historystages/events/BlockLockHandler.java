@@ -51,7 +51,7 @@ public class BlockLockHandler extends AbstractHandlerGroup {
 
         // Check global lock — respects lock_actions["gui"]
         if (Config.COMMON.lockBlockInteraction.get()) {
-            if (RuntimeStageManager.getInstance().isLocked(HistoryStagesAPI.BLOCKS, block, event.getEntity())) {
+            if (HistoryStagesAPI.BLOCKS.isLocked(block, event.getEntity())) {
                 locked = true;
             }
         }

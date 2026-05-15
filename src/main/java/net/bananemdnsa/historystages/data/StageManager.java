@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.astr0.historystages.api.IStageManager;
 import net.astr0.historystages.api.LockCategory;
+import net.astr0.historystages.api.NbtMatcher;
 import net.astr0.historystages.api.StageDefinition;
 import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;

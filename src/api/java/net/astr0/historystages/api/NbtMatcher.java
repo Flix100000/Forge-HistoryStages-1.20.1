@@ -1,4 +1,4 @@
-package net.bananemdnsa.historystages.data;
+package net.astr0.historystages.api;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

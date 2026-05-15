@@ -1,13 +1,13 @@
 package net.astr0.historystages.api;
 
+import com.google.gson.JsonObject;
 import it.unimi.dsi.fastutil.objects.Reference2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.BitSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * ItemLockCategory is a specialised lock category for handling {@link Item} AND {@link ItemStack}.
@@ -18,11 +18,11 @@ import java.util.Set;
  */
 public class ItemLockCategory extends LockCategory<Item> {
 
-    private final Set<Item> hasNbtLocks = new ReferenceOpenHashSet<>();
     private final HashMap<Item, List<NBTLock>> itemNbtLocks = new HashMap<>();
     public record NBTLock(StageDefinition stage, JsonObject lockCriteria) {}
+    private int NBT_META_POSITION;
 
-    public ItemLockCategory(String id, Item map) {
+    public ItemLockCategory(String id, Map<Item, BitSet> map) {
         super(id, map);
     }
 
@@ -40,7 +40,7 @@ public class ItemLockCategory extends LockCategory<Item> {
             return true;
         }
 
-        if (lock.get(manager.NBT_META_POSITION)) {
+        if (lock.get(NBT_META_POSITION)) {
             List<NBTLock> nbtLocks = itemNbtLocks.get(stack.getItem());
             
             if (nbtLocks != null) {
@@ -70,7 +70,7 @@ public class ItemLockCategory extends LockCategory<Item> {
      */
     public List<StageDefinition> getStagesFor(ItemStack stack) {
 
-        BitSet lock = itemLockCategory.getLock(stack.getItem());
+        BitSet lock = getLock(stack.getItem());
 
         if (lock == null) return EMPTY_LIST;
         List<StageDefinition> stages =  manager.getStageDefinitionsFromLock(lock);
@@ -90,7 +90,17 @@ public class ItemLockCategory extends LockCategory<Item> {
     }
 
     public void addNBTLock(StageDefinition stage, Item item, JsonObject nbtCriteria) {
-        itemNbtLocks.add(item, new NBTLock(stage, nbtCriteria));
+        List<NBTLock> locks = itemNbtLocks.computeIfAbsent(item, (key) -> new ArrayList<>());
+        locks.add(new NBTLock(stage, nbtCriteria));
+    }
+
+    @Override
+    public void register(IStageManager manager) {
+        super.register(manager);
+
+        // We need to track addition info for this lock
+        // Register a bit which can be set if an item also has NBT data related to its locking
+        NBT_META_POSITION = manager.registerMetadataBit("ITEM_NBT_METADATA");
     }
 
     @Override
