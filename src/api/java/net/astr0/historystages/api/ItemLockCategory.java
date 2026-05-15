@@ -16,50 +16,86 @@ import java.util.Set;
  * class will lock the underlying item, whilst applying a lock with the {@link ItemStack} variant will only lock ItemStacks
  * with the same exact NBT.
  */
-public class ItemLockCategory extends LockCategory<ItemKey> {
+public class ItemLockCategory extends LockCategory<Item> {
 
     private final Set<Item> hasNbtLocks = new ReferenceOpenHashSet<>();
+    private final HashMap<Item, List<NBTLock>> itemNbtLocks = new HashMap<>();
+    public record NBTLock(StageDefinition stage, JsonObject lockCriteria) {}
 
-    public ItemLockCategory(String id, Map<ItemKey, BitSet> map) {
+    public ItemLockCategory(String id, Item map) {
         super(id, map);
     }
 
-    @Override
-    public void applyLock(ItemKey key, int bitIndex) {
-        if (key.hasNbt()) {
-            hasNbtLocks.add(key.item());
-        }
-        super.applyLock(key, bitIndex);
-    }
-
-    public boolean isLocked(ItemStack stack, BitSet activeMask, BitSet globalUnlockedStages) {
+    /**
+     * The specialized overload for ItemStacks.
+     * This fully encapsulates the Sentinel Bit and NBT resolution logic.
+     */
+    public boolean isLocked(ItemStack stack, Player player) {
         if (stack.isEmpty()) return false;
-        Item baseItem = stack.getItem();
+        
+        BitSet lock = getLock(stack.getItem());
+        if (lock == null || lock.isEmpty()) return false;
 
-        // ALWAYS check the base item lock first.
-        // This is incredibly fast and ensures base restrictions are never bypassed.
-        BitSet baseLock = super.getLock(new ItemKey(baseItem, null));
-        if (checkMask(baseLock, activeMask, globalUnlockedStages)) {
+        if (manager.hasMissingStages(lock, player)) {
             return true;
         }
 
-        // NBT FAST-PATH: Only allocate the NBT key and hash it IF this item type has NBT locks.
-        if (stack.hasTag() && hasNbtLocks.contains(baseItem)) {
-            BitSet nbtLock = super.getLock(ItemKey.of(stack));
-            return checkMask(nbtLock, activeMask, globalUnlockedStages);
+        if (lock.get(manager.NBT_META_POSITION)) {
+            List<NBTLock> nbtLocks = itemNbtLocks.get(stack.getItem());
+            
+            if (nbtLocks != null) {
+                for (NBTLock nbtLock : nbtLocks) {
+                    if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
+                        
+                        int stageBitPosition = manager.getStageBit(nbtLock.stage());
+                        
+                        // Check if this specific NBT stage is still locked
+                        if (manager.isBitPositionLocked(stageBitPosition, player)) {
+                            return true;
+                        }
+                    }
+                }
+            }
         }
 
         return false;
     }
 
-    private boolean checkMask(BitSet required, BitSet activeMask, BitSet globalUnlockedStages) {
-        if (required == null || required.isEmpty()) return false;
+    /**
+     * Get the stages for a given item stack. This method considers both the underlying item as well as any Nbt locks that apply to that item.
+     * To simply check any item lock without considering Nbt data, it is better to use {@link RuntimeStageManager#getStagesFor(LockCategory, Object)}
+     * @param itemLockCategory
+     * @param stack
+     * @return A list of stages which lock this item stack
+     */
+    public List<StageDefinition> getStagesFor(ItemStack stack) {
 
-        for (int i = required.nextSetBit(0); i >= 0; i = required.nextSetBit(i + 1)) {
-            if (!globalUnlockedStages.get(i) && !activeMask.get(i)) {
-                return true;
+        BitSet lock = itemLockCategory.getLock(stack.getItem());
+
+        if (lock == null) return EMPTY_LIST;
+        List<StageDefinition> stages =  manager.getStageDefinitionsFromLock(lock);
+
+        if(lock.get(NBT_META_POSITION)) {
+            for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
+
+                // If there is an NBT lock on this item, and it matches the tested item stack
+                // then we should list this stage as locking it
+                if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
+                    stages.add(nbtLock.stage());
+                }
             }
         }
-        return false;
+
+        return stages;
+    }
+
+    public void addNBTLock(StageDefinition stage, Item item, JsonObject nbtCriteria) {
+        itemNbtLocks.add(item, new NBTLock(stage, nbtCriteria));
+    }
+
+    @Override
+    public void clear() {
+        super.clear();
+        itemNbtLocks.clear();
     }
 }

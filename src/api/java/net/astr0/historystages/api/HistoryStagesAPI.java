@@ -31,6 +31,9 @@ public class HistoryStagesAPI {
     public static void _setStageManager(IStageManager stageManager) {
         _stageManager = stageManager; //TODO(Astr0): Move this function behind a package-private barrier
                                       //             so that other mods can't over-write our manager
+        CATEGORIES.forEach((id, category) -> {
+            category.register(_stageManager);
+        });
     }
 
 
@@ -48,7 +51,6 @@ public class HistoryStagesAPI {
             new LockCategory<>("enchantment", new Object2ObjectOpenHashMap<>(100))
     );
 
-
     // Internal method. For use in testing bridge between main mod and API
     @Deprecated
     public static void _APIHelloWorld() {
@@ -60,7 +62,6 @@ public class HistoryStagesAPI {
 
     // API Method for Addons
     public static <T> LockCategory<T> register(@Nonnull LockCategory<T> category) {
-        assert CATEGORIES != null;
         CATEGORIES.put(category.getId(), category);
         return category;
     }

@@ -268,22 +268,16 @@ public final class RuntimeStageManager implements IStageManager {
         }
     }
 
-
     public boolean anyStageHasStructures() {
         return STAGE_WITH_STRUCTURE_EXISTS;
     }
 
-
-    public boolean isEnchantmentLocked(Enchantment enchant, int level, BitSet activeMask) {
-        String id = ForgeRegistries.ENCHANTMENTS.getKey(enchant).toString();
-        return isEnchantmentLocked(id, level, activeMask);
+    /**
+     * Checks if a specific individual bit position is locked.
+     */
+    public boolean isBitPositionLocked(int bitPosition, Player player) {
+         return !GLOBAL_UNLOCKED_STAGES.get(bitPosition) && !getBitSetForPlayer(player).get(bitPosition);
     }
-
-    public boolean isEnchantmentLocked(String enchant, int level, BitSet activeMask) {
-        EnchantmentKey key = EnchantmentKey.of(enchant, level);
-        return isLocked(HistoryStagesAPI.ENCHANTMENTS, key, activeMask);
-    }
-
 
     // Get the bit position for the given stage
     // This function is private to prevent other classes attempting to directly manipulate
@@ -354,131 +348,6 @@ public final class RuntimeStageManager implements IStageManager {
         int bitPosition = getStageBit(stage);
 
         getBitSetForPlayer(player).clear(bitPosition);
-    }
-
-    /**
-     * UNIFIED CHECK FUNCTION
-     * Replaces isItemLocked, isEnchantmentLocked, isBlockLocked, etc.
-     */
-    public <T> boolean isLocked(LockCategory<T> category, T key, Player player) {
-        BitSet required = category.getLock(key);
-
-        BitSet playerUnlockedStage = getBitSetForPlayer(player);
-
-        if (required == null || required.isEmpty()) return false;
-
-        // The unified high-performance bit traversal
-        // TODO: check if we directly set global bits across all players and simplify this check.
-        // May not be wise to do for various reasons, but needs to be considered
-        for (int i = required.nextSetBit(START_NONMETA_POSITION); i >= 0; i = required.nextSetBit(i + 1)) {
-            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !playerUnlockedStage.get(i)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    //TODO: Clean this up. Also check if we can do it in a more performance friendly way. For now, this will do
-    public <T> List<StageDefinition> getMissingStageFor(LockCategory<T> category, T lockedObject, Player player) {
-        return getStagesFor(category, lockedObject)
-                .stream()
-                .filter(
-                        stageDefinition -> !isStageUnlockedForPlayer(player, stageDefinition.getName())
-                ).toList();
-    }
-
-    /**
-     *
-     * @param category Instance of {@link LockCategory} to check
-     * @param lockedObject The object which you want to check the lock for.
-     * @return
-     * @param <T>
-     */
-    public <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T lockedObject) {
-        BitSet lock = category.getLock(lockedObject);
-        if (lock == null) return new ArrayList<>(); // Or Collections.emptyList()
-
-        return getStageDefinitionsFromLock(lock);
-    }
-
-
-    private final HashMap<Item, List<NBTLock>> itemNbtLocks = new HashMap<>();
-
-
-    record NBTLock(StageDefinition stage, JsonObject lockCriteria) {
-
-    }
-
-
-    /**
-     * Get the stages for a given item stack. This method considers both the underlying item as well as any Nbt locks that apply to that item.
-     * To simply check any item lock without considering Nbt data, it is better to use {@link RuntimeStageManager#getStagesFor(LockCategory, Object)}
-     * @param itemLockCategory
-     * @param stack
-     * @return A list of stages which lock this item stack
-     */
-    public List<StageDefinition> getStagesFor(LockCategory<Item> itemLockCategory, ItemStack stack) {
-
-        BitSet lock = itemLockCategory.getLock(stack.getItem());
-
-        if (lock == null) return new ArrayList<>();
-        List<StageDefinition> stages =  getStageDefinitionsFromLock(lock);
-
-        if(lock.get(NBT_META_POSITION)) {
-            for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
-
-                // If there is an NBT lock on this item, and it matches the tested item stack
-                // then we should list this stage as locking it
-                if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
-                    stages.add(nbtLock.stage());
-                }
-            }
-        }
-
-        return stages;
-    }
-
-    public boolean isLocked(LockCategory<Item> itemLockCategory, ItemStack stack, Player player) {
-        BitSet lock = itemLockCategory.getLock(stack.getItem());
-
-        if (lock == null || lock.isEmpty()) return false;
-        BitSet playerUnlockedStages = getBitSetForPlayer(player);
-
-
-
-        // The unified high-performance bit traversal. BitSet.nextSetBit() is highly optimised and will allow us
-        // to jump directly to set bits, and ignore any stages that don't apply to this item
-        // As soon as we find a lock bit which isn't satisfied by the global or player stages, we return true -> the item is still locked
-        for (int i = lock.nextSetBit(START_NONMETA_POSITION); i >= 0; i = lock.nextSetBit(i + 1)) {
-            if (!GLOBAL_UNLOCKED_STAGES.get(i) && !playerUnlockedStages.get(i)) {
-                return true;
-            }
-        }
-
-        // If the item itself is not locked by any stages, check our metadata to see if we need to check for any NBT
-        // locks. If we do, check for any matches, if there is a match, return true -> the item is locked by an NBT condition
-        // This is still pretty fast, but it's way more performance intensive than a simple item check.
-        // Users of the NBT locking system should be warned, too many NBT locked items will begin to slow down the game (would need to be a lot)
-        if(lock.get(NBT_META_POSITION)) {
-            for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
-                if (NbtMatcher.matches(stack, nbtLock.lockCriteria())) {
-                    int stageBitPosition = getStageBit(nbtLock.stage());
-
-                    // If this stage has already been unlocked then continue to check the rest of the NBT locks
-                    if(playerUnlockedStages.get(stageBitPosition) || GLOBAL_UNLOCKED_STAGES.get(stageBitPosition)) continue;
-
-                    // We only reach this point if:
-                    // 1. The item has any NBT locks
-                    // 2. If a tested NBT lock matches against the current itemstack
-                    // AND 3. The stage that provides that NBT lock has NOT been unlocked yet
-                    // Therefore the item is still locked, so we return true
-                    return true;
-                }
-            }
-        }
-
-        // All our checks succeeded, return false -> this item is NOT locked
-        return false;
     }
 
     @Override

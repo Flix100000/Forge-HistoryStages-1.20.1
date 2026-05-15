@@ -55,4 +55,7 @@ public interface IStageManager {
 
     <T> boolean isLocked(LockCategory<T> category, T key, BitSet activeMask);
     <T> List<StageDefinition> getStagesFor(LockCategory<T> category, T key);
+
+    boolean hasMissingStages(BitSet requiredLocks, Player player);
+    boolean isBitPositionLocked(int bitPosition, Player player);
 }
