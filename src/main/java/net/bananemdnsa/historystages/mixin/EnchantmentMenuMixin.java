@@ -2,12 +2,12 @@ package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.LockFeedback;
+import net.bananemdnsa.historystages.util.LockMessages;
 import net.bananemdnsa.historystages.util.StageLockHelper;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.Holder;
 import net.minecraft.core.IdMap;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,18 +21,13 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 @Mixin(EnchantmentMenu.class)
 public class EnchantmentMenuMixin {
 
     @Shadow @Final public int[] enchantClue;
     @Shadow @Final public int[] levelClue;
 
-    private static final Map<UUID, Long> ENCHANT_MSG_COOLDOWNS = new HashMap<>();
-    private static final long COOLDOWN_MS = 2000;
+    private static final String FEEDBACK_CATEGORY = "enchant_table";
 
     @Inject(method = "clickMenuButton", at = @At("HEAD"), cancellable = true)
     private void onClickMenuButton(Player player, int buttonId, CallbackInfoReturnable<Boolean> cir) {
@@ -65,16 +60,7 @@ public class EnchantmentMenuMixin {
                     "<" + serverPlayer.getName().getString() + "> Enchanting table blocked: enchantment '"
                             + enchantRL + "' level " + level + " is locked");
 
-            long now = System.currentTimeMillis();
-            Long last = ENCHANT_MSG_COOLDOWNS.get(serverPlayer.getUUID());
-            if (last == null || (now - last) >= COOLDOWN_MS) {
-                ENCHANT_MSG_COOLDOWNS.put(serverPlayer.getUUID(), now);
-                serverPlayer.displayClientMessage(
-                        net.bananemdnsa.historystages.util.LockMessages.enchantmentLocked()
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                        true
-                );
-            }
+            LockFeedback.sendActionbar(serverPlayer, FEEDBACK_CATEGORY, LockMessages.enchantmentLocked());
         }
     }
 }

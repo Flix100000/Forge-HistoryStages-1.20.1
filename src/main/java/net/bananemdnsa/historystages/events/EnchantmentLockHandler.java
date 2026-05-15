@@ -3,10 +3,10 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.StageLockHelper;
-import net.minecraft.ChatFormatting;
+import net.bananemdnsa.historystages.util.LockFeedback;
+import net.bananemdnsa.historystages.util.LockGate;
+import net.bananemdnsa.historystages.util.LockMessages;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -14,15 +14,10 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.AnvilUpdateEvent;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 @EventBusSubscriber(modid = HistoryStages.MOD_ID)
 public class EnchantmentLockHandler {
 
-    private static final Map<UUID, Long> MESSAGE_COOLDOWNS = new HashMap<>();
-    private static final long COOLDOWN_MS = 2000;
+    private static final String FEEDBACK_CATEGORY = "enchant";
 
     @SubscribeEvent
     public static void onAnvilUpdate(AnvilUpdateEvent event) {
@@ -35,14 +30,10 @@ public class EnchantmentLockHandler {
         ItemStack right = event.getRight();
         if (right.isEmpty()) return;
 
-        boolean locked = false;
-
-        if (Config.COMMON.lockEnchanting.get()) {
-            locked = StageLockHelper.isItemLockedForPlayer(right, serverPlayer);
-        }
-        if (!locked && Config.COMMON.individualLockEnchanting.get()) {
-            locked = StageLockHelper.isItemLockedByIndividualStage(right, serverPlayer.getUUID());
-        }
+        boolean locked = LockGate.isItemLockedServer(
+                right, serverPlayer,
+                Config.COMMON.lockEnchanting,
+                Config.COMMON.individualLockEnchanting);
 
         if (locked) {
             event.setCanceled(true);
@@ -51,16 +42,7 @@ public class EnchantmentLockHandler {
                     "<" + serverPlayer.getName().getString() + "> Anvil use blocked: right slot contains locked item '"
                             + BuiltInRegistries.ITEM.getKey(right.getItem()) + "'");
 
-            long now = System.currentTimeMillis();
-            Long last = MESSAGE_COOLDOWNS.get(serverPlayer.getUUID());
-            if (last == null || (now - last) >= COOLDOWN_MS) {
-                MESSAGE_COOLDOWNS.put(serverPlayer.getUUID(), now);
-                serverPlayer.displayClientMessage(
-                        net.bananemdnsa.historystages.util.LockMessages.enchantmentLocked()
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                        true
-                );
-            }
+            LockFeedback.sendActionbar(serverPlayer, FEEDBACK_CATEGORY, LockMessages.enchantmentLocked());
         }
     }
 }

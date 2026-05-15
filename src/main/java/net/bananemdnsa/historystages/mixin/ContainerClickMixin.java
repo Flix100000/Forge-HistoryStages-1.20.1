@@ -2,10 +2,10 @@ package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.LockFeedback;
+import net.bananemdnsa.historystages.util.LockMessages;
 import net.bananemdnsa.historystages.util.StageLockHelper;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -22,15 +22,10 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
-
 @Mixin(AbstractContainerMenu.class)
 public class ContainerClickMixin {
 
-    private static final Map<UUID, Long> CONTAINER_MSG_COOLDOWNS = new HashMap<>();
-    private static final long COOLDOWN_MS = 2000;
+    private static final String FEEDBACK_CATEGORY = "container";
 
     @Inject(method = "clicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void onClicked(int slotId, int button, ClickType clickType, Player player, CallbackInfo ci) {
@@ -54,16 +49,7 @@ public class ContainerClickMixin {
             DebugLogger.runtimeThrottled("Container Lock", "container_" + serverPlayer.getUUID() + "_" + itemRL,
                     "<" + serverPlayer.getName().getString() + "> Interaction with locked item '" + itemRL + "' in container blocked");
 
-            long now = System.currentTimeMillis();
-            Long last = CONTAINER_MSG_COOLDOWNS.get(serverPlayer.getUUID());
-            if (last == null || (now - last) >= COOLDOWN_MS) {
-                CONTAINER_MSG_COOLDOWNS.put(serverPlayer.getUUID(), now);
-                serverPlayer.displayClientMessage(
-                        net.bananemdnsa.historystages.util.LockMessages.itemLocked()
-                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                        true
-                );
-            }
+            LockFeedback.sendActionbar(serverPlayer, FEEDBACK_CATEGORY, LockMessages.itemLocked());
         }
     }
 
@@ -124,16 +110,7 @@ public class ContainerClickMixin {
         DebugLogger.runtimeThrottled("Item Use Lock", "equip_click_" + serverPlayer.getUUID() + "_" + itemRL,
                 "<" + serverPlayer.getName().getString() + "> Equip via container click for '" + itemRL + "' blocked [action: equip]");
 
-        long now = System.currentTimeMillis();
-        Long last = CONTAINER_MSG_COOLDOWNS.get(serverPlayer.getUUID());
-        if (last == null || (now - last) >= COOLDOWN_MS) {
-            CONTAINER_MSG_COOLDOWNS.put(serverPlayer.getUUID(), now);
-            serverPlayer.displayClientMessage(
-                    net.bananemdnsa.historystages.util.LockMessages.itemLocked()
-                            .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                    true
-            );
-        }
+        LockFeedback.sendActionbar(serverPlayer, FEEDBACK_CATEGORY, LockMessages.itemLocked());
     }
 
     @Unique
