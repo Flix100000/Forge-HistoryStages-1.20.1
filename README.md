@@ -1,7 +1,4 @@
-# **History Stages API & REFACTOR BRANCH**
-> [!WARNING]
-> This is a development branch. For release versions and main project code refer to `1.20.x` branch. This branch is kept up to date with the main branch, however it features  breaking changes, significant code refactors and incomplete features
-
+## History Stages
 
 # History Stages (Original Description)
 History Stages is a progression and gatekeeping mod for
@@ -10,8 +7,12 @@ implement a global "Era" system and per-player progression
 by locking items, recipes, dimensions, mobs, and mod content
 behind custom research stages.
 
+For full documentation on commands, configuration, Forge
+events, and advanced usage, see the Wiki:
+[here](https://github.com/Flix100000/History-Stages/wiki)
+
 ----------------------------------------------------------------
-1. KEY FEATURES
+### 1. KEY FEATURES
 ----------------------------------------------------------------
 
 PROGRESSION MODES:
@@ -115,17 +116,17 @@ OTHER:
 - Localization: English and German translations included.
 
 ----------------------------------------------------------------
-2. HOW TO USE
+### 2. HOW TO USE
 ----------------------------------------------------------------
 
 GLOBAL STAGES:
 Global stages are defined via JSON files in:
-  /config/historystages/global/
+  `/config/historystages/global/`
 When a global stage is unlocked, it applies to all players.
 
 INDIVIDUAL STAGES:
 Individual (per-player) stages are defined via JSON files in:
-  /config/historystages/individual/
+  `/config/historystages/individual/`
 Each player unlocks individual stages independently.
 Dimensions and entities can overlap between global and
 individual stages.
@@ -141,6 +142,7 @@ stage unlocked when Phase 1 completes, they gain access
 immediately.
 
 Example format:
+```json
 {
   "display_name": "Bronze Age",
   "research_time": 60,
@@ -155,8 +157,10 @@ Example format:
     "spawnlock": ["minecraft:skeleton"]
   }
 }
+```
 
 Items can also be specified with NBT criteria:
+```json
 {
   "items": [
     "minecraft:diamond_sword",
@@ -170,6 +174,7 @@ Items can also be specified with NBT criteria:
     }
   ]
 }
+```
 
 FIELDS:
 - display_name: Human-readable name shown in messages and tooltips.
@@ -212,7 +217,7 @@ for the pedestal or scrolls. You MUST add them yourself using
 KubeJS, CraftTweaker, or a Datapack.
 
 ----------------------------------------------------------------
-3. IN-GAME STAGE EDITOR
+### 3. IN-GAME STAGE EDITOR
 ----------------------------------------------------------------
 
 History Stages includes a full in-game editor for creating,
@@ -221,93 +226,24 @@ the game or manually edit JSON files. All stage configs and
 mod settings can be managed directly from within the GUI.
 
 ----------------------------------------------------------------
-4. ADMIN COMMANDS (Permission Level 2)
+### 4. ADMIN COMMANDS & CONFIGURATION
 ----------------------------------------------------------------
 
-GLOBAL STAGE COMMANDS:
-/history global unlock <stage>  - Unlocks a global stage. '*' for all.
-/history global lock <stage>    - Relocks a global stage. '*' for all.
-/history global list            - Shows all global stages.
-/history global info <stage>    - Shows stage details.
+See the Wiki for a full command reference, all config options,
+and Forge event documentation:
+[here](https://github.com/Flix100000/History-Stages/wiki)
 
-INDIVIDUAL STAGE COMMANDS:
-/history individual unlock <player> <stage>  - Unlocks for a player.
-/history individual lock <player> <stage>    - Relocks for a player.
-/history individual list <player>            - Shows player's stages.
-/history individual info <stage>             - Shows stage details.
+Quick reference:
+/history global unlock|lock <stage>
+/history individual unlock|lock <player> <stage>
+/history reload
+/history debug structure|nbt preset|custom
 
-Supports multi-player selectors (@a, @p, etc.) and '*' wildcard
-for stages.
-
-GENERAL COMMANDS:
-/history reload          - Reloads JSONs and syncs players.
-
-----------------------------------------------------------------
-5. OBTAINING SCROLLS VIA COMMAND
-----------------------------------------------------------------
-
+Scrolls can also be obtained via command:
 /give @s historystages:research_scroll{StageResearch:"stage_id"}
 
-(Replace "stage_id" with your JSON filename, e.g. "bronze_age")
-
 ----------------------------------------------------------------
-6. CONFIGURATION
-----------------------------------------------------------------
-
-CLIENT CONFIG (per player):
-- hideInJei: Hide locked items from JEI/EMI.
-- showTooltips: Show information tooltips on locked items.
-- showStageName: Show required stage name in tooltips.
-- showAllUntilComplete: Show all required stages until unlocked.
-- showLockIcons: Show lock icon overlay on locked items
-  (auto-disabled with EMI).
-- Jade settings: jadeShowInfo, jadeStageName,
-  jadeShowAllUntilComplete (requires Jade mod).
-- Dimension lock feedback: Actionbar and/or chat messages.
-- Mob lock feedback: Actionbar and/or chat messages.
-
-COMMON CONFIG (server-side):
-- showWelcomeMessage: Display welcome message on player join.
-- showDebugErrors: Show config validation errors in chat.
-- lockMobLoot: Remove locked items from mob drops.
-- lockBlockBreaking: Make locked blocks harder to break and
-  prevent their drops (default: true).
-- lockedBlockBreakSpeedMultiplier: Break speed multiplier for
-  locked blocks (default: 0.05 = 20x slower).
-- lockItemUsage: Prevent using locked items (default: true).
-- lockEntityItems: Prevent interacting with or breaking armor
-  stands and item frames containing locked items (default: true).
-- lockBlockGUI: Prevent opening GUI of locked blocks like
-  chests and furnaces (default: true).
-- lockContainerInteraction: Prevent moving individually-locked
-  items in containers (default: true).
-- lockEnchanting: Prevent applying locked enchantments via
-  anvil and enchanting table (default: true).
-- broadcastChat: Broadcast unlock/lock messages to all players.
-- unlockMessageFormat: Customize the unlock message text
-  (supports {stage} placeholder and & color codes).
-- individualUnlockMessageFormat: Customize the individual unlock
-  message text (supports {stage} and {player} placeholders).
-- useActionbar: Show messages in actionbar.
-- useSounds: Play notification sounds.
-- useToasts: Show advancement-style toast popups.
-- researchTimeInSeconds: Default research duration (default: 20s).
-- enableRuntimeLogging: Log runtime events (stage changes,
-  blocked actions, inventory tracking) to file (default: false).
-- useReplacements: Replace locked loot with alternative items.
-- replacementItems: List of replacement item IDs.
-- replacementTag: List of item tags for replacement fallback.
-
-Individual stages have their own independent config toggles for
-block breaking (with separate speed multiplier), item usage,
-and notification options (chat, actionbar, sounds, toasts).
-
-Config files are located at:
-- Client: /config/historystages-client.toml
-- Common: /config/historystages-common.toml
-
-----------------------------------------------------------------
-7. FTB QUESTS INTEGRATION
+### 5. FTB QUESTS INTEGRATION
 ----------------------------------------------------------------
 
 If FTB Quests is installed, History Stages adds two new types
@@ -331,29 +267,7 @@ The integration is fully optional and crash-safe. If FTB Quests
 is not installed, the mod works normally without it.
 
 ----------------------------------------------------------------
-8. FORGE EVENTS (FOR MOD/SCRIPT AUTHORS)
-----------------------------------------------------------------
-
-History Stages fires custom Forge events on the EVENT_BUS:
-
-- StageEvent.Unlocked: Fired after a stage is unlocked
-  (via command, Research Pedestal, or FTB Quests reward).
-- StageEvent.Locked: Fired after a stage is locked
-  (via command or FTB Quests reward).
-
-Both events are also fired by FTB Quests rewards.
-Both events provide: getStageId() and getDisplayName().
-
-KubeJS example:
-ForgeEvents.onEvent(
-  'net.astr0.historystages.api.events.StageEvent$Unlocked',
-  event => {
-    console.log('Stage unlocked: ' + event.getStageId());
-  }
-);
-
-----------------------------------------------------------------
-9. DEPENDENCIES
+### 6. DEPENDENCIES
 ----------------------------------------------------------------
 
 - Required: Lootr
