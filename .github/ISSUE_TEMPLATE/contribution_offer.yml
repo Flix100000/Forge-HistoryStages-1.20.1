@@ -1,0 +1,79 @@
+name: Contribution Offer
+description: Offer to contribute code, translations, art, or other help
+title: "[Contribution] "
+labels: ["contribution"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want to help out with History Stages? Open this issue first so we can coordinate before you start working.
+        This avoids duplicate effort and lets us discuss the approach upfront.
+
+        For small fixes (typos, one-line bugs), feel free to skip this and open a Pull Request directly.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of Contribution
+      description: What kind of contribution are you offering?
+      options:
+        - Code (feature / refactor)
+        - Code (bug fix)
+        - Translation / Localization
+        - Documentation / Wiki
+        - Art / Textures
+        - Testing / QA
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What do you want to work on?
+      description: Describe the feature, fix, translation, or other contribution you have in mind.
+      placeholder: |
+        e.g. "I'd like to add a French translation"
+        or "I want to refactor the stage loading code to be async"
+        or "I'd like to redesign the Research Pedestal texture"
+    validations:
+      required: true
+
+  - type: input
+    id: related-issue
+    attributes:
+      label: Related Issue (if any)
+      description: Link to an existing issue this contribution would address.
+      placeholder: "e.g. #35"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: branch
+    attributes:
+      label: Target Version / Branch
+      description: Which version are you planning to contribute to?
+      options:
+        - NeoForge 1.21
+        - Forge 1.20
+        - Not sure / multiple
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: Planned Approach (optional)
+      description: If you already have an idea of how you want to implement this, share it here so we can discuss before you start.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Before you start
+      options:
+        - label: I understand contributions will be licensed under GPL-3.0.
+          required: true
+        - label: I will wait for confirmation before starting significant work to avoid wasted effort.
+          required: false
