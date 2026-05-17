@@ -5,6 +5,7 @@
   "mixins": [
     "AbstractContainerMenuMixin",
     "AnvilMenuMixin",
+    "BlockStateBaseMixin",
     "CraftingMenuMixin",
     "EnchantmentMenuMixin",
     "RecipeManagerCheckMixin",
@@ -13,7 +14,8 @@
   ],
   "client": [
       "client.EditorScreenBackgroundMixin",
-      "client.GuiGraphicsMixin"
+      "client.GuiGraphicsMixin",
+      "client.jei.RecipeLayoutMixin"
   ],
   "injectors": {
     "defaultRequire": 1

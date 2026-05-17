@@ -108,7 +108,7 @@ public final class GameplayEvents {
             if (shouldBlockBlock(state, player, "break")) {
                 showMessage(player, "message.historystages.block_locked");
                 if (!world.isClientSide()) {
-                    world.levelEvent(2001, pos, Block.getId(state));
+                    world.levelEvent(player, 2001, pos, Block.getId(state));
                     world.removeBlock(pos, false);
                 }
                 return false;
@@ -198,7 +198,39 @@ public final class GameplayEvents {
         return StageLockHelper.isActionLockedByIndividualStage(stack, player.getUUID(), action);
     }
 
-    private static boolean shouldBlockBlock(BlockState state, Player player, String action) {
+    /**
+     * Returns a break-speed multiplier for the given block at the given player:
+     *   - 1.0F if the block is not break-locked → vanilla speed
+     *   - lockedBlockBreakSpeedMultiplier if globally locked
+     *   - individualLockedBlockBreakSpeedMultiplier if individually locked
+     */
+    public static float getBreakSpeedMultiplier(BlockState state, Player player) {
+        ItemStack stack = new ItemStack(state.getBlock().asItem());
+        if (stack.isEmpty()) {
+            return 1.0F;
+        }
+        boolean clientSide = player.level().isClientSide();
+        if (Config.COMMON.lockBlockBreaking) {
+            boolean globalLocked = clientSide
+                    ? StageLockHelper.isActionLockedForClient(stack, "break")
+                    : (player instanceof ServerPlayer sp
+                            && StageLockHelper.isActionLockedForPlayer(stack, sp.getUUID(), "break"));
+            if (globalLocked) {
+                return Config.COMMON.lockedBlockBreakSpeedMultiplier;
+            }
+        }
+        if (Config.COMMON.individualLockBlockBreaking) {
+            boolean individualLocked = clientSide
+                    ? StageLockHelper.isActionLockedByIndividualStageClient(stack, "break")
+                    : StageLockHelper.isActionLockedByIndividualStage(stack, player.getUUID(), "break");
+            if (individualLocked) {
+                return Config.COMMON.individualLockedBlockBreakSpeedMultiplier;
+            }
+        }
+        return 1.0F;
+    }
+
+    public static boolean shouldBlockBlock(BlockState state, Player player, String action) {
         ItemStack stack = new ItemStack(state.getBlock().asItem());
         if (stack.isEmpty()) {
             return false;

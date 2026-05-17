@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.jei;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.gui.builder.ITooltipBuilder;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
@@ -101,17 +102,16 @@ public class JEIPlugin implements IModPlugin {
         }
 
         @Override
-        public List<Component> decorateExistingTooltips(List<Component> tooltips, T recipe,
-                                                        IRecipeCategory<T> category,
-                                                        IRecipeSlotsView slots,
-                                                        double mouseX, double mouseY) {
+        public void decorateTooltips(ITooltipBuilder tooltip, T recipe,
+                                     IRecipeCategory<T> category,
+                                     IRecipeSlotsView slots,
+                                     double mouseX, double mouseY) {
             if (isRecipeLocked(recipe, category, slots)) {
-                tooltips.add(Component.empty());
-                tooltips.add(Component.literal("\u00A7c\u00A7lStage Locked"));
-                tooltips.add(Component.literal("\u00A77This recipe requires a stage that"));
-                tooltips.add(Component.literal("\u00A77has not been unlocked yet."));
+                tooltip.add(Component.empty());
+                tooltip.add(Component.literal("\u00A7c\u00A7lStage Locked"));
+                tooltip.add(Component.literal("\u00A77This recipe requires a stage that"));
+                tooltip.add(Component.literal("\u00A77has not been unlocked yet."));
             }
-            return tooltips;
         }
 
         private boolean isRecipeLocked(T recipe, IRecipeCategory<T> category, IRecipeSlotsView slots) {
