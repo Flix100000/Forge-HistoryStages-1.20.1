@@ -1,6 +1,14 @@
 package net.bananemdnsa.historystages.commands;
 
+import com.mojang.brigadier.CommandDispatcher;
+import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.RequestStructureDebugPacket;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -8,21 +16,17 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 
 import java.util.Set;
 
-/**
- * /history debug nbt preset  — shows the NBT editor's preset fields for the held item
- * /history debug nbt custom  — shows the remaining (unrecognized) NBT keys that would go
- *                              into the "Custom NBT" field of the editor.
- *
- * Reads from DataComponents.CUSTOM_DATA (the 1.21+ equivalent of stack.getTag()).
- * Preset key list mirrors NbtItemEditScreen.buildPropertyTree(). Keep in sync.
- */
-public final class DebugNbtCommand {
+@EventBusSubscriber(modid = HistoryStages.MOD_ID, value = Dist.CLIENT)
+public final class ClientDebugCommand {
 
     private static final Set<String> PRESET_KEYS = Set.of(
             "Enchantments",
@@ -34,11 +38,59 @@ public final class DebugNbtCommand {
             "RepairCost"
     );
 
-    private DebugNbtCommand() {}
+    private ClientDebugCommand() {}
 
-    public static int handlePreset(CommandSourceStack source) {
-        ServerPlayer player = resolvePlayer(source);
-        if (player == null) return 0;
+    @SubscribeEvent
+    public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
+        register(event.getDispatcher());
+    }
+
+    private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(Commands.literal("history")
+                .then(Commands.literal("debug")
+                        .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("editor")
+                                .executes(ctx -> openEditor(ctx.getSource())))
+                        .then(Commands.literal("structure")
+                                .executes(ctx -> requestStructure(ctx.getSource())))
+                        .then(Commands.literal("nbt")
+                                .then(Commands.literal("preset")
+                                        .executes(ctx -> handlePreset(ctx.getSource())))
+                                .then(Commands.literal("custom")
+                                        .executes(ctx -> handleCustom(ctx.getSource()))))));
+    }
+
+    // ---------- editor ----------
+
+    private static int openEditor(CommandSourceStack source) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+        mc.tell(() -> mc.setScreen(new StageOverviewScreen()));
+        return 1;
+    }
+
+    // ---------- structure (server round-trip) ----------
+
+    private static int requestStructure(CommandSourceStack source) {
+        if (Minecraft.getInstance().player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+        PacketHandler.sendToServer(new RequestStructureDebugPacket());
+        return 1;
+    }
+
+    // ---------- nbt (purely client-side, held item is on client) ----------
+
+    private static int handlePreset(CommandSourceStack source) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
 
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) {
@@ -53,20 +105,23 @@ public final class DebugNbtCommand {
         source.sendSuccess(() -> Component.literal("§7Item: §f" + itemId), false);
 
         printPreset(source, "Enchantments",       formatEnchantmentList(tag, "Enchantments"));
-        printPreset(source, "StoredEnchantments",  formatEnchantmentList(tag, "StoredEnchantments"));
-        printPreset(source, "CustomModelData",     formatInt(tag, "CustomModelData"));
-        printPreset(source, "display.Name",        formatDisplayChild(tag, "Name"));
-        printPreset(source, "display.Lore",        formatDisplayLore(tag));
-        printPreset(source, "Potion",              formatString(tag, "Potion"));
-        printPreset(source, "Unbreakable",         formatBool(tag, "Unbreakable"));
-        printPreset(source, "RepairCost",          formatInt(tag, "RepairCost"));
+        printPreset(source, "StoredEnchantments", formatEnchantmentList(tag, "StoredEnchantments"));
+        printPreset(source, "CustomModelData",    formatInt(tag, "CustomModelData"));
+        printPreset(source, "display.Name",       formatDisplayChild(tag, "Name"));
+        printPreset(source, "display.Lore",       formatDisplayLore(tag));
+        printPreset(source, "Potion",             formatString(tag, "Potion"));
+        printPreset(source, "Unbreakable",        formatBool(tag, "Unbreakable"));
+        printPreset(source, "RepairCost",         formatInt(tag, "RepairCost"));
 
         return 1;
     }
 
-    public static int handleCustom(CommandSourceStack source) {
-        ServerPlayer player = resolvePlayer(source);
-        if (player == null) return 0;
+    private static int handleCustom(CommandSourceStack source) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
 
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) {
@@ -103,15 +158,6 @@ public final class DebugNbtCommand {
     }
 
     // ---------- helpers ----------
-
-    private static ServerPlayer resolvePlayer(CommandSourceStack source) {
-        try {
-            return source.getPlayerOrException();
-        } catch (Exception e) {
-            source.sendFailure(Component.literal("This command can only be run by a player."));
-            return null;
-        }
-    }
 
     private static void printPreset(CommandSourceStack source, String label, String value) {
         boolean set = value != null;
