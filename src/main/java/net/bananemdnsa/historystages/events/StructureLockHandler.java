@@ -4,26 +4,23 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.structure.ClusterBuilder;
+import net.bananemdnsa.historystages.structure.ClusterDebugRenderer;
+import net.bananemdnsa.historystages.structure.StructureCluster;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SpawnerBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -53,6 +50,10 @@ public class StructureLockHandler {
         int messageCooldown = 0;
         List<String> cachedLockedStructureIds = Collections.emptyList();
         List<String> cachedLockedStageIds = Collections.emptyList();
+        /** Clusters near the player belonging to any locked structure (regardless of stage gating). */
+        List<StructureCluster> cachedNearbyClusters = Collections.emptyList();
+        /** Subset of nearby clusters whose structure is currently locked AND which contain the player. */
+        List<StructureCluster> cachedActiveLockedClusters = Collections.emptyList();
     }
 
     @SubscribeEvent
@@ -72,8 +73,10 @@ public class StructureLockHandler {
         if (chunkChanged || state.checkCooldown <= 0) {
             state.checkCooldown = interval;
             state.lastChunkKey = chunkKey;
-            recomputeLockedStructures(player, state);
+            recompute(player, state);
         }
+
+        ClusterDebugRenderer.tick(player, state.cachedNearbyClusters, state.cachedActiveLockedClusters);
 
         if (state.cachedLockedStructureIds.isEmpty()) return;
 
@@ -95,23 +98,42 @@ public class StructureLockHandler {
         }
     }
 
-    private static void recomputeLockedStructures(ServerPlayer player, PlayerState state) {
+    private static void recompute(ServerPlayer player, PlayerState state) {
         ServerLevel level = player.serverLevel();
         BlockPos pos = player.blockPosition();
 
-        List<Holder.Reference<Structure>> holders = collectStructureHoldersAt(level, pos);
-        if (holders.isEmpty()) {
+        int padding = Config.COMMON.structureLockPadding.get();
+        int clusterDistance = Config.COMMON.structureClusterDistance.get();
+
+        List<StructureCluster> nearby = ClusterBuilder.collectClustersNear(
+                level, pos, CHUNK_SCAN_RADIUS, padding, clusterDistance);
+
+        state.cachedNearbyClusters = nearby;
+
+        if (nearby.isEmpty()) {
             state.cachedLockedStructureIds = Collections.emptyList();
             state.cachedLockedStageIds = Collections.emptyList();
+            state.cachedActiveLockedClusters = Collections.emptyList();
             return;
         }
 
-        // Build present IDs + tags for fast lookup against stage entries
+        // Determine which clusters actually contain the player.
+        List<StructureCluster> active = new ArrayList<>();
         Set<String> presentIds = new HashSet<>();
         Set<String> presentTags = new HashSet<>();
-        for (Holder.Reference<Structure> h : holders) {
+        for (StructureCluster c : nearby) {
+            if (!c.contains(pos)) continue;
+            active.add(c);
+            Holder.Reference<Structure> h = c.structure();
             h.unwrapKey().ifPresent(k -> presentIds.add(k.location().toString()));
             h.tags().forEach(t -> presentTags.add(t.location().toString()));
+        }
+
+        if (active.isEmpty()) {
+            state.cachedLockedStructureIds = Collections.emptyList();
+            state.cachedLockedStageIds = Collections.emptyList();
+            state.cachedActiveLockedClusters = Collections.emptyList();
+            return;
         }
 
         Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(
@@ -123,7 +145,7 @@ public class StructureLockHandler {
         // Global stages
         for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
             String stageId = e.getKey();
-            if (StageData.SERVER_CACHE.contains(stageId)) continue; // already unlocked
+            if (StageData.SERVER_CACHE.contains(stageId)) continue;
             List<String> entries = e.getValue().getStructures();
             if (entries == null || entries.isEmpty()) continue;
             for (String entry : entries) {
@@ -135,7 +157,7 @@ public class StructureLockHandler {
             }
         }
 
-        // Individual stages (per-player)
+        // Individual stages
         for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
             String stageId = e.getKey();
             if (playerStages.contains(stageId)) continue;
@@ -152,13 +174,23 @@ public class StructureLockHandler {
 
         state.cachedLockedStructureIds = new ArrayList<>(lockedStructures);
         state.cachedLockedStageIds = new ArrayList<>(lockedStages);
+
+        // Active locked clusters = active clusters whose structure id matches one of the locked ids.
+        List<StructureCluster> activeLocked = new ArrayList<>();
+        for (StructureCluster c : active) {
+            String id = c.structure().unwrapKey().map(k -> k.location().toString()).orElse(null);
+            if (id == null) continue;
+            if (lockedStructures.contains(id)) {
+                activeLocked.add(c);
+                continue;
+            }
+            // Match via tags too (entries starting with #)
+            boolean tagMatched = c.structure().tags().anyMatch(t -> lockedStructures.contains("#" + t.location()));
+            if (tagMatched) activeLocked.add(c);
+        }
+        state.cachedActiveLockedClusters = activeLocked;
     }
 
-    /**
-     * Checks whether a stage entry (either "minecraft:village" or "#minecraft:village")
-     * matches the player's current structure context. Returns the matching structure ID
-     * label or null if no match.
-     */
     private static String matchEntry(String entry, Set<String> presentIds, Set<String> presentTags) {
         if (entry == null || entry.isEmpty()) return null;
         if (entry.startsWith("#")) {
@@ -169,8 +201,9 @@ public class StructureLockHandler {
     }
 
     /**
-     * Returns ResourceLocation IDs of all structures containing the given position.
-     * Used by the debug command and other callers that only need IDs.
+     * Returns ResourceLocation IDs of all structures whose start BB contains pos.
+     * Kept for compatibility with {@code /history debug structure} which lists every
+     * structure the player is currently inside, independent of the active lock mode.
      */
     public static List<String> collectStructureIdsAt(ServerLevel level, BlockPos pos) {
         List<Holder.Reference<Structure>> holders = collectStructureHoldersAt(level, pos);
@@ -183,46 +216,32 @@ public class StructureLockHandler {
     }
 
     /**
-     * Returns Holder.Reference for every structure whose bounding box contains pos.
-     * Uses two strategies and merges results:
-     * 1. Vanilla {@code StructureManager.getAllStructuresAt} (cross-chunk references).
-     * 2. Manual scan of loaded chunks in a radius — catches structures at the edge of loading.
+     * Lists structures whose vanilla start bounding box contains {@code pos}. Used by the
+     * structure debug command — intentionally independent of the cluster-based lock logic
+     * so admins always see every structure that geometrically overlaps the position.
      */
     public static List<Holder.Reference<Structure>> collectStructureHoldersAt(ServerLevel level, BlockPos pos) {
-        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-
-        Set<Structure> found = new LinkedHashSet<>();
-
-        // Strategy 1: vanilla lookup
-        try {
-            Map<Structure, ?> all = level.structureManager().getAllStructuresAt(pos);
-            found.addAll(all.keySet());
-        } catch (Throwable t) {
-            // Some chunks may not have structure references populated — fall through
-        }
-
-        // Strategy 2: scan loaded chunks in a radius and match bounding boxes directly
-        ChunkPos center = new ChunkPos(pos);
+        var registry = level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+        net.minecraft.world.level.ChunkPos center = new net.minecraft.world.level.ChunkPos(pos);
+        Set<Structure> seen = new LinkedHashSet<>();
         for (int cx = center.x - CHUNK_SCAN_RADIUS; cx <= center.x + CHUNK_SCAN_RADIUS; cx++) {
             for (int cz = center.z - CHUNK_SCAN_RADIUS; cz <= center.z + CHUNK_SCAN_RADIUS; cz++) {
-                ChunkAccess chunk = level.getChunkSource().getChunkNow(cx, cz);
+                var chunk = level.getChunkSource().getChunkNow(cx, cz);
                 if (chunk == null) continue;
-                for (Map.Entry<Structure, StructureStart> e : chunk.getAllStarts().entrySet()) {
-                    StructureStart start = e.getValue();
+                for (var entry : chunk.getAllStarts().entrySet()) {
+                    var start = entry.getValue();
                     if (start == null || !start.isValid()) continue;
                     if (!start.getBoundingBox().isInside(pos)) continue;
-                    found.add(e.getKey());
+                    seen.add(entry.getKey());
                 }
             }
         }
-
-        if (found.isEmpty()) return Collections.emptyList();
-
-        List<Holder.Reference<Structure>> out = new ArrayList<>(found.size());
-        for (Structure s : found) {
-            ResourceLocation key = registry.getKey(s);
+        if (seen.isEmpty()) return Collections.emptyList();
+        List<Holder.Reference<Structure>> out = new ArrayList<>(seen.size());
+        for (Structure s : seen) {
+            var key = registry.getKey(s);
             if (key == null) continue;
-            registry.getHolder(net.minecraft.resources.ResourceKey.create(Registries.STRUCTURE, key))
+            registry.getHolder(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, key))
                     .ifPresent(out::add);
         }
         return out;
@@ -238,7 +257,7 @@ public class StructureLockHandler {
         String formatted = format
                 .replace("{structure}", structureId)
                 .replace("{stage}", stageName)
-                .replace('&', '\u00A7');
+                .replace('&', '§');
 
         Component msg = Component.literal(formatted);
 
@@ -258,10 +277,6 @@ public class StructureLockHandler {
         return entry != null ? entry.getDisplayName() : stageId;
     }
 
-    /**
-     * Checks if the player is currently inside any locked structure
-     * (used by interaction blockers).
-     */
     public static boolean isInsideLockedStructure(Player player) {
         PlayerState state = STATE.get(player.getUUID());
         return state != null && !state.cachedLockedStructureIds.isEmpty();
@@ -271,10 +286,6 @@ public class StructureLockHandler {
         STATE.remove(uuid);
     }
 
-    /**
-     * Blocks interaction with containers and spawners while the player
-     * is inside a locked structure.
-     */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (event.getEntity().level().isClientSide()) return;

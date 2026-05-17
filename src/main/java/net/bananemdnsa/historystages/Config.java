@@ -188,6 +188,8 @@ public class Config {
         public final ModConfigSpec.BooleanValue structureMessageEnabled;
         public final ModConfigSpec.ConfigValue<String> structureLockMessageFormat;
         public final ModConfigSpec.BooleanValue structureLockInChat;
+        public final ModConfigSpec.IntValue structureLockPadding;
+        public final ModConfigSpec.IntValue structureClusterDistance;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -395,6 +397,26 @@ public class Config {
             structureDamageInterval = builder
                     .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
                     .defineInRange("damageInterval", 20, 1, 600);
+
+            structureLockPadding = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "Extra blocks added around each piece of a locked structure (rooms, corridors, houses, ...).",
+                            "Higher values = the lock 'kicks in' a bit before you actually touch the structure wall,",
+                            "lower values = the boundary sits exactly on the blocks. Measured in blocks. [Default: 1]"
+                    )
+                    .defineInRange("lockPadding", 1, 0, 16);
+
+            structureClusterDistance = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "How far apart (in blocks) two pieces of the same structure can be while still being",
+                            "joined into one connected lock zone. Example for a village: with a low value, each",
+                            "house is its own little zone and the gaps between houses are walkable; with a higher",
+                            "value, neighbouring houses + paths fuse into one lock zone covering the whole area.",
+                            "Higher = larger, more 'filled-in' lock zones. Lower = more precise, more gaps. [Default: 6]"
+                    )
+                    .defineInRange("clusterDistance", 6, 0, 32);
 
             builder.pop(); // structure_lock
 
