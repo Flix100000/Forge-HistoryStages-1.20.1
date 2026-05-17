@@ -51,12 +51,18 @@ dependencies {
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	modCompileOnly "maven.modrinth:jade:11.13.1+fabric"
-	modCompileOnly "curse.maven:jei-238222:5772965"
-	modCompileOnly "dev.emi:emi-fabric:1.1.22+1.20.1:api"
+	//JADE
+	modImplementation "maven.modrinth:jade:15.10.5+fabric"
+	//JEI
+	modImplementation "maven.modrinth:jei:19.27.0.340"
+	//EMI
+	modCompileOnly "dev.emi:emi-fabric:1.1.24+1.21.1:api"
+	//FTBQuest
 	modCompileOnly "curse.maven:ftb-library-fabric-438495:7746958"
 	modCompileOnly "curse.maven:ftb-teams-fabric-438497:7878280"
 	modCompileOnly "curse.maven:ftb-quests-fabric-438496:7878288"
+	//Lootr
+	modImplementation "curse.maven:lootr-fabric-615106:8041235"
 }
 
 processResources {
