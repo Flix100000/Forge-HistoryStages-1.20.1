@@ -4,32 +4,63 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.*;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 
 /**
  * Matches ItemStack NBT data against JSON-defined NBT criteria.
- * In MC 1.21+, uses DataComponents.CUSTOM_DATA instead of direct stack.getTag().
+ * In MC 1.21+, reads DataComponents.CUSTOM_DATA and additionally synthesizes
+ * legacy "Enchantments" / "StoredEnchantments" lists from the enchantment
+ * data components so existing JSON configs from older versions keep working.
  * Supports exact matching and numeric ranges (e.g., "1-4" matches 1, 2, 3, 4).
  */
 public class NbtMatcher {
 
     /**
-     * Checks if an ItemStack's custom data matches the given criteria.
+     * Checks if an ItemStack's data matches the given criteria.
      * All keys in the criteria must be present and match in the item's data.
      */
     public static boolean matches(ItemStack stack, JsonObject nbtCriteria) {
         if (nbtCriteria == null || nbtCriteria.size() == 0) return true;
 
+        CompoundTag tag = buildMatchTag(stack);
+        return !tag.isEmpty() && matchesCompound(tag, nbtCriteria);
+    }
+
+    private static CompoundTag buildMatchTag(ItemStack stack) {
         CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
         CompoundTag tag = customData.copyTag();
 
-        // Try matching against custom data
-        if (!tag.isEmpty() && matchesCompound(tag, nbtCriteria)) return true;
+        ItemEnchantments active = stack.get(DataComponents.ENCHANTMENTS);
+        if (active != null && !active.isEmpty() && !tag.contains("Enchantments")) {
+            tag.put("Enchantments", toLegacyEnchantmentList(active));
+        }
+        ItemEnchantments stored = stack.get(DataComponents.STORED_ENCHANTMENTS);
+        if (stored != null && !stored.isEmpty() && !tag.contains("StoredEnchantments")) {
+            tag.put("StoredEnchantments", toLegacyEnchantmentList(stored));
+        }
+        return tag;
+    }
 
-        return false;
+    private static ListTag toLegacyEnchantmentList(ItemEnchantments enchantments) {
+        ListTag list = new ListTag();
+        for (Object2IntMap.Entry<Holder<Enchantment>> entry : enchantments.entrySet()) {
+            ResourceLocation id = entry.getKey().unwrapKey().map(ResourceKey::location).orElse(null);
+            if (id == null) continue;
+            CompoundTag e = new CompoundTag();
+            e.putString("id", id.toString());
+            e.putInt("lvl", entry.getIntValue());
+            list.add(e);
+        }
+        return list;
     }
 
     private static boolean matchesCompound(CompoundTag tag, JsonObject criteria) {
