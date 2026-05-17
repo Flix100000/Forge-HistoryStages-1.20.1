@@ -8,25 +8,13 @@ import net.minecraft.world.item.Item;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * A named entry (tag or mod ID) with an optional list of locked actions.
- * When lockActions is null, all actions are locked (default behaviour).
- * When lockActions is an empty list, no actions are locked.
- *
- * In JSON the field is written as {@code unlock_actions} (the complement — actions that are
- * NOT locked). {@code null} / no field means all actions are locked.
- */
 public class NamedLockEntry {
-
-    /** Canonical ordered list of all recognised lock actions. */
     public static final List<String> ALL_ACTIONS = List.of(
             "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
     );
 
     private final String id;
-    private final List<String> lockActions; // null = all actions locked, empty = none locked
-
-    // Lazily computed — only meaningful when this entry represents an item tag.
+    private final List<String> lockActions;
     private transient TagKey<Item> cachedTagKey;
 
     public NamedLockEntry(String id) {
@@ -36,20 +24,24 @@ public class NamedLockEntry {
 
     public NamedLockEntry(String id, List<String> lockActions) {
         this.id = id;
-        this.lockActions = (lockActions != null && !lockActions.isEmpty()) ? new ArrayList<>(lockActions) : null;
+        this.lockActions = lockActions != null ? new ArrayList<>(lockActions) : null;
     }
 
-    public String getId() { return id; }
+    public String getId() {
+        return id;
+    }
 
-    /** Returns null if all actions are locked, otherwise the explicit list of locked actions. */
-    public List<String> getLockActions() { return lockActions; }
+    public List<String> getLockActions() {
+        return lockActions;
+    }
 
-    public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+    public boolean hasLockActions() {
+        return lockActions != null;
+    }
 
-    /** Returns a cached TagKey for this entry's ID. Only call when this entry represents an item tag. */
     public TagKey<Item> getItemTagKey() {
         if (cachedTagKey == null) {
-            cachedTagKey = TagKey.create(Registries.ITEM, new ResourceLocation(id));
+            cachedTagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(id));
         }
         return cachedTagKey;
     }

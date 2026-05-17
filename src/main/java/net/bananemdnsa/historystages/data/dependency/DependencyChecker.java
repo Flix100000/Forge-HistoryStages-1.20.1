@@ -5,263 +5,204 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
-import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.ServerStatsCounter;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraft.nbt.CompoundTag;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
-public class DependencyChecker {
+public final class DependencyChecker {
+    private DependencyChecker() {
+    }
 
-    /**
-     * Check all dependency groups for a stage. Groups are AND-connected.
-     * 
-     * @param entry         The stage entry
-     * @param player        The player (null for global-only checks)
-     * @param level         The server level
-     * @param depositedData The tracking NBT from the scroll, if applicable
-     * @return DependencyResult with per-group and per-entry details
-     */
-    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
-            CompoundTag depositedData) {
+    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level, CompoundTag depositedData) {
         List<DependencyGroup> groups = entry.getDependencies();
         if (groups == null || groups.isEmpty()) {
             return DependencyResult.noDependencies();
         }
 
-        List<DependencyResult.GroupResult> groupResults = new ArrayList<>();
-        boolean allFulfilled = true;
-
+        List<DependencyResult.GroupResult> results = new ArrayList<>();
+        boolean fulfilled = true;
         for (int i = 0; i < groups.size(); i++) {
             DependencyResult.GroupResult result = checkGroup(groups.get(i), i, player, level, depositedData);
-            groupResults.add(result);
+            results.add(result);
             if (!result.isFulfilled()) {
-                allFulfilled = false;
+                fulfilled = false;
             }
         }
-
-        return new DependencyResult(allFulfilled, groupResults);
+        return new DependencyResult(fulfilled, results);
     }
 
-    /**
-     * Check a single dependency group. Entries within are connected by the group's
-     * logic (AND/OR).
-     */
     public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex, ServerPlayer player,
-            Level level, CompoundTag depositedData) {
+                                                          Level level, CompoundTag depositedData) {
         List<DependencyResult.EntryResult> entries = new ArrayList<>();
-        boolean isActuallyOr = "OR".equalsIgnoreCase(group.getLogic());
+        boolean orLogic = "OR".equalsIgnoreCase(group.getLogic());
 
-        // Items
         for (DependencyItem item : group.getItems()) {
-            ResourceLocation rl = ResourceLocation.tryParse(item.getId());
-            String idString = rl != null ? rl.toString() : item.getId();
-
-            int current = (depositedData != null)
-                    ? depositedData.getInt("Group_" + groupIndex + "_Item_" + idString)
-                    : 0;
+            ResourceLocation id = ResourceLocation.tryParse(item.getId());
+            String idString = id != null ? id.toString() : item.getId();
+            String key = "Group_" + groupIndex + "_Item_" + idString;
+            int current = depositedData != null ? depositedData.getInt(key) : 0;
             boolean met = current >= item.getCount();
-            String itemName = getItemDisplayName(item.getId());
-            entries.add(
-                    new DependencyResult.EntryResult("item", idString, item.getCount() + "x " + itemName, met, current,
-                            item.getCount()));
+            entries.add(new DependencyResult.EntryResult("item", idString,
+                    item.getCount() + "x " + getItemDisplayName(idString), met, current, item.getCount()));
         }
 
-        // Global Stages
         for (String stageId : group.getStages()) {
-            boolean met = false;
-            if (level != null && !level.isClientSide()) {
-                StageData data = StageData.get(level);
-                met = data.getUnlockedStages().contains(stageId);
-            }
-            StageEntry stageEntry = StageManager.getStages().get(stageId);
-            String name = stageEntry != null ? stageEntry.getDisplayName() : stageId;
-            entries.add(new DependencyResult.EntryResult("stage", name, met));
+            boolean met = level != null && !level.isClientSide() && StageData.get(level).hasStage(stageId);
+            StageEntry stage = StageManager.getStages().get(stageId);
+            String name = stage != null ? stage.getDisplayName() : stageId;
+            entries.add(new DependencyResult.EntryResult("stage", stageId, name, met, met ? 1 : 0, 1));
         }
 
-        // Individual Stages (all online / all ever)
         for (IndividualStageDep dep : group.getIndividualStages()) {
             boolean met = checkIndividualStageDep(dep, level);
-            StageEntry stageEntry = StageManager.getIndividualStages().get(dep.getStageId());
-            String name = stageEntry != null ? stageEntry.getDisplayName() : dep.getStageId();
-            String modeLabel = dep.isAllEver() ? " (all ever)" : " (all online)";
-            entries.add(new DependencyResult.EntryResult("individual_stage", name + modeLabel, met));
+            StageEntry stage = StageManager.getIndividualStages().get(dep.getStageId());
+            String name = stage != null ? stage.getDisplayName() : dep.getStageId();
+            String mode = dep.isAllEver() ? " (all ever)" : " (all online)";
+            entries.add(new DependencyResult.EntryResult("individual_stage", dep.getStageId(), name + mode, met,
+                    met ? 1 : 0, 1));
         }
 
-        // Advancements (individual stages only)
-        for (String advId : group.getAdvancements()) {
-            boolean met = player != null && checkAdvancement(player, advId);
-            entries.add(new DependencyResult.EntryResult("advancement", advId, met));
+        for (String advancementId : group.getAdvancements()) {
+            boolean met = player != null && checkAdvancement(player, advancementId);
+            entries.add(new DependencyResult.EntryResult("advancement", advancementId, advancementId, met,
+                    met ? 1 : 0, 1));
         }
 
-        // XP Level
         XpLevelDep xpLevel = group.getXpLevel();
         if (xpLevel != null && xpLevel.getLevel() > 0) {
-            boolean met = false;
-            int currentLevel = player != null ? player.experienceLevel : 0;
+            boolean met;
+            int current = player != null ? player.experienceLevel : 0;
             if (xpLevel.isConsume()) {
                 met = depositedData != null && depositedData.getBoolean("Group_" + groupIndex + "_XP");
-                currentLevel = met ? xpLevel.getLevel() : currentLevel; // Show maxed if consumed
+                current = met ? xpLevel.getLevel() : current;
             } else {
-                met = currentLevel >= xpLevel.getLevel();
+                met = current >= xpLevel.getLevel();
             }
-            boolean needsDeposit = xpLevel.isConsume() && !met;
+            boolean canDeposit = xpLevel.isConsume() && !met;
             String desc = "Level " + xpLevel.getLevel() + (xpLevel.isConsume() ? " (consumed)" : "");
-            entries.add(
-                    new DependencyResult.EntryResult("xp_level", "xp", desc, met, currentLevel, xpLevel.getLevel(),
-                            needsDeposit));
+            entries.add(new DependencyResult.EntryResult("xp_level", "xp", desc, met, current,
+                    xpLevel.getLevel(), canDeposit));
         }
 
-        // Entity Kills
         for (EntityKillDep kill : group.getEntityKills()) {
             int current = player != null ? getKillCount(player, kill.getEntityId()) : 0;
             boolean met = current >= kill.getCount();
-            String entityName = getEntityDisplayName(kill.getEntityId());
             entries.add(new DependencyResult.EntryResult("entity_kill", kill.getEntityId(),
-                    kill.getCount() + "x " + entityName, met,
-                    current, kill.getCount()));
+                    kill.getCount() + "x " + getEntityDisplayName(kill.getEntityId()), met, current, kill.getCount()));
         }
 
-        // Stats
         for (StatDep stat : group.getStats()) {
             int current = player != null ? getStatValue(player, stat.getStatId()) : 0;
             boolean met = current >= stat.getMinValue();
             entries.add(new DependencyResult.EntryResult("stat", stat.getStatId(),
-                    stat.getStatId() + " >= " + stat.getMinValue(), met,
-                    current, stat.getMinValue()));
+                    stat.getStatId() + " >= " + stat.getMinValue(), met, current, stat.getMinValue()));
         }
 
-        // Determine group fulfillment based on logic (Default to AND)
         boolean fulfilled;
-
         if (entries.isEmpty()) {
             fulfilled = true;
-        } else if (isActuallyOr) {
+        } else if (orLogic) {
             fulfilled = entries.stream().anyMatch(DependencyResult.EntryResult::isFulfilled);
         } else {
-            // Must be AND
             fulfilled = entries.stream().allMatch(DependencyResult.EntryResult::isFulfilled);
         }
 
         return new DependencyResult.GroupResult(group.getLogic(), fulfilled, entries);
     }
 
-    // --- Helper Methods ---
-
-    private static int countItemInInventory(ServerPlayer player, String itemId) {
-        ResourceLocation rl = ResourceLocation.tryParse(itemId);
-        if (rl == null)
-            return 0;
-        var item = ForgeRegistries.ITEMS.getValue(rl);
-        if (item == null)
-            return 0;
-
-        int count = 0;
-        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
-            ItemStack stack = player.getInventory().getItem(i);
-            if (!stack.isEmpty() && ForgeRegistries.ITEMS.getKey(stack.getItem()) != null
-                    && ForgeRegistries.ITEMS.getKey(stack.getItem()).equals(rl)) {
-                count += stack.getCount();
-            }
-        }
-        return count;
-    }
-
     private static boolean checkIndividualStageDep(IndividualStageDep dep, Level level) {
-        if (level == null || level.isClientSide() || level.getServer() == null)
+        if (level == null || level.isClientSide() || level.getServer() == null) {
             return false;
+        }
 
         IndividualStageData data = IndividualStageData.get(level);
-
         if (dep.isAllEver()) {
-            // Check all players who ever joined (stored in IndividualStageData)
-            // Every player in the data must have this stage
-            Set<UUID> allPlayers = getAllKnownPlayers(data);
-            if (allPlayers.isEmpty())
+            Set<UUID> allPlayers = IndividualStageData.SERVER_CACHE.keySet();
+            if (allPlayers.isEmpty()) {
                 return false;
+            }
             for (UUID uuid : allPlayers) {
                 if (!data.hasStage(uuid, dep.getStageId())) {
                     return false;
                 }
             }
             return true;
-        } else {
-            // Check all currently online players
-            var players = level.getServer().getPlayerList().getPlayers();
-            if (players.isEmpty())
-                return false;
-            for (var player : players) {
-                if (!data.hasStage(player.getUUID(), dep.getStageId())) {
-                    return false;
-                }
-            }
-            return true;
         }
-    }
 
-    private static Set<UUID> getAllKnownPlayers(IndividualStageData data) {
-        // Use the server cache which contains all players who ever had any stage
-        return IndividualStageData.SERVER_CACHE.keySet();
+        var players = level.getServer().getPlayerList().getPlayers();
+        if (players.isEmpty()) {
+            return false;
+        }
+        for (ServerPlayer player : players) {
+            if (!data.hasStage(player.getUUID(), dep.getStageId())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean checkAdvancement(ServerPlayer player, String advancementId) {
-        ResourceLocation rl = ResourceLocation.tryParse(advancementId);
-        if (rl == null)
+        ResourceLocation id = ResourceLocation.tryParse(advancementId);
+        if (id == null) {
             return false;
-        Advancement advancement = player.getServer().getAdvancements().getAdvancement(rl);
-        if (advancement == null)
-            return false;
-        return player.getAdvancements().getOrStartProgress(advancement).isDone();
+        }
+        AdvancementHolder advancement = player.server.getAdvancements().get(id);
+        return advancement != null && player.getAdvancements().getOrStartProgress(advancement).isDone();
     }
 
     private static int getKillCount(ServerPlayer player, String entityId) {
-        ResourceLocation rl = ResourceLocation.tryParse(entityId);
-        if (rl == null)
+        ResourceLocation id = ResourceLocation.tryParse(entityId);
+        if (id == null) {
             return 0;
-        EntityType<?> entityType = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-        if (entityType == null)
+        }
+        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(id);
+        if (entityType == null) {
             return 0;
+        }
         ServerStatsCounter stats = player.getStats();
         return stats.getValue(Stats.ENTITY_KILLED.get(entityType));
     }
 
     private static int getStatValue(ServerPlayer player, String statId) {
-        ResourceLocation rl = ResourceLocation.tryParse(statId);
-        if (rl == null)
+        ResourceLocation id = ResourceLocation.tryParse(statId);
+        if (id == null) {
             return 0;
+        }
         try {
-            return player.getStats().getValue(Stats.CUSTOM.get(rl));
-        } catch (Exception e) {
+            return player.getStats().getValue(Stats.CUSTOM.get(id));
+        } catch (Exception ignored) {
             return 0;
         }
     }
 
     private static String getItemDisplayName(String itemId) {
-        ResourceLocation rl = ResourceLocation.tryParse(itemId);
-        if (rl == null)
+        ResourceLocation id = ResourceLocation.tryParse(itemId);
+        if (id == null) {
             return itemId;
-        var item = ForgeRegistries.ITEMS.getValue(rl);
-        if (item == null)
-            return itemId;
-        return item.getDescription().getString();
+        }
+        Item item = BuiltInRegistries.ITEM.get(id);
+        return item == null || item == Items.AIR ? itemId : item.getDescription().getString();
     }
 
     private static String getEntityDisplayName(String entityId) {
-        ResourceLocation rl = ResourceLocation.tryParse(entityId);
-        if (rl == null)
+        ResourceLocation id = ResourceLocation.tryParse(entityId);
+        if (id == null) {
             return entityId;
-        EntityType<?> entityType = ForgeRegistries.ENTITY_TYPES.getValue(rl);
-        if (entityType == null)
-            return entityId;
-        return entityType.getDescription().getString();
+        }
+        EntityType<?> entityType = BuiltInRegistries.ENTITY_TYPE.get(id);
+        return entityType != null ? entityType.getDescription().getString() : entityId;
     }
-
-    // --- Consume Methods removed, handled via packet on deposit ---
 }

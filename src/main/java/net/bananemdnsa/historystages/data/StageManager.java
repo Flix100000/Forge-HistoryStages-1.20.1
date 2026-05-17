@@ -1,25 +1,23 @@
 package net.bananemdnsa.historystages.data;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
+import com.google.gson.reflect.TypeToken;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import net.bananemdnsa.historystages.data.dependency.*;
-import net.minecraft.core.registries.Registries;
+import net.bananemdnsa.historystages.util.DebugLogger;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.registries.ForgeRegistries;
 
-import net.bananemdnsa.historystages.util.DebugLogger;
-
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -28,241 +26,447 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class StageManager {
+public final class StageManager {
+    private static final Gson GSON = new Gson();
     private static final Map<String, StageEntry> STAGES = new HashMap<>();
     private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new HashMap<>();
-    private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
-    private static final Gson GSON = new Gson();
-
-    // Dual-phase: entry ID → set of global stage IDs that share the entry with an individual stage
     private static final Map<String, Set<String>> DUAL_PHASE_ITEMS = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_TAGS = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_MODS = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK = new HashMap<>();
-    // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
     private static final Map<String, Set<String>> DUAL_PHASE_ITEMS_IND = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_TAGS_IND = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_MODS_IND = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND = new HashMap<>();
-
-    public enum MessageLevel { ERROR, WARN, INFO }
-    public record LoadingMessage(MessageLevel level, String message) {}
-
-    private static void addMessage(MessageLevel level, String message) {
-        LOADING_MESSAGES.add(new LoadingMessage(level, message));
-    }
-
-
+    private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "icon", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
-    );
-    private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
-            "spawnlock", "attacklock", "modLinked"
-    );
-    private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
-            "structures", "mod_linked"
-    );
+            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies");
+    private static final Set<String> KNOWN_ENTITY_KEYS = Set.of("spawnlock", "attacklock", "modLinked");
     private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
-            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
-    );
+            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon");
+
+    private StageManager() {
+    }
+
+    public enum MessageLevel { ERROR, WARN, INFO }
+
+    public record LoadingMessage(MessageLevel level, String message) {
+    }
 
     public static void load() {
         STAGES.clear();
         INDIVIDUAL_STAGES.clear();
-        DUAL_PHASE_ITEMS.clear();
-        DUAL_PHASE_TAGS.clear();
-        DUAL_PHASE_MODS.clear();
-        DUAL_PHASE_DIMENSIONS.clear();
-        DUAL_PHASE_STRUCTURES.clear();
-        DUAL_PHASE_ATTACKLOCK.clear();
-        DUAL_PHASE_ITEMS_IND.clear();
-        DUAL_PHASE_TAGS_IND.clear();
-        DUAL_PHASE_MODS_IND.clear();
-        DUAL_PHASE_DIMENSIONS_IND.clear();
-        DUAL_PHASE_STRUCTURES_IND.clear();
-        DUAL_PHASE_ATTACKLOCK_IND.clear();
+        clearDualPhase();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
+        DebugLogger.ensureLogDirectory();
 
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-
-        if (files == null) return;
-
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-
-            // Validate file name
-            validateFileName(id, file.getName());
-
-            try (Reader reader = new FileReader(file)) {
-                // Parse raw JSON first to detect unknown keys
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
-                detectUnknownKeys(id, content);
-
-                // Now parse into StageEntry
-                StageEntry entry = GSON.fromJson(content, StageEntry.class);
-
-                if (entry != null) {
-                    validateAndAdd(id, entry);
-                } else {
-                    String msg = "File '" + file.getName() + "' parsed as null (empty or invalid JSON)";
-                    addMessage(MessageLevel.ERROR, msg);
-                    DebugLogger.error("Stage Loading", msg);
-                }
-            } catch (Exception e) {
-                String msg = "Error in file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
-                addMessage(MessageLevel.ERROR, msg);
-                DebugLogger.error("Stage Loading", msg + " — " + e.getMessage());
-            }
-        }
-
-        DebugLogger.setStagesLoaded(STAGES.size());
-
-        // Load individual stages after global stages
-        loadIndividual();
-
-        // Check for circular dependencies across all stages
+        loadDirectory(globalDir(), STAGES, false);
+        loadDirectory(individualDir(), INDIVIDUAL_STAGES, true);
+        detectOverlaps();
         checkCircularDependencies();
+        DebugLogger.setStagesLoaded(STAGES.size() + INDIVIDUAL_STAGES.size());
+        DebugLogger.writeDiagnosticReport(STAGES, INDIVIDUAL_STAGES, LOADING_MESSAGES);
     }
 
-    /**
-     * Detects circular dependencies between stages.
-     * A cycle like A -> B -> A will produce an error message.
-     */
-    private static void checkCircularDependencies() {
-        Map<String, Set<String>> graph = new HashMap<>();
-
-        // Build adjacency list from all stages (global + individual)
-        for (Map.Entry<String, StageEntry> e : STAGES.entrySet()) {
-            Set<String> refs = new HashSet<>();
-            for (DependencyGroup group : e.getValue().getDependencies()) {
-                refs.addAll(group.getReferencedStageIds());
-            }
-            if (!refs.isEmpty()) graph.put(e.getKey(), refs);
-        }
-        for (Map.Entry<String, StageEntry> e : INDIVIDUAL_STAGES.entrySet()) {
-            Set<String> refs = new HashSet<>();
-            for (DependencyGroup group : e.getValue().getDependencies()) {
-                refs.addAll(group.getReferencedStageIds());
-            }
-            if (!refs.isEmpty()) graph.put(e.getKey(), refs);
-        }
-
-        // DFS cycle detection
-        Set<String> visited = new HashSet<>();
-        Set<String> inStack = new HashSet<>();
-
-        for (String node : graph.keySet()) {
-            if (!visited.contains(node)) {
-                List<String> path = new ArrayList<>();
-                if (hasCycleDFS(node, graph, visited, inStack, path)) {
-                    String cycle = String.join(" -> ", path);
-                    String msg = "Circular dependency detected: " + cycle;
-                    addMessage(MessageLevel.ERROR, msg);
-                    DebugLogger.error("Circular Dependencies", msg);
-                }
-            }
-        }
+    public static void reloadStages() {
+        load();
     }
 
-    private static boolean hasCycleDFS(String node, Map<String, Set<String>> graph,
-                                       Set<String> visited, Set<String> inStack, List<String> path) {
-        visited.add(node);
-        inStack.add(node);
-        path.add(node);
+    public static Map<String, StageEntry> getStages() {
+        return STAGES;
+    }
 
-        Set<String> neighbors = graph.getOrDefault(node, Set.of());
-        for (String neighbor : neighbors) {
-            if (!visited.contains(neighbor)) {
-                if (hasCycleDFS(neighbor, graph, visited, inStack, path)) {
-                    return true;
-                }
-            } else if (inStack.contains(neighbor)) {
-                path.add(neighbor);
+    public static Map<String, StageEntry> getIndividualStages() {
+        return INDIVIDUAL_STAGES;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseItems() {
+        return DUAL_PHASE_ITEMS;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseTags() {
+        return DUAL_PHASE_TAGS;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseMods() {
+        return DUAL_PHASE_MODS;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseDimensions() {
+        return DUAL_PHASE_DIMENSIONS;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseStructures() {
+        return DUAL_PHASE_STRUCTURES;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseAttacklock() {
+        return DUAL_PHASE_ATTACKLOCK;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseItemsInd() {
+        return DUAL_PHASE_ITEMS_IND;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseTagsInd() {
+        return DUAL_PHASE_TAGS_IND;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseModsInd() {
+        return DUAL_PHASE_MODS_IND;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseDimensionsInd() {
+        return DUAL_PHASE_DIMENSIONS_IND;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseStructuresInd() {
+        return DUAL_PHASE_STRUCTURES_IND;
+    }
+
+    public static Map<String, Set<String>> getDualPhaseAttacklockInd() {
+        return DUAL_PHASE_ATTACKLOCK_IND;
+    }
+
+    public static List<String> getStageOrder() {
+        return STAGES.keySet().stream().sorted().toList();
+    }
+
+    public static List<String> getIndividualStageOrder() {
+        return INDIVIDUAL_STAGES.keySet().stream().sorted().toList();
+    }
+
+    public static String serializeStages(Map<String, StageEntry> stages) {
+        return GSON.toJson(stages);
+    }
+
+    public static void applySyncedDefinitions(String globalStagesJson, String individualStagesJson) {
+        STAGES.clear();
+        STAGES.putAll(deserializeStages(globalStagesJson));
+        INDIVIDUAL_STAGES.clear();
+        INDIVIDUAL_STAGES.putAll(deserializeStages(individualStagesJson));
+        rebuildDualPhase();
+    }
+
+    public static List<LoadingMessage> getLoadingMessages() {
+        return List.copyOf(LOADING_MESSAGES);
+    }
+
+    public static boolean isItemLockedForServer(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return false;
+        }
+
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (id == null) {
+            return false;
+        }
+
+        for (String stageId : getAllStagesForItemOrMod(id.toString(), id.getNamespace(), stack)) {
+            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId)) {
                 return true;
             }
         }
 
-        inStack.remove(node);
-        path.remove(path.size() - 1);
         return false;
     }
 
-    private static void validateFileName(String id, String fileName) {
-        if (!id.equals(id.toLowerCase())) {
-            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
-            DebugLogger.info("File Names", "'" + fileName + "' contains uppercase letters. Use lowercase for consistency (e.g. '" + id.toLowerCase() + ".json').");
+    public static boolean isItemLocked(ItemStack stack, boolean isClientSide) {
+        if (stack.isEmpty()) {
+            return false;
         }
-        if (id.contains(" ")) {
-            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains spaces. Use underscores instead.");
-            DebugLogger.info("File Names", "'" + fileName + "' contains spaces. Use underscores instead (e.g. '" + id.replace(" ", "_") + ".json').");
+        ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (id == null) {
+            return false;
         }
-        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
-            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains special characters.");
-            DebugLogger.info("File Names", "'" + fileName + "' contains special characters. Only use a-z, 0-9, _ and -.");
+        for (String stageId : getAllStagesForItemOrMod(id.toString(), id.getNamespace(), stack)) {
+            boolean unlocked = isClientSide
+                    ? net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stageId)
+                    : net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId);
+            if (!unlocked) {
+                return true;
+            }
         }
+        return false;
     }
 
-    private static void detectUnknownKeys(String stageId, String content) {
+    public static List<String> getAllStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
+        return collectStagesForItem(STAGES, itemId, modId, stack);
+    }
+
+    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
+        return collectStagesForItem(INDIVIDUAL_STAGES, itemId, modId, stack);
+    }
+
+    public static List<String> getAllStagesForDimension(String dimensionId) {
+        return collectStages(STAGES, entry -> entry.getDimensions().contains(dimensionId));
+    }
+
+    public static List<String> getAllIndividualStagesForDimension(String dimensionId) {
+        return collectStages(INDIVIDUAL_STAGES, entry -> entry.getDimensions().contains(dimensionId));
+    }
+
+    public static List<String> getAllStagesForAttackLockedEntity(String entityId) {
+        return collectStages(STAGES, entry ->
+                entry.getEntities().getAttacklock().contains(entityId)
+                        || entry.getEntities().getSpawnlock().contains(entityId));
+    }
+
+    public static List<String> getAllStagesForSpawnLockedEntity(String entityId) {
+        return collectStages(STAGES, entry -> entry.getEntities().getSpawnlock().contains(entityId));
+    }
+
+    public static List<String> getAllIndividualStagesForSpawnLockedEntity(String entityId) {
+        return collectStages(INDIVIDUAL_STAGES, entry -> entry.getEntities().getSpawnlock().contains(entityId));
+    }
+
+    public static boolean anyStageHasStructures() {
+        return STAGES.values().stream().anyMatch(entry -> !entry.getStructures().isEmpty())
+                || INDIVIDUAL_STAGES.values().stream().anyMatch(entry -> !entry.getStructures().isEmpty());
+    }
+
+    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            if (entry.getValue().getRecipes().contains(recipeId)) {
+                boolean unlocked = isClientSide
+                        ? net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())
+                        : net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey());
+                if (!unlocked) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static List<String> getAllIndividualStagesForAttackLockedEntity(String entityId) {
+        return collectStages(INDIVIDUAL_STAGES, entry ->
+                entry.getEntities().getAttacklock().contains(entityId));
+    }
+
+    public static boolean saveStage(String stageId, StageEntry entry, boolean individual) {
+        Path file = (individual ? individualDir() : globalDir()).resolve(stageId + ".json");
         try {
-            JsonObject json = JsonParser.parseString(content).getAsJsonObject();
-            for (String key : json.keySet()) {
-                if (!KNOWN_KEYS.contains(key)) {
-                    addMessage(MessageLevel.WARN, "Unknown key '" + key + "' in stage '" + stageId + "'. Typo?");
-                    DebugLogger.warn("Unknown Keys", "Unknown key '" + key + "' in stage '" + stageId + "'. Known keys: " + KNOWN_KEYS + ". This key will be ignored.");
-                }
+            Files.createDirectories(file.getParent());
+            try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+                writer.write(entry.toJson());
             }
-            // Check entity sub-keys
-            if (json.has("entities") && json.get("entities").isJsonObject()) {
-                JsonObject entities = json.getAsJsonObject("entities");
-                for (String key : entities.keySet()) {
-                    if (!KNOWN_ENTITY_KEYS.contains(key)) {
-                        addMessage(MessageLevel.WARN, "Unknown entity key '" + key + "' in stage '" + stageId + "'. Typo?");
-                        DebugLogger.warn("Unknown Keys", "Unknown key 'entities." + key + "' in stage '" + stageId + "'. Known entity keys: " + KNOWN_ENTITY_KEYS + ".");
-                    }
-                }
-            }
-            // Check structures sub-keys
-            if (json.has("structures") && json.get("structures").isJsonObject()) {
-                JsonObject structuresObj = json.getAsJsonObject("structures");
-                for (String key : structuresObj.keySet()) {
-                    if (!KNOWN_STRUCTURE_KEYS.contains(key)) {
-                        addMessage(MessageLevel.WARN, "Unknown structures key '" + key + "' in stage '" + stageId + "'. Typo?");
-                        DebugLogger.warn("Unknown Keys", "Unknown key 'structures." + key + "' in stage '" + stageId + "'. Known structure keys: " + KNOWN_STRUCTURE_KEYS + ".");
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-            // JSON parsing errors are handled in the main load loop
+            (individual ? INDIVIDUAL_STAGES : STAGES).put(stageId, entry);
+            rebuildDualPhase();
+            return true;
+        } catch (IOException exception) {
+            addMessage(MessageLevel.ERROR, "Failed to save stage '" + stageId + "': " + exception.getMessage());
+            return false;
         }
     }
 
-    private static void validateAndAdd(String stageId, StageEntry entry) {
+    public static boolean deleteStage(String stageId, boolean individual) {
+        Path file = (individual ? individualDir() : globalDir()).resolve(stageId + ".json");
+        try {
+            Files.deleteIfExists(file);
+            (individual ? INDIVIDUAL_STAGES : STAGES).remove(stageId);
+            rebuildDualPhase();
+            return true;
+        } catch (IOException exception) {
+            addMessage(MessageLevel.ERROR, "Failed to delete stage '" + stageId + "': " + exception.getMessage());
+            return false;
+        }
+    }
 
-        // --- Display Name ---
-        if (entry.getDisplayName().equals("Unknown Stage")) {
-            addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
-            DebugLogger.warn("Missing Fields", "Stage '" + stageId + "' has no 'display_name' set. It will show as 'Unknown Stage'.");
+    public static void validateAgainstRegistries() {
+        validateEntries(STAGES, "global");
+        validateEntries(INDIVIDUAL_STAGES, "individual");
+        DebugLogger.writeDiagnosticReport(STAGES, INDIVIDUAL_STAGES, LOADING_MESSAGES);
+    }
+
+    public static int getResearchTimeInTicks(String stageId) {
+        StageEntry entry = STAGES.get(stageId);
+        if (entry != null && entry.getResearchTime() > 0) {
+            return entry.getResearchTime() * 20;
+        }
+        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds * 20;
+    }
+
+    public static int getIndividualResearchTimeInTicks(String stageId) {
+        StageEntry entry = INDIVIDUAL_STAGES.get(stageId);
+        if (entry != null && entry.getResearchTime() > 0) {
+            return entry.getResearchTime() * 20;
+        }
+        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds * 20;
+    }
+
+    public static boolean isIndividualStage(String stageId) {
+        return INDIVIDUAL_STAGES.containsKey(stageId);
+    }
+
+    private static void validateEntries(Map<String, StageEntry> stages, String label) {
+        for (Map.Entry<String, StageEntry> stage : stages.entrySet()) {
+            for (ItemEntry itemEntry : stage.getValue().getItemEntries()) {
+                ResourceLocation id = ResourceLocation.tryParse(itemEntry.getId());
+                if (id != null && !BuiltInRegistries.ITEM.containsKey(id)) {
+                    addMessage(MessageLevel.WARN, "Unknown item '" + itemEntry.getId() + "' in " + label + " stage '" + stage.getKey() + "'.");
+                }
+                validateLockActions(itemEntry.getLockActions(), stage.getKey(), itemEntry.getId(), "items");
+            }
+            for (NamedLockEntry tagEntry : stage.getValue().getTagEntries()) {
+                validateLockActions(tagEntry.getLockActions(), stage.getKey(), tagEntry.getId(), "tags");
+            }
+            for (NamedLockEntry modEntry : stage.getValue().getModEntries()) {
+                validateLockActions(modEntry.getLockActions(), stage.getKey(), modEntry.getId(), "mods");
+            }
+        }
+    }
+
+    private static List<String> collectStagesForItem(Map<String, StageEntry> source, String itemId, String modId, ItemStack stack) {
+        List<String> stages = new ArrayList<>();
+        Item item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(itemId));
+
+        for (Map.Entry<String, StageEntry> entry : source.entrySet()) {
+            StageEntry stage = entry.getValue();
+            boolean match = false;
+
+            for (ItemEntry stageItem : stage.getItemEntries()) {
+                if (stageItem.getId().equals(itemId)) {
+                    match = !stageItem.hasNbt() || (stack != null && NbtMatcher.matches(stack, stageItem.getNbt()));
+                    if (match) {
+                        break;
+                    }
+                }
+            }
+
+            if (!match) {
+                for (NamedLockEntry modEntry : stage.getModEntries()) {
+                    if (modEntry.getId().equals(modId) && !stage.isModExcepted(itemId, stack)) {
+                        match = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!match && item != null) {
+                for (NamedLockEntry tagEntry : stage.getTagEntries()) {
+                    ResourceLocation tagLocation = ResourceLocation.tryParse(tagEntry.getId());
+                    if (tagLocation != null && item.builtInRegistryHolder().is(TagKey.create(net.minecraft.core.registries.Registries.ITEM, tagLocation))) {
+                        match = true;
+                        break;
+                    }
+                }
+            }
+
+            if (match) {
+                stages.add(entry.getKey());
+            }
         }
 
-        // --- Icon ---
-        if (entry.getIcon() != null && !ResourceLocation.isValidResourceLocation(entry.getIcon())) {
-            addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has invalid icon '" + entry.getIcon() + "'. Ignored.");
-            DebugLogger.warn("Invalid Icon", "Stage '" + stageId + "' has an invalid icon ResourceLocation: '" + entry.getIcon() + "'. It will be ignored.");
-            entry.setIcon(null);
+        return stages;
+    }
+
+    public static boolean isItemActionLockedForStage(String itemId, String modId, ItemStack stack, String action, StageEntry stage) {
+        Item item = stack != null && !stack.isEmpty() ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(itemId));
+
+        for (ItemEntry entry : stage.getItemEntries()) {
+            if (!entry.getId().equals(itemId)) {
+                continue;
+            }
+            if (!entry.hasNbt() || (stack != null && NbtMatcher.matches(stack, entry.getNbt()))) {
+                return isActionLocked(entry.getLockActions(), action);
+            }
         }
 
-        // --- Empty strings & duplicates helper ---
+        for (NamedLockEntry modEntry : stage.getModEntries()) {
+            if (modEntry.getId().equals(modId) && !stage.isModExcepted(itemId, stack)) {
+                return isActionLocked(modEntry.getLockActions(), action);
+            }
+        }
+
+        if (item != null) {
+            for (NamedLockEntry tagEntry : stage.getTagEntries()) {
+                ResourceLocation tagLocation = ResourceLocation.tryParse(tagEntry.getId());
+                if (tagLocation != null && item.builtInRegistryHolder().is(TagKey.create(net.minecraft.core.registries.Registries.ITEM, tagLocation))) {
+                    return isActionLocked(tagEntry.getLockActions(), action);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean isActionLocked(List<String> lockActions, String action) {
+        return lockActions == null || lockActions.contains(action);
+    }
+
+    private static void validateLockActions(List<String> actions, String stageId, String entryId, String fieldPath) {
+        if (actions == null || actions.isEmpty()) {
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        for (String action : actions) {
+            if (action == null || !KNOWN_LOCK_ACTIONS.contains(action)) {
+                addMessage(MessageLevel.WARN, "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+                continue;
+            }
+            if (!seen.add(action)) {
+                DebugLogger.info("Duplicates", "Duplicate unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
+            }
+        }
+    }
+
+    private static List<String> collectStages(Map<String, StageEntry> source, java.util.function.Predicate<StageEntry> predicate) {
+        List<String> results = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : source.entrySet()) {
+            if (predicate.test(entry.getValue())) {
+                results.add(entry.getKey());
+            }
+        }
+        return results;
+    }
+
+    private static void loadDirectory(Path dir, Map<String, StageEntry> target, boolean individual) {
+        try {
+            Files.createDirectories(dir);
+            try (var stream = Files.list(dir)) {
+                stream.filter(path -> path.getFileName().toString().endsWith(".json"))
+                        .filter(path -> !path.getFileName().toString().startsWith("_"))
+                        .sorted()
+                        .forEach(path -> loadStageFile(path, target, individual));
+            }
+        } catch (IOException exception) {
+            addMessage(MessageLevel.ERROR, "Failed to read " + dir + ": " + exception.getMessage());
+        }
+    }
+
+    private static void loadStageFile(Path file, Map<String, StageEntry> target, boolean individual) {
+        String stageId = file.getFileName().toString().replace(".json", "");
+        validateFileName(stageId, file.getFileName().toString());
+
+        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            String content = Files.readString(file, StandardCharsets.UTF_8);
+            detectUnknownKeys(stageId, content);
+
+            StageEntry entry = GSON.fromJson(content, StageEntry.class);
+            if (entry == null) {
+                addMessage(MessageLevel.ERROR, "Stage file '" + file.getFileName() + "' parsed as null.");
+                return;
+            }
+
+            if (individual) {
+                stripUnsupportedIndividualCategories(stageId, entry);
+            }
+
+            sanitizeEntry(stageId, entry, individual);
+            target.put(stageId, entry);
+        } catch (Exception exception) {
+            addMessage(MessageLevel.ERROR, "Error in file '" + file.getFileName() + "': " + exception.getMessage());
+        }
+    }
+
+    private static void sanitizeEntry(String stageId, StageEntry entry, boolean individual) {
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
         removeEmptyStrings(entry.getMods(), stageId, "mods");
@@ -273,1034 +477,131 @@ public class StageManager {
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
         removeEmptyStrings(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
 
-        checkDuplicateItems(entry.getItemEntries(), stageId);
-        checkDuplicates(entry.getTags(), stageId, "tags");
-        checkDuplicates(entry.getMods(), stageId, "mods");
-        checkDuplicateItems(entry.getModExceptionEntries(), stageId);
-        checkDuplicates(entry.getRecipes(), stageId, "recipes");
-        checkDuplicates(entry.getDimensions(), stageId, "dimensions");
-        checkDuplicates(entry.getStructures(), stageId, "structures");
-        checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-        checkDuplicates(entry.getEntities().getSpawnlock(), stageId, "entities.spawnlock");
-
-        // --- Items: format validation only (registries not yet available at load time) ---
-        entry.getItemEntries().removeIf(item -> {
-            String itemId = item.getId();
-            if (!ResourceLocation.isValidResourceLocation(itemId)) {
-                addMessage(MessageLevel.WARN, "Item '" + itemId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Items", "Item '" + itemId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
+        entry.getItemEntries().removeIf(item -> !isValidResource(item.getId(), "item", stageId));
+        entry.getTags().removeIf(tag -> !isValidResource(tag, "tag", stageId));
+        entry.getRecipes().removeIf(recipe -> !isValidResource(recipe, "recipe", stageId));
+        entry.getDimensions().removeIf(dimension -> !isValidResource(dimension, "dimension", stageId));
+        entry.getEntities().getAttacklock().removeIf(entity -> !isValidResource(entity, "entity.attacklock", stageId));
+        entry.getEntities().getSpawnlock().removeIf(entity -> !isValidResource(entity, "entity.spawnlock", stageId));
+        entry.getStructures().removeIf(structure -> {
+            String check = structure != null && structure.startsWith("#") ? structure.substring(1) : structure;
+            return !isValidResource(check, "structure", stageId);
         });
 
-        // --- Tags ---
-        entry.getTags().removeIf(tagId -> {
-            if (!ResourceLocation.isValidResourceLocation(tagId)) {
-                addMessage(MessageLevel.WARN, "Tag '" + tagId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Tags", "Tag '" + tagId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Mods: format only, missing mods are not removed (optional dependencies) ---
         entry.getMods().removeIf(modId -> {
-            if (modId == null || modId.isEmpty() || modId.contains(" ")) {
-                addMessage(MessageLevel.WARN, "Mod ID '" + modId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Mods", "Mod ID '" + modId + "' has invalid format (Stage: " + stageId + "). Removed.");
+            boolean invalid = modId == null || modId.isBlank() || modId.contains(" ");
+            if (invalid) {
+                addMessage(MessageLevel.WARN, "Mod id '" + modId + "' invalid format (Stage: " + stageId + "). Removed.");
                 return true;
             }
-            if (!ModList.get().isLoaded(modId)) {
+            if (!FabricLoader.getInstance().isModLoaded(modId)) {
                 addMessage(MessageLevel.INFO, "Mod '" + modId + "' not installed (Stage: " + stageId + "). Entry kept.");
-                DebugLogger.info("Missing Mods", "Mod '" + modId + "' is not installed (Stage: " + stageId + "). Entry kept — will apply if mod is added later.");
             }
             return false;
         });
 
-        // --- Mod Exceptions: format validation + must belong to a locked mod ---
         Set<String> lockedMods = new HashSet<>(entry.getMods());
         entry.getModExceptionEntries().removeIf(exceptionEntry -> {
-            String exItemId = exceptionEntry.getId();
-            if (!ResourceLocation.isValidResourceLocation(exItemId)) {
-                addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Mod Exceptions", "Mod exception '" + exItemId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+            ResourceLocation id = ResourceLocation.tryParse(exceptionEntry.getId());
+            if (id == null) {
+                addMessage(MessageLevel.WARN, "Mod exception '" + exceptionEntry.getId() + "' invalid format (Stage: " + stageId + "). Removed.");
                 return true;
             }
-            ResourceLocation rl = new ResourceLocation(exItemId);
-            if (!lockedMods.contains(rl.getNamespace())) {
-                addMessage(MessageLevel.ERROR, "Mod exception '" + exItemId + "' does not belong to a locked mod (Stage: " + stageId + "). Removed.");
-                DebugLogger.error("Invalid Mod Exceptions", "Mod exception '" + exItemId + "' belongs to mod '" + rl.getNamespace() + "' which is not in the 'mods' list (Stage: " + stageId + "). Removed.");
+            if (!lockedMods.contains(id.getNamespace())) {
+                addMessage(MessageLevel.ERROR, "Mod exception '" + exceptionEntry.getId() + "' does not belong to a locked mod (Stage: " + stageId + "). Removed.");
                 return true;
             }
             return false;
         });
 
-        // --- Dimensions ---
-        entry.getDimensions().removeIf(dimId -> {
-            if (!ResourceLocation.isValidResourceLocation(dimId)) {
-                addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Dimensions", "Dimension '" + dimId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Structures (plain IDs and "#tag" entries allowed) ---
-        entry.getStructures().removeIf(structId -> {
-            String check = structId != null && structId.startsWith("#") ? structId.substring(1) : structId;
-            if (!ResourceLocation.isValidResourceLocation(check)) {
-                addMessage(MessageLevel.WARN, "Structure '" + structId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Structures", "Structure '" + structId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Recipes ---
-        entry.getRecipes().removeIf(recipeId -> {
-            if (!ResourceLocation.isValidResourceLocation(recipeId)) {
-                addMessage(MessageLevel.WARN, "Recipe '" + recipeId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Recipes", "Recipe '" + recipeId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Entities (attacklock) ---
-        entry.getEntities().getAttacklock().removeIf(entityId -> {
-            if (!ResourceLocation.isValidResourceLocation(entityId)) {
-                addMessage(MessageLevel.WARN, "Entity attacklock '" + entityId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Entities", "Entity attacklock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Entities (spawnlock) ---
-        entry.getEntities().getSpawnlock().removeIf(entityId -> {
-            if (!ResourceLocation.isValidResourceLocation(entityId)) {
-                addMessage(MessageLevel.WARN, "Entity spawnlock '" + entityId + "' invalid format (Stage: " + stageId + "). Removed.");
-                DebugLogger.warn("Invalid Entities", "Entity spawnlock '" + entityId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Redundant entities: in both spawnlock AND attacklock ---
-        for (String entityId : entry.getEntities().getSpawnlock()) {
-            if (entry.getEntities().getAttacklock().contains(entityId)) {
-                addMessage(MessageLevel.INFO, "Entity '" + entityId + "' in both attacklock and spawnlock (Stage: " + stageId + "). Redundant.");
-                DebugLogger.info("Redundant Entities", "Entity '" + entityId + "' is in both attacklock and spawnlock (Stage: " + stageId + "). Spawnlock already implies attacklock — the attacklock entry is redundant.");
-            }
-        }
-
-        // --- Lock actions: validate per-entry unlock_actions lists ---
-        for (ItemEntry item : entry.getItemEntries()) {
-            validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
-        }
-        for (NamedLockEntry tag : entry.getTagEntries()) {
-            validateLockActions(tag.getLockActions(), stageId, tag.getId(), "tags");
-        }
-        for (NamedLockEntry mod : entry.getModEntries()) {
-            validateLockActions(mod.getLockActions(), stageId, mod.getId(), "mods");
-        }
-
-        // --- Dependencies validation ---
-        if (entry.hasDependencies()) {
-            int groupIdx = 0;
-            for (DependencyGroup group : entry.getDependencies()) {
-                groupIdx++;
-                String ctx = "Stage: " + stageId + ", group " + groupIdx;
-
-                // logic field
-                String logic = group.getLogic();
-                if (!"AND".equalsIgnoreCase(logic) && !"OR".equalsIgnoreCase(logic)) {
-                    addMessage(MessageLevel.WARN, "Dependency group " + groupIdx + " has invalid logic '" + logic + "' (Stage: " + stageId + "). Expected AND or OR. Defaulting to AND.");
-                    DebugLogger.warn("Invalid Dependencies", "Dependency group " + groupIdx + " has invalid logic value '" + logic + "' (" + ctx + "). Expected 'AND' or 'OR'. Defaulting to AND.");
-                    group.setLogic("AND");
-                }
-
-                // items
-                group.getItems().removeIf(depItem -> {
-                    if (depItem.getId() == null || !ResourceLocation.isValidResourceLocation(depItem.getId())) {
-                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' invalid format (" + ctx + "). Removed.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency item '" + depItem.getId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
-                        return true;
-                    }
-                    if (depItem.getCount() < 1) {
-                        addMessage(MessageLevel.WARN, "Dependency item '" + depItem.getId() + "' has count < 1 (" + ctx + "). Clamped to 1.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency item '" + depItem.getId() + "' has count " + depItem.getCount() + " (" + ctx + "). Clamped to 1.");
-                        depItem.setCount(1);
-                    }
-                    return false;
-                });
-
-                // entity kills
-                group.getEntityKills().removeIf(kill -> {
-                    if (kill.getEntityId() == null || !ResourceLocation.isValidResourceLocation(kill.getEntityId())) {
-                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' invalid format (" + ctx + "). Removed.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency entity_kill '" + kill.getEntityId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
-                        return true;
-                    }
-                    if (kill.getCount() < 1) {
-                        addMessage(MessageLevel.WARN, "Dependency entity kill '" + kill.getEntityId() + "' has count < 1 (" + ctx + "). Clamped to 1.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency entity_kill '" + kill.getEntityId() + "' has count " + kill.getCount() + " (" + ctx + "). Clamped to 1.");
-                        kill.setCount(1);
-                    }
-                    return false;
-                });
-
-                // stats
-                group.getStats().removeIf(stat -> {
-                    if (stat.getStatId() == null || !ResourceLocation.isValidResourceLocation(stat.getStatId())) {
-                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' invalid format (" + ctx + "). Removed.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency stat '" + stat.getStatId() + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
-                        return true;
-                    }
-                    if (stat.getMinValue() < 0) {
-                        addMessage(MessageLevel.WARN, "Dependency stat '" + stat.getStatId() + "' has negative min_value (" + ctx + "). Clamped to 0.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency stat '" + stat.getStatId() + "' has min_value " + stat.getMinValue() + " (" + ctx + "). Clamped to 0.");
-                        stat.setMinValue(0);
-                    }
-                    return false;
-                });
-
-                // advancements
-                group.getAdvancements().removeIf(adv -> {
-                    if (adv == null || !ResourceLocation.isValidResourceLocation(adv)) {
-                        addMessage(MessageLevel.WARN, "Dependency advancement '" + adv + "' invalid format (" + ctx + "). Removed.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency advancement '" + adv + "' is not a valid ResourceLocation (" + ctx + "). Removed.");
-                        return true;
-                    }
-                    return false;
-                });
-
-                // xp_level
-                if (group.getXpLevel() != null && group.getXpLevel().getLevel() < 0) {
-                    addMessage(MessageLevel.WARN, "Dependency xp_level has negative level (" + ctx + "). Clamped to 0.");
-                    DebugLogger.warn("Invalid Dependencies", "Dependency xp_level has negative level " + group.getXpLevel().getLevel() + " (" + ctx + "). Clamped to 0.");
-                    group.getXpLevel().setLevel(0);
-                }
-
-                // individual_stages
-                group.getIndividualStages().removeIf(dep -> {
-                    if (dep.getStageId() == null || dep.getStageId().isBlank()) {
-                        addMessage(MessageLevel.WARN, "Dependency individual_stage has null/empty stage_id (" + ctx + "). Removed.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency individual_stage entry has null or empty stage_id (" + ctx + "). Removed.");
-                        return true;
-                    }
-                    String mode = dep.getMode();
-                    if (!"all_online".equals(mode) && !"all_ever".equals(mode)) {
-                        addMessage(MessageLevel.WARN, "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + ctx + "). Defaulting to all_online.");
-                        DebugLogger.warn("Invalid Dependencies", "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + ctx + "). Expected 'all_online' or 'all_ever'. Defaulting to all_online.");
-                        dep.setMode("all_online");
-                    }
-                    return false;
-                });
-
-                // global stage references
-                for (String depStageId : group.getStages()) {
-                    if (!STAGES.containsKey(depStageId)) {
-                        addMessage(MessageLevel.INFO, "Dependency stage '" + depStageId + "' not found (Stage: " + stageId + "). May load later.");
-                        DebugLogger.info("Unresolved Dependencies", "Dependency references global stage '" + depStageId + "' which is not yet loaded (" + ctx + "). This is only a problem if the stage never loads.");
-                    }
-                }
-
-                // empty group warning
-                if (group.isEmpty()) {
-                    addMessage(MessageLevel.INFO, "Dependency group " + groupIdx + " is empty (Stage: " + stageId + "). It will always be satisfied.");
-                    DebugLogger.info("Empty Dependencies", "Dependency group " + groupIdx + " has no conditions defined (" + ctx + "). An empty group is always satisfied — this is likely unintentional.");
-                }
-            }
-        }
-
-        // --- Research Time ---
-        if (entry.getResearchTime() < 0) {
-            addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has negative research_time (" + entry.getResearchTime() + "). Using global default.");
-            DebugLogger.info("Configuration", "Stage '" + stageId + "' has negative research_time (" + entry.getResearchTime() + "). Falling back to global default.");
-        }
-
-        // --- Empty stage check ---
-        int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
-                + entry.getStructures().size()
-                + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
-        if (totalEntries == 0) {
-            addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
-            DebugLogger.info("Empty Stages", "Stage '" + stageId + "' has no content at all. It will be loaded but won't lock anything.");
-        }
-
-        STAGES.put(stageId, entry);
-        System.out.println("[HistoryStages] Stage geladen: " + stageId);
-    }
-
-    private static void removeEmptyItemEntries(List<ItemEntry> list, String stageId) {
-        int removed = 0;
-        var it = list.iterator();
-        while (it.hasNext()) {
-            ItemEntry entry = it.next();
-            if (entry.getId() == null || entry.getId().isBlank()) {
-                it.remove();
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            addMessage(MessageLevel.WARN, "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
-            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty item(s) from 'items' (Stage: " + stageId + ").");
+        if (entry.getDisplayName().equals("Unknown Stage")) {
+            addMessage(MessageLevel.WARN, (individual ? "Individual s" : "S") + "tage '" + stageId + "' has no display_name.");
         }
     }
 
-    private static void checkDuplicateItems(List<ItemEntry> list, String stageId) {
-        Set<String> seen = new HashSet<>();
-        for (ItemEntry entry : list) {
-            if (!seen.add(entry.getId())) {
-                addMessage(MessageLevel.INFO, "Duplicate '" + entry.getId() + "' in 'items' (Stage: " + stageId + ").");
-                DebugLogger.info("Duplicates", "Duplicate entry '" + entry.getId() + "' in 'items' (Stage: " + stageId + ").");
-            }
-        }
-    }
-
-    private static void removeEmptyStrings(List<String> list, String stageId, String field) {
-        int removed = 0;
-        var it = list.iterator();
-        while (it.hasNext()) {
-            String val = it.next();
-            if (val == null || val.isBlank()) {
-                it.remove();
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            addMessage(MessageLevel.WARN, "Removed " + removed + " empty string(s) from '" + field + "' (Stage: " + stageId + ").");
-            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty/blank string(s) from '" + field + "' (Stage: " + stageId + ").");
-        }
-    }
-
-    /**
-     * Validates a single lock-actions list (internal representation — locked actions):
-     * reports unknown actions and duplicates without modifying the list.
-     */
-    private static void validateLockActions(List<String> actions, String stageId, String entryId, String fieldPath) {
-        if (actions == null || actions.isEmpty()) return;
-
-        // Unknown actions
-        for (String action : actions) {
-            if (action == null || !KNOWN_LOCK_ACTIONS.contains(action)) {
-                addMessage(MessageLevel.WARN, "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
-                DebugLogger.warn("Invalid Lock Actions",
-                        "Unknown unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + "). Known actions: " + KNOWN_LOCK_ACTIONS + ".");
-            }
-        }
-
-        // Duplicates
-        Set<String> seen = new HashSet<>();
-        for (String action : actions) {
-            if (!seen.add(action)) {
-                DebugLogger.info("Duplicates",
-                        "Duplicate unlock_action '" + action + "' on '" + entryId + "' in " + fieldPath + " (Stage: " + stageId + ").");
-            }
-        }
-    }
-
-    private static void checkDuplicates(List<String> list, String stageId, String field) {
-        Set<String> seen = new HashSet<>();
-        List<String> duplicates = new ArrayList<>();
-        for (String val : list) {
-            if (!seen.add(val)) {
-                duplicates.add(val);
-            }
-        }
-        if (!duplicates.isEmpty()) {
-            for (String dup : duplicates) {
-                addMessage(MessageLevel.INFO, "Duplicate '" + dup + "' in '" + field + "' (Stage: " + stageId + ").");
-                DebugLogger.info("Duplicates", "Duplicate entry '" + dup + "' in '" + field + "' (Stage: " + stageId + "). Only the first occurrence will be used.");
-            }
-        }
-    }
-
-    public static List<LoadingMessage> getLoadingMessages() {
-        return LOADING_MESSAGES;
-    }
-
-    public static void reloadStages() {
-        load();
-    }
-
-    /**
-     * Validates stage entries against the actual registries.
-     * Must be called AFTER registries are fully loaded (e.g. on world load),
-     * NOT during mod construction when load() runs.
-     */
-    public static void validateAgainstRegistries() {
-        for (Map.Entry<String, StageEntry> stageEntry : STAGES.entrySet()) {
-            String stageId = stageEntry.getKey();
-            StageEntry entry = stageEntry.getValue();
-
-            // Validate items exist in registry
-            for (String itemId : entry.getAllItemIds()) {
-                if (!ResourceLocation.isValidResourceLocation(itemId)) continue; // already handled by format check
-                ResourceLocation rl = new ResourceLocation(itemId);
-                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Item '" + itemId + "' does not exist in registry (Stage: " + stageId + ").");
-                    DebugLogger.warn("Unknown Items", "Item '" + itemId + "' is a valid ResourceLocation but does not exist in the item registry (Stage: " + stageId + "). Typo or missing mod?");
-                }
-            }
-
-            // Validate mod exceptions exist in registry
-            for (String exItemId : entry.getAllModExceptionIds()) {
-                if (!ResourceLocation.isValidResourceLocation(exItemId)) continue;
-                ResourceLocation rl = new ResourceLocation(exItemId);
-                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' does not exist in registry (Stage: " + stageId + ").");
-                    DebugLogger.warn("Unknown Mod Exceptions", "Mod exception '" + exItemId + "' does not exist in the item registry (Stage: " + stageId + "). Typo or missing mod?");
-                }
-            }
-
-            // Validate entity types exist in registry
-            for (String entityId : entry.getEntities().getAttacklock()) {
-                if (!ResourceLocation.isValidResourceLocation(entityId)) continue;
-                ResourceLocation rl = new ResourceLocation(entityId);
-                if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Stage: " + stageId + ", attacklock).");
-                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", attacklock). Typo or missing mod?");
-                }
-            }
-            for (String entityId : entry.getEntities().getSpawnlock()) {
-                if (!ResourceLocation.isValidResourceLocation(entityId)) continue;
-                ResourceLocation rl = new ResourceLocation(entityId);
-                if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Stage: " + stageId + ", spawnlock).");
-                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", spawnlock). Typo or missing mod?");
-                }
-            }
-        }
-
-        // Validate individual stages against registries
-        for (Map.Entry<String, StageEntry> indEntry : INDIVIDUAL_STAGES.entrySet()) {
-            String indId = indEntry.getKey();
-            StageEntry indData = indEntry.getValue();
-
-            for (String itemId : indData.getAllItemIds()) {
-                if (!ResourceLocation.isValidResourceLocation(itemId)) continue;
-                ResourceLocation rl = new ResourceLocation(itemId);
-                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Item '" + itemId + "' does not exist in registry (Individual Stage: " + indId + ").");
-                    DebugLogger.warn("Unknown Items", "Item '" + itemId + "' does not exist in the item registry (Individual Stage: " + indId + "). Typo or missing mod?");
-                }
-            }
-
-            for (String exItemId : indData.getAllModExceptionIds()) {
-                if (!ResourceLocation.isValidResourceLocation(exItemId)) continue;
-                ResourceLocation rl = new ResourceLocation(exItemId);
-                if (!ForgeRegistries.ITEMS.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' does not exist in registry (Individual Stage: " + indId + ").");
-                    DebugLogger.warn("Unknown Mod Exceptions", "Mod exception '" + exItemId + "' does not exist in the item registry (Individual Stage: " + indId + "). Typo or missing mod?");
-                }
-            }
-
-            for (String entityId : indData.getEntities().getAttacklock()) {
-                if (!ResourceLocation.isValidResourceLocation(entityId)) continue;
-                ResourceLocation rl = new ResourceLocation(entityId);
-                if (!ForgeRegistries.ENTITY_TYPES.containsKey(rl)) {
-                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Individual Stage: " + indId + ", attacklock).");
-                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Individual Stage: " + indId + ", attacklock). Typo or missing mod?");
-                }
-            }
-        }
-    }
-
-    public static Map<String, StageEntry> getStages() {
-        return STAGES;
-    }
-
-    /**
-     * Replaces all stage definitions with the given map.
-     * Used on the client side to sync stage definitions from the server in multiplayer.
-     */
-    public static void setStages(Map<String, StageEntry> stages) {
-        STAGES.clear();
-        if (stages != null) {
-            STAGES.putAll(stages);
-        }
-    }
-
-    public static String getStageForItemOrMod(String itemId, String modId) {
-        for (var entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
-
-            if (data.getItems() != null && data.getItems().contains(itemId)) return stageName;
-            if (data.getMods() != null && data.getMods().contains(modId)
-                    && !isModException(itemId, null, data)) return stageName;
-
-            List<NamedLockEntry> tags = data.getTagEntries();
-            if (!tags.isEmpty()) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
-                if (item != null) {
-                    for (NamedLockEntry tagEntry : tags) {
-                        if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return stageName;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForAttackLockedEntity(String entityId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            EntityLocks locks = entry.getValue().getEntities();
-            // Spawnlock-Entities sind automatisch auch attacklocked
-            if (locks.getAttacklock().contains(entityId) || locks.getSpawnlock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllStagesForSpawnLockedEntity(String entityId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getEntities().getSpawnlock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static String getStageForDimension(String dimensionId) {
-        for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-            if (data.getDimensions() != null && data.getDimensions().contains(dimensionId)) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForDimension(String dimensionId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllStagesForStructure(String structureId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static boolean anyStageHasStructures() {
-        for (StageEntry entry : STAGES.values()) {
-            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
-        }
-        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
-            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
-        }
-        return false;
-    }
-
-    public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
-        return getAllStagesForItemOrMod(itemId, modId, null);
-    }
-
-    public static List<String> getAllStagesForItemOrMod(String itemId, String modId, net.minecraft.world.item.ItemStack stack) {
-        List<String> allFoundStages = new ArrayList<>();
-        Item item = stack != null ? stack.getItem() : ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
-
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
-
-            boolean match = false;
-            // Check Item ID (with NBT matching)
-            for (ItemEntry itemEntry : data.getItemEntries()) {
-                if (itemEntry.getId().equals(itemId)) {
-                    if (itemEntry.hasNbt()) {
-                        // NBT matching requires an ItemStack
-                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
-                            match = true;
-                            break;
-                        }
-                    } else {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-            // Check Mod ID (with exception check)
-            if (!match && data.getMods().contains(modId)) {
-                if (!isModException(itemId, stack, data)) {
-                    match = true;
-                }
-            }
-            // Check Tags
-            if (!match && item != null) {
-                for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-
-            if (match) {
-                allFoundStages.add(stageName);
-            }
-        }
-        return allFoundStages;
-    }
-
-    /** Delegates to StageEntry.isModExcepted for consistency. */
-    private static boolean isModException(String itemId, net.minecraft.world.item.ItemStack stack, StageEntry data) {
-        return data.isModExcepted(itemId, stack);
-    }
-
-    /**
-     * Checks whether a specific lock action applies to an item in the given stage entry.
-     * Returns true when the item matches this stage AND the action is restricted
-     * (either because no unlock_actions field is set — all actions locked — or because
-     * the action is NOT in the unlock_actions list).
-     * Returns false when the item does not match this stage at all.
-     */
-    public static boolean isItemActionLockedForStage(String itemId, String modId,
-            net.minecraft.world.item.ItemStack stack, String action, StageEntry data) {
-        // Use the Item directly from the stack — avoids a registry lookup + ResourceLocation alloc.
-        Item item = stack != null ? stack.getItem() : null;
-
-        // Check item entries
-        for (ItemEntry entry : data.getItemEntries()) {
-            if (!entry.getId().equals(itemId)) continue;
-            boolean nbtMatch = !entry.hasNbt() || (stack != null && NbtMatcher.matches(stack, entry.getNbt()));
-            if (nbtMatch) {
-                return isActionInList(entry.getLockActions(), action);
-            }
-        }
-
-        // Check mod entries
-        for (NamedLockEntry modEntry : data.getModEntries()) {
-            if (modEntry.getId().equals(modId) && !isModException(itemId, stack, data)) {
-                return isActionInList(modEntry.getLockActions(), action);
-            }
-        }
-
-        // Check tag entries — TagKey is cached inside NamedLockEntry to avoid per-call allocations.
-        if (item != null) {
-            for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
-                    return isActionInList(tagEntry.getLockActions(), action);
-                }
-            }
-        }
-
-        return false; // item not covered by this stage
-    }
-
-    /**
-     * Returns true when the action should be blocked:
-     * null = all actions locked (default, no unlock_actions field in JSON).
-     * empty list = no actions locked (all unlocked).
-     * non-empty list = only the listed actions are locked.
-     */
-    private static boolean isActionInList(List<String> lockActions, String action) {
-        if (lockActions == null) return true;
-        return lockActions.contains(action);
-    }
-
-    /**
-     * Returns the research time in ticks for a stage.
-     * Uses the stage's own research_time if > 0, otherwise falls back to the global config.
-     */
-    public static int getResearchTimeInTicks(String stageId) {
-        StageEntry entry = STAGES.get(stageId);
-        if (entry != null && entry.getResearchTime() > 0) {
-            return entry.getResearchTime() * 20;
-        }
-        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
-    }
-
-    public static boolean saveStage(String stageId, StageEntry entry) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
-
-        File file = new File(configDir, stageId + ".json");
-        try (Writer writer = new FileWriter(file)) {
-            writer.write(entry.toJson());
-            STAGES.put(stageId, entry);
-            DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to " + file.getName());
-            return true;
-        } catch (Exception e) {
-            System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
-            DebugLogger.error("Stage Saving", "Failed to save stage '" + stageId + "': " + e.getMessage());
-            DebugLogger.writeLogFile(STAGES, INDIVIDUAL_STAGES);
+    private static boolean isValidResource(String value, String kind, String stageId) {
+        if (ResourceLocation.tryParse(value) == null) {
+            addMessage(MessageLevel.WARN, kind + " '" + value + "' invalid format (Stage: " + stageId + "). Removed.");
             return false;
         }
-    }
-
-    public static boolean deleteStage(String stageId) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        File file = new File(configDir, stageId + ".json");
-        if (file.exists() && file.delete()) {
-            STAGES.remove(stageId);
-            DebugLogger.runtime("Stage Delete", "Deleted stage '" + stageId + "'");
-            return true;
-        }
-        return false;
-    }
-
-    public static List<String> getStageOrder() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) return new ArrayList<>(STAGES.keySet());
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-        if (files == null) return new ArrayList<>(STAGES.keySet());
-
-        Arrays.sort(files);
-        List<String> order = new ArrayList<>();
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-            if (STAGES.containsKey(id)) {
-                order.add(id);
-            }
-        }
-        // Add any stages not found as files (shouldn't happen, but safety)
-        for (String id : STAGES.keySet()) {
-            if (!order.contains(id)) {
-                order.add(id);
-            }
-        }
-        return order;
-    }
-
-    public static boolean isRecipeIdLockedForServer(String recipeId) {
-        return isRecipeIdLocked(recipeId, false);
-    }
-
-    /**
-     * Checks if a recipe ID is locked — works on Client AND Server.
-     * Uses ClientStageCache on the client, SERVER_CACHE on the server.
-     */
-    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (isClientSide) {
-                    if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())) {
-                        return true;
-                    }
-                } else {
-                    if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    // Die zentrale Prüf-Logik für den Server (z.B. Lootr)
-    public static boolean isItemLockedForServer(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (res == null) return false;
-
-        // Wir holen uns ALLE Stages, die für dieses Item registriert sind
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-
-        if (requiredStages.isEmpty()) return false;
-
-        // NEUE LOGIK: Das Item ist GESPERRT, wenn mindestens EINE der benötigten Stages FEHLT
-        // (Der Spieler muss also ALLE Stages besitzen, um es zu sehen)
-        for (String stage : requiredStages) {
-            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
-                return true; // Eine Stage fehlt noch -> Item bleibt gesperrt
-            }
-        }
-
-        return false; // Alle erforderlichen Stages sind im Cache -> Item ist frei
-    }
-
-    /**
-     * Prüft ob ein Item gesperrt ist — funktioniert auf Client UND Server.
-     * Nutzt auf dem Client den ClientStageCache, auf dem Server den SERVER_CACHE.
-     */
-    public static boolean isItemLocked(ItemStack stack, boolean isClientSide) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = ForgeRegistries.ITEMS.getKey(stack.getItem());
-        if (res == null) return false;
-
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-        if (requiredStages.isEmpty()) return false;
-
-        for (String stage : requiredStages) {
-            if (isClientSide) {
-                if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stage)) {
-                    return true;
-                }
-            } else {
-                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // =============================================
-    // INDIVIDUAL STAGES
-    // =============================================
-
-    private static final Set<String> INDIVIDUAL_UNSUPPORTED_KEYS = Set.of("recipes");
-
-    private static void loadIndividual() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) {
-            configDir.mkdirs();
-            return;
-        }
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-
-        if (files == null) return;
-
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-
-            validateFileName(id, file.getName());
-
-            try (Reader reader = new FileReader(file)) {
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
-                detectUnknownKeys(id, content);
-
-                StageEntry entry = GSON.fromJson(content, StageEntry.class);
-
-                if (entry != null) {
-                    stripUnsupportedIndividualCategories(id, entry);
-                    validateAndAddIndividual(id, entry);
-                } else {
-                    String msg = "Individual file '" + file.getName() + "' parsed as null (empty or invalid JSON)";
-                    addMessage(MessageLevel.ERROR, msg);
-                    DebugLogger.error("Individual Stage Loading", msg);
-                }
-            } catch (Exception e) {
-                String msg = "Error in individual file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
-                addMessage(MessageLevel.ERROR, msg);
-                DebugLogger.error("Individual Stage Loading", msg + " — " + e.getMessage());
-            }
-        }
-
-        // Overlap detection: individual entries that conflict with global stages are skipped
-        detectOverlaps();
-
-        System.out.println("[HistoryStages] Individual Stages geladen: " + INDIVIDUAL_STAGES.size());
+        return true;
     }
 
     private static void stripUnsupportedIndividualCategories(String stageId, StageEntry entry) {
-        // Recipes are not supported for individual stages
-        if (entry.getRecipes() != null && !entry.getRecipes().isEmpty()) {
-            String msg = "Individual stage '" + stageId + "' contains 'recipes' — not supported for individual stages. Entries removed.";
-            addMessage(MessageLevel.ERROR, msg);
-            DebugLogger.error("Individual Stage Loading", msg);
+        if (!entry.getRecipes().isEmpty()) {
+            addMessage(MessageLevel.WARN, "Individual stage '" + stageId + "' contains recipes. These are not ported yet.");
             entry.getRecipes().clear();
         }
-
-        // Spawnlock is not supported for individual stages
-        if (entry.getEntities().getSpawnlock() != null && !entry.getEntities().getSpawnlock().isEmpty()) {
-            String msg = "Individual stage '" + stageId + "' contains 'entities.spawnlock' — not supported for individual stages. Entries removed.";
-            addMessage(MessageLevel.ERROR, msg);
-            DebugLogger.error("Individual Stage Loading", msg);
+        if (!entry.getEntities().getSpawnlock().isEmpty()) {
+            addMessage(MessageLevel.WARN, "Individual stage '" + stageId + "' contains entities.spawnlock. These are not ported yet.");
             entry.getEntities().getSpawnlock().clear();
         }
     }
 
-    private static void validateAndAddIndividual(String stageId, StageEntry entry) {
-        // Check for duplicate stage ID across global and individual
-        if (STAGES.containsKey(stageId)) {
-            String msg = "Individual stage '" + stageId + "' has the same ID as a global stage. Individual stage skipped.";
-            addMessage(MessageLevel.ERROR, msg);
-            DebugLogger.error("Individual Stage Loading", msg);
-            return;
-        }
-
-        // Reuse global validation (empty strings, duplicates, format checks)
-        removeEmptyItemEntries(entry.getItemEntries(), stageId);
-        removeEmptyStrings(entry.getTags(), stageId, "tags");
-        removeEmptyStrings(entry.getMods(), stageId, "mods");
-        removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
-        removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
-        removeEmptyStrings(entry.getStructures(), stageId, "structures");
-        removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-
-        checkDuplicateItems(entry.getItemEntries(), stageId);
-        checkDuplicates(entry.getTags(), stageId, "tags");
-        checkDuplicates(entry.getMods(), stageId, "mods");
-        checkDuplicateItems(entry.getModExceptionEntries(), stageId);
-        checkDuplicates(entry.getDimensions(), stageId, "dimensions");
-        checkDuplicates(entry.getStructures(), stageId, "structures");
-        checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
-
-        entry.getItemEntries().removeIf(item -> {
-            if (!ResourceLocation.isValidResourceLocation(item.getId())) {
-                addMessage(MessageLevel.WARN, "Item '" + item.getId() + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        entry.getTags().removeIf(tagId -> {
-            if (!ResourceLocation.isValidResourceLocation(tagId)) {
-                addMessage(MessageLevel.WARN, "Tag '" + tagId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        entry.getMods().removeIf(modId -> {
-            if (modId == null || modId.isEmpty() || modId.contains(" ")) {
-                addMessage(MessageLevel.WARN, "Mod ID '" + modId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Mod Exceptions: format validation + must belong to a locked mod ---
-        Set<String> indLockedMods = new HashSet<>(entry.getMods());
-        entry.getModExceptionEntries().removeIf(exceptionEntry -> {
-            String exItemId = exceptionEntry.getId();
-            if (!ResourceLocation.isValidResourceLocation(exItemId)) {
-                addMessage(MessageLevel.WARN, "Mod exception '" + exItemId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            ResourceLocation rl = new ResourceLocation(exItemId);
-            if (!indLockedMods.contains(rl.getNamespace())) {
-                addMessage(MessageLevel.ERROR, "Mod exception '" + exItemId + "' does not belong to a locked mod (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        entry.getDimensions().removeIf(dimId -> {
-            if (!ResourceLocation.isValidResourceLocation(dimId)) {
-                addMessage(MessageLevel.WARN, "Dimension '" + dimId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        entry.getStructures().removeIf(structId -> {
-            String check = structId != null && structId.startsWith("#") ? structId.substring(1) : structId;
-            if (!ResourceLocation.isValidResourceLocation(check)) {
-                addMessage(MessageLevel.WARN, "Structure '" + structId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        entry.getEntities().getAttacklock().removeIf(entityId -> {
-            if (!ResourceLocation.isValidResourceLocation(entityId)) {
-                addMessage(MessageLevel.WARN, "Entity attacklock '" + entityId + "' invalid format (Individual Stage: " + stageId + "). Removed.");
-                return true;
-            }
-            return false;
-        });
-
-        // --- Lock actions: validate per-entry unlock_actions lists ---
-        for (ItemEntry item : entry.getItemEntries()) {
-            validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
-        }
-        for (NamedLockEntry tag : entry.getTagEntries()) {
-            validateLockActions(tag.getLockActions(), stageId, tag.getId(), "tags");
-        }
-        for (NamedLockEntry mod : entry.getModEntries()) {
-            validateLockActions(mod.getLockActions(), stageId, mod.getId(), "mods");
-        }
-
-        if (entry.getDisplayName().equals("Unknown Stage")) {
-            addMessage(MessageLevel.WARN, "Individual stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
-        }
-
-        if (entry.getResearchTime() < 0) {
-            addMessage(MessageLevel.INFO, "Individual stage '" + stageId + "' has negative research_time. Using global default.");
-        }
-
-        INDIVIDUAL_STAGES.put(stageId, entry);
-        System.out.println("[HistoryStages] Individual Stage geladen: " + stageId);
-    }
-
-    /**
-     * Detects overlaps between individual and global stages.
-     * Overlapping entries are registered as dual-phase: first locked globally
-     * (all paired global stages must be unlocked), then locked per-player.
-     * Covers items, tags, mods, dimensions, structures, and entity attacklock.
-     */
     private static void detectOverlaps() {
-        // Build a lookup: entry ID -> set of all global stage IDs containing it
-        Map<String, Set<String>> globalItemMap = new HashMap<>();
-        Map<String, Set<String>> globalTagMap = new HashMap<>();
-        Map<String, Set<String>> globalModMap = new HashMap<>();
-        Map<String, Set<String>> globalDimensionMap = new HashMap<>();
-        Map<String, Set<String>> globalStructureMap = new HashMap<>();
-        Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
+        Map<String, Set<String>> globalItems = new HashMap<>();
+        Map<String, Set<String>> globalTags = new HashMap<>();
+        Map<String, Set<String>> globalMods = new HashMap<>();
+        Map<String, Set<String>> globalDimensions = new HashMap<>();
+        Map<String, Set<String>> globalStructures = new HashMap<>();
+        Map<String, Set<String>> globalAttacklock = new HashMap<>();
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            String gStageId = entry.getKey();
-            StageEntry gEntry = entry.getValue();
-            for (String item : gEntry.getAllItemIds())
-                globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId);
-            for (String tag : gEntry.getTags())
-                globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId);
-            for (String mod : gEntry.getMods())
-                globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId);
-            for (String dim : gEntry.getDimensions())
-                globalDimensionMap.computeIfAbsent(dim, k -> new HashSet<>()).add(gStageId);
-            for (String struct : gEntry.getStructures())
-                globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
-            for (String entityId : gEntry.getEntities().getAttacklock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
-            // Spawnlocked entities are also attacklocked globally — count for attacklock dual-phase
-            for (String entityId : gEntry.getEntities().getSpawnlock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
+            String stageId = entry.getKey();
+            StageEntry stage = entry.getValue();
+            for (String item : stage.getAllItemIds()) {
+                globalItems.computeIfAbsent(item, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String tag : stage.getTags()) {
+                globalTags.computeIfAbsent(tag, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String mod : stage.getMods()) {
+                globalMods.computeIfAbsent(mod, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String dimension : stage.getDimensions()) {
+                globalDimensions.computeIfAbsent(dimension, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String structure : stage.getStructures()) {
+                globalStructures.computeIfAbsent(structure, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String entity : stage.getEntities().getAttacklock()) {
+                globalAttacklock.computeIfAbsent(entity, ignored -> new HashSet<>()).add(stageId);
+            }
+            for (String entity : stage.getEntities().getSpawnlock()) {
+                globalAttacklock.computeIfAbsent(entity, ignored -> new HashSet<>()).add(stageId);
+            }
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            String iStageId = entry.getKey();
-            StageEntry iEntry = entry.getValue();
-
-            for (ItemEntry itemEntry : iEntry.getItemEntries()) {
-                registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItemMap, itemEntry.getId(), "item", iStageId);
+            String stageId = entry.getKey();
+            StageEntry stage = entry.getValue();
+            for (ItemEntry item : stage.getItemEntries()) {
+                registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItems, item.getId(), "item", stageId);
             }
-            for (String tag : iEntry.getTags()) {
-                registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTagMap, tag, "tag", iStageId);
+            for (String tag : stage.getTags()) {
+                registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTags, tag, "tag", stageId);
             }
-            for (String mod : iEntry.getMods()) {
-                registerDualPhase(DUAL_PHASE_MODS, DUAL_PHASE_MODS_IND, globalModMap, mod, "mod", iStageId);
+            for (String mod : stage.getMods()) {
+                registerDualPhase(DUAL_PHASE_MODS, DUAL_PHASE_MODS_IND, globalMods, mod, "mod", stageId);
             }
-            for (String dim : iEntry.getDimensions()) {
-                registerDualPhase(DUAL_PHASE_DIMENSIONS, DUAL_PHASE_DIMENSIONS_IND, globalDimensionMap, dim, "dimension", iStageId);
+            for (String dimension : stage.getDimensions()) {
+                registerDualPhase(DUAL_PHASE_DIMENSIONS, DUAL_PHASE_DIMENSIONS_IND, globalDimensions, dimension, "dimension", stageId);
             }
-            for (String struct : iEntry.getStructures()) {
-                registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructureMap, struct, "structure", iStageId);
+            for (String structure : stage.getStructures()) {
+                registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructures, structure, "structure", stageId);
             }
-            for (String entityId : iEntry.getEntities().getAttacklock()) {
-                registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
+            for (String entity : stage.getEntities().getAttacklock()) {
+                registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklock, entity, "attacklock entity", stageId);
             }
         }
     }
 
-    /** Public entry-point for rebuilding dual-phase maps after stage definitions are updated (e.g. client sync). */
     public static void rebuildDualPhase() {
+        clearDualPhase();
+        detectOverlaps();
+    }
+
+    private static void clearDualPhase() {
         DUAL_PHASE_ITEMS.clear();
         DUAL_PHASE_TAGS.clear();
         DUAL_PHASE_MODS.clear();
@@ -1313,193 +614,142 @@ public class StageManager {
         DUAL_PHASE_DIMENSIONS_IND.clear();
         DUAL_PHASE_STRUCTURES_IND.clear();
         DUAL_PHASE_ATTACKLOCK_IND.clear();
-        detectOverlaps();
     }
 
-    private static void registerDualPhase(Map<String, Set<String>> globalTarget, Map<String, Set<String>> indTarget,
-                                          Map<String, Set<String>> globalMap,
-                                          String entryId, String label, String iStageId) {
-        Set<String> globalStages = globalMap.get(entryId);
-        if (globalStages == null) return;
-        globalTarget.computeIfAbsent(entryId, k -> new HashSet<>()).addAll(globalStages);
-        indTarget.computeIfAbsent(entryId, k -> new HashSet<>()).add(iStageId);
-        String msg = "Individual stage '" + iStageId + "' " + label + " '" + entryId
-                + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-        addMessage(MessageLevel.INFO, msg);
-        DebugLogger.info("Dual-Phase Detection", msg);
-    }
-
-    public static Map<String, StageEntry> getIndividualStages() {
-        return INDIVIDUAL_STAGES;
-    }
-
-    public static Map<String, Set<String>> getDualPhaseItems()         { return DUAL_PHASE_ITEMS; }
-    public static Map<String, Set<String>> getDualPhaseTags()          { return DUAL_PHASE_TAGS; }
-    public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE_MODS; }
-    public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
-    public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
-    public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
-    public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
-    public static Map<String, Set<String>> getDualPhaseTagsInd()       { return DUAL_PHASE_TAGS_IND; }
-    public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
-    public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
-    public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
-    public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
-
-    public static void setIndividualStages(Map<String, StageEntry> stages) {
-        INDIVIDUAL_STAGES.clear();
-        if (stages != null) {
-            INDIVIDUAL_STAGES.putAll(stages);
+    private static void registerDualPhase(Map<String, Set<String>> globalTarget, Map<String, Set<String>> individualTarget,
+                                          Map<String, Set<String>> globalLookup, String entryId, String label,
+                                          String individualStageId) {
+        Set<String> globalStages = globalLookup.get(entryId);
+        if (globalStages == null) {
+            return;
         }
+        globalTarget.computeIfAbsent(entryId, ignored -> new HashSet<>()).addAll(globalStages);
+        individualTarget.computeIfAbsent(entryId, ignored -> new HashSet<>()).add(individualStageId);
+        addMessage(MessageLevel.INFO, "Individual stage '" + individualStageId + "' " + label + " '" + entryId
+                + "' also in global stage(s) " + globalStages + " - dual-phase lock registered.");
     }
 
-    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId) {
-        return getAllIndividualStagesForItemOrMod(itemId, modId, null);
-    }
+    private static void checkCircularDependencies() {
+        Map<String, Set<String>> graph = new HashMap<>();
+        addDependencyGraph(graph, STAGES);
+        addDependencyGraph(graph, INDIVIDUAL_STAGES);
 
-    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, net.minecraft.world.item.ItemStack stack) {
-        List<String> allFoundStages = new ArrayList<>();
-        Item item = stack != null ? stack.getItem() : ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
-
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
-
-            boolean match = false;
-            for (ItemEntry itemEntry : data.getItemEntries()) {
-                if (itemEntry.getId().equals(itemId)) {
-                    if (itemEntry.hasNbt()) {
-                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
-                            match = true;
-                            break;
-                        }
-                    } else {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-            // Check Mod ID (with exception check)
-            if (!match && data.getMods().contains(modId)) {
-                if (!isModException(itemId, stack, data)) {
-                    match = true;
-                }
-            }
-            if (!match && item != null) {
-                for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-
-            if (match) {
-                allFoundStages.add(stageName);
+        Set<String> visited = new HashSet<>();
+        Set<String> stack = new HashSet<>();
+        for (String node : graph.keySet()) {
+            if (!visited.contains(node) && hasCycle(node, graph, visited, stack, new ArrayList<>())) {
+                return;
             }
         }
-        return allFoundStages;
     }
 
-    public static List<String> getAllIndividualStagesForAttackLockedEntity(String entityId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getEntities().getAttacklock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
+    private static void addDependencyGraph(Map<String, Set<String>> graph, Map<String, StageEntry> stages) {
+        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+            Set<String> refs = new HashSet<>();
+            for (DependencyGroup group : entry.getValue().getDependencies()) {
+                refs.addAll(group.getReferencedStageIds());
+            }
+            if (!refs.isEmpty()) {
+                graph.put(entry.getKey(), refs);
             }
         }
-        return allFoundStages;
     }
 
-    public static List<String> getAllIndividualStagesForDimension(String dimensionId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
-                allFoundStages.add(entry.getKey());
+    private static boolean hasCycle(String node, Map<String, Set<String>> graph, Set<String> visited,
+                                    Set<String> stack, List<String> path) {
+        visited.add(node);
+        stack.add(node);
+        path.add(node);
+        for (String next : graph.getOrDefault(node, Set.of())) {
+            if (!visited.contains(next) && hasCycle(next, graph, visited, stack, path)) {
+                return true;
+            }
+            if (stack.contains(next)) {
+                path.add(next);
+                addMessage(MessageLevel.ERROR, "Circular dependency detected: " + String.join(" -> ", path));
+                return true;
             }
         }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllIndividualStagesForStructure(String structureId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getStructures() != null && entry.getValue().getStructures().contains(structureId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static boolean saveIndividualStage(String stageId, StageEntry entry) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
-
-        File file = new File(configDir, stageId + ".json");
-        try (Writer writer = new FileWriter(file)) {
-            writer.write(entry.toJson());
-            INDIVIDUAL_STAGES.put(stageId, entry);
-            DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to " + file.getName());
-            return true;
-        } catch (Exception e) {
-            System.err.println("[HistoryStages] Failed to save individual stage: " + stageId + " - " + e.getMessage());
-            DebugLogger.error("Individual Stage Saving", "Failed to save individual stage '" + stageId + "': " + e.getMessage());
-            return false;
-        }
-    }
-
-    public static boolean deleteIndividualStage(String stageId) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        File file = new File(configDir, stageId + ".json");
-        if (file.exists() && file.delete()) {
-            INDIVIDUAL_STAGES.remove(stageId);
-            DebugLogger.runtime("Individual Stage Delete", "Deleted individual stage '" + stageId + "'");
-            return true;
-        }
+        stack.remove(node);
+        path.remove(path.size() - 1);
         return false;
     }
 
-    public static List<String> getIndividualStageOrder() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-        if (files == null) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
-
-        Arrays.sort(files);
-        List<String> order = new ArrayList<>();
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-            if (INDIVIDUAL_STAGES.containsKey(id)) {
-                order.add(id);
+    private static void detectUnknownKeys(String stageId, String content) {
+        try {
+            JsonObject json = JsonParser.parseString(content).getAsJsonObject();
+            for (String key : json.keySet()) {
+                if (!KNOWN_KEYS.contains(key)) {
+                    addMessage(MessageLevel.WARN, "Unknown key '" + key + "' in stage '" + stageId + "'.");
+                }
             }
-        }
-        for (String id : INDIVIDUAL_STAGES.keySet()) {
-            if (!order.contains(id)) {
-                order.add(id);
+            if (json.has("entities") && json.get("entities").isJsonObject()) {
+                JsonObject entities = json.getAsJsonObject("entities");
+                for (String key : entities.keySet()) {
+                    if (!KNOWN_ENTITY_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown entity key '" + key + "' in stage '" + stageId + "'.");
+                    }
+                }
             }
+        } catch (Exception ignored) {
         }
-        return order;
     }
 
-    /**
-     * Returns the research time in ticks for an individual stage.
-     * Falls back to global config if stage has no custom time.
-     */
-    public static int getIndividualResearchTimeInTicks(String stageId) {
-        StageEntry entry = INDIVIDUAL_STAGES.get(stageId);
-        if (entry != null && entry.getResearchTime() > 0) {
-            return entry.getResearchTime() * 20;
+    private static void validateFileName(String id, String fileName) {
+        if (!id.equals(id.toLowerCase())) {
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
         }
-        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+        if (id.contains(" ")) {
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains spaces. Use underscores instead.");
+        }
+        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
+            addMessage(MessageLevel.INFO, "File '" + fileName + "' contains special characters.");
+        }
     }
 
-    /**
-     * Checks if a stage ID belongs to an individual stage.
-     */
-    public static boolean isIndividualStage(String stageId) {
-        return INDIVIDUAL_STAGES.containsKey(stageId);
+    private static void removeEmptyStrings(List<String> values, String stageId, String label) {
+        values.removeIf(value -> {
+            boolean remove = value == null || value.isBlank();
+            if (remove) {
+                addMessage(MessageLevel.WARN, "Removed empty " + label + " entry from stage '" + stageId + "'.");
+            }
+            return remove;
+        });
+    }
+
+    private static void removeEmptyItemEntries(List<ItemEntry> values, String stageId) {
+        values.removeIf(value -> {
+            boolean remove = value.getId() == null || value.getId().isBlank();
+            if (remove) {
+                addMessage(MessageLevel.WARN, "Removed empty item entry from stage '" + stageId + "'.");
+            }
+            return remove;
+        });
+    }
+
+    private static void addMessage(MessageLevel level, String message) {
+        LOADING_MESSAGES.add(new LoadingMessage(level, message));
+        switch (level) {
+            case ERROR -> DebugLogger.error("Stage Loading", message);
+            case WARN -> DebugLogger.warn("Stage Loading", message);
+            case INFO -> DebugLogger.info("Stage Loading", message);
+        }
+    }
+
+    private static Path globalDir() {
+        return FabricLoader.getInstance().getConfigDir().resolve("historystages").resolve("global");
+    }
+
+    private static Path individualDir() {
+        return FabricLoader.getInstance().getConfigDir().resolve("historystages").resolve("individual");
+    }
+
+    private static Map<String, StageEntry> deserializeStages(String json) {
+        if (json == null || json.isBlank()) {
+            return new HashMap<>();
+        }
+        java.lang.reflect.Type type = new TypeToken<Map<String, StageEntry>>() { }.getType();
+        Map<String, StageEntry> decoded = GSON.fromJson(json, type);
+        return decoded != null ? decoded : new HashMap<>();
     }
 }

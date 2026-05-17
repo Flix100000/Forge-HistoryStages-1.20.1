@@ -1,14 +1,18 @@
 package net.bananemdnsa.historystages.util;
 
-import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.Set;
 
-public class ClientStageCache {
-    private static volatile List<String> unlockedStages = new CopyOnWriteArrayList<>();
+public final class ClientStageCache {
+    private static volatile Set<String> unlockedStages = Collections.emptySet();
+
+    private ClientStageCache() {
+    }
 
     public static void setUnlockedStages(List<String> stages) {
-        unlockedStages = new CopyOnWriteArrayList<>(stages);
+        unlockedStages = Collections.unmodifiableSet(new HashSet<>(stages));
     }
 
     public static boolean isStageUnlocked(String stage) {

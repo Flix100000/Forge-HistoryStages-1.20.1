@@ -1,0 +1,50 @@
+{
+	"schemaVersion": 1,
+	"id": "historystages",
+	"version": "${version}",
+	"name": "History Stages",
+	"description": "Guide your players through the ages. Lock items, recipes, dimensions, mobs, loot, and more behind custom research-based Stages, unlocked server-wide or individual through the Research Pedestal with full in-game tooling.",
+	"authors": [
+		"Flix100000",
+		"PixlStudios"
+	],
+	"contact": {
+		"homepage": "https://www.curseforge.com/minecraft/mc-mods/history-stages",
+		"sources": "https://github.com/Flix100000/History-Stages"
+	},
+	"license": "GPL-3.0",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"net.bananemdnsa.historystages.HistoryStagesFabric"
+		],
+		"client": [
+			"net.bananemdnsa.historystages.client.HistoryStagesFabricClient"
+		],
+		"jei_mod_plugin": [
+			"net.bananemdnsa.historystages.jei.JEIPlugin"
+		],
+		"emi": [
+			"net.bananemdnsa.historystages.emi.EMIPlugin"
+		],
+		"ftbquests": [
+			"net.bananemdnsa.historystages.ftbquests.FTBQuestsIntegration"
+		]
+	},
+	"mixins": [
+		"historystages.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.18.4",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*",
+		"lootr": "*"
+	},
+	"suggests": {
+		"jade": "*",
+		"emi": "*",
+		"jei": "*",
+		"ftbquests": "*"
+	}
+}

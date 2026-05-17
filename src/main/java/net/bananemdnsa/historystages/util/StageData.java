@@ -4,9 +4,12 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.bananemdnsa.historystages.ftbquests.OptionalFTBQuestsHooks;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +29,7 @@ public class StageData extends SavedData {
         SERVER_CACHE.clear();
     }
 
-    public static StageData load(CompoundTag nbt) {
+    public static StageData load(CompoundTag nbt, HolderLookup.Provider provider) {
         StageData data = new StageData();
         ListTag list = nbt.getList("stages", Tag.TAG_STRING);
         SERVER_CACHE.clear(); // Cache leeren beim Laden
@@ -39,7 +42,7 @@ public class StageData extends SavedData {
     }
 
     @Override
-    public CompoundTag save(CompoundTag nbt) {
+    public CompoundTag save(CompoundTag nbt, HolderLookup.Provider provider) {
         ListTag list = new ListTag();
         for (String s : unlockedStages) {
             list.add(StringTag.valueOf(s));
@@ -62,7 +65,7 @@ public class StageData extends SavedData {
     public static StageData get(Level level) {
         if (level instanceof ServerLevel serverLevel) {
             StageData data = serverLevel.getServer().overworld().getDataStorage()
-                    .computeIfAbsent(StageData::load, StageData::new, DATA_NAME);
+                    .computeIfAbsent(new Factory<>(StageData::new, StageData::load, DataFixTypes.LEVEL), DATA_NAME);
 
             refreshCache(data.unlockedStages);
 
@@ -75,6 +78,7 @@ public class StageData extends SavedData {
         if (!unlockedStages.contains(stage)) {
             unlockedStages.add(stage);
             SERVER_CACHE.add(stage); // CACHE AKTUALISIEREN
+            OptionalFTBQuestsHooks.globalUnlocked(stage);
             setDirty();
         }
     }

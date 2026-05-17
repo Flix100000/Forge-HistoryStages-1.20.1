@@ -2,27 +2,20 @@ package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
-import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.inventory.MenuType;
-import net.minecraftforge.common.extensions.IForgeMenuType;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.network.IContainerFactory;
-import net.minecraftforge.registries.DeferredRegister;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegistryObject;
 
-public class ModMenuTypes {
-    public static final DeferredRegister<MenuType<?>> MENUS =
-            DeferredRegister.create(ForgeRegistries.MENU_TYPES, HistoryStages.MOD_ID);
+public final class ModMenuTypes {
+    public static MenuType<ResearchPedestalMenu> RESEARCH_MENU;
 
-    public static final RegistryObject<MenuType<ResearchPedestalMenu>> RESEARCH_MENU =
-            registerMenuType(ResearchPedestalMenu::new, "research_menu");
-
-    private static <T extends AbstractContainerMenu> RegistryObject<MenuType<T>> registerMenuType(IContainerFactory<T> factory, String name) {
-        return MENUS.register(name, () -> IForgeMenuType.create(factory));
+    private ModMenuTypes() {
     }
 
-    public static void register(IEventBus eventBus) {
-        MENUS.register(eventBus);
+    public static void register() {
+        RESEARCH_MENU = Registry.register(BuiltInRegistries.MENU, HistoryStages.id("research_pedestal"),
+                new ExtendedScreenHandlerType<>(ResearchPedestalMenu::new, BlockPos.STREAM_CODEC));
     }
 }

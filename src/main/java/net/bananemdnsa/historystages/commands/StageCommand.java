@@ -3,537 +3,303 @@ package net.bananemdnsa.historystages.commands;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
-import net.bananemdnsa.historystages.network.SyncStagesPacket;
-import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.network.Networking;
 import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.StageData;
-import net.bananemdnsa.historystages.events.StageEvent;
-import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.ChatFormatting;
+import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraftforge.common.MinecraftForge;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
-public class StageCommand {
+public final class StageCommand {
+    private StageCommand() {
+    }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("history")
                 .requires(source -> source.hasPermission(2))
-
-                // --- GLOBAL ---
                 .then(Commands.literal("global")
                         .then(Commands.literal("unlock")
                                 .then(Commands.literal("*")
-                                        .executes(ctx -> handleUnlock(ctx.getSource(), "*")))
+                                        .executes(context -> unlockGlobal(context.getSource(), "*")))
                                 .then(Commands.argument("stage", StringArgumentType.word())
-                                        .suggests((ctx, b) -> {
-                                            StageData d = StageData.get(ctx.getSource().getLevel());
-                                            return SharedSuggestionProvider.suggest(StageManager.getStages().keySet().stream()
-                                                    .filter(s -> !d.getUnlockedStages().contains(s)), b);
-                                        })
-                                        .executes(ctx -> handleUnlock(ctx.getSource(), StringArgumentType.getString(ctx, "stage")))))
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getStages().keySet(), builder))
+                                        .executes(context -> unlockGlobal(context.getSource(),
+                                                StringArgumentType.getString(context, "stage")))))
                         .then(Commands.literal("lock")
                                 .then(Commands.literal("*")
-                                        .executes(ctx -> handleLock(ctx.getSource(), "*")))
+                                        .executes(context -> lockGlobal(context.getSource(), "*")))
                                 .then(Commands.argument("stage", StringArgumentType.word())
-                                        .suggests((ctx, b) -> {
-                                            StageData d = StageData.get(ctx.getSource().getLevel());
-                                            return SharedSuggestionProvider.suggest(d.getUnlockedStages().stream(), b);
-                                        })
-                                        .executes(ctx -> handleLock(ctx.getSource(), StringArgumentType.getString(ctx, "stage")))))
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getStages().keySet(), builder))
+                                        .executes(context -> lockGlobal(context.getSource(),
+                                                StringArgumentType.getString(context, "stage")))))
                         .then(Commands.literal("info")
                                 .then(Commands.argument("stage", StringArgumentType.word())
-                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(StageManager.getStages().keySet(), b))
-                                        .executes(ctx -> handleGlobalInfo(ctx.getSource(), StringArgumentType.getString(ctx, "stage")))))
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getStages().keySet(), builder))
+                                        .executes(context -> showInfo(context.getSource(),
+                                                StringArgumentType.getString(context, "stage"), false))))
                         .then(Commands.literal("list")
-                                .executes(ctx -> {
-                                    StageData d = StageData.get(ctx.getSource().getLevel());
-                                    ctx.getSource().sendSuccess(() -> Component.literal("§6--- Global Stages ---"), false);
-                                    StageManager.getStages().keySet().forEach(s -> {
-                                        String color = d.getUnlockedStages().contains(s) ? "§a" : "§c";
-                                        ctx.getSource().sendSuccess(() -> Component.literal(color + "- " + s), false);
-                                    });
-                                    return 1;
-                                })))
-
-                // --- INDIVIDUAL ---
+                                .executes(context -> listGlobal(context.getSource()))))
                 .then(Commands.literal("individual")
                         .then(Commands.literal("unlock")
                                 .then(Commands.argument("players", EntityArgument.players())
                                         .then(Commands.literal("*")
-                                                .executes(ctx -> {
-                                                    int result = 0;
-                                                    for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
-                                                        result += handleIndividualUnlockAll(ctx.getSource(), p);
-                                                    return result;
-                                                }))
+                                                .executes(context -> unlockIndividualAll(context.getSource(),
+                                                        EntityArgument.getPlayers(context, "players"))))
                                         .then(Commands.argument("stage", StringArgumentType.word())
-                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), b))
-                                                .executes(ctx -> {
-                                                    String stage = StringArgumentType.getString(ctx, "stage");
-                                                    int result = 0;
-                                                    for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
-                                                        result += handleIndividualUnlock(ctx.getSource(), p, stage);
-                                                    return result;
-                                                }))))
+                                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), builder))
+                                                .executes(context -> unlockIndividual(context.getSource(),
+                                                        EntityArgument.getPlayers(context, "players"),
+                                                        StringArgumentType.getString(context, "stage"))))))
                         .then(Commands.literal("lock")
                                 .then(Commands.argument("players", EntityArgument.players())
                                         .then(Commands.literal("*")
-                                                .executes(ctx -> {
-                                                    int result = 0;
-                                                    for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
-                                                        result += handleIndividualLockAll(ctx.getSource(), p);
-                                                    return result;
-                                                }))
+                                                .executes(context -> lockIndividualAll(context.getSource(),
+                                                        EntityArgument.getPlayers(context, "players"))))
                                         .then(Commands.argument("stage", StringArgumentType.word())
-                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), b))
-                                                .executes(ctx -> {
-                                                    String stage = StringArgumentType.getString(ctx, "stage");
-                                                    int result = 0;
-                                                    for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
-                                                        result += handleIndividualLock(ctx.getSource(), p, stage);
-                                                    return result;
-                                                }))))
+                                                .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), builder))
+                                                .executes(context -> lockIndividual(context.getSource(),
+                                                        EntityArgument.getPlayers(context, "players"),
+                                                        StringArgumentType.getString(context, "stage"))))))
                         .then(Commands.literal("info")
                                 .then(Commands.argument("stage", StringArgumentType.word())
-                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), b))
-                                        .executes(ctx -> handleIndividualInfo(ctx.getSource(), StringArgumentType.getString(ctx, "stage")))))
+                                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(StageManager.getIndividualStages().keySet(), builder))
+                                        .executes(context -> showInfo(context.getSource(),
+                                                StringArgumentType.getString(context, "stage"), true))))
                         .then(Commands.literal("list")
                                 .then(Commands.argument("players", EntityArgument.players())
-                                        .executes(ctx -> {
-                                            int result = 0;
-                                            for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
-                                                result += handleIndividualList(ctx.getSource(), p);
-                                            return result;
-                                        }))))
-
-                // --- RELOAD ---
+                                        .executes(context -> listIndividual(context.getSource(),
+                                                EntityArgument.getPlayers(context, "players"))))))
                 .then(Commands.literal("reload")
-                        .executes(ctx -> {
+                        .executes(context -> {
                             StageManager.reloadStages();
-                            DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
-                            return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", false);
-                        }))
-
-                // NOTE: --- DEBUG --- subcommands are registered client-side in ClientDebugCommand
-        );
+                            Networking.syncAll(context.getSource().getServer());
+                            context.getSource().sendSuccess(() ->
+                                    Component.literal("Reloaded " + StageManager.getStages().size() + " global and "
+                                            + StageManager.getIndividualStages().size() + " individual stages."), true);
+                            return 1;
+                        })));
     }
 
-    private static int handleGlobalInfo(CommandSourceStack source, String stageName) {
-        var entry = StageManager.getStages().get(stageName);
-        if (entry == null) {
-            source.sendFailure(Component.literal("Stage '" + stageName + "' not found!"));
-            return 0;
-        }
-        source.sendSuccess(() -> Component.literal("§6--- Stage Info: §e" + stageName + " §6---"), false);
-
-        int researchTime = entry.getResearchTime();
-        if (researchTime > 0) {
-            source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
-        } else {
-            int defaultTime = Config.COMMON.researchTimeInSeconds.get();
-            source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
-        }
-
-        if (!entry.getAllItemIds().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
-            entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
-        }
-        if (!entry.getMods().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);
-            entry.getMods().forEach(m -> source.sendSuccess(() -> Component.literal("  §8• §7" + m), false));
-        }
-        if (!entry.getRecipes().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§e▶ Recipes:"), false);
-            entry.getRecipes().forEach(r -> source.sendSuccess(() -> Component.literal("  §8• §7" + r), false));
-        }
-        if (!entry.getDimensions().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
-            entry.getDimensions().forEach(d -> source.sendSuccess(() -> Component.literal("  §8• §7" + d), false));
-        }
-        if (!entry.getEntities().getAttacklock().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
-            entry.getEntities().getAttacklock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
-        }
-        if (!entry.getEntities().getSpawnlock().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§c▶ Entities (Spawnlock):"), false);
-            entry.getEntities().getSpawnlock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
+    private static int listGlobal(CommandSourceStack source) {
+        StageData data = StageData.get(source.getLevel());
+        source.sendSuccess(() -> Component.literal("--- Global Stages ---"), false);
+        for (MapEntry entry : getSortedEntries(StageManager.getStages())) {
+            boolean unlocked = data.hasStage(entry.id());
+            source.sendSuccess(() -> Component.literal((unlocked ? "[unlocked] " : "[locked] ") + entry.id()), false);
         }
         return 1;
     }
 
-    private static int handleUnlock(CommandSourceStack source, String s) {
-        String executor = source.getTextName();
-        StageData d = StageData.get(source.getLevel());
-        if (s.equals("*")) {
+    private static int listIndividual(CommandSourceStack source, Collection<ServerPlayer> players) {
+        IndividualStageData data = IndividualStageData.get(source.getLevel());
+        for (ServerPlayer player : players) {
+            source.sendSuccess(() -> Component.literal("--- Individual Stages For " + player.getGameProfile().getName() + " ---"), false);
+            for (MapEntry entry : getSortedEntries(StageManager.getIndividualStages())) {
+                boolean unlocked = data.hasStage(player.getUUID(), entry.id());
+                source.sendSuccess(() -> Component.literal((unlocked ? "[unlocked] " : "[locked] ") + entry.id()), false);
+            }
+        }
+        return 1;
+    }
+
+    private static int unlockGlobal(CommandSourceStack source, String stageId) {
+        StageData data = StageData.get(source.getLevel());
+        if ("*".equals(stageId)) {
             boolean changed = false;
             for (String id : StageManager.getStages().keySet()) {
-                if (!d.getUnlockedStages().contains(id)) {
-                    d.addStage(id);
-                    var entry = StageManager.getStages().get(id);
-                    String displayName = entry != null ? entry.getDisplayName() : id;
-                    MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(id, displayName));
+                if (!data.hasStage(id)) {
+                    data.addStage(id);
                     changed = true;
                 }
             }
             if (!changed) {
-                source.sendFailure(Component.literal("All stages are already unlocked!"));
+                source.sendFailure(Component.literal("All global stages are already unlocked."));
                 return 0;
             }
-            DebugLogger.runtime("Stage Unlock", executor, "Unlocked ALL stages (" + StageManager.getStages().size() + " total)");
-            broadcastEffect(source, "*", true);
-            return syncAndReload(source, d, "All stages unlocked.");
-        } else {
-            if (!StageManager.getStages().containsKey(s)) return 0;
-            d.addStage(s);
-            var entry = StageManager.getStages().get(s);
-            String displayName = entry != null ? entry.getDisplayName() : s;
-            MinecraftForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
-            DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
-            broadcastEffect(source, s, true);
-            return syncAndReload(source, d, "Unlocked: " + s);
+            Networking.syncAll(source.getServer());
+            source.sendSuccess(() -> Component.literal("Unlocked all global stages."), true);
+            return 1;
         }
-    }
-
-    private static int handleLock(CommandSourceStack source, String s) {
-        String executor = source.getTextName();
-        StageData d = StageData.get(source.getLevel());
-        if (s.equals("*")) {
-            if (d.getUnlockedStages().isEmpty()) {
-                source.sendFailure(Component.literal("No active stages found to lock!"));
-                return 0;
-            }
-
-            int count = d.getUnlockedStages().size();
-            List<String> toRemove = new ArrayList<>(d.getUnlockedStages());
-            for (String stageId : toRemove) {
-                d.removeStage(stageId);
-                var entry = StageManager.getStages().get(stageId);
-                String displayName = entry != null ? entry.getDisplayName() : stageId;
-                MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
-            }
-
-            d.getUnlockedStages().clear();
-            d.setDirty();
-            StageData.refreshCache(d.getUnlockedStages());
-
-            DebugLogger.runtime("Stage Lock", executor, "Locked ALL stages (" + count + " total)");
-            broadcastEffect(source, "*", false);
-            return syncAndReload(source, d, "All stages locked.");
-        } else {
-            if (!d.getUnlockedStages().contains(s)) return 0;
-            d.removeStage(s);
-            var lockEntry = StageManager.getStages().get(s);
-            String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
-            MinecraftForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
-            DebugLogger.runtime("Stage Lock", executor, "Locked stage '" + s + "' (" + lockDisplayName + ")");
-            broadcastEffect(source, s, false);
-            return syncAndReload(source, d, "Locked: " + s);
+        if (!StageManager.getStages().containsKey(stageId)) {
+            source.sendFailure(Component.literal("Unknown global stage '" + stageId + "'."));
+            return 0;
         }
-    }
-
-    private static void broadcastEffect(CommandSourceStack source, String stageID, boolean isUnlock) {
-        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get() && !Config.COMMON.useSounds.get() && !Config.COMMON.useToasts.get()) return;
-
-        String name = stageID.equals("*") ? "All Progress" : (StageManager.getStages().containsKey(stageID) ? StageManager.getStages().get(stageID).getDisplayName() : stageID);
-
-        // --- CHAT NACHRICHT LOGIK ---
-        Component chatMsg;
-        if (isUnlock && !stageID.equals("*")) {
-            // Nutze die editierbare Nachricht aus der Config für einzelne Unlocks
-            String rawMsg = Config.COMMON.unlockMessageFormat.get();
-            String formattedMsg = rawMsg.replace("{stage}", name).replace("&", "§");
-            chatMsg = Component.literal("[HistoryStages] ")
-                    .withStyle(ChatFormatting.GRAY)
-                    .append(Component.literal(formattedMsg));
-        } else if (isUnlock) {
-            // Standard für "Alle freischalten"
-            chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.GOLD).append(Component.literal("The world has entered the " + name + "!").withStyle(ChatFormatting.AQUA));
-        } else {
-            // Nachricht beim Sperren
-            chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED).append(Component.literal("The knowledge of " + name + " has been forgotten...").withStyle(ChatFormatting.WHITE));
+        if (data.hasStage(stageId)) {
+            source.sendFailure(Component.literal("Global stage '" + stageId + "' is already unlocked."));
+            return 0;
         }
-
-        // --- ACTIONBAR LOGIK (Bleibt Standard wie gewünscht) ---
-        Component actionMsg = isUnlock
-                ? Component.literal("§6New Era: " + name + " §aUnlocked!")
-                : Component.literal("§cStage Locked: " + name);
-
-        source.getServer().getPlayerList().getPlayers().forEach(player -> {
-            if (Config.COMMON.broadcastChat.get()) {
-                player.sendSystemMessage(chatMsg);
-            }
-
-            if (Config.COMMON.useActionbar.get()) {
-                player.displayClientMessage(actionMsg, true);
-            }
-
-            if (Config.COMMON.useSounds.get()) {
-                player.playNotifySound(isUnlock ? SoundEvents.UI_TOAST_CHALLENGE_COMPLETE : SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
-            }
-        });
-
-        // Toast notification
-        if (isUnlock && Config.COMMON.useToasts.get()) {
-            var stageEntry = StageManager.getStages().get(stageID);
-            String iconId = (stageEntry != null && stageEntry.getIcon() != null) ? stageEntry.getIcon() : "";
-            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name, iconId));
-        }
-    }
-
-    private static int syncAndReload(CommandSourceStack source, StageData data, String msg) {
-        return syncAndReload(source, data, msg, true);
-    }
-
-    private static int syncAndReload(CommandSourceStack source, StageData data, String msg, boolean broadcast) {
-        data.setDirty();
-        StageData.refreshCache(data.getUnlockedStages());
-        PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), broadcast);
-
+        data.addStage(stageId);
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Unlocked global stage '" + stageId + "'."), true);
         return 1;
     }
 
-    // =============================================
-    // INDIVIDUAL STAGE COMMANDS
-    // =============================================
+    private static int lockGlobal(CommandSourceStack source, String stageId) {
+        StageData data = StageData.get(source.getLevel());
+        if ("*".equals(stageId)) {
+            if (data.getUnlockedStages().isEmpty()) {
+                source.sendFailure(Component.literal("No global stages are currently unlocked."));
+                return 0;
+            }
+            for (String id : new ArrayList<>(data.getUnlockedStages())) {
+                data.removeStage(id);
+            }
+            Networking.syncAll(source.getServer());
+            source.sendSuccess(() -> Component.literal("Locked all global stages."), true);
+            return 1;
+        }
+        if (!StageManager.getStages().containsKey(stageId)) {
+            source.sendFailure(Component.literal("Unknown global stage '" + stageId + "'."));
+            return 0;
+        }
+        if (!data.hasStage(stageId)) {
+            source.sendFailure(Component.literal("Global stage '" + stageId + "' is not unlocked."));
+            return 0;
+        }
+        data.removeStage(stageId);
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Locked global stage '" + stageId + "'."), true);
+        return 1;
+    }
 
-    private static int handleIndividualInfo(CommandSourceStack source, String stageName) {
-        var entry = StageManager.getIndividualStages().get(stageName);
+    private static int unlockIndividualAll(CommandSourceStack source, Collection<ServerPlayer> players) {
+        IndividualStageData data = IndividualStageData.get(source.getLevel());
+        int changed = 0;
+        for (ServerPlayer player : players) {
+            for (String stageId : StageManager.getIndividualStages().keySet()) {
+                if (!data.hasStage(player.getUUID(), stageId)) {
+                    data.addStage(player.getUUID(), stageId);
+                    changed++;
+                }
+            }
+        }
+        if (changed == 0) {
+            source.sendFailure(Component.literal("The selected players already have all individual stages."));
+            return 0;
+        }
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Unlocked all individual stages for " + players.size() + " player(s)."), true);
+        return 1;
+    }
+
+    private static int lockIndividualAll(CommandSourceStack source, Collection<ServerPlayer> players) {
+        IndividualStageData data = IndividualStageData.get(source.getLevel());
+        int changed = 0;
+        for (ServerPlayer player : players) {
+            for (String stageId : new ArrayList<>(data.getUnlockedStages(player.getUUID()))) {
+                data.removeStage(player.getUUID(), stageId);
+                if (Config.COMMON.individualLockItemUsage) {
+                    StageLockHelper.dropLockedItemsForPlayer(player, stageId);
+                }
+                changed++;
+            }
+        }
+        if (changed == 0) {
+            source.sendFailure(Component.literal("The selected players have no unlocked individual stages."));
+            return 0;
+        }
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Locked all individual stages for " + players.size() + " player(s)."), true);
+        return 1;
+    }
+
+    private static int unlockIndividual(CommandSourceStack source, Collection<ServerPlayer> players, String stageId) {
+        if (!StageManager.getIndividualStages().containsKey(stageId)) {
+            source.sendFailure(Component.literal("Unknown individual stage '" + stageId + "'."));
+            return 0;
+        }
+        IndividualStageData data = IndividualStageData.get(source.getLevel());
+        int changed = 0;
+        for (ServerPlayer player : players) {
+            if (!data.hasStage(player.getUUID(), stageId)) {
+                data.addStage(player.getUUID(), stageId);
+                changed++;
+            }
+        }
+        if (changed == 0) {
+            source.sendFailure(Component.literal("That individual stage is already unlocked for the selected players."));
+            return 0;
+        }
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Unlocked individual stage '" + stageId + "' for " + players.size() + " player(s)."), true);
+        return 1;
+    }
+
+    private static int lockIndividual(CommandSourceStack source, Collection<ServerPlayer> players, String stageId) {
+        if (!StageManager.getIndividualStages().containsKey(stageId)) {
+            source.sendFailure(Component.literal("Unknown individual stage '" + stageId + "'."));
+            return 0;
+        }
+        IndividualStageData data = IndividualStageData.get(source.getLevel());
+        int changed = 0;
+        for (ServerPlayer player : players) {
+            if (data.hasStage(player.getUUID(), stageId)) {
+                data.removeStage(player.getUUID(), stageId);
+                if (Config.COMMON.individualLockItemUsage) {
+                    StageLockHelper.dropLockedItemsForPlayer(player, stageId);
+                }
+                changed++;
+            }
+        }
+        if (changed == 0) {
+            source.sendFailure(Component.literal("That individual stage is not unlocked for the selected players."));
+            return 0;
+        }
+        Networking.syncAll(source.getServer());
+        source.sendSuccess(() -> Component.literal("Locked individual stage '" + stageId + "' for " + players.size() + " player(s)."), true);
+        return 1;
+    }
+
+    private static int showInfo(CommandSourceStack source, String stageId, boolean individual) {
+        StageEntry entry = individual ? StageManager.getIndividualStages().get(stageId) : StageManager.getStages().get(stageId);
         if (entry == null) {
-            source.sendFailure(Component.literal("Individual stage '" + stageName + "' not found!"));
+            source.sendFailure(Component.literal((individual ? "Individual" : "Global") + " stage '" + stageId + "' not found."));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("§7--- Individual Stage Info: §f" + stageName + " §7---"), false);
 
-        int researchTime = entry.getResearchTime();
-        if (researchTime > 0) {
-            source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
-        } else {
-            int defaultTime = Config.COMMON.researchTimeInSeconds.get();
-            source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
-        }
-
-        if (!entry.getAllItemIds().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
-            entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
-        }
-        if (!entry.getMods().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);
-            entry.getMods().forEach(m -> source.sendSuccess(() -> Component.literal("  §8• §7" + m), false));
-        }
-        if (!entry.getDimensions().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§d▶ Dimensions:"), false);
-            entry.getDimensions().forEach(d -> source.sendSuccess(() -> Component.literal("  §8• §7" + d), false));
-        }
-        if (!entry.getEntities().getAttacklock().isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
-            entry.getEntities().getAttacklock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
-        }
+        source.sendSuccess(() -> Component.literal("--- " + (individual ? "Individual" : "Global") + " Stage Info: " + stageId + " ---"), false);
+        source.sendSuccess(() -> Component.literal("Display Name: " + entry.getDisplayName()), false);
+        source.sendSuccess(() -> Component.literal("Research Time: " + (entry.getResearchTime() > 0 ? entry.getResearchTime() + "s" : Config.COMMON.researchTimeInSeconds + "s (default)")), false);
+        sendList(source, "Items", entry.getAllItemIds());
+        sendList(source, "Mods", entry.getMods());
+        sendList(source, "Recipes", entry.getRecipes());
+        sendList(source, "Dimensions", entry.getDimensions());
+        sendList(source, "Structures", entry.getStructures());
+        sendList(source, "Entities (Attacklock)", entry.getEntities().getAttacklock());
+        sendList(source, "Entities (Spawnlock)", entry.getEntities().getSpawnlock());
         return 1;
     }
 
-    private static int handleIndividualUnlockAll(CommandSourceStack source, ServerPlayer target) {
-        IndividualStageData data = IndividualStageData.get(source.getLevel());
-        java.util.Set<String> alreadyUnlocked = data.getUnlockedStages(target.getUUID());
-        boolean changed = false;
-
-        for (String stageId : StageManager.getIndividualStages().keySet()) {
-            if (!alreadyUnlocked.contains(stageId)) {
-                data.addStage(target.getUUID(), stageId);
-                var entry = StageManager.getIndividualStages().get(stageId);
-                String displayName = entry != null ? entry.getDisplayName() : stageId;
-                MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stageId, displayName, target.getUUID()));
-                changed = true;
-            }
+    private static void sendList(CommandSourceStack source, String label, List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return;
         }
-
-        if (!changed) {
-            source.sendFailure(Component.literal("Player " + target.getName().getString() + " already has all individual stages!"));
-            return 0;
+        source.sendSuccess(() -> Component.literal(label + ":"), false);
+        for (String value : values) {
+            source.sendSuccess(() -> Component.literal(" - " + value), false);
         }
-
-        data.setDirty();
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        if (Config.COMMON.useSounds.get()) {
-            target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-        }
-
-        DebugLogger.runtime("Individual Unlock", source.getTextName(),
-                "Unlocked ALL individual stages for " + target.getName().getString());
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] Unlocked all individual stages for " + target.getName().getString()), true);
-        return 1;
     }
 
-    private static int handleIndividualLockAll(CommandSourceStack source, ServerPlayer target) {
-        IndividualStageData data = IndividualStageData.get(source.getLevel());
-        java.util.Set<String> playerStages = data.getUnlockedStages(target.getUUID());
-
-        if (playerStages.isEmpty()) {
-            source.sendFailure(Component.literal("Player " + target.getName().getString() + " has no individual stages to lock!"));
-            return 0;
+    private static List<MapEntry> getSortedEntries(Map<String, StageEntry> entries) {
+        List<MapEntry> sorted = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : entries.entrySet()) {
+            sorted.add(new MapEntry(entry.getKey(), entry.getValue()));
         }
-
-        int count = playerStages.size();
-        List<String> toRemove = new ArrayList<>(playerStages);
-        for (String stageId : toRemove) {
-            data.removeStage(target.getUUID(), stageId);
-            var entry = StageManager.getIndividualStages().get(stageId);
-            String displayName = entry != null ? entry.getDisplayName() : stageId;
-            MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stageId, displayName, target.getUUID()));
-            StageLockHelper.dropLockedItemsForPlayer(target, stageId);
-        }
-
-        data.setDirty();
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        DebugLogger.runtime("Individual Lock", source.getTextName(),
-                "Locked ALL individual stages (" + count + ") for " + target.getName().getString());
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] Locked all individual stages for " + target.getName().getString()), true);
-        return 1;
+        sorted.sort(java.util.Comparator.comparing(MapEntry::id));
+        return sorted;
     }
 
-    private static int handleIndividualUnlock(CommandSourceStack source, ServerPlayer target, String stageId) {
-        if (!StageManager.getIndividualStages().containsKey(stageId)) {
-            source.sendFailure(Component.literal("Individual stage '" + stageId + "' not found!"));
-            return 0;
-        }
-
-        IndividualStageData data = IndividualStageData.get(source.getLevel());
-        if (data.hasStage(target.getUUID(), stageId)) {
-            source.sendFailure(Component.literal("Player " + target.getName().getString() + " already has stage '" + stageId + "'!"));
-            return 0;
-        }
-
-        data.addStage(target.getUUID(), stageId);
-        data.setDirty();
-
-        var entry = StageManager.getIndividualStages().get(stageId);
-        String displayName = entry != null ? entry.getDisplayName() : stageId;
-        MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stageId, displayName, target.getUUID()));
-
-        // Sync to the target player
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        // Notify the target player
-        if (Config.COMMON.individualBroadcastChat.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.sendSystemMessage(
-                    Component.literal("[HistoryStages] ")
-                            .withStyle(ChatFormatting.GRAY)
-                            .append(Component.literal(finalChat))
-            );
-        }
-        if (Config.COMMON.individualUseActionbar.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.displayClientMessage(Component.literal(finalChat), true);
-        }
-        if (Config.COMMON.individualUseSounds.get()) {
-            target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-        }
-        if (Config.COMMON.individualUseToasts.get()) {
-            String iconId = (entry != null && entry.getIcon() != null) ? entry.getIcon() : "";
-            PacketHandler.INSTANCE.send(
-                    net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> target),
-                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName, iconId)
-            );
-        }
-
-        DebugLogger.runtime("Individual Unlock", source.getTextName(),
-                "Unlocked individual stage '" + stageId + "' for " + target.getName().getString());
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] Unlocked individual stage '" + stageId + "' for " + target.getName().getString()), true);
-        return 1;
-    }
-
-    private static int handleIndividualLock(CommandSourceStack source, ServerPlayer target, String stageId) {
-        if (!StageManager.getIndividualStages().containsKey(stageId)) {
-            source.sendFailure(Component.literal("Individual stage '" + stageId + "' not found!"));
-            return 0;
-        }
-
-        IndividualStageData data = IndividualStageData.get(source.getLevel());
-        if (!data.hasStage(target.getUUID(), stageId)) {
-            source.sendFailure(Component.literal("Player " + target.getName().getString() + " does not have stage '" + stageId + "'!"));
-            return 0;
-        }
-
-        data.removeStage(target.getUUID(), stageId);
-        data.setDirty();
-
-        var entry = StageManager.getIndividualStages().get(stageId);
-        String displayName = entry != null ? entry.getDisplayName() : stageId;
-        MinecraftForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stageId, displayName, target.getUUID()));
-
-        // Drop locked items from the player's inventory
-        StageLockHelper.dropLockedItemsForPlayer(target, stageId);
-
-        // Sync to the target player
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        // Notify the target player
-        if (Config.COMMON.individualBroadcastChat.get()) {
-            target.sendSystemMessage(
-                    Component.literal("[HistoryStages] ")
-                            .withStyle(ChatFormatting.RED)
-                            .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
-            );
-        }
-        if (Config.COMMON.individualUseSounds.get()) {
-            target.playNotifySound(SoundEvents.NOTE_BLOCK_BASS.get(), SoundSource.MASTER, 0.75F, 0.5F);
-        }
-
-        DebugLogger.runtime("Individual Lock", source.getTextName(),
-                "Locked individual stage '" + stageId + "' for " + target.getName().getString());
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] Locked individual stage '" + stageId + "' for " + target.getName().getString()), true);
-        return 1;
-    }
-
-    private static int handleIndividualList(CommandSourceStack source, ServerPlayer target) {
-        IndividualStageData data = IndividualStageData.get(source.getLevel());
-        java.util.Set<String> playerStages = data.getUnlockedStages(target.getUUID());
-
-        source.sendSuccess(() -> Component.literal("§6--- Individual Stages for " + target.getName().getString() + " ---"), false);
-
-        if (playerStages.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("§7No individual stages unlocked."), false);
-        } else {
-            StageManager.getIndividualStages().keySet().forEach(s -> {
-                String color = playerStages.contains(s) ? "§a" : "§c";
-                source.sendSuccess(() -> Component.literal(color + "- " + s), false);
-            });
-        }
-        return 1;
+    private record MapEntry(String id, StageEntry value) {
     }
 }

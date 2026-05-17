@@ -1,410 +1,324 @@
 package net.bananemdnsa.historystages;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.common.Mod;
-import org.apache.commons.lang3.tuple.Pair;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import net.fabricmc.loader.api.FabricLoader;
 
-import java.util.List;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 
-@Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
-public class Config {
+public final class Config {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String DEFAULT_STRUCTURE_LOCK_MESSAGE = "&cYou cannot enter &e{structure}&c yet!";
+    private static final Path CONFIG_FILE = FabricLoader.getInstance().getConfigDir()
+            .resolve("historystages")
+            .resolve("config.json");
 
-    // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
-    public static class Client {
-        public final ForgeConfigSpec.BooleanValue showTooltips;
-        public final ForgeConfigSpec.BooleanValue showStageName;
-        public final ForgeConfigSpec.BooleanValue showAllUntilComplete;
-        // Jade integration
-        public final ForgeConfigSpec.BooleanValue jadeShowInfo;
-        public final ForgeConfigSpec.BooleanValue jadeStageName;
-        public final ForgeConfigSpec.BooleanValue jadeShowAllUntilComplete;
+    public static final Common COMMON = new Common();
+    public static final Client CLIENT = new Client();
 
-        public final ForgeConfigSpec.BooleanValue dimUseActionbar;
-        public final ForgeConfigSpec.BooleanValue dimShowChat;
-        public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
-        public final ForgeConfigSpec.BooleanValue showLockIcons;
-        public final ForgeConfigSpec.BooleanValue mobUseActionbar;
-        public final ForgeConfigSpec.BooleanValue mobShowChat;
-        public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
-
-        // Individual Stages
-        public final ForgeConfigSpec.BooleanValue showSilverLockIcons;
-        public final ForgeConfigSpec.BooleanValue showIndividualTooltips;
-
-        public Client(ForgeConfigSpec.Builder builder) {
-            builder.comment(
-                    "Found a bug or have a feature request?",
-                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
-                    "",
-                    "Visual and UI settings (Individual for each player)")
-                    .push("visuals");
-
-            showTooltips = builder
-                    .comment("Show information tooltips on locked items? [Default: true]")
-                    .define("showTooltips", true);
-
-            showStageName = builder
-                    .comment("If tooltips are enabled, show the name of the required stage? [Default: true]")
-                    .define("showStageName", true);
-
-            showAllUntilComplete = builder
-                    .comment("If an item is in multiple stages, show all of them until all are unlocked? [Default: true]")
-                    .define("showAllUntilComplete", true);
-
-            showLockIcons = builder
-                    .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
-                    .define("showLockIcons", true);
-
-            builder.pop();
-
-            builder.comment("Settings for Jade block overlay (requires Jade mod)").push("jade");
-
-            jadeShowInfo = builder
-                    .comment("Show stage information on locked blocks in the Jade overlay? [Default: true]")
-                    .define("showInfo", true);
-
-            jadeStageName = builder
-                    .comment("If Jade info is enabled, show the name of the required stage? [Default: true]")
-                    .define("showStageName", true);
-
-            jadeShowAllUntilComplete = builder
-                    .comment("If a block is in multiple stages, show all of them until all are unlocked? [Default: true]")
-                    .define("showAllUntilComplete", true);
-
-            builder.pop();
-
-            builder.comment("Settings for dimension access feedback").push("dimension_lock");
-
-            dimUseActionbar = builder
-                    .comment("Show a simple 'Dimension Locked' message in the actionbar? [Default: true]?")
-                    .define("useActionbar", true);
-
-            dimShowChat = builder
-                    .comment("Show the dimension lock message in the chat? [Default: false]")
-                    .define("showInChat", false);
-
-            dimShowStagesInChat = builder
-                    .comment("If dimShowChat is true, should the required stages also be listed? [Default: true]")
-                    .define("showStagesInChat", true);
-
-            builder.pop();
-
-            builder.comment("Settings for mob damage lock feedback").push("mob_lock");
-
-            mobUseActionbar = builder
-                    .comment("Show a 'Mob Protected' message in the actionbar? [Default: true]")
-                    .define("useActionbar", true);
-
-            mobShowChat = builder
-                    .comment("Show the mob lock message in the chat? [Default: false]")
-                    .define("showInChat", false);
-
-            mobShowStagesInChat = builder
-                    .comment("If mobShowChat is true, should the required stages also be listed? [Default: true]")
-                    .define("showStagesInChat", true);
-            builder.pop();
-
-            builder.comment("Individual Stage Visual Settings").push("individual_stages");
-
-            showSilverLockIcons = builder
-                    .comment("Show a silver lock icon on items locked by individual stages? [Default: true]")
-                    .define("showSilverLockIcons", true);
-
-            showIndividualTooltips = builder
-                    .comment("Show tooltip information for items locked by individual stages? [Default: true]")
-                    .define("showIndividualTooltips", true);
-
-            builder.pop();
-
-            builder.comment("Dependency Display Settings").push("dependencies");
-
-            showDependenciesOnScroll = builder
-                    .comment("Show dependency requirements in research scroll tooltips? [Default: true]")
-                    .define("showDependenciesOnScroll", true);
-
-            hideFulfilledDependencies = builder
-                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
-                    .define("hideFulfilledDependencies", false);
-
-            builder.pop();
-        }
-
-        public final ForgeConfigSpec.BooleanValue showDependenciesOnScroll;
-        public final ForgeConfigSpec.BooleanValue hideFulfilledDependencies;
+    private Config() {
     }
 
-    // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
-    public static class Common {
-        public final ForgeConfigSpec.BooleanValue showWelcomeMessage;
-        public final ForgeConfigSpec.BooleanValue showDebugErrors;
-        public final ForgeConfigSpec.BooleanValue enableRuntimeLogging;
+    public static void load() {
+        if (!Files.exists(CONFIG_FILE)) {
+            save();
+            return;
+        }
 
-        public final ForgeConfigSpec.BooleanValue lockMobLoot;
-        public final ForgeConfigSpec.BooleanValue lockBlockBreaking;
-        public final ForgeConfigSpec.DoubleValue lockedBlockBreakSpeedMultiplier;
-        public final ForgeConfigSpec.BooleanValue lockItemUsage;
-        public final ForgeConfigSpec.BooleanValue lockEntityItems;
-        public final ForgeConfigSpec.BooleanValue lockBlockInteraction;
-        public final ForgeConfigSpec.BooleanValue lockContainerInteraction;
-        public final ForgeConfigSpec.BooleanValue lockEnchanting;
-
-        // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
-        public final ForgeConfigSpec.BooleanValue broadcastChat;
-        public final ForgeConfigSpec.ConfigValue<String> unlockMessageFormat;
-        public final ForgeConfigSpec.BooleanValue useActionbar;
-        public final ForgeConfigSpec.BooleanValue useSounds;
-        public final ForgeConfigSpec.BooleanValue useToasts;
-        public final ForgeConfigSpec.ConfigValue<String> defaultStageIcon;
-
-        // Forschungsstation
-        public final ForgeConfigSpec.IntValue researchTimeInSeconds;
-        public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
-
-        // Loot-Ersetzungen
-        public final ForgeConfigSpec.BooleanValue useReplacements;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementItems;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementTag;
-
-        // Individual Stages - Gameplay
-        public final ForgeConfigSpec.BooleanValue individualLockItemPickup;
-        public final ForgeConfigSpec.BooleanValue individualDropOnRevoke;
-        public final ForgeConfigSpec.BooleanValue individualLockBlockBreaking;
-        public final ForgeConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
-        public final ForgeConfigSpec.BooleanValue individualLockItemUsage;
-        public final ForgeConfigSpec.BooleanValue individualLockBlockInteraction;
-        public final ForgeConfigSpec.BooleanValue individualLockEnchanting;
-
-        // Individual Stages - Notifications
-        public final ForgeConfigSpec.BooleanValue individualBroadcastChat;
-        public final ForgeConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
-        public final ForgeConfigSpec.BooleanValue individualUseActionbar;
-        public final ForgeConfigSpec.BooleanValue individualUseSounds;
-        public final ForgeConfigSpec.BooleanValue individualUseToasts;
-
-        // Structure Lock
-        public final ForgeConfigSpec.IntValue structureCheckInterval;
-        public final ForgeConfigSpec.BooleanValue structureDamageEnabled;
-        public final ForgeConfigSpec.DoubleValue structureDamageAmount;
-        public final ForgeConfigSpec.IntValue structureDamageInterval;
-        public final ForgeConfigSpec.BooleanValue structureMessageEnabled;
-        public final ForgeConfigSpec.ConfigValue<String> structureLockMessageFormat;
-        public final ForgeConfigSpec.BooleanValue structureLockInChat;
-
-        public Common(ForgeConfigSpec.Builder builder) {
-            builder.comment(
-                    "Found a bug or have a feature request?",
-                    "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
-                    "",
-                    "Chat messages settings"
-            ).push("messages");
-
-            showWelcomeMessage = builder
-                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
-                    .define("showWelcomeMessage", true);
-
-            showDebugErrors = builder
-                    .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
-                    .define("showDebugErrors", true);
-
-            enableRuntimeLogging = builder
-                    .comment("Log runtime events (stage unlock/lock, blocked actions, loot replacements) to config/historystages/logs/runtime-*.log? [Default: false]")
-                    .define("enableRuntimeLogging", false);
-
-            builder.pop(); // general
-
-            builder.comment("Gameplay and Server-side settings").push("gameplay");
-
-            lockMobLoot = builder
-                    .comment("Handle locked items in mob loot tables? [Default: true]")
-                    .define("lockMobLoot", true);
-
-            lockBlockBreaking = builder
-                    .comment("Make locked blocks much harder to break and prevent their drops? [Default: true]")
-                    .define("lockBlockBreaking", true);
-
-            lockedBlockBreakSpeedMultiplier = builder
-                    .comment("Break speed multiplier for locked blocks. Lower = slower. 0.05 = 20x slower (like using wrong tool). [Default: 0.05]")
-                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
-
-            lockItemUsage = builder
-                    .comment("Prevent using locked items? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
-                    .define("lockItemUsage", true);
-
-            lockEntityItems = builder
-                    .comment("Prevent interacting with or breaking armor stands and item frames that contain locked items? [Default: true]")
-                    .define("lockEntityItems", true);
-
-            lockBlockInteraction = builder
-                    .comment("Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.) [Default: true]")
-                    .define("lockBlockInteraction", true);
-
-            lockContainerInteraction = builder
-                    .comment("Prevent moving individually-locked items in containers? (Blocks taking items from chests, machines, etc.) [Default: true]")
-                    .define("lockContainerInteraction", true);
-
-            lockEnchanting = builder
-                    .comment("Prevent applying locked enchantments via anvil (locked enchanted books) and enchanting table? [Default: true]")
-                    .define("lockEnchanting", true);
-
-            builder.pop(); // gameplay
-
-            // --- NOTIFICATIONS SECTION ---
-            builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
-
-            broadcastChat = builder
-                    .comment("Show unlock/lock messages in the chat for everyone? [Default: true]")
-                    .define("broadcastChat", true);
-
-            unlockMessageFormat = builder
-                    .comment("Message format for unlocks (Only for the Chat and only if 'broadcastChat' = true). Use {stage} for the name and & for colors.")
-                    .define("unlockMessageFormat", "&fThe world has entered the &b{stage}&f!");
-
-            useActionbar = builder
-                    .comment("Show messages in the actionbar for everyone? [Default: false]")
-                    .define("useActionbar", false);
-
-            useSounds = builder
-                    .comment("Play notification sounds for everyone? [Default: true]")
-                    .define("useSounds", true);
-
-            useToasts = builder
-                    .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
-                    .define("useToasts", true);
-
-            defaultStageIcon = builder
-                    .comment("Default icon used in unlock toasts for stages that don't define their own icon. [Default: historystages:research_scroll]")
-                    .define("defaultStageIcon", "historystages:research_scroll");
-
-            builder.pop(); // Schließt "notifications"
-
-            // --- RESEARCH Pedestal SECTION ---
-            builder.comment("Research Pedestal Settings").push("research");
-            researchTimeInSeconds = builder
-                    .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
-                    .defineInRange("researchTimeInSeconds", 20, 1, 3600);
-
-            showDependencyScreenInPedestal = builder
-                    .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
-                    .define("showDependencyScreenInPedestal", true);
-
-            builder.pop(); // Schließt "research"
-
-            // --- LOOT REPLACEMENTS SECTION ---
-            builder.comment("Settings for replacing locked loot with alternatives").push("loot_replacements");
-
-            useReplacements = builder
-                    .comment("If true, locked items are replaced by specific items/tags. If false, they disappear. [Default: false]")
-                    .define("useReplacements", false);
-
-            replacementItems = builder
-                    .comment("{ReplacementPriority:1} A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
-                    .defineList("replacementItems", List.of("minecraft:cobblestone", "minecraft:dirt"), o -> o instanceof String);
-
-            replacementTag = builder
-                    .comment("{ReplacementPriority:2} A list of tags (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
-                    .defineList("replacementTags", List.of(), o -> o instanceof String);
-            builder.pop(); // Schließt "loot_replacements"
-
-            // --- INDIVIDUAL STAGES SECTION ---
-            builder.comment("Individual Stage Settings (per-player stages)").push("individual_stages");
-
-            individualLockItemPickup = builder
-                    .comment("Prevent players from picking up items locked by individual stages? [Default: true]")
-                    .define("lockItemPickup", true);
-
-            individualDropOnRevoke = builder
-                    .comment("Drop locked items from a player's inventory when their individual stage is revoked? [Default: true]")
-                    .define("dropOnRevoke", true);
-
-            individualLockBlockBreaking = builder
-                    .comment("Make blocks locked by individual stages much harder to break and prevent their drops? [Default: true]")
-                    .define("lockBlockBreaking", true);
-
-            individualLockedBlockBreakSpeedMultiplier = builder
-                    .comment("Break speed multiplier for blocks locked by individual stages. Lower = slower. 0.05 = 20x slower. [Default: 0.05]")
-                    .defineInRange("lockedBlockBreakSpeedMultiplier", 0.05, 0.001, 1.0);
-
-            individualLockItemUsage = builder
-                    .comment("Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.) [Default: true]")
-                    .define("lockItemUsage", true);
-
-            individualLockBlockInteraction = builder
-                    .comment("Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.) [Default: true]")
-                    .define("lockBlockInteraction", true);
-
-            individualLockEnchanting = builder
-                    .comment("Prevent applying enchantments locked by individual stages via anvil and enchanting table? [Default: true]")
-                    .define("lockEnchanting", true);
-
-            individualBroadcastChat = builder
-                    .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")
-                    .define("broadcastChat", true);
-
-            individualUnlockMessageFormat = builder
-                    .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
-                    .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
-
-            individualUseActionbar = builder
-                    .comment("Show individual stage messages in the actionbar? [Default: false]")
-                    .define("useActionbar", false);
-
-            individualUseSounds = builder
-                    .comment("Play notification sounds for individual stage unlocks? [Default: true]")
-                    .define("useSounds", true);
-
-            individualUseToasts = builder
-                    .comment("Show an advancement-style toast popup when an individual stage is unlocked? [Default: true]")
-                    .define("useToasts", true);
-
-            builder.pop(); // Schließt "individual_stages"
-
-            // --- STRUCTURE LOCK SECTION ---
-            builder.comment("Structure Lock Settings (locks player entry into specified structures)").push("structure_lock");
-
-            structureCheckInterval = builder
-                    .comment("How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction. [Default: 10]")
-                    .defineInRange("checkInterval", 10, 1, 200);
-
-            structureMessageEnabled = builder
-                    .comment("Show the player a message when they are inside a locked structure? [Default: true]")
-                    .define("messageEnabled", true);
-
-            structureLockMessageFormat = builder
-                    .comment("Message format for structure lock. Use {structure} for the structure ID, {stage} for the required stage, and & for colors.")
-                    .define("messageFormat", "&cYou cannot enter &e{structure}&c yet!");
-
-            structureLockInChat = builder
-                    .comment("Show the structure lock message in chat as well (otherwise only actionbar)? [Default: false]")
-                    .define("showInChat", false);
-
-            structureDamageEnabled = builder
-                    .comment("Damage the player while they are inside a locked structure? [Default: false]")
-                    .define("damageEnabled", false);
-
-            structureDamageAmount = builder
-                    .comment("Amount of damage dealt per damage tick. [Default: 1.0]")
-                    .defineInRange("damageAmount", 1.0, 0.1, 100.0);
-
-            structureDamageInterval = builder
-                    .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
-                    .defineInRange("damageInterval", 20, 1, 600);
-
-            builder.pop(); // Schließt "structure_lock"
+        try (Reader reader = Files.newBufferedReader(CONFIG_FILE, StandardCharsets.UTF_8)) {
+            PersistedConfig persisted = GSON.fromJson(reader, PersistedConfig.class);
+            if (persisted == null) {
+                save();
+                return;
+            }
+            if (persisted.common != null) {
+                copyCommon(persisted.common, COMMON);
+            }
+            if (persisted.client != null) {
+                copyClient(persisted.client, CLIENT);
+            }
+            if (normalizeLegacyStructureDefaults()) {
+                save();
+            }
+        } catch (IOException ignored) {
         }
     }
 
-    public static final ForgeConfigSpec CLIENT_SPEC;
-    public static final Client CLIENT;
-    public static final ForgeConfigSpec COMMON_SPEC;
-    public static final Common COMMON;
+    public static void save() {
+        try {
+            Files.createDirectories(CONFIG_FILE.getParent());
+            try (Writer writer = Files.newBufferedWriter(CONFIG_FILE, StandardCharsets.UTF_8)) {
+                PersistedConfig persisted = new PersistedConfig();
+                copyCommon(COMMON, persisted.common);
+                copyClient(CLIENT, persisted.client);
+                GSON.toJson(persisted, writer);
+            }
+        } catch (IOException ignored) {
+        }
+    }
 
-    static {
-        final Pair<Client, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(Client::new);
-        CLIENT = clientPair.getLeft();
-        CLIENT_SPEC = clientPair.getRight();
+    private static void copyCommon(Common from, Common to) {
+        to.showWelcomeMessage = from.showWelcomeMessage;
+        to.showDebugErrors = from.showDebugErrors;
+        to.enableRuntimeLogging = from.enableRuntimeLogging;
+        to.lockMobLoot = from.lockMobLoot;
+        to.lockItemUsage = from.lockItemUsage;
+        to.lockEntityItems = from.lockEntityItems;
+        to.individualLockItemUsage = from.individualLockItemUsage;
+        to.lockBlockInteraction = from.lockBlockInteraction;
+        to.individualLockBlockInteraction = from.individualLockBlockInteraction;
+        to.lockBlockBreaking = from.lockBlockBreaking;
+        to.individualLockBlockBreaking = from.individualLockBlockBreaking;
+        to.lockedBlockBreakSpeedMultiplier = from.lockedBlockBreakSpeedMultiplier;
+        to.individualLockedBlockBreakSpeedMultiplier = from.individualLockedBlockBreakSpeedMultiplier;
+        to.researchTimeInSeconds = from.researchTimeInSeconds;
+        to.showDependencyScreenInPedestal = from.showDependencyScreenInPedestal;
+        to.broadcastChat = from.broadcastChat;
+        to.unlockMessageFormat = from.unlockMessageFormat;
+        to.useActionbar = from.useActionbar;
+        to.useSounds = from.useSounds;
+        to.useToasts = from.useToasts;
+        to.defaultStageIcon = from.defaultStageIcon;
+        to.useReplacements = from.useReplacements;
+        to.replacementItems = java.util.List.copyOf(from.replacementItems);
+        to.replacementTag = java.util.List.copyOf(from.replacementTag);
+        to.individualLockItemPickup = from.individualLockItemPickup;
+        to.individualDropOnRevoke = from.individualDropOnRevoke;
+        to.lockContainerInteraction = from.lockContainerInteraction;
+        to.lockEnchanting = from.lockEnchanting;
+        to.individualLockEnchanting = from.individualLockEnchanting;
+        to.individualBroadcastChat = from.individualBroadcastChat;
+        to.individualUnlockMessageFormat = from.individualUnlockMessageFormat;
+        to.individualUseActionbar = from.individualUseActionbar;
+        to.individualUseSounds = from.individualUseSounds;
+        to.individualUseToasts = from.individualUseToasts;
+        to.structureMessageEnabled = from.structureMessageEnabled;
+        to.structureLockInChat = from.structureLockInChat;
+        to.structureDamageEnabled = from.structureDamageEnabled;
+        to.structureDamageAmount = from.structureDamageAmount;
+        to.structureDamageInterval = from.structureDamageInterval;
+        to.structureCheckInterval = from.structureCheckInterval;
+        to.structureLockMessageFormat = from.structureLockMessageFormat;
+    }
 
-        final Pair<Common, ForgeConfigSpec> commonPair = new ForgeConfigSpec.Builder().configure(Common::new);
-        COMMON = commonPair.getLeft();
-        COMMON_SPEC = commonPair.getRight();
+    private static void copyClient(Client from, Client to) {
+        to.showTooltips = from.showTooltips;
+        to.showIndividualTooltips = from.showIndividualTooltips;
+        to.showStageName = from.showStageName;
+        to.showAllUntilComplete = from.showAllUntilComplete;
+        to.jadeShowInfo = from.jadeShowInfo;
+        to.jadeStageName = from.jadeStageName;
+        to.jadeShowAllUntilComplete = from.jadeShowAllUntilComplete;
+        to.showDependenciesOnScroll = from.showDependenciesOnScroll;
+        to.hideFulfilledDependencies = from.hideFulfilledDependencies;
+        to.showLockIcons = from.showLockIcons;
+        to.showSilverLockIcons = from.showSilverLockIcons;
+        to.dimUseActionbar = from.dimUseActionbar;
+        to.dimShowChat = from.dimShowChat;
+        to.dimShowStagesInChat = from.dimShowStagesInChat;
+        to.mobUseActionbar = from.mobUseActionbar;
+        to.mobShowChat = from.mobShowChat;
+        to.mobShowStagesInChat = from.mobShowStagesInChat;
+    }
+
+    private static boolean normalizeLegacyStructureDefaults() {
+        boolean changed = false;
+        if (COMMON.structureDamageEnabled
+                && COMMON.structureDamageInterval == 40
+                && COMMON.structureCheckInterval == 20) {
+            COMMON.structureDamageEnabled = false;
+            COMMON.structureDamageInterval = 20;
+            COMMON.structureCheckInterval = 10;
+            changed = true;
+        }
+
+        String message = COMMON.structureLockMessageFormat;
+        if (message == null || message.isBlank()
+                || message.startsWith("This structure is locked by")
+                || message.contains("{sta_")) {
+            COMMON.structureLockMessageFormat = DEFAULT_STRUCTURE_LOCK_MESSAGE;
+            changed = true;
+        }
+
+        if (COMMON.structureCheckInterval <= 0) {
+            COMMON.structureCheckInterval = 10;
+            changed = true;
+        }
+        if (COMMON.structureDamageInterval <= 0) {
+            COMMON.structureDamageInterval = 20;
+            changed = true;
+        }
+        if (COMMON.structureDamageAmount <= 0.0F) {
+            COMMON.structureDamageAmount = 1.0F;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static final class PersistedConfig {
+        private final Common common = new Common();
+        private final Client client = new Client();
+    }
+
+    public static void applyEditorValues(Map<String, String> clientValues, Map<String, String> commonValues) {
+        if (clientValues != null) {
+            clientValues.forEach((key, value) -> {
+                switch (key) {
+                    case "showTooltips" -> CLIENT.showTooltips = parseBool(value, CLIENT.showTooltips);
+                    case "showStageName" -> CLIENT.showStageName = parseBool(value, CLIENT.showStageName);
+                    case "showAllUntilComplete" -> CLIENT.showAllUntilComplete = parseBool(value, CLIENT.showAllUntilComplete);
+                    case "jadeShowInfo" -> CLIENT.jadeShowInfo = parseBool(value, CLIENT.jadeShowInfo);
+                    case "jadeStageName" -> CLIENT.jadeStageName = parseBool(value, CLIENT.jadeStageName);
+                    case "jadeShowAllUntilComplete" -> CLIENT.jadeShowAllUntilComplete = parseBool(value, CLIENT.jadeShowAllUntilComplete);
+                    case "showIndividualTooltips" -> CLIENT.showIndividualTooltips = parseBool(value, CLIENT.showIndividualTooltips);
+                    case "showDependenciesOnScroll" -> CLIENT.showDependenciesOnScroll = parseBool(value, CLIENT.showDependenciesOnScroll);
+                    case "hideFulfilledDependencies" -> CLIENT.hideFulfilledDependencies = parseBool(value, CLIENT.hideFulfilledDependencies);
+                    case "showLockIcons" -> CLIENT.showLockIcons = parseBool(value, CLIENT.showLockIcons);
+                    case "showSilverLockIcons" -> CLIENT.showSilverLockIcons = parseBool(value, CLIENT.showSilverLockIcons);
+                    case "dimUseActionbar" -> CLIENT.dimUseActionbar = parseBool(value, CLIENT.dimUseActionbar);
+                    case "dimShowChat" -> CLIENT.dimShowChat = parseBool(value, CLIENT.dimShowChat);
+                    case "dimShowStagesInChat" -> CLIENT.dimShowStagesInChat = parseBool(value, CLIENT.dimShowStagesInChat);
+                    case "mobUseActionbar" -> CLIENT.mobUseActionbar = parseBool(value, CLIENT.mobUseActionbar);
+                    case "mobShowChat" -> CLIENT.mobShowChat = parseBool(value, CLIENT.mobShowChat);
+                    case "mobShowStagesInChat" -> CLIENT.mobShowStagesInChat = parseBool(value, CLIENT.mobShowStagesInChat);
+                }
+            });
+        }
+        if (commonValues != null) {
+            commonValues.forEach((key, value) -> {
+                switch (key) {
+                    case "showWelcomeMessage" -> COMMON.showWelcomeMessage = parseBool(value, COMMON.showWelcomeMessage);
+                    case "showDebugErrors" -> COMMON.showDebugErrors = parseBool(value, COMMON.showDebugErrors);
+                    case "enableRuntimeLogging" -> COMMON.enableRuntimeLogging = parseBool(value, COMMON.enableRuntimeLogging);
+                    case "lockMobLoot" -> COMMON.lockMobLoot = parseBool(value, COMMON.lockMobLoot);
+                    case "lockItemUsage" -> COMMON.lockItemUsage = parseBool(value, COMMON.lockItemUsage);
+                    case "lockEntityItems" -> COMMON.lockEntityItems = parseBool(value, COMMON.lockEntityItems);
+                    case "individualLockItemUsage" -> COMMON.individualLockItemUsage = parseBool(value, COMMON.individualLockItemUsage);
+                    case "individualLockItemPickup" -> COMMON.individualLockItemPickup = parseBool(value, COMMON.individualLockItemPickup);
+                    case "individualDropOnRevoke" -> COMMON.individualDropOnRevoke = parseBool(value, COMMON.individualDropOnRevoke);
+                    case "lockBlockInteraction" -> COMMON.lockBlockInteraction = parseBool(value, COMMON.lockBlockInteraction);
+                    case "individualLockBlockInteraction" -> COMMON.individualLockBlockInteraction = parseBool(value, COMMON.individualLockBlockInteraction);
+                    case "lockBlockBreaking" -> COMMON.lockBlockBreaking = parseBool(value, COMMON.lockBlockBreaking);
+                    case "individualLockBlockBreaking" -> COMMON.individualLockBlockBreaking = parseBool(value, COMMON.individualLockBlockBreaking);
+                    case "lockedBlockBreakSpeedMultiplier" -> COMMON.lockedBlockBreakSpeedMultiplier = parseFloat(value, COMMON.lockedBlockBreakSpeedMultiplier);
+                    case "individualLockedBlockBreakSpeedMultiplier" -> COMMON.individualLockedBlockBreakSpeedMultiplier = parseFloat(value, COMMON.individualLockedBlockBreakSpeedMultiplier);
+                    case "researchTimeInSeconds" -> COMMON.researchTimeInSeconds = parseInt(value, COMMON.researchTimeInSeconds);
+                    case "showDependencyScreenInPedestal" -> COMMON.showDependencyScreenInPedestal = parseBool(value, COMMON.showDependencyScreenInPedestal);
+                    case "broadcastChat" -> COMMON.broadcastChat = parseBool(value, COMMON.broadcastChat);
+                    case "unlockMessageFormat" -> COMMON.unlockMessageFormat = value;
+                    case "useActionbar" -> COMMON.useActionbar = parseBool(value, COMMON.useActionbar);
+                    case "useSounds" -> COMMON.useSounds = parseBool(value, COMMON.useSounds);
+                    case "useToasts" -> COMMON.useToasts = parseBool(value, COMMON.useToasts);
+                    case "defaultStageIcon" -> COMMON.defaultStageIcon = value;
+                    case "useReplacements" -> COMMON.useReplacements = parseBool(value, COMMON.useReplacements);
+                    case "lockContainerInteraction" -> COMMON.lockContainerInteraction = parseBool(value, COMMON.lockContainerInteraction);
+                    case "lockEnchanting" -> COMMON.lockEnchanting = parseBool(value, COMMON.lockEnchanting);
+                    case "individualLockEnchanting" -> COMMON.individualLockEnchanting = parseBool(value, COMMON.individualLockEnchanting);
+                    case "individualBroadcastChat" -> COMMON.individualBroadcastChat = parseBool(value, COMMON.individualBroadcastChat);
+                    case "individualUnlockMessageFormat" -> COMMON.individualUnlockMessageFormat = value;
+                    case "individualUseActionbar" -> COMMON.individualUseActionbar = parseBool(value, COMMON.individualUseActionbar);
+                    case "individualUseSounds" -> COMMON.individualUseSounds = parseBool(value, COMMON.individualUseSounds);
+                    case "individualUseToasts" -> COMMON.individualUseToasts = parseBool(value, COMMON.individualUseToasts);
+                    case "structureMessageEnabled" -> COMMON.structureMessageEnabled = parseBool(value, COMMON.structureMessageEnabled);
+                    case "structureLockInChat" -> COMMON.structureLockInChat = parseBool(value, COMMON.structureLockInChat);
+                    case "structureDamageEnabled" -> COMMON.structureDamageEnabled = parseBool(value, COMMON.structureDamageEnabled);
+                    case "structureDamageAmount" -> COMMON.structureDamageAmount = parseFloat(value, COMMON.structureDamageAmount);
+                    case "structureDamageInterval" -> COMMON.structureDamageInterval = parseInt(value, COMMON.structureDamageInterval);
+                    case "structureCheckInterval" -> COMMON.structureCheckInterval = parseInt(value, COMMON.structureCheckInterval);
+                    case "structureLockMessageFormat" -> COMMON.structureLockMessageFormat = value;
+                }
+            });
+        }
+    }
+
+    private static boolean parseBool(String value, boolean fallback) {
+        return value == null ? fallback : Boolean.parseBoolean(value);
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private static float parseFloat(String value, float fallback) {
+        try {
+            return Float.parseFloat(value);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    public static final class Common {
+        public boolean showWelcomeMessage = true;
+        public boolean showDebugErrors = true;
+        public boolean enableRuntimeLogging = false;
+        public boolean lockMobLoot = true;
+        public boolean lockItemUsage = true;
+        public boolean lockEntityItems = true;
+        public boolean individualLockItemUsage = true;
+        public boolean individualLockItemPickup = true;
+        public boolean individualDropOnRevoke = true;
+        public boolean lockBlockInteraction = true;
+        public boolean individualLockBlockInteraction = true;
+        public boolean lockBlockBreaking = true;
+        public boolean individualLockBlockBreaking = true;
+        public float lockedBlockBreakSpeedMultiplier = 0.05F;
+        public float individualLockedBlockBreakSpeedMultiplier = 0.05F;
+        public int researchTimeInSeconds = 20;
+        public boolean showDependencyScreenInPedestal = true;
+        public boolean broadcastChat = true;
+        public String unlockMessageFormat = "&fThe world has entered the &b{stage}&f!";
+        public boolean useActionbar = false;
+        public boolean useSounds = true;
+        public boolean useToasts = true;
+        public String defaultStageIcon = "historystages:research_scroll";
+        public boolean useReplacements = false;
+        public java.util.List<String> replacementItems = new java.util.ArrayList<>(java.util.List.of("minecraft:cobblestone", "minecraft:dirt"));
+        public java.util.List<String> replacementTag = new java.util.ArrayList<>();
+        public boolean lockContainerInteraction = true;
+        public boolean lockEnchanting = true;
+        public boolean individualLockEnchanting = true;
+        public boolean individualBroadcastChat = true;
+        public String individualUnlockMessageFormat = "&fYou have unlocked &b{stage}&f!";
+        public boolean individualUseActionbar = false;
+        public boolean individualUseSounds = true;
+        public boolean individualUseToasts = true;
+        public boolean structureMessageEnabled = true;
+        public boolean structureLockInChat = false;
+        public boolean structureDamageEnabled = false;
+        public float structureDamageAmount = 1.0F;
+        public int structureDamageInterval = 20;
+        public int structureCheckInterval = 10;
+        public String structureLockMessageFormat = DEFAULT_STRUCTURE_LOCK_MESSAGE;
+    }
+
+    public static final class Client {
+        public boolean showTooltips = true;
+        public boolean showIndividualTooltips = true;
+        public boolean showStageName = true;
+        public boolean showAllUntilComplete = true;
+        public boolean jadeShowInfo = true;
+        public boolean jadeStageName = true;
+        public boolean jadeShowAllUntilComplete = true;
+        public boolean showDependenciesOnScroll = true;
+        public boolean hideFulfilledDependencies = false;
+        public boolean showLockIcons = true;
+        public boolean showSilverLockIcons = true;
+        public boolean dimUseActionbar = true;
+        public boolean dimShowChat = false;
+        public boolean dimShowStagesInChat = true;
+        public boolean mobUseActionbar = true;
+        public boolean mobShowChat = false;
+        public boolean mobShowStagesInChat = true;
     }
 }

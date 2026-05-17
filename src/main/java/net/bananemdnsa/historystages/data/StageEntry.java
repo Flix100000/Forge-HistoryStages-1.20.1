@@ -40,7 +40,6 @@ public class StageEntry {
 
     @JsonAdapter(StructureLocksAdapter.class)
     private StructureLocks structures;
-
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
@@ -48,7 +47,6 @@ public class StageEntry {
         this.items = new ArrayList<>();
         this.tags = new ArrayList<>();
         this.mods = new ArrayList<>();
-        // tags/mods are List<NamedLockEntry>, initialized as empty lists above
         this.modExceptions = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
@@ -89,24 +87,20 @@ public class StageEntry {
         return items != null ? items : new ArrayList<>();
     }
 
-    /** Returns tag IDs only (no lock_actions). For backwards-compatible iteration. */
     public List<String> getTags() {
         if (tags == null) return new ArrayList<>();
         return tags.stream().map(NamedLockEntry::getId).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    /** Returns the full tag entries including lock_actions. */
     public List<NamedLockEntry> getTagEntries() {
         return tags != null ? tags : new ArrayList<>();
     }
 
-    /** Returns mod IDs only (no lock_actions). For backwards-compatible iteration. */
     public List<String> getMods() {
         if (mods == null) return new ArrayList<>();
         return mods.stream().map(NamedLockEntry::getId).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    /** Returns the full mod entries including lock_actions. */
     public List<NamedLockEntry> getModEntries() {
         return mods != null ? mods : new ArrayList<>();
     }
@@ -208,34 +202,26 @@ public class StageEntry {
         this.items = items != null ? new ArrayList<>(items) : new ArrayList<>();
     }
 
-    /** Sets tags from plain IDs (no lock_actions — all actions locked). */
     public void setTags(List<String> tags) {
         if (tags == null) {
             this.tags = new ArrayList<>();
         } else {
-            this.tags = tags.stream()
-                    .map(NamedLockEntry::new)
-                    .collect(Collectors.toCollection(ArrayList::new));
+            this.tags = tags.stream().map(NamedLockEntry::new).collect(Collectors.toCollection(ArrayList::new));
         }
     }
 
-    /** Sets tags from full NamedLockEntry list (preserves lock_actions). */
     public void setTagEntries(List<NamedLockEntry> tags) {
         this.tags = tags != null ? new ArrayList<>(tags) : new ArrayList<>();
     }
 
-    /** Sets mods from plain IDs (no lock_actions — all actions locked). */
     public void setMods(List<String> mods) {
         if (mods == null) {
             this.mods = new ArrayList<>();
         } else {
-            this.mods = mods.stream()
-                    .map(NamedLockEntry::new)
-                    .collect(Collectors.toCollection(ArrayList::new));
+            this.mods = mods.stream().map(NamedLockEntry::new).collect(Collectors.toCollection(ArrayList::new));
         }
     }
 
-    /** Sets mods from full NamedLockEntry list (preserves lock_actions). */
     public void setModEntries(List<NamedLockEntry> mods) {
         this.mods = mods != null ? new ArrayList<>(mods) : new ArrayList<>();
     }
@@ -265,12 +251,16 @@ public class StageEntry {
     }
 
     public void setStructures(List<String> structures) {
-        if (this.structures == null) this.structures = new StructureLocks();
+        if (this.structures == null) {
+            this.structures = new StructureLocks();
+        }
         this.structures.setStructures(structures);
     }
 
     public void setStructureModLinked(List<String> modLinked) {
-        if (this.structures == null) this.structures = new StructureLocks();
+        if (this.structures == null) {
+            this.structures = new StructureLocks();
+        }
         this.structures.setModLinked(modLinked);
     }
 
