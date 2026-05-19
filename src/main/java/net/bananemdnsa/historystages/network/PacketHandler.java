@@ -49,6 +49,9 @@ public class PacketHandler {
 
         // Lock feedback (Server → Client) — client reads its own CLIENT config to decide display
         registrar.playToClient(LockFeedbackPacket.TYPE, LockFeedbackPacket.STREAM_CODEC, LockFeedbackPacket::handle);
+
+        // Lock border sync (Server → Client) — drives the force-field overlay near locked structures
+        registrar.playToClient(SyncLockBordersPacket.TYPE, SyncLockBordersPacket.STREAM_CODEC, SyncLockBordersPacket::handle);
     }
 
     public static void sendToAll(SyncStagesPacket packet) {
@@ -93,6 +96,10 @@ public class PacketHandler {
 
     // Send lock feedback (dimension or mob) to a specific player — client decides display
     public static void sendLockFeedbackToPlayer(LockFeedbackPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    public static void sendLockBordersToPlayer(SyncLockBordersPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
 

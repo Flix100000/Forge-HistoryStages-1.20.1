@@ -4,9 +4,12 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncLockBordersPacket;
 import net.bananemdnsa.historystages.structure.ClusterBuilder;
 import net.bananemdnsa.historystages.structure.ClusterDebugRenderer;
 import net.bananemdnsa.historystages.structure.StructureCluster;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
@@ -54,6 +57,8 @@ public class StructureLockHandler {
         List<StructureCluster> cachedNearbyClusters = Collections.emptyList();
         /** Subset of nearby clusters whose structure is currently locked AND which contain the player. */
         List<StructureCluster> cachedActiveLockedClusters = Collections.emptyList();
+        /** Hash of the last-sent border BB list, to skip redundant network sends. */
+        int lastBorderHash = 0;
     }
 
     @SubscribeEvent
@@ -114,26 +119,18 @@ public class StructureLockHandler {
             state.cachedLockedStructureIds = Collections.emptyList();
             state.cachedLockedStageIds = Collections.emptyList();
             state.cachedActiveLockedClusters = Collections.emptyList();
+            syncBordersIfChanged(player, state, Collections.emptyList());
             return;
         }
 
-        // Determine which clusters actually contain the player.
-        List<StructureCluster> active = new ArrayList<>();
+        // Collect structure IDs/tags from ALL nearby clusters so we can match locked
+        // entries even when the player is just close to (not inside) a structure.
         Set<String> presentIds = new HashSet<>();
         Set<String> presentTags = new HashSet<>();
         for (StructureCluster c : nearby) {
-            if (!c.contains(pos)) continue;
-            active.add(c);
             Holder.Reference<Structure> h = c.structure();
             h.unwrapKey().ifPresent(k -> presentIds.add(k.location().toString()));
             h.tags().forEach(t -> presentTags.add(t.location().toString()));
-        }
-
-        if (active.isEmpty()) {
-            state.cachedLockedStructureIds = Collections.emptyList();
-            state.cachedLockedStageIds = Collections.emptyList();
-            state.cachedActiveLockedClusters = Collections.emptyList();
-            return;
         }
 
         Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(
@@ -142,7 +139,6 @@ public class StructureLockHandler {
         LinkedHashSet<String> lockedStructures = new LinkedHashSet<>();
         LinkedHashSet<String> lockedStages = new LinkedHashSet<>();
 
-        // Global stages
         for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
             String stageId = e.getKey();
             if (StageData.SERVER_CACHE.contains(stageId)) continue;
@@ -157,7 +153,6 @@ public class StructureLockHandler {
             }
         }
 
-        // Individual stages
         for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
             String stageId = e.getKey();
             if (playerStages.contains(stageId)) continue;
@@ -172,23 +167,90 @@ public class StructureLockHandler {
             }
         }
 
-        state.cachedLockedStructureIds = new ArrayList<>(lockedStructures);
-        state.cachedLockedStageIds = new ArrayList<>(lockedStages);
-
-        // Active locked clusters = active clusters whose structure id matches one of the locked ids.
+        // Locked clusters near the player (regardless of whether they contain him).
+        // Border rendering uses this; the "active" subset (containing pos) drives the
+        // damage / message paths.
+        List<StructureCluster> lockedNearby = new ArrayList<>();
         List<StructureCluster> activeLocked = new ArrayList<>();
-        for (StructureCluster c : active) {
-            String id = c.structure().unwrapKey().map(k -> k.location().toString()).orElse(null);
-            if (id == null) continue;
-            if (lockedStructures.contains(id)) {
+        LinkedHashSet<String> activeStructureIds = new LinkedHashSet<>();
+        LinkedHashSet<String> activeStageIds = new LinkedHashSet<>();
+
+        for (StructureCluster c : nearby) {
+            if (!structureMatchesLocked(c, lockedStructures)) continue;
+            lockedNearby.add(c);
+            if (c.contains(pos)) {
                 activeLocked.add(c);
-                continue;
+                c.structure().unwrapKey().ifPresent(k -> activeStructureIds.add(k.location().toString()));
             }
-            // Match via tags too (entries starting with #)
-            boolean tagMatched = c.structure().tags().anyMatch(t -> lockedStructures.contains("#" + t.location()));
-            if (tagMatched) activeLocked.add(c);
         }
+
+        // Stage IDs whose entries actually intersect an active (contained) cluster.
+        if (!activeLocked.isEmpty()) {
+            Set<String> activeIdsView = activeStructureIds;
+            Set<String> activeTagsView = new HashSet<>();
+            for (StructureCluster c : activeLocked) {
+                c.structure().tags().forEach(t -> activeTagsView.add(t.location().toString()));
+            }
+            for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
+                if (!lockedStages.contains(e.getKey())) continue;
+                List<String> entries = e.getValue().getStructures();
+                if (entries == null) continue;
+                for (String entry : entries) {
+                    if (matchEntry(entry, activeIdsView, activeTagsView) != null) {
+                        activeStageIds.add(e.getKey());
+                        break;
+                    }
+                }
+            }
+            for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
+                if (!lockedStages.contains(e.getKey())) continue;
+                List<String> entries = e.getValue().getStructures();
+                if (entries == null) continue;
+                for (String entry : entries) {
+                    if (matchEntry(entry, activeIdsView, activeTagsView) != null) {
+                        activeStageIds.add(e.getKey());
+                        break;
+                    }
+                }
+            }
+        }
+
+        state.cachedLockedStructureIds = new ArrayList<>(activeStructureIds);
+        state.cachedLockedStageIds = new ArrayList<>(activeStageIds);
         state.cachedActiveLockedClusters = activeLocked;
+
+        // For border rendering we send one envelope per locked cluster — the union of all
+        // its lockShapes — so the client sees a single outer wall per village/dungeon
+        // instead of many small box faces.
+        List<BoundingBox> borderShapes = new ArrayList<>(lockedNearby.size());
+        for (StructureCluster c : lockedNearby) borderShapes.add(c.bounds());
+        syncBordersIfChanged(player, state, borderShapes);
+    }
+
+    private static boolean structureMatchesLocked(StructureCluster c, Set<String> lockedStructures) {
+        String id = c.structure().unwrapKey().map(k -> k.location().toString()).orElse(null);
+        if (id != null && lockedStructures.contains(id)) return true;
+        return c.structure().tags().anyMatch(t -> lockedStructures.contains("#" + t.location()));
+    }
+
+    private static void syncBordersIfChanged(ServerPlayer player, PlayerState state, List<BoundingBox> shapes) {
+        int hash = computeBoxHash(shapes);
+        if (hash == state.lastBorderHash) return;
+        state.lastBorderHash = hash;
+        PacketHandler.sendLockBordersToPlayer(new SyncLockBordersPacket(shapes), player);
+    }
+
+    private static int computeBoxHash(List<BoundingBox> shapes) {
+        int h = shapes.size();
+        for (BoundingBox b : shapes) {
+            h = h * 31 + b.minX();
+            h = h * 31 + b.minY();
+            h = h * 31 + b.minZ();
+            h = h * 31 + b.maxX();
+            h = h * 31 + b.maxY();
+            h = h * 31 + b.maxZ();
+        }
+        return h;
     }
 
     private static String matchEntry(String entry, Set<String> presentIds, Set<String> presentTags) {

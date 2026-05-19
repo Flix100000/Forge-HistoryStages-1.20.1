@@ -20,6 +20,8 @@ public class Config {
         public final ModConfigSpec.BooleanValue dimShowChat;
         public final ModConfigSpec.BooleanValue dimShowStagesInChat;
         public final ModConfigSpec.BooleanValue showLockIcons;
+        public final ModConfigSpec.BooleanValue structureBorderEnabled;
+        public final ModConfigSpec.DoubleValue structureBorderDistance;
         public final ModConfigSpec.BooleanValue mobUseActionbar;
         public final ModConfigSpec.BooleanValue mobShowChat;
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
@@ -55,6 +57,14 @@ public class Config {
             showLockIcons = builder
                     .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
                     .define("showLockIcons", true);
+
+            structureBorderEnabled = builder
+                    .comment("Render a force-field-style border on the walls of locked structures when you get close? [Default: true]")
+                    .define("structureBorderEnabled", true);
+
+            structureBorderDistance = builder
+                    .comment("How close (in blocks) to a locked structure wall before the border becomes visible. The border fades in as you approach. [Default: 8.0]")
+                    .defineInRange("structureBorderDistance", 8.0, 1.0, 32.0);
 
             builder.pop();
 
