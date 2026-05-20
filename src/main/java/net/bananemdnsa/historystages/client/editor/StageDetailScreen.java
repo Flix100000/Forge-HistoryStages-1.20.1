@@ -429,6 +429,18 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         }, () -> getActiveList());
         itemSearch.setMultiSelect(true);
+        // Ctrl-add: dump the inventory ItemStack's custom_data + components as
+        // the new entry's match criteria. Always creates a fresh entry (rather
+        // than coalescing by ID) so the user can lock specific NBT variants of
+        // the same item separately.
+        itemSearch.setOnSelectWithNbt((itemId, nbt) -> {
+            editItems.add(itemId);
+            if (nbt != null && nbt.size() > 0) {
+                editItemNbt.put(editItems.size() - 1, nbt);
+            }
+            hasChanges = true;
+            updateMaxScroll();
+        });
 
         modExceptionSearch = createModExceptionSearch();
 
@@ -2666,6 +2678,14 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         }, () -> editModExceptions);
         search.setMultiSelect(true);
+        search.setOnSelectWithNbt((itemId, nbt) -> {
+            editModExceptions.add(itemId);
+            if (nbt != null && nbt.size() > 0) {
+                editModExceptionNbt.put(editModExceptions.size() - 1, nbt);
+            }
+            hasChanges = true;
+            updateMaxScroll();
+        });
         search.setModFilter(new java.util.HashSet<>(editMods));
         return search;
     }

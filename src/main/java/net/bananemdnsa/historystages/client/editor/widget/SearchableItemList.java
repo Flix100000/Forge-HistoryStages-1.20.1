@@ -1,23 +1,46 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.Potion;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.item.component.CustomModelData;
+import net.minecraft.world.item.component.ItemLore;
+import net.minecraft.world.item.component.Unbreakable;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -56,6 +79,15 @@ public class SearchableItemList {
     /** Filtered view of {@link #selectedSnapshot} for the current search filter. */
     private final List<SelectedRef> selectedView = new ArrayList<>();
     private final Consumer<String> onSelect;
+    /**
+     * Optional callback invoked when the user holds Ctrl while confirming the
+     * add. The JsonObject contains match criteria derived from the selected
+     * inventory ItemStack (top-level custom_data keys plus a "components"
+     * sub-object holding every non-default data component). Null when the
+     * caller doesn't support per-entry NBT (then Ctrl is treated as a regular
+     * add).
+     */
+    private BiConsumer<String, JsonObject> onSelectWithNbt = null;
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
 
@@ -70,6 +102,9 @@ public class SearchableItemList {
     private boolean multiSelect = false;
     private final Set<String> selectedRegistryIds = new LinkedHashSet<>();
     private final Set<Integer> selectedInventorySlots = new LinkedHashSet<>();
+    /** Subset of {@link #selectedInventorySlots} that were Ctrl-clicked and
+     *  should be added with NBT match criteria built from the live ItemStack. */
+    private final Set<Integer> nbtSelectedInventorySlots = new LinkedHashSet<>();
 
     private float tabIndicatorX = 0;
     private float tabIndicatorW = 0;
@@ -103,6 +138,16 @@ public class SearchableItemList {
         this.multiSelect = multi;
     }
 
+    /**
+     * Enables Ctrl-add: when the user holds Ctrl while confirming the add, this
+     * callback fires instead of {@link #onSelect}, with NBT criteria built from
+     * the inventory ItemStack. Has no effect for registry-tab items (no stack
+     * data to dump) — those still go through {@link #onSelect}.
+     */
+    public void setOnSelectWithNbt(BiConsumer<String, JsonObject> onSelectWithNbt) {
+        this.onSelectWithNbt = onSelectWithNbt;
+    }
+
     public void show(int centerX, int centerY, int parentWidth) {
         this.centerX = centerX;
         this.centerY = centerY;
@@ -112,6 +157,7 @@ public class SearchableItemList {
         this.currentTab = TAB_REGISTRY;
         this.selectedRegistryIds.clear();
         this.selectedInventorySlots.clear();
+        this.nbtSelectedInventorySlots.clear();
         this.tabIndicatorInit = false;
         searchBar.setPlaceholder("Search items...");
         searchBar.setText("");
@@ -654,18 +700,29 @@ public class SearchableItemList {
                             && mouseY >= slotY && mouseY < slotY + SLOT_SIZE;
                     SelectedRef ref = selectedView.get(index);
                     boolean active = isStillSelected(ref);
+                    boolean nbtFlagged = active && ref.fromInventory
+                            && nbtSelectedInventorySlots.contains(ref.inventorySlot);
 
-                    int borderColor = active
-                            ? (slotHovered ? 0xFFFF8800 : 0xFFFFCC00)
-                            : (slotHovered ? 0xFF884444 : 0xFF552020);
-                    int bgColor = active
-                            ? (slotHovered ? 0xFF553A10 : 0xFF2A2510)
-                            : (slotHovered ? 0xFF3A1A1A : 0xFF1A0D0D);
+                    int borderColor;
+                    int bgColor;
+                    if (nbtFlagged) {
+                        borderColor = slotHovered ? 0xFF44AADD : 0xFF66CCFF;
+                        bgColor = slotHovered ? 0xFF1A3340 : 0xFF10222A;
+                    } else if (active) {
+                        borderColor = slotHovered ? 0xFFFF8800 : 0xFFFFCC00;
+                        bgColor = slotHovered ? 0xFF553A10 : 0xFF2A2510;
+                    } else {
+                        borderColor = slotHovered ? 0xFF884444 : 0xFF552020;
+                        bgColor = slotHovered ? 0xFF3A1A1A : 0xFF1A0D0D;
+                    }
                     guiGraphics.fill(slotX, slotY, slotX + SLOT_SIZE, slotY + SLOT_SIZE, borderColor);
                     guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1, bgColor);
 
                     guiGraphics.renderItem(ref.entry.stack, slotX + 1, slotY + 1);
-                    if (active) {
+                    if (nbtFlagged) {
+                        guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
+                                0x4066CCFF);
+                    } else if (active) {
                         guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
                                 0x40FFCC00);
                     } else {
@@ -713,11 +770,22 @@ public class SearchableItemList {
         boolean isEmpty = stack.isEmpty();
         boolean isAllowed = isEmpty || isItemAllowedByModFilter(stack);
         boolean isSelected = selectedInventorySlots.contains(slotIndex);
+        boolean isNbtSelected = nbtSelectedInventorySlots.contains(slotIndex);
         boolean isHovered = !isEmpty && isAllowed && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y
                 && mouseY < y + SLOT_SIZE;
 
-        int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
-        int bgColor = isSelected ? 0xFF2A2510 : (isHovered ? 0xFF353535 : 0xFF1A1A1A);
+        int borderColor;
+        int bgColor;
+        if (isNbtSelected) {
+            borderColor = 0xFF66CCFF; // cyan = will be added with NBT
+            bgColor = 0xFF10222A;
+        } else if (isSelected) {
+            borderColor = 0xFFFFCC00; // yellow = plain selection
+            bgColor = 0xFF2A2510;
+        } else {
+            borderColor = 0xFF252525;
+            bgColor = isHovered ? 0xFF353535 : 0xFF1A1A1A;
+        }
 
         guiGraphics.fill(x, y, x + SLOT_SIZE, y + SLOT_SIZE, borderColor);
         guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, bgColor);
@@ -732,7 +800,9 @@ public class SearchableItemList {
                         true);
                 guiGraphics.pose().popPose();
             }
-            if (isSelected) {
+            if (isNbtSelected) {
+                guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x4066CCFF);
+            } else if (isSelected) {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x40FFCC00);
             }
             if (!isAllowed) {
@@ -916,41 +986,215 @@ public class SearchableItemList {
         Minecraft.getInstance().getSoundManager()
                 .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
 
+        LocalPlayer player = Minecraft.getInstance().player;
+
         if (multiSelect) {
-            List<String> ids = new ArrayList<>();
-            ids.addAll(selectedRegistryIds);
-            LocalPlayer player = Minecraft.getInstance().player;
+            // Registry-tab selections never carry stack data, so they always go
+            // through onSelect — there's nothing to derive NBT from.
+            for (String id : selectedRegistryIds) {
+                onSelect.accept(id);
+            }
             if (player != null) {
                 for (Integer slot : selectedInventorySlots) {
                     ItemStack stack = player.getInventory().getItem(slot);
-                    if (!stack.isEmpty()) {
-                        ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                        if (key != null && !ids.contains(key.toString())) {
-                            ids.add(key.toString());
-                        }
-                    }
+                    if (stack.isEmpty()) continue;
+                    ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                    if (key == null) continue;
+                    emitInventoryItem(key.toString(), stack, nbtSelectedInventorySlots.contains(slot));
                 }
-            }
-            for (String id : ids) {
-                onSelect.accept(id);
             }
         } else if (!selectedRegistryIds.isEmpty()) {
             onSelect.accept(selectedRegistryIds.iterator().next());
         } else if (!selectedInventorySlots.isEmpty()) {
-            LocalPlayer player = Minecraft.getInstance().player;
             if (player != null) {
                 int slot = selectedInventorySlots.iterator().next();
                 ItemStack stack = player.getInventory().getItem(slot);
                 if (!stack.isEmpty()) {
                     ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
                     if (key != null) {
-                        onSelect.accept(key.toString());
+                        emitInventoryItem(key.toString(), stack, nbtSelectedInventorySlots.contains(slot));
                     }
                 }
             }
         }
         hide();
         return true;
+    }
+
+    private void emitInventoryItem(String id, ItemStack stack, boolean withNbt) {
+        if (withNbt && onSelectWithNbt != null) {
+            JsonObject nbt = buildNbtCriteriaFromStack(stack);
+            onSelectWithNbt.accept(id, nbt.size() > 0 ? nbt : null);
+        } else {
+            onSelect.accept(id);
+        }
+    }
+
+    /**
+     * Builds an NBT-criteria JsonObject from an ItemStack that matches the
+     * shape the NbtItemEditScreen produces.
+     * <p>
+     * Three sources feed into the result:
+     * <ul>
+     *     <li>{@link DataComponents#CUSTOM_DATA} → top-level keys (custom NBT).</li>
+     *     <li>Well-known vanilla components (enchantments, lore, custom model
+     *         data, …) → top-level legacy keys ({@code Enchantments},
+     *         {@code display.Lore}, …) so the editor's Data Properties section
+     *         picks them up.</li>
+     *     <li>Every other patched data component (mod-defined or non-mapped
+     *         vanilla) → {@code components} sub-object, encoded via its codec.</li>
+     * </ul>
+     */
+    private static JsonObject buildNbtCriteriaFromStack(ItemStack stack) {
+        JsonObject result = new JsonObject();
+
+        // Top-level keys from CUSTOM_DATA (convert NBT → JSON).
+        CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
+        if (customData != null) {
+            Tag tag = customData.copyTag();
+            if (tag instanceof net.minecraft.nbt.CompoundTag compound && !compound.isEmpty()) {
+                JsonElement asJson = NbtOps.INSTANCE.convertTo(JsonOps.INSTANCE, compound);
+                if (asJson != null && asJson.isJsonObject()) {
+                    for (Map.Entry<String, JsonElement> e : asJson.getAsJsonObject().entrySet()) {
+                        result.add(e.getKey(), e.getValue());
+                    }
+                }
+            }
+        }
+
+        // Components: only the patched (non-default) ones, so the criteria
+        // doesn't over-restrict to every default value the item ships with.
+        // Components that map to one of the editor's well-known "Data
+        // Properties" get emitted in legacy form at the top level instead, so
+        // the editor's checkboxes pre-populate naturally.
+        JsonObject components = new JsonObject();
+        DataComponentPatch patch = stack.getComponentsPatch();
+        for (Map.Entry<DataComponentType<?>, Optional<?>> entry : patch.entrySet()) {
+            DataComponentType<?> type = entry.getKey();
+            // CUSTOM_DATA is already represented at the top level.
+            if (type == DataComponents.CUSTOM_DATA) continue;
+            Optional<?> opt = entry.getValue();
+            if (opt.isEmpty()) continue; // patch removal — can't express as a match criterion
+            Object value = opt.get();
+
+            if (emitLegacyTopLevel(result, type, value)) continue;
+
+            if (type.codec() == null) continue;
+            ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
+            if (id == null) continue;
+            JsonElement encoded = encodeComponent(type, value);
+            if (encoded != null) components.add(id.toString(), encoded);
+        }
+        if (components.size() > 0) result.add("components", components);
+
+        return result;
+    }
+
+    /**
+     * Translates a single data component into one of the editor's Data
+     * Properties top-level keys. Returns true when the component was handled
+     * (caller then skips it from the {@code components} sub-object).
+     */
+    private static boolean emitLegacyTopLevel(JsonObject result, DataComponentType<?> type, Object value) {
+        if (type == DataComponents.ENCHANTMENTS && value instanceof ItemEnchantments ench) {
+            if (!ench.isEmpty()) result.add("Enchantments", toEnchantmentJsonList(ench));
+            return true;
+        }
+        if (type == DataComponents.STORED_ENCHANTMENTS && value instanceof ItemEnchantments stored) {
+            if (!stored.isEmpty()) result.add("StoredEnchantments", toEnchantmentJsonList(stored));
+            return true;
+        }
+        if (type == DataComponents.CUSTOM_MODEL_DATA && value instanceof CustomModelData cmd) {
+            result.addProperty("CustomModelData", cmd.value());
+            return true;
+        }
+        if (type == DataComponents.UNBREAKABLE && value instanceof Unbreakable) {
+            result.addProperty("Unbreakable", true);
+            return true;
+        }
+        if (type == DataComponents.REPAIR_COST && value instanceof Integer repair) {
+            result.addProperty("RepairCost", repair);
+            return true;
+        }
+        if (type == DataComponents.POTION_CONTENTS && value instanceof PotionContents pc) {
+            ResourceLocation potionId = pc.potion()
+                    .flatMap(Holder::unwrapKey)
+                    .map(ResourceKey::location)
+                    .orElse(null);
+            if (potionId != null) result.addProperty("Potion", potionId.toString());
+            return true;
+        }
+        if (type == DataComponents.CUSTOM_NAME && value instanceof Component nameComp) {
+            String json = chatComponentToJson(nameComp);
+            if (json != null) ensureDisplay(result).addProperty("Name", json);
+            return true;
+        }
+        if (type == DataComponents.ITEM_NAME && value instanceof Component itemNameComp) {
+            // item_name is a 1.21 fallback display name that the editor doesn't
+            // have a dedicated row for; surface it as display.Name so the user
+            // sees something rather than nothing.
+            JsonObject display = ensureDisplay(result);
+            if (!display.has("Name")) {
+                String json = chatComponentToJson(itemNameComp);
+                if (json != null) display.addProperty("Name", json);
+            }
+            return true;
+        }
+        if (type == DataComponents.LORE && value instanceof ItemLore lore) {
+            if (!lore.lines().isEmpty()) {
+                JsonArray loreArr = new JsonArray();
+                for (Component line : lore.lines()) {
+                    String s = chatComponentToJson(line);
+                    if (s != null) loreArr.add(s);
+                }
+                if (loreArr.size() > 0) ensureDisplay(result).add("Lore", loreArr);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static JsonObject ensureDisplay(JsonObject root) {
+        if (root.has("display") && root.get("display").isJsonObject()) {
+            return root.getAsJsonObject("display");
+        }
+        JsonObject display = new JsonObject();
+        root.add("display", display);
+        return display;
+    }
+
+    /**
+     * Serializes a chat {@link Component} into the JSON string the legacy
+     * {@code display.Name}/{@code display.Lore} fields expect. Needs registry
+     * access (available client-side once a world is loaded). Returns null if
+     * not available — caller treats that as "skip this entry".
+     */
+    private static String chatComponentToJson(Component comp) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        try {
+            return Component.Serializer.toJson(comp, mc.level.registryAccess());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static JsonArray toEnchantmentJsonList(ItemEnchantments enchantments) {
+        JsonArray arr = new JsonArray();
+        for (var entry : enchantments.entrySet()) {
+            ResourceLocation id = entry.getKey().unwrapKey().map(ResourceKey::location).orElse(null);
+            if (id == null) continue;
+            JsonObject e = new JsonObject();
+            e.addProperty("id", id.toString());
+            e.addProperty("lvl", entry.getIntValue());
+            arr.add(e);
+        }
+        return arr;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> JsonElement encodeComponent(DataComponentType<T> type, Object value) {
+        return type.codec().encodeStart(JsonOps.INSTANCE, (T) value).result().orElse(null);
     }
 
     private boolean isAddButtonAt(double mouseX, double mouseY) {
@@ -971,15 +1215,20 @@ public class SearchableItemList {
         }
     }
 
-    private void toggleInventorySelection(int slot) {
+    private void toggleInventorySelection(int slot, boolean withNbt) {
         if (selectedInventorySlots.contains(slot)) {
             selectedInventorySlots.remove(slot);
+            nbtSelectedInventorySlots.remove(slot);
         } else {
             if (!multiSelect) {
                 selectedRegistryIds.clear();
                 selectedInventorySlots.clear();
+                nbtSelectedInventorySlots.clear();
             }
             selectedInventorySlots.add(slot);
+            if (withNbt && onSelectWithNbt != null) {
+                nbtSelectedInventorySlots.add(slot);
+            }
         }
     }
 
@@ -999,7 +1248,7 @@ public class SearchableItemList {
             if (!stack.isEmpty() && isItemAllowedByModFilter(stack)) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                toggleInventorySelection(clickedSlot);
+                toggleInventorySelection(clickedSlot, Screen.hasControlDown());
             }
             return true;
         }
@@ -1099,8 +1348,12 @@ public class SearchableItemList {
         if (ref.fromInventory) {
             if (selectedInventorySlots.contains(ref.inventorySlot)) {
                 selectedInventorySlots.remove(ref.inventorySlot);
+                nbtSelectedInventorySlots.remove(ref.inventorySlot);
             } else {
                 selectedInventorySlots.add(ref.inventorySlot);
+                if (Screen.hasControlDown() && onSelectWithNbt != null) {
+                    nbtSelectedInventorySlots.add(ref.inventorySlot);
+                }
             }
         } else {
             if (selectedRegistryIds.contains(ref.entry.id)) {
