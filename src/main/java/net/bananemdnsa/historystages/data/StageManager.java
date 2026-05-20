@@ -26,10 +26,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class StageManager {
-    private static final Map<String, StageEntry> STAGES = new HashMap<>();
-    private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new HashMap<>();
+    // ConcurrentHashMap (not HashMap) so the render thread can iterate
+    // STAGES/INDIVIDUAL_STAGES safely while a stage save or network sync
+    // mutates the map. HashMap.iterator() throws ConcurrentModificationException
+    // in that race; CHM's iterators are weakly consistent and never throw.
+    private static final Map<String, StageEntry> STAGES = new ConcurrentHashMap<>();
+    private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new ConcurrentHashMap<>();
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
