@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.commands;
 
+import com.google.gson.JsonElement;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.JsonOps;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -9,12 +12,19 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.ChatFormatting;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -57,7 +67,9 @@ public final class ClientDebugCommand {
                                 .then(Commands.literal("preset")
                                         .executes(ctx -> handlePreset(ctx.getSource())))
                                 .then(Commands.literal("custom")
-                                        .executes(ctx -> handleCustom(ctx.getSource()))))));
+                                        .executes(ctx -> handleCustom(ctx.getSource())))
+                                .then(Commands.literal("components")
+                                        .executes(ctx -> handleComponents(ctx.getSource()))))));
     }
 
     // ---------- editor ----------
@@ -155,6 +167,76 @@ public final class ClientDebugCommand {
             source.sendSuccess(() -> Component.literal("  §a(no custom NBT — all keys are preset-recognized or item has no custom data)"), false);
         }
         return 1;
+    }
+
+    // ---------- components (data components from MC 1.20.5+) ----------
+
+    private static int handleComponents(CommandSourceStack source) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+
+        ItemStack held = player.getMainHandItem();
+        if (held.isEmpty()) {
+            source.sendFailure(Component.literal("You are not holding an item."));
+            return 0;
+        }
+
+        String itemId = BuiltInRegistries.ITEM.getKey(held.getItem()).toString();
+
+        source.sendSuccess(() -> Component.literal("§6--- Item Components ---"), false);
+        source.sendSuccess(() -> Component.literal("§7Item: §f" + itemId), false);
+        source.sendSuccess(() -> Component.literal("§8(click [Copy] to put the JSON value on your clipboard — paste it into the NBT editor's component value field)"), false);
+
+        boolean any = false;
+        for (TypedDataComponent<?> typed : held.getComponents()) {
+            any = true;
+            printComponent(source, typed);
+        }
+
+        if (!any) {
+            source.sendSuccess(() -> Component.literal("  §8(item has no components)"), false);
+        }
+        return 1;
+    }
+
+    private static <T> void printComponent(CommandSourceStack source, TypedDataComponent<T> typed) {
+        DataComponentType<T> type = typed.type();
+        ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
+        String idStr = id == null ? "<unknown>" : id.toString();
+
+        if (type.codec() == null) {
+            source.sendSuccess(() -> Component.literal("  §8• §b" + idStr + " §8(transient — no codec, can't be matched)"), false);
+            return;
+        }
+
+        DataResult<JsonElement> result = type.codec().encodeStart(JsonOps.INSTANCE, typed.value());
+        var maybe = result.result();
+        if (maybe.isEmpty()) {
+            String err = result.error().map(e -> e.message()).orElse("unknown error");
+            source.sendSuccess(() -> Component.literal("  §c• §b" + idStr + " §c(encode failed: " + err + ")"), false);
+            return;
+        }
+
+        String jsonStr = maybe.get().toString();
+
+        // Header line: bullet + ID + [Copy] button
+        Style copyStyle = Style.EMPTY
+                .withColor(ChatFormatting.AQUA)
+                .withUnderlined(true)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, jsonStr))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                        Component.literal("Click to copy this component's JSON value to clipboard")));
+
+        MutableComponent copyBtn = Component.literal(" [Copy]").withStyle(copyStyle);
+        MutableComponent line = Component.literal("  §8• §b" + idStr).append(copyBtn);
+        source.sendSuccess(() -> line, false);
+
+        // Preview line (truncated)
+        String preview = jsonStr.length() > 120 ? jsonStr.substring(0, 117) + "..." : jsonStr;
+        source.sendSuccess(() -> Component.literal("    §7" + preview), false);
     }
 
     // ---------- helpers ----------

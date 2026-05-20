@@ -39,6 +39,8 @@ public class NbtItemEditScreen extends Screen {
 
     // NBT property definitions — built once, persisted across init() calls
     private final List<NbtProperty> properties = new ArrayList<>();
+    // Generic data-component entries (rendered in their own section below the data properties)
+    private final List<ComponentEntry> componentEntries = new ArrayList<>();
     private boolean propertiesBuilt = false;
     private double scrollOffset = 0;
     private int maxScroll = 0;
@@ -60,6 +62,7 @@ public class NbtItemEditScreen extends Screen {
     // Cached suggestion lists
     private static List<String> enchantmentIds = null;
     private static List<String> potionIds = null;
+    private static List<String> componentIds = null;
 
     public NbtItemEditScreen(Screen parent, String itemId, JsonObject currentNbt, Consumer<JsonObject> onSave) {
         super(Component.literal("NBT Editor"));
@@ -102,6 +105,7 @@ public class NbtItemEditScreen extends Screen {
                             child.stringListValues.clear();
                         }
                     }
+                    componentEntries.clear();
                 },
                 this.width - PADDING - 80, this.height - 30, 80, 20));
 
@@ -141,6 +145,7 @@ public class NbtItemEditScreen extends Screen {
 
         // Collect known property keys
         java.util.Set<String> knownKeys = new java.util.HashSet<>();
+        knownKeys.add("components"); // reserved for the components section
         for (NbtProperty prop : properties) {
             knownKeys.add(prop.key);
             if (currentNbt.has(prop.key)) {
@@ -155,6 +160,16 @@ public class NbtItemEditScreen extends Screen {
                         loadChildValue(child, compound);
                     }
                 }
+            }
+        }
+
+        // Components section
+        if (currentNbt.has("components") && currentNbt.get("components").isJsonObject()) {
+            JsonObject components = currentNbt.getAsJsonObject("components");
+            for (var entry : components.entrySet()) {
+                ComponentEntry ce = new ComponentEntry(entry.getKey());
+                ce.valueJson = entry.getValue().toString();
+                componentEntries.add(ce);
             }
         }
 
@@ -234,7 +249,7 @@ public class NbtItemEditScreen extends Screen {
     }
 
     private int calculateContentHeight() {
-        int height = 0;
+        int height = ROW_HEIGHT; // "── Data Properties ──" section header
         for (NbtProperty prop : properties) {
             height += ROW_HEIGHT;
             if (prop.type == NbtType.ENCHANTMENT_LIST && prop.enabled) {
@@ -256,6 +271,9 @@ public class NbtItemEditScreen extends Screen {
             }
         }
         height += ROW_HEIGHT; // Custom NBT add row
+        height += ROW_HEIGHT; // "── Components ──" section header
+        height += componentEntries.size() * ROW_HEIGHT;
+        height += ROW_HEIGHT; // "+ Add Component" row
         return height;
     }
 
@@ -298,6 +316,12 @@ public class NbtItemEditScreen extends Screen {
         int y = listTop - (int) scrollOffset;
         int contentLeft = PADDING;
         int contentRight = this.width - PADDING;
+
+        // Data section header
+        if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
+            renderSectionDivider(g, "Data Properties", contentLeft, y, contentRight);
+        }
+        y += ROW_HEIGHT;
 
         for (NbtProperty prop : properties) {
             if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
@@ -357,6 +381,26 @@ public class NbtItemEditScreen extends Screen {
         // Custom NBT add row
         if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
             renderAddButton(g, contentLeft, y, "+ Custom NBT Key", mouseX, mouseY);
+        }
+        y += ROW_HEIGHT;
+
+        // Components section header
+        if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
+            renderSectionDivider(g, "Components", contentLeft, y, contentRight);
+        }
+        y += ROW_HEIGHT;
+
+        // Component entries
+        for (int ci = 0; ci < componentEntries.size(); ci++) {
+            if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
+                renderComponentEntry(g, componentEntries.get(ci), contentLeft, y, contentRight, mouseX, mouseY);
+            }
+            y += ROW_HEIGHT;
+        }
+
+        // Add Component row
+        if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
+            renderAddButton(g, contentLeft, y, "+ Add Component", mouseX, mouseY);
         }
 
         g.disableScissor();
@@ -511,6 +555,52 @@ public class NbtItemEditScreen extends Screen {
         g.drawString(this.font, val.isEmpty() ? "click to edit..." : val, fieldX + 4, y + 6, val.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 
+    private void renderSectionDivider(GuiGraphics g, String label, int x, int y, int right) {
+        int midY = y + ROW_HEIGHT / 2;
+        int textW = this.font.width(label);
+        int leftLineEnd = x + 12;
+        int rightLineStart = x + 12 + 8 + textW + 8;
+        g.fill(x, midY, leftLineEnd, midY + 1, 0x60FFCC00);
+        g.drawString(this.font, label, leftLineEnd + 8, midY - 4, 0xFFCC00);
+        g.fill(rightLineStart, midY, right, midY + 1, 0x60FFCC00);
+    }
+
+    private void renderComponentEntry(GuiGraphics g, ComponentEntry comp, int x, int y, int right, int mx, int my) {
+        // Remove [x] button on the left
+        int removeX = x;
+        int removeY = y + (ROW_HEIGHT - 10) / 2;
+        boolean removeHovered = mx >= removeX && mx < removeX + 10 && my >= removeY && my < removeY + 10;
+        g.fill(removeX, removeY, removeX + 10, removeY + 10, removeHovered ? 0x80FF4444 : 0x40FF4444);
+        g.drawString(this.font, "x", removeX + 2, removeY + 1, 0xFFFFFF);
+
+        // "{}" glyph as the visual marker that this is a component, not a top-level key
+        int prefixX = removeX + 14;
+        g.drawString(this.font, "{}", prefixX, y + (ROW_HEIGHT - 8) / 2, 0xFFCC00);
+
+        // Component ID
+        int idX = prefixX + this.font.width("{}") + 6;
+        g.drawString(this.font, comp.id != null ? comp.id : "", idX, y + (ROW_HEIGHT - 8) / 2, 0xFFFFFF);
+
+        // Edit button on the right
+        String btnLabel = "Edit ▸";
+        int btnW = this.font.width(btnLabel) + 14;
+        int btnX = right - btnW;
+        int btnY = y + 2;
+        boolean btnHovered = mx >= btnX && mx < btnX + btnW && my >= btnY && my < btnY + ROW_HEIGHT - 4;
+        g.fill(btnX, btnY, btnX + btnW, btnY + ROW_HEIGHT - 4, btnHovered ? 0x40FFCC00 : 0x20FFFFFF);
+        g.drawString(this.font, btnLabel, btnX + 7, btnY + 5, btnHovered ? 0xFFCC00 : 0xCCCCCC);
+
+        // Compact JSON preview between ID and edit button, dimmed
+        String preview = comp.valueJson != null ? comp.valueJson : "";
+        preview = preview.replaceAll("\\s+", " ");
+        if (preview.length() > 40) preview = preview.substring(0, 37) + "...";
+        int previewX = btnX - this.font.width(preview) - 10;
+        int idEndX = idX + this.font.width(comp.id != null ? comp.id : "") + 10;
+        if (previewX > idEndX) {
+            g.drawString(this.font, preview, previewX, y + (ROW_HEIGHT - 8) / 2, 0x666666);
+        }
+    }
+
     private void renderAddButton(GuiGraphics g, int x, int y, String label, int mx, int my) {
         int w = this.font.width(label) + 12;
         boolean hovered = mx >= x && mx < x + w && my >= y && my < y + ROW_HEIGHT;
@@ -567,6 +657,9 @@ public class NbtItemEditScreen extends Screen {
         int y = listTop - (int) scrollOffset;
         int contentLeft = PADDING;
         int contentRight = this.width - PADDING;
+
+        // Data section header (non-interactive, just consumes a row slot)
+        y += ROW_HEIGHT;
 
         for (NbtProperty prop : properties) {
             if (handlePropertyClick(prop, contentLeft, y, contentRight, mouseX, mouseY)) return true;
@@ -632,7 +725,51 @@ public class NbtItemEditScreen extends Screen {
             openCustomNbtDialog();
             return true;
         }
+        y += ROW_HEIGHT;
 
+        // Components section header (non-interactive)
+        y += ROW_HEIGHT;
+
+        // Component entries
+        for (int ci = 0; ci < componentEntries.size(); ci++) {
+            if (handleComponentEntryClick(ci, contentLeft, y, contentRight, mouseX, mouseY)) return true;
+            y += ROW_HEIGHT;
+        }
+
+        // + Add Component
+        int addCompW = this.font.width("+ Add Component") + 12;
+        if (mouseX >= contentLeft && mouseX < contentLeft + addCompW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            openAddComponentDialog();
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean handleComponentEntryClick(int idx, int x, int y, int right, double mx, double my) {
+        ComponentEntry comp = componentEntries.get(idx);
+
+        // Remove [x] click
+        int removeX = x;
+        int removeY = y + (ROW_HEIGHT - 10) / 2;
+        if (mx >= removeX && mx < removeX + 10 && my >= removeY && my < removeY + 10) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            componentEntries.remove(idx);
+            updateMaxScroll();
+            return true;
+        }
+
+        // Edit ▸ button click
+        String btnLabel = "Edit ▸";
+        int btnW = this.font.width(btnLabel) + 14;
+        int btnX = right - btnW;
+        int btnY = y + 2;
+        if (mx >= btnX && mx < btnX + btnW && my >= btnY && my < btnY + ROW_HEIGHT - 4) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            openComponentValueEditor(comp);
+            return true;
+        }
         return false;
     }
 
@@ -751,6 +888,24 @@ public class NbtItemEditScreen extends Screen {
         }));
     }
 
+    private void openAddComponentDialog() {
+        openSuggestingInput("Component ID", "", getComponentSuggestions(), id -> {
+            String trimmed = id == null ? "" : id.trim();
+            if (trimmed.isEmpty()) return;
+            ComponentEntry ce = new ComponentEntry(trimmed);
+            componentEntries.add(ce);
+            updateMaxScroll();
+            // Immediately open the JSON value editor for the new component
+            openComponentValueEditor(ce);
+        });
+    }
+
+    private void openComponentValueEditor(ComponentEntry comp) {
+        this.minecraft.setScreen(new ComponentValueEditScreen(this, comp.id, comp.valueJson, json -> {
+            comp.valueJson = json;
+        }));
+    }
+
     // ==========================================
     // Suggestions
     // ==========================================
@@ -779,6 +934,17 @@ public class NbtItemEditScreen extends Screen {
             Collections.sort(potionIds);
         }
         return potionIds;
+    }
+
+    private static List<String> getComponentSuggestions() {
+        if (componentIds == null || componentIds.isEmpty()) {
+            componentIds = new ArrayList<>();
+            for (ResourceLocation key : BuiltInRegistries.DATA_COMPONENT_TYPE.keySet()) {
+                componentIds.add(key.toString());
+            }
+            Collections.sort(componentIds);
+        }
+        return componentIds;
     }
 
     // ==========================================
@@ -913,7 +1079,30 @@ public class NbtItemEditScreen extends Screen {
                 }
             }
         }
+
+        // Components section — emit as a "components" object only if user added any
+        if (!componentEntries.isEmpty()) {
+            JsonObject components = new JsonObject();
+            for (ComponentEntry ce : componentEntries) {
+                if (ce.id == null || ce.id.isEmpty()) continue;
+                JsonObject parsed = parseComponentValueOrNull(ce.valueJson);
+                if (parsed != null) components.add(ce.id, parsed);
+            }
+            if (components.size() > 0) nbt.add("components", components);
+        }
         return nbt;
+    }
+
+    private static JsonObject parseComponentValueOrNull(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) return null;
+        try {
+            var parsed = com.google.gson.JsonParser.parseString(trimmed);
+            return parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
@@ -984,6 +1173,16 @@ public class NbtItemEditScreen extends Screen {
         EnchantmentEntry(String id, String level) {
             this.id = id;
             this.level = level;
+        }
+    }
+
+    static class ComponentEntry {
+        String id;
+        String valueJson;
+
+        ComponentEntry(String id) {
+            this.id = id;
+            this.valueJson = "{}";
         }
     }
 
@@ -1292,6 +1491,126 @@ public class NbtItemEditScreen extends Screen {
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
             if (keyCode == 257) { confirm(); return true; }
             if (keyCode == 256) { this.minecraft.setScreen(parent); return true; }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public boolean isPauseScreen() { return true; }
+    }
+
+    // ==========================================
+    // Component value editor (raw JSON object for one data-component)
+    // ==========================================
+
+    static class ComponentValueEditScreen extends Screen {
+        private final Screen parent;
+        private final String componentId;
+        private final String initialValue;
+        private final Consumer<String> onDone;
+        private EditBox valueField;
+        private String validationMessage = "";
+        private boolean valid = true;
+
+        ComponentValueEditScreen(Screen parent, String componentId, String initialValue, Consumer<String> onDone) {
+            super(Component.literal("Edit Component Value"));
+            this.parent = parent;
+            this.componentId = componentId;
+            this.initialValue = initialValue != null ? initialValue : "{}";
+            this.onDone = onDone;
+        }
+
+        @Override
+        protected void init() {
+            int centerX = this.width / 2;
+            int centerY = this.height / 2;
+
+            valueField = new EditBox(this.font, centerX - 200 + 4, centerY - 5 + 6, 400 - 4, 20, Component.literal("JSON"));
+            valueField.setMaxLength(8192);
+            valueField.setHint(Component.literal("{\"key\": \"value\"}"));
+            valueField.setBordered(false);
+            valueField.setTextColor(0xFFFFFF);
+            valueField.setValue(initialValue);
+            valueField.moveCursorToEnd(false);
+            valueField.setResponder(this::validate);
+            this.addRenderableWidget(valueField);
+            this.setFocused(valueField);
+
+            this.addRenderableWidget(StyledButton.of(
+                    Component.literal("OK"),
+                    btn -> confirm(),
+                    centerX - 105, centerY + 50, 100, 20));
+            this.addRenderableWidget(StyledButton.of(
+                    Component.literal("Cancel"),
+                    btn -> this.minecraft.setScreen(parent),
+                    centerX + 5, centerY + 50, 100, 20));
+
+            validate(initialValue);
+        }
+
+        private void validate(String raw) {
+            String trimmed = raw == null ? "" : raw.trim();
+            if (trimmed.isEmpty()) {
+                valid = false;
+                validationMessage = "Value cannot be empty (use {} for no constraints).";
+                return;
+            }
+            try {
+                var parsed = com.google.gson.JsonParser.parseString(trimmed);
+                if (!parsed.isJsonObject()) {
+                    valid = false;
+                    validationMessage = "Value must be a JSON object ({ ... }).";
+                    return;
+                }
+                valid = true;
+                validationMessage = "Valid JSON.";
+            } catch (Exception e) {
+                valid = false;
+                validationMessage = "Invalid JSON: " + e.getMessage();
+            }
+        }
+
+        @Override
+        public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
+        }
+
+        @Override
+        public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            g.fill(0, 0, this.width, this.height, 0xC0000000);
+            int centerX = this.width / 2;
+            int centerY = this.height / 2;
+
+            int dlgW = 460;
+            int dlgH = 160;
+            int dlgX = centerX - dlgW / 2;
+            int dlgY = centerY - dlgH / 2;
+            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
+            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
+
+            g.drawCenteredString(this.font, "Component Value", centerX, dlgY + 10, 0xFFCC00);
+            g.drawCenteredString(this.font, componentId, centerX, dlgY + 24, 0xCCCCCC);
+
+            int fx = centerX - 200, fy = centerY - 5, fw = 400, fh = 20;
+            int fBorder = valueField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
+            g.fill(fx - 1, fy - 1, fx + fw + 1, fy + fh + 1, fBorder);
+            g.fill(fx, fy, fx + fw, fy + fh, 0xFF0D0D0D);
+
+            int statusColor = valid ? 0x66FF66 : 0xFF8866;
+            g.drawString(this.font, validationMessage, centerX - 200, centerY + 22, statusColor);
+
+            super.render(g, mouseX, mouseY, partialTick);
+        }
+
+        private void confirm() {
+            if (!valid) return; // refuse to save broken JSON
+            onDone.accept(valueField.getValue().trim());
+            this.minecraft.setScreen(parent);
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (keyCode == 257) { confirm(); return true; } // Enter
+            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; } // Escape
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
 
