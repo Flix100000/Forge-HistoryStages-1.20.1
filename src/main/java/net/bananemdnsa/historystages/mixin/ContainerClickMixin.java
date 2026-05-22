@@ -96,7 +96,7 @@ public class ContainerClickMixin {
                     ItemStack source = slot.getItem();
                     EquipmentSlot natural = serverPlayer.getEquipmentSlotForItem(source);
                     if (!source.isEmpty()
-                            && (natural.getType() == EquipmentSlot.Type.HUMANOID_ARMOR || natural == EquipmentSlot.OFFHAND)
+                            && (natural.getType() == EquipmentSlot.Type.ARMOR || natural == EquipmentSlot.OFFHAND)
                             && serverPlayer.getItemBySlot(natural).isEmpty()) {
                         candidate = source;
                     }
@@ -120,7 +120,7 @@ public class ContainerClickMixin {
 
         ci.cancel();
 
-        ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(candidate.getItem());
+        ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(candidate.getItem());
         DebugLogger.runtimeThrottled("Item Use Lock", "equip_click_" + serverPlayer.getUUID() + "_" + itemRL,
                 "<" + serverPlayer.getName().getString() + "> Equip via container click for '" + itemRL + "' blocked [action: equip]");
 
