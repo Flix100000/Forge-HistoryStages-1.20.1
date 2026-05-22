@@ -46,7 +46,7 @@ jobs:
             1.21
             1.21.1
           loaders: fabric
-          version-type: beta
+          version-type: ${{ github.event.release.prerelease && 'beta' || 'release' }}
           dependencies: |
             fabric-api(required)
             lootr(required)
