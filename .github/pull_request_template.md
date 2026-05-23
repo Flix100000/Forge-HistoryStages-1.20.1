@@ -1,33 +1,82 @@
-## Description
-<!-- What was changed and why? Link any related issues with "Fixes #123" or "Closes #123". -->
+<!--
+Thanks for opening a PR! Fill in what's relevant and delete the sections you don't need.
+Sections marked (required) should stay.
+-->
+
+## Related Issue
+<!-- Use "Closes #123" to auto-close the issue on merge, or "Refs #123" if it's only related. -->
+Closes #
+
+## Summary (required)
+<!-- One or two sentences: what does this PR do, at a high level? -->
 
 
-## Type of Change
-<!-- Check all that apply. -->
+## What changed
+<!-- Bullet list of the actual code/asset/config changes. Mention new/renamed/removed files or classes. -->
+-
+-
+
+## Why
+<!-- The motivation. What was broken, missing, or worth improving? Link to discussion if relevant. -->
+
+
+## Type of Change (required)
 - [ ] Bug fix
 - [ ] New feature
+- [ ] Compatibility fix (other mod)
+- [ ] Refactoring / cleanup
 - [ ] Performance improvement
-- [ ] Refactoring (no functional change)
-- [ ] Configuration / JSON format change
-- [ ] Documentation update
-- [ ] Other (please describe):
+- [ ] Configuration / stage JSON change
+- [ ] Translation / localization
+- [ ] Assets (textures, models, sounds)
+- [ ] Documentation (wiki, README, code comments)
+- [ ] Build / CI / Gradle
+- [ ] Dependency update
+- [ ] Test / dev tooling
+- [ ] Other (describe in Summary)
 
-## Testing
-<!-- Describe how you tested your changes. -->
-- [ ] Tested in singleplayer
-- [ ] Tested on a dedicated server
-- [ ] Tested with JEI / EMI (if affected)
-- [ ] Tested with FTBQuests (if affected)
-- [ ] Tested with KubeJS / CraftTweaker (if affected)
+## Breaking Changes (required)
+<!--
+Does this PR change anything users will notice on update?
+Examples: stage JSON schema change, config key renamed/removed, network packet change,
+behavior change that existing setups rely on, dropped MC/NeoForge version.
+If yes, describe what breaks and how users should migrate. If no, write "None".
+-->
 
-## Checklist
-- [ ] Code compiles without errors (`./gradlew build`)
-- [ ] No unintended changes to unrelated files
-- [ ] Existing stage JSON configs still work as expected
-- [ ] Changelog / version number updated (if applicable)
+
+## Testing (required)
+<!-- How did you actually test this? Be specific. -->
+
+**Environment:**
+- Minecraft version: <!-- e.g. 1.20.1, 1.21.1 -->
+- Mod loader + version: <!-- e.g. Forge 47.4.18, NeoForge 21.1.222, Fabric 0.16.x -->
+- Branch this PR targets: <!-- e.g. main, neoforge-1.21, fabric-1.21 -->
+- Environment: <!-- Singleplayer / Dedicated Server + Client / both -->
+- Other mods loaded during test: <!-- e.g. JEI, KubeJS, Curios, or "none" -->
+
+**What I tested:**
+-
+-
+
+**What I did not test (but probably should):**
+-
+
+## Compatibility Check
+- [ ] Existing stage JSON files still load without errors
+- [ ] Existing config keys still work (or migration is handled)
+- [ ] No client-only code runs on the dedicated server side (e.g. no `Minecraft.getInstance()` / client config reads on server)
+- [ ] No server-only code runs on the client side
+- [ ] Loader-specific code is properly guarded (`@OnlyIn`, loader-specific source sets, or service abstraction)
+
+## Checklist (required)
+- [ ] `gradlew build` passes locally
+- [ ] Changes follow the existing code style of the project
+- [ ] Public APIs / commands / events are documented in code or readme where appropriate
+- [ ] Version number / changelog updated (if this is release-bound)
 
 ## Screenshots / Videos
-<!-- If there are UI or visual changes, add screenshots or a short video here. -->
+<!-- Required for UI changes. Before/after if you can. -->
 
-## Additional Notes
-<!-- Anything reviewers should pay special attention to? Breaking changes? Migration steps? -->
+
+## Notes for Reviewers
+<!-- Anything tricky, intentional, or out of scope? Things you want a second pair of eyes on? -->
