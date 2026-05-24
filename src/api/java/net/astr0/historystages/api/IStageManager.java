@@ -58,7 +58,7 @@ public interface IStageManager {
 
     int getStageBit(StageDefinition stage);
 
-    List<StageDefinition> getStageDefinitionsFromLock(BitSet lock);
+    List<StageDefinition> getStageDefinitionsFromLock(BitSet lock, StageScope scope);
 
     int registerMetadataBit(String name);
 }

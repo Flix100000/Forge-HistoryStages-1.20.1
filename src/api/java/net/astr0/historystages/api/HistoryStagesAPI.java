@@ -34,12 +34,14 @@ public class HistoryStagesAPI {
         CATEGORIES.forEach((id, category) -> {
             category.register(_stageManager);
         });
+
+        LockFlags.initLockFlags(stageManager);
     }
 
 
     // Built-in categories using the highly optimized FastUtil maps
-    public static final LockCategory<Item> ITEMS = register(
-            new LockCategory<>("item", new Reference2ObjectOpenHashMap<>(300))
+    public static final ItemLockCategory ITEMS = (ItemLockCategory) register(
+            new ItemLockCategory("item", new Reference2ObjectOpenHashMap<>(300))
     );
     public static final LockCategory<Block> BLOCKS = register(
             new LockCategory<>("block", new Reference2ObjectOpenHashMap<>(300))

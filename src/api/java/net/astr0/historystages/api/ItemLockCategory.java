@@ -20,7 +20,6 @@ public class ItemLockCategory extends LockCategory<Item> {
 
     private final HashMap<Item, List<NBTLock>> itemNbtLocks = new HashMap<>();
     public record NBTLock(StageDefinition stage, JsonObject lockCriteria) {}
-    private int NBT_META_POSITION;
 
     public ItemLockCategory(String id, Map<Item, BitSet> map) {
         super(id, map);
@@ -40,7 +39,7 @@ public class ItemLockCategory extends LockCategory<Item> {
             return true;
         }
 
-        if (lock.get(NBT_META_POSITION)) {
+        if (lock.get(LockFlags.ITEM_HAS_NBT_LOCK)) {
             List<NBTLock> nbtLocks = itemNbtLocks.get(stack.getItem());
             
             if (nbtLocks != null) {
@@ -75,7 +74,7 @@ public class ItemLockCategory extends LockCategory<Item> {
         if (lock == null) return EMPTY_LIST;
         List<StageDefinition> stages =  manager.getStageDefinitionsFromLock(lock);
 
-        if(lock.get(NBT_META_POSITION)) {
+        if(lock.get(LockFlags.ITEM_HAS_NBT_LOCK)) {
             for(NBTLock nbtLock : itemNbtLocks.get(stack.getItem())) {
 
                 // If there is an NBT lock on this item, and it matches the tested item stack
@@ -94,14 +93,6 @@ public class ItemLockCategory extends LockCategory<Item> {
         locks.add(new NBTLock(stage, nbtCriteria));
     }
 
-    @Override
-    public void register(IStageManager manager) {
-        super.register(manager);
-
-        // We need to track addition info for this lock
-        // Register a bit which can be set if an item also has NBT data related to its locking
-        NBT_META_POSITION = manager.registerMetadataBit("ITEM_NBT_METADATA");
-    }
 
     @Override
     public void clear() {

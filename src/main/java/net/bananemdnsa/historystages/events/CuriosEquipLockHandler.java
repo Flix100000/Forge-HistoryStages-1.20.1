@@ -54,10 +54,10 @@ public class CuriosEquipLockHandler extends AbstractHandlerGroup {
     // all TODO tags will need to be cleaned up prior to main merge
     private static boolean isItemLocked(ItemStack item, Player player) {
         if (Config.COMMON.lockItemUsage.get()) {
-             return stageManager.isLocked(HistoryStagesAPI.ITEMS, item, player);
+            return HistoryStagesAPI.ITEMS.isLocked(item, player);
         }
         if (Config.COMMON.individualLockItemUsage.get()) {
-            return stageManager.isLocked(HistoryStagesAPI.ITEMS, item, player);
+            return HistoryStagesAPI.ITEMS.isLocked(item, player);
         }
 
         return false;

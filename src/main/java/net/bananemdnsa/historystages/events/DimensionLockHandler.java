@@ -3,13 +3,9 @@ package net.bananemdnsa.historystages.events;
 import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.astr0.historystages.api.StageDefinition;
-import net.bananemdnsa.historystages.data.RuntimeStageManager;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.LockFeedbackPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.EntityTravelToDimensionEvent;
@@ -28,11 +24,11 @@ public class DimensionLockHandler extends AbstractHandlerGroup {
 
         ResourceLocation targetDim = event.getDimension().location();
 
-        if (stageManager.isLocked(HistoryStagesAPI.DIMENSIONS, targetDim, player)) {
+        if (HistoryStagesAPI.DIMENSIONS.isLocked(targetDim, player)) {
 
             event.setCanceled(true);
 
-            List<StageDefinition> lockedStages = stageManager.getMissingStageFor(HistoryStagesAPI.DIMENSIONS, targetDim, player);
+            List<StageDefinition> lockedStages = HistoryStagesAPI.DIMENSIONS.getMissingStagesFor(targetDim, player);
             DebugLogger.runtime("Dimension Lock", player.getName().getString(),
                     "Blocked travel to '" + targetDim + "' — missing stages: " + lockedStages);
 

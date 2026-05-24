@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.RegistryHelper;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -45,7 +46,8 @@ public class ItemUseLockHandler extends AbstractHandlerGroup {
         if (isActionLockedForEntity(heldItem, event.getEntity(), isClient, "use")) {
             event.setCanceled(true);
             if (!isClient) {
-                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
+                ResourceLocation itemRL = RegistryHelper.getResourceLocationFromRegistry(heldItem.getItem());
+                        ForgeRegistries.ITEMS.getKey(heldItem.getItem());
                 DebugLogger.runtimeThrottled("Item Use Lock", "use_" + event.getEntity().getUUID() + "_" + itemRL,
                         "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL + "' blocked [action: use]");
                 showMessage(event.getEntity());

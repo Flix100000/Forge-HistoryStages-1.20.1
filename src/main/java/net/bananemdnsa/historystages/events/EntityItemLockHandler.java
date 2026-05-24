@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.events;
 
+import net.astr0.historystages.api.HistoryStagesAPI;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.util.DebugLogger;
@@ -37,7 +38,7 @@ public class EntityItemLockHandler extends AbstractHandlerGroup {
 
         if (event.getTarget() instanceof ItemFrame itemFrame) {
             ItemStack displayedItem = itemFrame.getItem();
-            if (!displayedItem.isEmpty() && isItemLockedForContext(displayedItem, event.getEntity(), isClient)) {
+            if (HistoryStagesAPI.ITEMS.isLocked(displayedItem, event.getEntity())) {
                 event.setCanceled(true);
                 if (!isClient) {
                     DebugLogger.runtimeThrottled("Entity Item Lock", "frame_interact_" + event.getEntity().getUUID(),
@@ -60,7 +61,7 @@ public class EntityItemLockHandler extends AbstractHandlerGroup {
         boolean isClient = event.getEntity().level().isClientSide();
 
         if (event.getTarget() instanceof ArmorStand armorStand) {
-            if (hasLockedItem(armorStand, event.getEntity(), isClient)) {
+            if (hasLockedItem(armorStand, event.getEntity())) {
                 event.setCanceled(true);
                 if (!isClient) {
                     DebugLogger.runtimeThrottled("Entity Item Lock", "stand_interact_" + event.getEntity().getUUID(),
@@ -83,7 +84,7 @@ public class EntityItemLockHandler extends AbstractHandlerGroup {
 
         if (event.getTarget() instanceof ItemFrame itemFrame) {
             ItemStack displayedItem = itemFrame.getItem();
-            if (!displayedItem.isEmpty() && isItemLockedForContext(displayedItem, event.getEntity(), isClient)) {
+            if (HistoryStagesAPI.ITEMS.isLocked(displayedItem, event.getEntity())) {
                 event.setCanceled(true);
                 if (!isClient) {
                     DebugLogger.runtimeThrottled("Entity Item Lock", "frame_attack_" + event.getEntity().getUUID(),
@@ -92,7 +93,7 @@ public class EntityItemLockHandler extends AbstractHandlerGroup {
                 }
             }
         } else if (event.getTarget() instanceof ArmorStand armorStand) {
-            if (hasLockedItem(armorStand, event.getEntity(), isClient)) {
+            if (hasLockedItem(armorStand, event.getEntity())) {
                 event.setCanceled(true);
                 if (!isClient) {
                     DebugLogger.runtimeThrottled("Entity Item Lock", "stand_attack_" + event.getEntity().getUUID(),
@@ -103,27 +104,20 @@ public class EntityItemLockHandler extends AbstractHandlerGroup {
         }
     }
 
-    static boolean hasLockedItem(ArmorStand armorStand, Player player, boolean isClient) {
+    static boolean hasLockedItem(ArmorStand armorStand, Player player) {
         for (ItemStack stack : armorStand.getArmorSlots()) {
-            if (!stack.isEmpty() && isItemLockedForContext(stack, player, isClient)) {
+            if (HistoryStagesAPI.ITEMS.isLocked(stack, player)) {
                 return true;
             }
         }
         for (ItemStack stack : armorStand.getHandSlots()) {
-            if (!stack.isEmpty() && isItemLockedForContext(stack, player, isClient)) {
+            if (HistoryStagesAPI.ITEMS.isLocked(stack, player)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean isItemLockedForContext(ItemStack item, Player player, boolean isClient) {
-        if (isClient) {
-            return StageLockHelper.isItemLockedForClient(item);
-        } else {
-            return StageLockHelper.isItemLockedForPlayer(item, player.getUUID());
-        }
-    }
 
     private static void showMessage(Player player) {
         if (!(player instanceof ServerPlayer sp)) return;

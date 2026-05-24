@@ -36,6 +36,10 @@ public class LockCategory<T> {
         return manager.hasMissingStages(lock, player);
     }
 
+    public boolean hasFlag(T object, int lockFlag) {
+        return getLock(object).get(lockFlag);
+    }
+
         /**
      *
      * @param category Instance of {@link LockCategory} to check
@@ -43,20 +47,21 @@ public class LockCategory<T> {
      * @return
      * @param
      */
-    public List<StageDefinition> getStagesFor(T lockedObject) {
+    public List<StageDefinition> getStagesFor(T lockedObject, StageScope scope) {
         BitSet lock = getLock(lockedObject);
         if (lock == null) return EMPTY_LIST;
 
-        return manager.getStageDefinitionsFromLock(lock);
+        return manager.getStageDefinitionsFromLock(lock, scope);
     }
 
 
     //TODO: Clean this up. Also check if we can do it in a more performance friendly way. For now, this will do
-    public List<StageDefinition> getMissingStageFor(T lockedObject, Player player) {
-        return getStagesFor(lockedObject)
+    public List<StageDefinition> getMissingStagesFor(T lockedObject, Player player, StageScope scope) {
+        return getStagesFor(lockedObject, scope)
                 .stream()
                 .filter(
                         stage -> !manager.isStageUnlockedForPlayer(player, stage.getName())
+                        //&& (scope == StageScope.ALL || stage.getScope() == scope)
                 ).toList();
     }
 

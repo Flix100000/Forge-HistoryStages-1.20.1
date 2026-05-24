@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.events;
 
 import net.astr0.historystages.api.HistoryStagesAPI;
+import net.astr0.historystages.api.LockFlags;
+import net.astr0.historystages.api.StageDefinition;
+import net.astr0.historystages.api.StageScope;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.RuntimeStageManager;
@@ -10,6 +13,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -17,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -39,6 +44,7 @@ public class BlockLockHandler extends AbstractHandlerGroup {
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (!Config.COMMON.lockBlockInteraction.get() && !Config.COMMON.individualLockBlockInteraction.get()) return;
 
+        Player player = event.getEntity();
         boolean isClient = event.getEntity().level().isClientSide();
         BlockPos pos = event.getPos();
         BlockState state = event.getEntity().level().getBlockState(pos);
@@ -49,47 +55,64 @@ public class BlockLockHandler extends AbstractHandlerGroup {
 
         boolean locked = false;
 
-        // Check global lock — respects lock_actions["gui"]
-        if (Config.COMMON.lockBlockInteraction.get()) {
-            if (HistoryStagesAPI.BLOCKS.isLocked(block, event.getEntity())) {
-                locked = true;
-            }
+        // Quick return if the block is not locked for this player
+        if(!HistoryStagesAPI.BLOCKS.isLocked(block, player)) {
+            return;
         }
 
-        // Check individual lock — respects lock_actions["gui"]
-        if (!locked && Config.COMMON.individualLockBlockInteraction.get()) {
-            if (isClient) {
-                locked = StageLockHelper.isActionLockedByIndividualStageClient(blockItem, "gui");
-            } else {
-                locked = StageLockHelper.isActionLockedByIndividualStage(blockItem, event.getEntity().getUUID(), "gui");
-            }
-        }
+        // 99% of the time if a block is locked, GUI interactions will be locked.
+        // However, to support custom action locks, where some blocks restrict GUI and some do not,
+        // we have a flag set to enable fast checking. Unless the BLOCK_HAS_GUI_EXCEPTIONS flag is set at bake()
+        // time, we simple assume that the GUI is blocked and skip the more expensive checks.
+        if (HistoryStagesAPI.BLOCKS.hasFlag(block, LockFlags.BLOCK_HAS_GUI_EXCEPTIONS)) {
 
-        if (locked) {
-            // Only deny the block's own interaction (GUI opening), not the item use.
-            // setCanceled(true) would also block placing items on locked block surfaces.
-            event.setUseBlock(net.minecraftforge.eventbus.api.Event.Result.DENY);
+            // If we end up here, at least one stage that locks this block ALLOWS the gui to be accessed
+            // Now we need to filter through the stage data to check if all of the missing stages (the stages that are not yet unlocked)
+            // allow GUI access. If they all allow gui, then this event is not cancelled. If even one of them does not allow GUI,
+            // then we go ahead and cancel as usual
 
-            // Only show the "block locked" message when the block actually has a GUI to open.
-            // Blocks without a MenuProvider (plain stone, dirt, etc.) don't need a message —
-            // the player was just clicking a surface, not trying to open anything.
-            boolean hasGui = !isClient && state.getMenuProvider(event.getEntity().level(), pos) != null;
-            if (hasGui && event.getEntity() instanceof ServerPlayer sp) {
-                DebugLogger.runtimeThrottled("Block Lock", "gui_" + sp.getUUID() + "_" + ForgeRegistries.BLOCKS.getKey(block),
-                        "<" + sp.getName().getString() + "> GUI open of '" + ForgeRegistries.BLOCKS.getKey(block) + "' at " + pos.toShortString() + " blocked [action: gui]");
-
-                long now = System.currentTimeMillis();
-                Long last = MESSAGE_COOLDOWNS.get(sp.getUUID());
-                if (last == null || (now - last) >= COOLDOWN_MS) {
-                    MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
-                    sp.displayClientMessage(
-                            Component.translatable("message.historystages.block_locked")
-                                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
-                            true
-                    );
+            // Check global lock — respects lock_actions["gui"]
+            if (Config.COMMON.lockBlockInteraction.get()) {
+                if (HistoryStagesAPI.BLOCKS.isLocked(block, event.getEntity())) {
+                    locked = true;
                 }
             }
+
+            // Check individual lock — respects lock_actions["gui"]
+            if (!locked && Config.COMMON.individualLockBlockInteraction.get()) {
+                for(StageDefinition stage : HistoryStagesAPI.BLOCKS.getMissingStagesFor(block, event.getEntity(), StageScope.INDIVIDUAL)) {
+                    if(stage.isActionAllowed)
+                }
+            }
+
         }
+
+
+        // NOTE: if we reach this point, the event should be cancelled
+        // Only deny the block's own interaction (GUI opening), not the item use.
+        // setCanceled(true) would also block placing items on locked block surfaces.
+        event.setUseBlock(Event.Result.DENY);
+
+        // Only show the "block locked" message when the block actually has a GUI to open.
+        // Blocks without a MenuProvider (plain stone, dirt, etc.) don't need a message —
+        // the player was just clicking a surface, not trying to open anything.
+        boolean hasGui = !isClient && state.getMenuProvider(event.getEntity().level(), pos) != null;
+        if (hasGui && event.getEntity() instanceof ServerPlayer sp) {
+            DebugLogger.runtimeThrottled("Block Lock", "gui_" + sp.getUUID() + "_" + ForgeRegistries.BLOCKS.getKey(block),
+                    "<" + sp.getName().getString() + "> GUI open of '" + ForgeRegistries.BLOCKS.getKey(block) + "' at " + pos.toShortString() + " blocked [action: gui]");
+
+            long now = System.currentTimeMillis();
+            Long last = MESSAGE_COOLDOWNS.get(sp.getUUID());
+            if (last == null || (now - last) >= COOLDOWN_MS) {
+                MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
+                sp.displayClientMessage(
+                        Component.translatable("message.historystages.block_locked")
+                                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC),
+                        true
+                );
+            }
+        }
+
     }
 
     @SubscribeEvent

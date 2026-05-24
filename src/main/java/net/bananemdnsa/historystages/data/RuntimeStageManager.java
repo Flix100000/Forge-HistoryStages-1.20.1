@@ -77,12 +77,21 @@ public final class RuntimeStageManager implements IStageManager {
     }
 
     @NotNull
-    private List<StageDefinition> getStageDefinitionsFromLock(BitSet lock) {
+    public List<StageDefinition> getStageDefinitionsFromLock(BitSet lock, StageScope scope) {
         List<StageDefinition> lockingStages = new ArrayList<>();
+        int startIndex = NEXT_META_DATA_BIT;
+        int stopIndex = lock.size(); //TODO: optimise this out as this is a fixed size for all locks
 
-        if(lock == null) return lockingStages;
+        if(scope == StageScope.GLOBAL) {
+            stopIndex = LAST_GLOBAL_INDEX + 1;
+        } else if(scope == StageScope.INDIVIDUAL) {
+            startIndex = LAST_GLOBAL_INDEX + 1;
+        }
 
-        for (int i = lock.nextSetBit(0); i >= 0; i = lock.nextSetBit(i + 1)) {
+        for (int i = lock.nextSetBit(startIndex); i >= 0; i = lock.nextSetBit(i + 1)) {
+
+            if (i >= stopIndex) break; // Respect limits
+
             //TODO: It should never happen but it may be possible that we try to test a bit position which doesn't correspond
             // to a stage. Check this code later and consider if this is possible.
             lockingStages.add(bitPositionToStageReferenceMap.get(i));
@@ -111,6 +120,13 @@ public final class RuntimeStageManager implements IStageManager {
     private final ArrayList<String> metadataFields = new ArrayList<>();
     @Override
     public int registerMetadataBit(String metadataName) {
+
+        if(hasBaked) {
+            //TODO: move registration of stages, metadata and locks to an event system.
+            // When API.init() is called, it fires out a few events such as StageRegistrationEvent, LockMetadataRegistrationEvent, etc
+            throw new RuntimeException("Metadata bits cannot be registered after a bake() operation has occurred. Ensure that all registration takes place prior to first bake.");
+        }
+
         //NOTE: The postfix operator is essential here.
         //Only increment the number AFTER returning the original value
         metadataFields.add(metadataName);
@@ -121,6 +137,7 @@ public final class RuntimeStageManager implements IStageManager {
     //     Implementation
     // =========================
 
+    boolean hasBaked = false;
     //NOTE: This function must be deterministic for any given input.
     // The clients must be able to produce the exact same results based on
     // an arbitrarily ordered list of stage definitions
@@ -128,6 +145,7 @@ public final class RuntimeStageManager implements IStageManager {
     // IF EXISTING STAGES ARE UPDATED, THE LOCKS CAN BE APPLIED DIRECTLY
     public void bake(List<StageDefinition> stages) {
 
+        hasBaked = true;
 
         LAST_GLOBAL_INDEX = -1; // Always reset in case all the global stages have been removed since last bake
 
