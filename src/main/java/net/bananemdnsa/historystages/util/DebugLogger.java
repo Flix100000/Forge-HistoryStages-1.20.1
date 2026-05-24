@@ -5,7 +5,7 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.EntityLocks;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NamedLockEntry;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.astr0.historystages.api.StageDefinition;
 import net.minecraftforge.fml.ModList;
@@ -125,7 +125,7 @@ public class DebugLogger {
             int totalItems = 0, totalTags = 0, totalMods = 0, totalModExceptions = 0;
             int totalRecipes = 0, totalDimensions = 0, totalStructures = 0;
             int totalAttacklock = 0, totalSpawnlock = 0;
-            for (StageEntry entry : stages.values()) {
+            for (StageDefinition entry : stages.values()) {
                 totalItems += entry.getItemEntries().size();
                 totalTags += entry.getTagEntries().size();
                 totalMods += entry.getModEntries().size();
@@ -248,7 +248,7 @@ public class DebugLogger {
         }
     }
 
-    private static void printStage(PrintWriter pw, String id, StageEntry s) {
+    private static void printStage(PrintWriter pw, String id, StageDefinition s) {
         EntityLocks ent = s.getEntities();
         List<String> structures = s.getStructures();
         List<String> structureModLinked = s.getStructureModLinked();

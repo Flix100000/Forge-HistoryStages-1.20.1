@@ -107,7 +107,7 @@ public class StageLockHelper {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageDefinition> e
                 : StageManager.getStages().entrySet()) {
             if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
             if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
@@ -127,7 +127,7 @@ public class StageLockHelper {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageDefinition> e
                 : StageManager.getStages().entrySet()) {
             if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
             if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
@@ -148,7 +148,7 @@ public class StageLockHelper {
 
         Set<String> playerStages = IndividualStageData.SERVER_CACHE
                 .getOrDefault(playerUuid, Collections.emptySet());
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageDefinition> e
                 : StageManager.getIndividualStages().entrySet()) {
             if (playerStages.contains(e.getKey())) continue;
             if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
@@ -171,7 +171,7 @@ public class StageLockHelper {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageDefinition> e
                 : StageManager.getStages().entrySet()) {
             if (ClientStageCache.isStageUnlocked(e.getKey())) continue;
             if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
@@ -190,7 +190,7 @@ public class StageLockHelper {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageDefinition> e
                 : StageManager.getIndividualStages().entrySet()) {
             if (ClientIndividualStageCache.isStageUnlocked(e.getKey())) continue;
             if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;

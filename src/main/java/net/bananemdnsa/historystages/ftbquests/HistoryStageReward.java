@@ -8,7 +8,7 @@ import dev.ftb.mods.ftbquests.quest.reward.Reward;
 import dev.ftb.mods.ftbquests.quest.reward.RewardType;
 import net.astr0.historystages.api.events.StageEvent;
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.StageUnlockedToastPacket;
@@ -266,10 +266,10 @@ public class HistoryStageReward extends Reward {
 
     @Override
     public Icon getAltIcon() {
-        Map<String, StageEntry> source = individual
+        Map<String, StageDefinition> source = individual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
-        StageEntry entry = source.get(stage);
+        StageDefinition entry = source.get(stage);
         String iconId = (entry != null && !entry.getIcon().isEmpty())
                 ? entry.getIcon()
                 : Config.COMMON.defaultStageIcon.get();
@@ -279,10 +279,10 @@ public class HistoryStageReward extends Reward {
 
     private String resolveDisplayName() {
         if (stage.isEmpty()) return stage;
-        Map<String, StageEntry> source = individual
+        Map<String, StageDefinition> source = individual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
-        StageEntry entry = source.get(stage);
+        StageDefinition entry = source.get(stage);
         return entry != null ? entry.getDisplayName() : stage;
     }
 

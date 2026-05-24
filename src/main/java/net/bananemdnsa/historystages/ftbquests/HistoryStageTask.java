@@ -10,7 +10,7 @@ import dev.ftb.mods.ftbquests.quest.TeamData;
 import dev.ftb.mods.ftbquests.quest.task.AbstractBooleanTask;
 import dev.ftb.mods.ftbquests.quest.task.TaskType;
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageDefinition;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
@@ -85,7 +85,7 @@ public class HistoryStageTask extends AbstractBooleanTask {
     }
 
     static NameMap<String> buildStageNameMap(boolean individual, String currentValue) {
-        Map<String, StageEntry> source = individual
+        Map<String, StageDefinition> source = individual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
 
@@ -100,7 +100,7 @@ public class HistoryStageTask extends AbstractBooleanTask {
                 .id(Function.identity())
                 .name(id -> {
                     if (id.isEmpty()) return Component.literal("(none)");
-                    StageEntry entry = source.get(id);
+                    StageDefinition entry = source.get(id);
                     return Component.literal(entry != null ? entry.getDisplayName() : id);
                 })
                 .create();
@@ -116,10 +116,10 @@ public class HistoryStageTask extends AbstractBooleanTask {
 
     @Override
     public Icon getAltIcon() {
-        Map<String, StageEntry> source = individual
+        Map<String, StageDefinition> source = individual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
-        StageEntry entry = source.get(stage);
+        StageDefinition entry = source.get(stage);
         String iconId = (entry != null && !entry.getIcon().isEmpty())
                 ? entry.getIcon()
                 : Config.COMMON.defaultStageIcon.get();
@@ -129,10 +129,10 @@ public class HistoryStageTask extends AbstractBooleanTask {
 
     private String resolveDisplayName() {
         if (stage.isEmpty()) return stage;
-        Map<String, StageEntry> source = individual
+        Map<String, StageDefinition> source = individual
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
-        StageEntry entry = source.get(stage);
+        StageDefinition entry = source.get(stage);
         return entry != null ? entry.getDisplayName() : stage;
     }
 
