@@ -78,12 +78,7 @@ public class SearchableRecipeList {
     public SearchableRecipeList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
-        this.searchBar = new SearchBar("Search recipes...").onChange(this::applyFilter);
-        if (alreadyAddedSupplier != null) {
-            searchBar.filters().addOption("hide_added", "Hide already added", null);
-        }
-        searchBar.filters().addOption("only_vanilla", "Only vanilla", "source");
-        searchBar.filters().addOption("only_modded", "Only modded", "source");
+        this.searchBar = SearchPanelChrome.createSearchBar("Search recipes...", this::applyFilter, alreadyAddedSupplier);
         buildRecipeIndex();
     }
 
@@ -225,6 +220,7 @@ public class SearchableRecipeList {
     }
 
     private boolean matchesDropdownFilters(ItemEntry entry) {
+        // Custom "hide already added" semantics: check recipe ids by output, not the entry id.
         if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
             Collection<String> added = alreadyAddedSupplier.get();
             if (added != null) {
@@ -237,18 +233,11 @@ public class SearchableRecipeList {
                             break;
                         }
                     }
-                    if (!anyUnadded)
-                        return false;
+                    if (!anyUnadded) return false;
                 }
             }
         }
-        String namespace = entry.id.contains(":") ? entry.id.substring(0, entry.id.indexOf(':')) : "";
-        boolean isVanilla = "minecraft".equals(namespace);
-        if (searchBar.filters().isActive("only_vanilla") && !isVanilla)
-            return false;
-        if (searchBar.filters().isActive("only_modded") && isVanilla)
-            return false;
-        return true;
+        return SearchPanelChrome.passesNamespaceFilters(searchBar, entry.id);
     }
 
     private void updateMaxScroll() {
@@ -293,8 +282,7 @@ public class SearchableRecipeList {
     }
 
     private void renderItemPhase(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
+        SearchPanelChrome.renderFrame(guiGraphics, panelX, panelY, panelW, panelH);
 
         int searchX = panelX + PADDING;
         int searchY = panelY + PADDING;
@@ -378,10 +366,7 @@ public class SearchableRecipeList {
     }
 
     private void renderRecipePhase(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        guiGraphics.fill(recipePanelX - 2, recipePanelY - 2, recipePanelX + recipePanelW + 2,
-                recipePanelY + recipePanelH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(recipePanelX, recipePanelY, recipePanelX + recipePanelW, recipePanelY + recipePanelH,
-                0xFF1A1A1A);
+        SearchPanelChrome.renderFrame(guiGraphics, recipePanelX, recipePanelY, recipePanelW, recipePanelH);
 
         int headerY = recipePanelY + PADDING;
         guiGraphics.renderItem(selectedItemStack, recipePanelX + PADDING, headerY);

@@ -331,6 +331,27 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.structureDamageInterval.get().toString(), false, "20",
                 "How often (in ticks) to deal damage while inside a locked structure."));
         commonSections.add(structureLock);
+
+        ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
+        lockMessages.add(new ConfigEntry("msgDimensionUnknown", ConfigType.STRING,
+                Config.COMMON.msgDimensionUnknown.get(), false, "",
+                "Override for the dimension lock actionbar message. Empty = use language file. Use & for color codes."));
+        lockMessages.add(new ConfigEntry("msgMobUnknown", ConfigType.STRING,
+                Config.COMMON.msgMobUnknown.get(), false, "",
+                "Override for the mob lock actionbar message. Empty = use language file. Use & for color codes."));
+        lockMessages.add(new ConfigEntry("msgItemLocked", ConfigType.STRING,
+                Config.COMMON.msgItemLocked.get(), false, "",
+                "Override for the item lock actionbar message. Empty = use language file. Use & for color codes."));
+        lockMessages.add(new ConfigEntry("msgBlockLocked", ConfigType.STRING,
+                Config.COMMON.msgBlockLocked.get(), false, "",
+                "Override for the block lock actionbar message. Empty = use language file. Use & for color codes."));
+        lockMessages.add(new ConfigEntry("msgEntityItemLocked", ConfigType.STRING,
+                Config.COMMON.msgEntityItemLocked.get(), false, "",
+                "Override for the armor stand / item frame lock actionbar message. Empty = use language file. Use & for color codes."));
+        lockMessages.add(new ConfigEntry("msgEnchantmentLocked", ConfigType.STRING,
+                Config.COMMON.msgEnchantmentLocked.get(), false, "",
+                "Override for the enchantment lock actionbar message. Empty = use language file. Use & for color codes."));
+        commonSections.add(lockMessages);
     }
 
     private void resetToDefaults() {

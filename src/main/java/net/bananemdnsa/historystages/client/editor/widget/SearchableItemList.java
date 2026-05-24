@@ -86,12 +86,7 @@ public class SearchableItemList {
     public SearchableItemList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
-        this.searchBar = new SearchBar("Search items...").onChange(this::applyFilter);
-        if (alreadyAddedSupplier != null) {
-            searchBar.filters().addOption("hide_added", "Hide already added", null);
-        }
-        searchBar.filters().addOption("only_vanilla", "Only vanilla", "source");
-        searchBar.filters().addOption("only_modded", "Only modded", "source");
+        this.searchBar = SearchPanelChrome.createSearchBar("Search items...", this::applyFilter, alreadyAddedSupplier);
 
         for (Item item : ForgeRegistries.ITEMS) {
             ResourceLocation key = ForgeRegistries.ITEMS.getKey(item);
@@ -256,18 +251,7 @@ public class SearchableItemList {
     }
 
     private boolean matchesDropdownFilters(String id) {
-        if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
-            Collection<String> added = alreadyAddedSupplier.get();
-            if (added != null && added.contains(id))
-                return false;
-        }
-        String namespace = id.contains(":") ? id.substring(0, id.indexOf(':')) : "";
-        boolean isVanilla = "minecraft".equals(namespace);
-        if (searchBar.filters().isActive("only_vanilla") && !isVanilla)
-            return false;
-        if (searchBar.filters().isActive("only_modded") && isVanilla)
-            return false;
-        return true;
+        return SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier);
     }
 
     /** Captures the current selection sets as the frozen Selected-tab snapshot. */
@@ -334,8 +318,7 @@ public class SearchableItemList {
         if (!visible)
             return;
 
-        guiGraphics.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
+        SearchPanelChrome.renderFrame(guiGraphics, panelX, panelY, panelW, panelH);
 
         renderTabs(guiGraphics, font, mouseX, mouseY);
 

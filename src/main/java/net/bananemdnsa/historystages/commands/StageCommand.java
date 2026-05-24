@@ -124,50 +124,11 @@ public class StageCommand {
                         .executes(ctx -> {
                             StageManager.reloadStages();
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
-                            return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!");
+                            return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", false);
                         }))
 
-                // --- DEBUG ---
-                .then(Commands.literal("debug")
-                        .then(Commands.literal("structure")
-                                .executes(ctx -> handleDebugStructure(ctx.getSource())))
-                        .then(Commands.literal("nbt")
-                                .then(Commands.literal("preset")
-                                        .executes(ctx -> DebugNbtCommand.handlePreset(ctx.getSource())))
-                                .then(Commands.literal("custom")
-                                        .executes(ctx -> DebugNbtCommand.handleCustom(ctx.getSource())))))
+                // NOTE: --- DEBUG --- subcommands are registered client-side in ClientDebugCommand
         );
-    }
-
-    private static int handleDebugStructure(CommandSourceStack source) {
-        ServerPlayer player;
-        try {
-            player = source.getPlayerOrException();
-        } catch (Exception e) {
-            source.sendFailure(Component.literal("This command can only be run by a player."));
-            return 0;
-        }
-
-        var pos = player.blockPosition();
-        var holders = net.bananemdnsa.historystages.events.StructureLockHandler.collectStructureHoldersAt(
-                player.serverLevel(), pos);
-
-        source.sendSuccess(() -> Component.literal(
-                "§6--- Structures at §e" + pos.getX() + ", " + pos.getY() + ", " + pos.getZ() + " §6---"), false);
-
-        if (holders.isEmpty()) {
-            source.sendSuccess(() -> Component.literal("  §7(not inside any structure)"), false);
-            return 1;
-        }
-
-        for (var h : holders) {
-            String id = h.unwrapKey().map(k -> k.location().toString()).orElse("<unknown>");
-            source.sendSuccess(() -> Component.literal("  §8• §f" + id), false);
-            // list tags for each structure
-            h.tags().forEach(tag -> source.sendSuccess(
-                    () -> Component.literal("      §8↳ §b#" + tag.location()), false));
-        }
-        return 1;
     }
 
     private static int handleGlobalInfo(CommandSourceStack source, String stageName) {
@@ -208,7 +169,10 @@ public class StageCommand {
         }
         if (!entry.getEntities().getSpawnlock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Spawnlock):"), false);
-            entry.getEntities().getSpawnlock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
+            entry.getEntities().getSpawnlock().forEach(e -> {
+                String suffix = e.hasLockSources() ? " §8[" + String.join(", ", e.getLockSources()) + "]" : "";
+                source.sendSuccess(() -> Component.literal("  §8• §7" + e.getId() + suffix), false);
+            });
         }
         return 1;
     }
@@ -333,11 +297,15 @@ public class StageCommand {
     }
 
     private static int syncAndReload(CommandSourceStack source, StageData data, String msg) {
+        return syncAndReload(source, data, msg, true);
+    }
+
+    private static int syncAndReload(CommandSourceStack source, StageData data, String msg, boolean broadcast) {
         data.setDirty();
         StageData.refreshCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
-        source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), true);
+        source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), broadcast);
 
         return 1;
     }

@@ -54,6 +54,9 @@ public class PacketHandler {
                                 SyncStructureRegistryPacket::decode, SyncStructureRegistryPacket::handle);
                 INSTANCE.registerMessage(id++, LockFeedbackPacket.class, LockFeedbackPacket::encode,
                                 LockFeedbackPacket::decode, LockFeedbackPacket::handle);
+                INSTANCE.registerMessage(id++, RequestStructureDebugPacket.class,
+                                RequestStructureDebugPacket::encode,
+                                RequestStructureDebugPacket::decode, RequestStructureDebugPacket::handle);
         }
 
         // Send lock feedback (dimension or mob) to a specific player — client decides display
