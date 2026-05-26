@@ -84,14 +84,14 @@ public final class ClusterDebugRenderer {
             if (clusterDistSq <= PIECE_DRAW_DISTANCE_SQ) {
                 for (BoundingBox piece : cluster.pieceBoxes()) {
                     if (distSqToBox(piece, px, py, pz) > PIECE_DRAW_DISTANCE_SQ) continue;
-                    drawBoxEdges(level, player, piece, PIECE_PARTICLE);
+                    drawBoxEdges(level, player, piece, PIECE_PARTICLE, cluster.pieceBoxes());
                 }
             }
 
             ParticleOptions shapeParticle = active.contains(cluster) ? CLUSTER_ACTIVE : CLUSTER_NEUTRAL;
             for (BoundingBox shape : cluster.lockShapes()) {
                 if (distSqToBox(shape, px, py, pz) > MAX_SHAPE_DISTANCE_SQ) continue;
-                drawBoxEdges(level, player, shape, shapeParticle);
+                drawBoxEdges(level, player, shape, shapeParticle, cluster.lockShapes());
             }
         }
     }
@@ -110,28 +110,29 @@ public final class ClusterDebugRenderer {
         return 0.0;
     }
 
-    private static void drawBoxEdges(ServerLevel level, ServerPlayer player, BoundingBox bb, ParticleOptions particle) {
+    private static void drawBoxEdges(ServerLevel level, ServerPlayer player, BoundingBox bb,
+                                      ParticleOptions particle, List<BoundingBox> occluders) {
         double x0 = bb.minX(), y0 = bb.minY(), z0 = bb.minZ();
         double x1 = bb.maxX() + 1.0, y1 = bb.maxY() + 1.0, z1 = bb.maxZ() + 1.0;
 
-        drawLine(level, player, x0, y0, z0, x1, y0, z0, particle);
-        drawLine(level, player, x0, y0, z1, x1, y0, z1, particle);
-        drawLine(level, player, x0, y0, z0, x0, y0, z1, particle);
-        drawLine(level, player, x1, y0, z0, x1, y0, z1, particle);
-        drawLine(level, player, x0, y1, z0, x1, y1, z0, particle);
-        drawLine(level, player, x0, y1, z1, x1, y1, z1, particle);
-        drawLine(level, player, x0, y1, z0, x0, y1, z1, particle);
-        drawLine(level, player, x1, y1, z0, x1, y1, z1, particle);
-        drawLine(level, player, x0, y0, z0, x0, y1, z0, particle);
-        drawLine(level, player, x1, y0, z0, x1, y1, z0, particle);
-        drawLine(level, player, x0, y0, z1, x0, y1, z1, particle);
-        drawLine(level, player, x1, y0, z1, x1, y1, z1, particle);
+        drawLine(level, player, x0, y0, z0, x1, y0, z0, particle, bb, occluders);
+        drawLine(level, player, x0, y0, z1, x1, y0, z1, particle, bb, occluders);
+        drawLine(level, player, x0, y0, z0, x0, y0, z1, particle, bb, occluders);
+        drawLine(level, player, x1, y0, z0, x1, y0, z1, particle, bb, occluders);
+        drawLine(level, player, x0, y1, z0, x1, y1, z0, particle, bb, occluders);
+        drawLine(level, player, x0, y1, z1, x1, y1, z1, particle, bb, occluders);
+        drawLine(level, player, x0, y1, z0, x0, y1, z1, particle, bb, occluders);
+        drawLine(level, player, x1, y1, z0, x1, y1, z1, particle, bb, occluders);
+        drawLine(level, player, x0, y0, z0, x0, y1, z0, particle, bb, occluders);
+        drawLine(level, player, x1, y0, z0, x1, y1, z0, particle, bb, occluders);
+        drawLine(level, player, x0, y0, z1, x0, y1, z1, particle, bb, occluders);
+        drawLine(level, player, x1, y0, z1, x1, y1, z1, particle, bb, occluders);
     }
 
     private static void drawLine(ServerLevel level, ServerPlayer player,
                                  double x0, double y0, double z0,
                                  double x1, double y1, double z1,
-                                 ParticleOptions particle) {
+                                 ParticleOptions particle, BoundingBox owner, List<BoundingBox> occluders) {
         double dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
         double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (length <= 0) return;
@@ -141,7 +142,25 @@ public final class ClusterDebugRenderer {
             double x = x0 + dx * t;
             double y = y0 + dy * t;
             double z = z0 + dz * t;
+            if (isHidden(x, y, z, owner, occluders)) continue;
             level.sendParticles(player, particle, false, x, y, z, 1, 0, 0, 0, 0);
         }
+    }
+
+    /**
+     * True when the point lies strictly inside another box in the same cluster — the edge is
+     * an interior seam, not part of the outer silhouette. Strict inequality keeps points on
+     * shared faces visible (those ARE the silhouette where two boxes meet flush).
+     */
+    private static boolean isHidden(double x, double y, double z, BoundingBox owner, List<BoundingBox> occluders) {
+        for (BoundingBox other : occluders) {
+            if (other == owner) continue;
+            if (x > other.minX() && x < other.maxX() + 1.0
+                    && y > other.minY() && y < other.maxY() + 1.0
+                    && z > other.minZ() && z < other.maxZ() + 1.0) {
+                return true;
+            }
+        }
+        return false;
     }
 }

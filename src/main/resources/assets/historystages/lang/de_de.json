@@ -201,6 +201,12 @@
   "editor.historystages.config.msgEntityItemLocked": "Auslage gesperrt",
   "editor.historystages.config.msgEnchantmentLocked": "Verzauberung gesperrt",
 
+  "editor.historystages.config.structure_visuals": "Struktursperre-Visuals",
+  "editor.historystages.config.structureBorderEnabled": "Force-Field-Rand anzeigen",
+  "editor.historystages.config.structureBorderDistance": "Sichtbarkeitsdistanz Rand",
+  "editor.historystages.config.structureLockOverlayEnabled": "Roter Bildschirm-Overlay",
+  "editor.historystages.config.structureLockOverlayOpacity": "Overlay-Deckkraft",
+
   "editor.historystages.config.dependencies": "Abh\u00e4ngigkeiten",
   "editor.historystages.config.showDependenciesOnScroll": "Abh\u00e4ngigkeiten auf Rolle zeigen",
   "editor.historystages.config.hideFulfilledDependencies": "Erf\u00fcllte ausblenden",

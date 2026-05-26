@@ -183,6 +183,21 @@ public class ConfigEditorScreen extends Screen {
                 "If mobShowChat is true, should the required stages also be listed?"));
         clientSections.add(mobLock);
 
+        ConfigSection structureVisuals = new ConfigSection("editor.historystages.config.structure_visuals");
+        structureVisuals.add(new ConfigEntry("structureBorderEnabled", ConfigType.BOOLEAN,
+                Config.CLIENT.structureBorderEnabled.get().toString(), true, "true",
+                "Render a force-field-style border on the walls of locked structures when you get close?"));
+        structureVisuals.add(new ConfigEntry("structureBorderDistance", ConfigType.STRING,
+                Config.CLIENT.structureBorderDistance.get().toString(), true, "8.0",
+                "How close (in blocks) to a locked structure wall before the border becomes visible (1.0-32.0)."));
+        structureVisuals.add(new ConfigEntry("structureLockOverlayEnabled", ConfigType.BOOLEAN,
+                Config.CLIENT.structureLockOverlayEnabled.get().toString(), true, "true",
+                "While standing inside a locked structure, tint the whole screen red (red-glasses effect)?"));
+        structureVisuals.add(new ConfigEntry("structureLockOverlayOpacity", ConfigType.STRING,
+                Config.CLIENT.structureLockOverlayOpacity.get().toString(), true, "0.3",
+                "Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque)."));
+        clientSections.add(structureVisuals);
+
         ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
         dependenciesClient.add(new ConfigEntry("showDependenciesOnScroll", ConfigType.BOOLEAN,
                 Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true",
@@ -888,6 +903,14 @@ public class ConfigEditorScreen extends Screen {
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
                 case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
+                case "structureBorderEnabled" -> Config.CLIENT.structureBorderEnabled.set(Boolean.parseBoolean(value));
+                case "structureBorderDistance" -> {
+                    try { Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "structureLockOverlayEnabled" -> Config.CLIENT.structureLockOverlayEnabled.set(Boolean.parseBoolean(value));
+                case "structureLockOverlayOpacity" -> {
+                    try { Config.CLIENT.structureLockOverlayOpacity.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
             }
         }
     }

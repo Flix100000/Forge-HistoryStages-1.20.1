@@ -219,11 +219,11 @@ public class StructureLockHandler {
         state.cachedLockedStageIds = new ArrayList<>(activeStageIds);
         state.cachedActiveLockedClusters = activeLocked;
 
-        // For border rendering we send one envelope per locked cluster — the union of all
-        // its lockShapes — so the client sees a single outer wall per village/dungeon
-        // instead of many small box faces.
-        List<BoundingBox> borderShapes = new ArrayList<>(lockedNearby.size());
-        for (StructureCluster c : lockedNearby) borderShapes.add(c.bounds());
+        // Send the full lockShape geometry to the client. The renderer culls interior faces
+        // (where a shape's face is occluded by another shape) so the force-field texture
+        // traces the actual silhouette of the orange union, not box-by-box.
+        List<BoundingBox> borderShapes = new ArrayList<>();
+        for (StructureCluster c : lockedNearby) borderShapes.addAll(c.lockShapes());
         syncBordersIfChanged(player, state, borderShapes);
     }
 

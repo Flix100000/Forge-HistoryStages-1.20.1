@@ -22,6 +22,8 @@ public class Config {
         public final ModConfigSpec.BooleanValue showLockIcons;
         public final ModConfigSpec.BooleanValue structureBorderEnabled;
         public final ModConfigSpec.DoubleValue structureBorderDistance;
+        public final ModConfigSpec.BooleanValue structureLockOverlayEnabled;
+        public final ModConfigSpec.DoubleValue structureLockOverlayOpacity;
         public final ModConfigSpec.BooleanValue mobUseActionbar;
         public final ModConfigSpec.BooleanValue mobShowChat;
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
@@ -65,6 +67,14 @@ public class Config {
             structureBorderDistance = builder
                     .comment("How close (in blocks) to a locked structure wall before the border becomes visible. The border fades in as you approach. [Default: 8.0]")
                     .defineInRange("structureBorderDistance", 8.0, 1.0, 32.0);
+
+            structureLockOverlayEnabled = builder
+                    .comment("While standing inside a locked structure, tint the whole screen red (like looking through red glasses) to signal the lock? [Default: true]")
+                    .define("structureLockOverlayEnabled", true);
+
+            structureLockOverlayOpacity = builder
+                    .comment("Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque). [Default: 0.30]")
+                    .defineInRange("structureLockOverlayOpacity", 0.30, 0.0, 1.0);
 
             builder.pop();
 
@@ -412,10 +422,11 @@ public class Config {
                     .comment(
                             "ADVANCED — leave this alone if you don't know what it does.",
                             "Extra blocks added around each piece of a locked structure (rooms, corridors, houses, ...).",
-                            "Higher values = the lock 'kicks in' a bit before you actually touch the structure wall,",
-                            "lower values = the boundary sits exactly on the blocks. Measured in blocks. [Default: 1]"
+                            "Note: a fixed safety buffer of 2 blocks is ALWAYS added on top of this value, so",
+                            "the effective padding around structure walls is (lockPadding + 2). Setting this to 0",
+                            "still leaves a 2-block safety wall between you and the structure. [Default: 0]"
                     )
-                    .defineInRange("lockPadding", 1, 0, 16);
+                    .defineInRange("lockPadding", 0, 0, 16);
 
             structureClusterDistance = builder
                     .comment(

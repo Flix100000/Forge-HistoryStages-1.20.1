@@ -201,6 +201,12 @@
   "editor.historystages.config.msgEntityItemLocked": "Entity Item Locked",
   "editor.historystages.config.msgEnchantmentLocked": "Enchantment Locked",
 
+  "editor.historystages.config.structure_visuals": "Structure Lock Visuals",
+  "editor.historystages.config.structureBorderEnabled": "Show Force-Field Border",
+  "editor.historystages.config.structureBorderDistance": "Border Reveal Distance",
+  "editor.historystages.config.structureLockOverlayEnabled": "Red Screen Overlay",
+  "editor.historystages.config.structureLockOverlayOpacity": "Overlay Opacity",
+
   "editor.historystages.config.dependencies": "Dependencies",
   "editor.historystages.config.showDependenciesOnScroll": "Show Dependencies on Scroll",
   "editor.historystages.config.hideFulfilledDependencies": "Hide Fulfilled Dependencies",

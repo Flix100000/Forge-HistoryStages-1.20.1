@@ -24,13 +24,14 @@ import org.joml.Matrix4f;
 import java.util.List;
 
 /**
- * Draws a force-field "patch" on the faces of locked-structure bounding boxes
- * cached by {@link LockBorderClientCache}. Instead of covering the whole face,
- * only a square region around the player's projection onto the face is rendered;
- * the patch radius grows as the player approaches the wall.
+ * Draws a force-field "patch" on the faces of the orange lock zone — the union of all
+ * {@link BoundingBox}es pushed by the server. Each face is subdivided into 1-block cells
+ * and a cell is only drawn if its exterior side is not occluded by another shape in the
+ * zone, so the texture traces the silhouette of the union instead of every individual box.
  *
- * <p>UV mapping is world-anchored (texture stays put on the wall as the player moves)
- * with a slow time-based scroll for the classic force-field animation.
+ * <p>Only cells near the camera's projection onto each face are drawn (patch reveal —
+ * texture appears as you approach the wall). UV mapping is world-anchored with a slow
+ * time-based scroll for the classic force-field animation.
  */
 @EventBusSubscriber(modid = HistoryStages.MOD_ID, value = Dist.CLIENT)
 public final class LockBorderRenderer {
@@ -42,7 +43,7 @@ public final class LockBorderRenderer {
     private static final float TILE_BLOCKS = 4.0f;
 
     /** Alpha of the patch center; falls off linearly with distance from camera. */
-    private static final float CENTER_ALPHA = 0.7f;
+    private static final float CENTER_ALPHA = 0.9f;
 
     private LockBorderRenderer() {}
 
@@ -62,7 +63,9 @@ public final class LockBorderRenderer {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.depthMask(false);
-        RenderSystem.disableDepthTest();
+        // Depth test ON: only the parts of the force-field in front of blocks are drawn.
+        // depthMask(false) keeps us from writing to the depth buffer ourselves.
+        RenderSystem.enableDepthTest();
         RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
         RenderSystem.setShaderTexture(0, FORCEFIELD);
@@ -75,8 +78,8 @@ public final class LockBorderRenderer {
         BufferBuilder buffer = Tesselator.getInstance().begin(
                 VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
-        for (BoundingBox bb : boxes) {
-            renderBox(buffer, matrix, bb, cam, threshold, scroll);
+        for (int i = 0; i < boxes.size(); i++) {
+            renderBox(buffer, matrix, boxes, i, boxes.get(i), cam, threshold, scroll);
         }
 
         MeshData mesh = buffer.build();
@@ -92,8 +95,8 @@ public final class LockBorderRenderer {
         RenderSystem.disableBlend();
     }
 
-    private static void renderBox(BufferBuilder buf, Matrix4f m, BoundingBox bb,
-                                   Vec3 cam, double threshold, float scroll) {
+    private static void renderBox(BufferBuilder buf, Matrix4f m, List<BoundingBox> all, int ownerIdx,
+                                   BoundingBox bb, Vec3 cam, double threshold, float scroll) {
         float x0 = bb.minX();
         float y0 = bb.minY();
         float z0 = bb.minZ();
@@ -101,7 +104,7 @@ public final class LockBorderRenderer {
         float y1 = bb.maxY() + 1.0f;
         float z1 = bb.maxZ() + 1.0f;
 
-        // Cheap broad-phase: closest point of the box to the camera.
+        // Broad-phase: skip the whole box if its closest point is beyond the threshold.
         double cx = clamp(cam.x, x0, x1);
         double cy = clamp(cam.y, y0, y1);
         double cz = clamp(cam.z, z0, z1);
@@ -109,20 +112,21 @@ public final class LockBorderRenderer {
         double boxDistSq = dx * dx + dy * dy + dz * dz;
         if (boxDistSq > threshold * threshold) return;
 
-        // Faces with normals along X (west / east) — vary in Y and Z.
-        renderFaceX(buf, m, x0, y0, y1, z0, z1, cam, threshold, scroll);
-        renderFaceX(buf, m, x1, y0, y1, z0, z1, cam, threshold, scroll);
-        // Faces with normals along Y (bottom / top) — vary in X and Z.
-        renderFaceY(buf, m, y0, x0, x1, z0, z1, cam, threshold, scroll);
-        renderFaceY(buf, m, y1, x0, x1, z0, z1, cam, threshold, scroll);
-        // Faces with normals along Z (north / south) — vary in X and Y.
-        renderFaceZ(buf, m, z0, x0, x1, y0, y1, cam, threshold, scroll);
-        renderFaceZ(buf, m, z1, x0, x1, y0, y1, cam, threshold, scroll);
+        // X-normal faces
+        renderFaceX(buf, m, all, ownerIdx, bb, x0, y0, y1, z0, z1, cam, threshold, scroll, -1);
+        renderFaceX(buf, m, all, ownerIdx, bb, x1, y0, y1, z0, z1, cam, threshold, scroll, +1);
+        // Y-normal faces
+        renderFaceY(buf, m, all, ownerIdx, bb, y0, x0, x1, z0, z1, cam, threshold, scroll, -1);
+        renderFaceY(buf, m, all, ownerIdx, bb, y1, x0, x1, z0, z1, cam, threshold, scroll, +1);
+        // Z-normal faces
+        renderFaceZ(buf, m, all, ownerIdx, bb, z0, x0, x1, y0, y1, cam, threshold, scroll, -1);
+        renderFaceZ(buf, m, all, ownerIdx, bb, z1, x0, x1, y0, y1, cam, threshold, scroll, +1);
     }
 
-    private static void renderFaceX(BufferBuilder buf, Matrix4f m,
-                                     float planeX, float minY, float maxY, float minZ, float maxZ,
-                                     Vec3 cam, double threshold, float scroll) {
+    private static void renderFaceX(BufferBuilder buf, Matrix4f m, List<BoundingBox> all, int ownerIdx,
+                                     BoundingBox owner, float planeX, float minY, float maxY,
+                                     float minZ, float maxZ, Vec3 cam, double threshold, float scroll,
+                                     int outwardSign) {
         double py = clamp(cam.y, minY, maxY);
         double pz = clamp(cam.z, minZ, maxZ);
         double ddx = cam.x - planeX, ddy = cam.y - py, ddz = cam.z - pz;
@@ -139,20 +143,42 @@ public final class LockBorderRenderer {
         if (patchMinY >= patchMaxY || patchMinZ >= patchMaxZ) return;
 
         int alpha = alphaForDist(dist, threshold);
-        float uMin = patchMinZ / TILE_BLOCKS + scroll;
-        float uMax = patchMaxZ / TILE_BLOCKS + scroll;
-        float vMin = patchMinY / TILE_BLOCKS - scroll;
-        float vMax = patchMaxY / TILE_BLOCKS - scroll;
+        double sampleX = planeX + outwardSign * 0.5;
 
-        buf.addVertex(m, planeX, patchMinY, patchMinZ).setUv(uMin, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, planeX, patchMinY, patchMaxZ).setUv(uMax, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, planeX, patchMaxY, patchMaxZ).setUv(uMax, vMax).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, planeX, patchMaxY, patchMinZ).setUv(uMin, vMax).setColor(255, 255, 255, alpha);
+        int yStart = (int) Math.floor(patchMinY);
+        int yEnd = (int) Math.ceil(patchMaxY);
+        int zStart = (int) Math.floor(patchMinZ);
+        int zEnd = (int) Math.ceil(patchMaxZ);
+
+        for (int yi = yStart; yi < yEnd; yi++) {
+            float cy0 = Math.max(yi, patchMinY);
+            float cy1 = Math.min(yi + 1, patchMaxY);
+            if (cy0 >= cy1) continue;
+            double cellY = (cy0 + cy1) * 0.5;
+            for (int zi = zStart; zi < zEnd; zi++) {
+                float cz0 = Math.max(zi, patchMinZ);
+                float cz1 = Math.min(zi + 1, patchMaxZ);
+                if (cz0 >= cz1) continue;
+                double cellZ = (cz0 + cz1) * 0.5;
+                if (exteriorHidden(all, owner, sampleX, cellY, cellZ)) continue;
+                if (coincidentDuplicateX(all, ownerIdx, planeX, cy0, cy1, cz0, cz1)) continue;
+
+                float uMin = cz0 / TILE_BLOCKS + scroll;
+                float uMax = cz1 / TILE_BLOCKS + scroll;
+                float vMin = cy0 / TILE_BLOCKS - scroll;
+                float vMax = cy1 / TILE_BLOCKS - scroll;
+                buf.addVertex(m, planeX, cy0, cz0).setUv(uMin, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, planeX, cy0, cz1).setUv(uMax, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, planeX, cy1, cz1).setUv(uMax, vMax).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, planeX, cy1, cz0).setUv(uMin, vMax).setColor(230, 20, 20, alpha);
+            }
+        }
     }
 
-    private static void renderFaceY(BufferBuilder buf, Matrix4f m,
-                                     float planeY, float minX, float maxX, float minZ, float maxZ,
-                                     Vec3 cam, double threshold, float scroll) {
+    private static void renderFaceY(BufferBuilder buf, Matrix4f m, List<BoundingBox> all, int ownerIdx,
+                                     BoundingBox owner, float planeY, float minX, float maxX,
+                                     float minZ, float maxZ, Vec3 cam, double threshold, float scroll,
+                                     int outwardSign) {
         double px = clamp(cam.x, minX, maxX);
         double pz = clamp(cam.z, minZ, maxZ);
         double ddx = cam.x - px, ddy = cam.y - planeY, ddz = cam.z - pz;
@@ -169,20 +195,42 @@ public final class LockBorderRenderer {
         if (patchMinX >= patchMaxX || patchMinZ >= patchMaxZ) return;
 
         int alpha = alphaForDist(dist, threshold);
-        float uMin = patchMinX / TILE_BLOCKS + scroll;
-        float uMax = patchMaxX / TILE_BLOCKS + scroll;
-        float vMin = patchMinZ / TILE_BLOCKS - scroll;
-        float vMax = patchMaxZ / TILE_BLOCKS - scroll;
+        double sampleY = planeY + outwardSign * 0.5;
 
-        buf.addVertex(m, patchMinX, planeY, patchMinZ).setUv(uMin, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMaxX, planeY, patchMinZ).setUv(uMax, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMaxX, planeY, patchMaxZ).setUv(uMax, vMax).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMinX, planeY, patchMaxZ).setUv(uMin, vMax).setColor(255, 255, 255, alpha);
+        int xStart = (int) Math.floor(patchMinX);
+        int xEnd = (int) Math.ceil(patchMaxX);
+        int zStart = (int) Math.floor(patchMinZ);
+        int zEnd = (int) Math.ceil(patchMaxZ);
+
+        for (int xi = xStart; xi < xEnd; xi++) {
+            float cx0 = Math.max(xi, patchMinX);
+            float cx1 = Math.min(xi + 1, patchMaxX);
+            if (cx0 >= cx1) continue;
+            double cellX = (cx0 + cx1) * 0.5;
+            for (int zi = zStart; zi < zEnd; zi++) {
+                float cz0 = Math.max(zi, patchMinZ);
+                float cz1 = Math.min(zi + 1, patchMaxZ);
+                if (cz0 >= cz1) continue;
+                double cellZ = (cz0 + cz1) * 0.5;
+                if (exteriorHidden(all, owner, cellX, sampleY, cellZ)) continue;
+                if (coincidentDuplicateY(all, ownerIdx, planeY, cx0, cx1, cz0, cz1)) continue;
+
+                float uMin = cx0 / TILE_BLOCKS + scroll;
+                float uMax = cx1 / TILE_BLOCKS + scroll;
+                float vMin = cz0 / TILE_BLOCKS - scroll;
+                float vMax = cz1 / TILE_BLOCKS - scroll;
+                buf.addVertex(m, cx0, planeY, cz0).setUv(uMin, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx1, planeY, cz0).setUv(uMax, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx1, planeY, cz1).setUv(uMax, vMax).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx0, planeY, cz1).setUv(uMin, vMax).setColor(230, 20, 20, alpha);
+            }
+        }
     }
 
-    private static void renderFaceZ(BufferBuilder buf, Matrix4f m,
-                                     float planeZ, float minX, float maxX, float minY, float maxY,
-                                     Vec3 cam, double threshold, float scroll) {
+    private static void renderFaceZ(BufferBuilder buf, Matrix4f m, List<BoundingBox> all, int ownerIdx,
+                                     BoundingBox owner, float planeZ, float minX, float maxX,
+                                     float minY, float maxY, Vec3 cam, double threshold, float scroll,
+                                     int outwardSign) {
         double px = clamp(cam.x, minX, maxX);
         double py = clamp(cam.y, minY, maxY);
         double ddx = cam.x - px, ddy = cam.y - py, ddz = cam.z - planeZ;
@@ -199,15 +247,102 @@ public final class LockBorderRenderer {
         if (patchMinX >= patchMaxX || patchMinY >= patchMaxY) return;
 
         int alpha = alphaForDist(dist, threshold);
-        float uMin = patchMinX / TILE_BLOCKS + scroll;
-        float uMax = patchMaxX / TILE_BLOCKS + scroll;
-        float vMin = patchMinY / TILE_BLOCKS - scroll;
-        float vMax = patchMaxY / TILE_BLOCKS - scroll;
+        double sampleZ = planeZ + outwardSign * 0.5;
 
-        buf.addVertex(m, patchMinX, patchMinY, planeZ).setUv(uMin, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMaxX, patchMinY, planeZ).setUv(uMax, vMin).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMaxX, patchMaxY, planeZ).setUv(uMax, vMax).setColor(255, 255, 255, alpha);
-        buf.addVertex(m, patchMinX, patchMaxY, planeZ).setUv(uMin, vMax).setColor(255, 255, 255, alpha);
+        int xStart = (int) Math.floor(patchMinX);
+        int xEnd = (int) Math.ceil(patchMaxX);
+        int yStart = (int) Math.floor(patchMinY);
+        int yEnd = (int) Math.ceil(patchMaxY);
+
+        for (int xi = xStart; xi < xEnd; xi++) {
+            float cx0 = Math.max(xi, patchMinX);
+            float cx1 = Math.min(xi + 1, patchMaxX);
+            if (cx0 >= cx1) continue;
+            double cellX = (cx0 + cx1) * 0.5;
+            for (int yi = yStart; yi < yEnd; yi++) {
+                float cy0 = Math.max(yi, patchMinY);
+                float cy1 = Math.min(yi + 1, patchMaxY);
+                if (cy0 >= cy1) continue;
+                double cellY = (cy0 + cy1) * 0.5;
+                if (exteriorHidden(all, owner, cellX, cellY, sampleZ)) continue;
+                if (coincidentDuplicateZ(all, ownerIdx, planeZ, cx0, cx1, cy0, cy1)) continue;
+
+                float uMin = cx0 / TILE_BLOCKS + scroll;
+                float uMax = cx1 / TILE_BLOCKS + scroll;
+                float vMin = cy0 / TILE_BLOCKS - scroll;
+                float vMax = cy1 / TILE_BLOCKS - scroll;
+                buf.addVertex(m, cx0, cy0, planeZ).setUv(uMin, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx1, cy0, planeZ).setUv(uMax, vMin).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx1, cy1, planeZ).setUv(uMax, vMax).setColor(230, 20, 20, alpha);
+                buf.addVertex(m, cx0, cy1, planeZ).setUv(uMin, vMax).setColor(230, 20, 20, alpha);
+            }
+        }
+    }
+
+    /**
+     * Dedup for coincident same-direction faces. When two boxes have their outward face on the
+     * exact same plane (e.g. both L-bridge segments ending at the same X, or two pieces ending
+     * at the same Y), the per-sample {@link #exteriorHidden} test passes for both — neither
+     * box's exterior sample lies inside the other. Without dedup both render and the texture
+     * doubles up. Rule: render only if {@code ownerIdx} is the lowest-indexed box claiming the
+     * cell.
+     */
+    private static boolean coincidentDuplicateX(List<BoundingBox> all, int ownerIdx, float planeX,
+                                                 float cellMinY, float cellMaxY, float cellMinZ, float cellMaxZ) {
+        for (int i = 0; i < ownerIdx; i++) {
+            BoundingBox b = all.get(i);
+            if (b.maxX() + 1.0f != planeX && (float) b.minX() != planeX) continue;
+            if (cellMaxY > b.minY() && cellMinY < b.maxY() + 1.0f
+                    && cellMaxZ > b.minZ() && cellMinZ < b.maxZ() + 1.0f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean coincidentDuplicateY(List<BoundingBox> all, int ownerIdx, float planeY,
+                                                 float cellMinX, float cellMaxX, float cellMinZ, float cellMaxZ) {
+        for (int i = 0; i < ownerIdx; i++) {
+            BoundingBox b = all.get(i);
+            if (b.maxY() + 1.0f != planeY && (float) b.minY() != planeY) continue;
+            if (cellMaxX > b.minX() && cellMinX < b.maxX() + 1.0f
+                    && cellMaxZ > b.minZ() && cellMinZ < b.maxZ() + 1.0f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean coincidentDuplicateZ(List<BoundingBox> all, int ownerIdx, float planeZ,
+                                                 float cellMinX, float cellMaxX, float cellMinY, float cellMaxY) {
+        for (int i = 0; i < ownerIdx; i++) {
+            BoundingBox b = all.get(i);
+            if (b.maxZ() + 1.0f != planeZ && (float) b.minZ() != planeZ) continue;
+            if (cellMaxX > b.minX() && cellMinX < b.maxX() + 1.0f
+                    && cellMaxY > b.minY() && cellMinY < b.maxY() + 1.0f) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when a half-block sample on the OUTSIDE of the face lies strictly inside another
+     * shape in the zone — meaning the face is interior to the union and shouldn't be drawn.
+     * Coincident-face cells (sample sits exactly on another box's boundary) survive here and
+     * are handled by the {@code coincidentDuplicate*} dedup instead.
+     */
+    private static boolean exteriorHidden(List<BoundingBox> all, BoundingBox owner,
+                                           double x, double y, double z) {
+        for (BoundingBox b : all) {
+            if (b == owner) continue;
+            if (x > b.minX() && x < b.maxX() + 1.0
+                    && y > b.minY() && y < b.maxY() + 1.0
+                    && z > b.minZ() && z < b.maxZ() + 1.0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int alphaForDist(double dist, double threshold) {
