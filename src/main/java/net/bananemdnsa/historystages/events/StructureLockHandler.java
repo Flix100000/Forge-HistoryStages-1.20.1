@@ -18,7 +18,9 @@ import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.neoforge.common.util.TriState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -28,6 +30,7 @@ import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.util.ArrayList;
@@ -405,22 +408,44 @@ public class StructureLockHandler {
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false, event.getPos())) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getPos())) {
+            cancelBlockClick(event);
+            return;
+        }
+        // Also catch placements where the CLICKED block is outside the zone but the resulting
+        // placement target is inside: water/lava buckets, TNT, block placement against the
+        // boundary wall. Without this a player could flood a locked village from the outside.
+        BlockPos placePos = event.getPos().relative(event.getFace());
+        if (shouldBlockInteraction(event.getEntity(), true, false, placePos)) {
+            cancelBlockClick(event);
+        }
     }
 
     @SubscribeEvent
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false, null)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, null)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
     }
 
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
     }
 
     @SubscribeEvent
     public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
     }
 
     /**
@@ -430,7 +455,41 @@ public class StructureLockHandler {
      */
     @SubscribeEvent
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
-        if (shouldBlockInteraction(event.getEntity(), false, true, event.getPos())) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getPos())) {
+            cancelBlockClick(event);
+        }
+    }
+
+    /**
+     * Cancellation for both RightClickBlock and LeftClickBlock. The combination
+     * {@code setUseItem(FALSE) + setUseBlock(FALSE) + setCanceled(true) + setCancellationResult(FAIL)}
+     * tells the server-side logic the action did not happen. But the client already locally
+     * predicted the placement / item consumption, and the FAIL result doesn't always trigger
+     * a re-sync — so we also push the full inventory state back to the client to undo the
+     * prediction. Without the {@link #forceInventoryResync} call the placed block / emptied
+     * bucket would stay missing from the player's hand even though the world wasn't changed.
+     */
+    private static void cancelBlockClick(PlayerInteractEvent.RightClickBlock event) {
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.FALSE);
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.FAIL);
+        forceInventoryResync(event.getEntity());
+    }
+
+    private static void cancelBlockClick(PlayerInteractEvent.LeftClickBlock event) {
+        // LeftClickBlock has no setCancellationResult — block-break doesn't return a result
+        // that needs client-side sync. The TriState calls plus setCanceled are enough; no
+        // inventory resync needed because left-click doesn't consume items.
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.FALSE);
+        event.setCanceled(true);
+    }
+
+    private static void forceInventoryResync(Player player) {
+        if (player instanceof ServerPlayer sp) {
+            sp.containerMenu.broadcastFullState();
+        }
     }
 
     @SubscribeEvent
@@ -483,6 +542,30 @@ public class StructureLockHandler {
 
         event.setCanceled(true);
         event.getProjectile().discard();
+    }
+
+    /**
+     * Filters explosion affected-blocks: any block that lies inside any online player's cached
+     * locked zone is removed from the list, so the explosion can't damage protected structure
+     * blocks. TNT, creeper, end-crystal, bed-in-nether — all explosion types route through
+     * this event. We scan every player's cache because explosions have no clean "owner" to
+     * attribute the source to (and even if they did, the zones nearby ANY player matter).
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (event.getLevel().isClientSide()) return;
+        if (STATE.isEmpty()) return;
+        List<BlockPos> affected = event.getAffectedBlocks();
+        if (affected.isEmpty()) return;
+
+        affected.removeIf(pos -> {
+            for (PlayerState s : STATE.values()) {
+                for (StructureCluster c : s.cachedLockedNearby) {
+                    if (c.contains(pos)) return true;
+                }
+            }
+            return false;
+        });
     }
 
     @SubscribeEvent
