@@ -18,11 +18,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SpawnerBlock;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -348,21 +344,45 @@ public class StructureLockHandler {
         STATE.remove(uuid);
     }
 
+    /**
+     * Blanket-cancels every right-click interaction while the player is inside a locked
+     * structure: blocks (GUIs, doors, redstone, place-on-block), item self-use (eating,
+     * throwing pearls, drawing bows), and entity interactions (villager trading, mounting,
+     * item-frame insertion). The lock zone behaves like a no-touch museum case.
+     */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (event.getEntity().level().isClientSide()) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (player.isSpectator()) return;
         if (!isInsideLockedStructure(player)) return;
+        event.setCanceled(true);
+    }
 
-        BlockState blockState = event.getLevel().getBlockState(event.getPos());
-        Block block = blockState.getBlock();
-        boolean hasGui = block instanceof MenuProvider
-                || event.getLevel().getBlockEntity(event.getPos()) instanceof MenuProvider;
-        boolean isSpawner = block instanceof SpawnerBlock;
+    @SubscribeEvent
+    public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        if (event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (player.isSpectator()) return;
+        if (!isInsideLockedStructure(player)) return;
+        event.setCanceled(true);
+    }
 
-        if (!hasGui && !isSpawner) return;
+    @SubscribeEvent
+    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (player.isSpectator()) return;
+        if (!isInsideLockedStructure(player)) return;
+        event.setCanceled(true);
+    }
 
+    @SubscribeEvent
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (event.getEntity().level().isClientSide()) return;
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (player.isSpectator()) return;
+        if (!isInsideLockedStructure(player)) return;
         event.setCanceled(true);
     }
 }
