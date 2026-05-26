@@ -26,8 +26,14 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      - name: Compute artifact name
+        id: artifact
+        run: |
+          REF="${{ github.head_ref || github.ref_name }}"
+          echo "name=History-Stages-${REF//\//-}" >> "$GITHUB_OUTPUT"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: History-Stages-${{ github.ref_name }}
+          name: ${{ steps.artifact.outputs.name }}
           path: build/libs/*.jar
