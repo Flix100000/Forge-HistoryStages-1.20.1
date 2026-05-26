@@ -46,10 +46,6 @@ public record SyncStagesPacket(List<String> unlockedStages) implements CustomPac
                         mc.levelRenderer.allChanged();
                     }
 
-                    if (mc.getConnection() != null && mc.getConnection().getRecipeManager() != null) {
-                        mc.getConnection().getRecipeManager().replaceRecipes(java.util.Collections.emptyList());
-                    }
-
                     if (net.neoforged.fml.ModList.get().isLoaded("emi")) {
                         ExternalMods.refreshEMI();
                     }
