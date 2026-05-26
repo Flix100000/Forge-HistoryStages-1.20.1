@@ -55,7 +55,9 @@ body:
       description: Which version are you planning to contribute to?
       options:
         - NeoForge 1.21
+        - Fabric 1.21
         - Forge 1.20
+        - Forge 1.19
         - Not sure / multiple
     validations:
       required: true

@@ -46,11 +46,32 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: loader
+    attributes:
+      label: Mod Loader
+      description: Which mod loader are you using?
+      options:
+        - NeoForge
+        - Forge
+        - Fabric
+    validations:
+      required: true
+
   - type: input
     id: mc-version
     attributes:
-      label: Minecraft / Forge Version
-      placeholder: "e.g. 1.20.1 / Forge 47.4.10"
+      label: Minecraft Version
+      placeholder: "e.g. 1.20.1"
+    validations:
+      required: true
+
+  - type: input
+    id: loader-version
+    attributes:
+      label: Loader Version
+      description: The version of the mod loader selected above.
+      placeholder: "e.g. Forge 47.4.10 / NeoForge 21.0.167 / Fabric Loader 0.16.0"
     validations:
       required: true
 
