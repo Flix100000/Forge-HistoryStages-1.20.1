@@ -112,6 +112,8 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 case "structureLockInChat" -> Config.COMMON.structureLockInChat.set(Boolean.parseBoolean(value));
                 case "structureBlockRightClick" -> Config.COMMON.structureBlockRightClick.set(Boolean.parseBoolean(value));
                 case "structureBlockLeftClick" -> Config.COMMON.structureBlockLeftClick.set(Boolean.parseBoolean(value));
+                case "structureWallMode" -> Config.COMMON.structureWallMode.set(Boolean.parseBoolean(value));
+                case "structureBlockProjectiles" -> Config.COMMON.structureBlockProjectiles.set(Boolean.parseBoolean(value));
                 case "msgDimensionUnknown" -> Config.COMMON.msgDimensionUnknown.set(value);
                 case "msgMobUnknown" -> Config.COMMON.msgMobUnknown.set(value);
                 case "msgItemLocked" -> Config.COMMON.msgItemLocked.set(value);

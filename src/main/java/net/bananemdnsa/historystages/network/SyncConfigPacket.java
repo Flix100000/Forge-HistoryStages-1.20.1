@@ -79,6 +79,8 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
         values.put("structureBlockRightClick", Config.COMMON.structureBlockRightClick.get().toString());
         values.put("structureBlockLeftClick", Config.COMMON.structureBlockLeftClick.get().toString());
+        values.put("structureWallMode", Config.COMMON.structureWallMode.get().toString());
+        values.put("structureBlockProjectiles", Config.COMMON.structureBlockProjectiles.get().toString());
         values.put("msgDimensionUnknown", Config.COMMON.msgDimensionUnknown.get());
         values.put("msgMobUnknown", Config.COMMON.msgMobUnknown.get());
         values.put("msgItemLocked", Config.COMMON.msgItemLocked.get());

@@ -212,6 +212,8 @@ public class Config {
         public final ModConfigSpec.IntValue structureClusterDistance;
         public final ModConfigSpec.BooleanValue structureBlockRightClick;
         public final ModConfigSpec.BooleanValue structureBlockLeftClick;
+        public final ModConfigSpec.BooleanValue structureWallMode;
+        public final ModConfigSpec.BooleanValue structureBlockProjectiles;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -448,6 +450,19 @@ public class Config {
             structureBlockLeftClick = builder
                     .comment("Cancel ALL left-click interactions (attacking entities, breaking blocks) while the player is inside a locked structure? [Default: true]")
                     .define("blockLeftClick", true);
+
+            structureWallMode = builder
+                    .comment(
+                            "Lock behavior:",
+                            "  true  = WALL mode: an invisible wall blocks entry; players are pushed back at the boundary.",
+                            "  false = DAMAGE mode: players can walk in but take damage / see the red overlay / get messages.",
+                            "Wall mode is the recommended default; damage mode is the legacy behavior. [Default: true]"
+                    )
+                    .define("wallMode", true);
+
+            structureBlockProjectiles = builder
+                    .comment("Cancel projectiles (arrows, snowballs, ender pearls, etc.) the moment they would impact something inside a locked structure? [Default: true]")
+                    .define("blockProjectiles", true);
 
             builder.pop(); // structure_lock
 

@@ -20,8 +20,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
 import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -62,6 +64,10 @@ public class StructureLockHandler {
         List<StructureCluster> cachedActiveLockedClusters = Collections.emptyList();
         /** Hash of the last-sent border BB list, to skip redundant network sends. */
         int lastBorderHash = 0;
+        /** Last known outside-the-zone position (for wall-mode bounce-back). Null until first tick. */
+        Vec3 lastSafePos = null;
+        /** Whether the player was inside a locked zone on the previous tick (for wall-mode transition detection). */
+        boolean lastTickInside = false;
     }
 
     @SubscribeEvent
@@ -76,6 +82,13 @@ public class StructureLockHandler {
         int interval = Config.COMMON.structureCheckInterval.get();
         long chunkKey = (((long) player.chunkPosition().x) << 32) | (player.chunkPosition().z & 0xFFFFFFFFL);
         boolean chunkChanged = chunkKey != state.lastChunkKey;
+
+        // Wall-mode bounce runs BEFORE recompute so the player is teleported out before any
+        // damage/message handlers see them as "inside". Uses the previous tick's cached zones —
+        // safe because zones change only via recompute (chunk-change or interval).
+        if (Config.COMMON.structureWallMode.get()) {
+            applyWallMode(player, state);
+        }
 
         state.checkCooldown--;
         if (chunkChanged || state.checkCooldown <= 0) {
@@ -241,6 +254,54 @@ public class StructureLockHandler {
         applyContainment(player.blockPosition(), state);
     }
 
+    /**
+     * Wall-mode enforcement: bounces the player back to the last safe outside position when
+     * they cross a zone boundary INWARDS. Inside→outside and inside→inside moves are allowed
+     * so a player who was already trapped (logged out inside, then admin locked the stage)
+     * can still move around and escape; only fresh entry from outside is blocked.
+     */
+    private static void applyWallMode(ServerPlayer player, PlayerState state) {
+        Vec3 currentPos = player.position();
+        boolean insideNow = isPosInsideAnyLock(player.blockPosition(), state);
+
+        if (state.lastSafePos == null) {
+            // First-tick init: don't bounce regardless of where we are.
+            if (!insideNow) state.lastSafePos = currentPos;
+            state.lastTickInside = insideNow;
+            return;
+        }
+
+        if (insideNow && !state.lastTickInside) {
+            // Crossed from outside to inside this tick. Teleport back to the saved safe spot.
+            player.teleportTo(state.lastSafePos.x, state.lastSafePos.y, state.lastSafePos.z);
+            // Don't update lastSafePos / lastTickInside — after teleport the player is back outside.
+            return;
+        }
+
+        if (!insideNow) {
+            state.lastSafePos = currentPos;
+        }
+        state.lastTickInside = insideNow;
+    }
+
+    private static boolean isPosInsideAnyLock(BlockPos pos, PlayerState state) {
+        for (StructureCluster c : state.cachedLockedNearby) {
+            if (c.contains(pos)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * True when the given block position lies inside any locked cluster cached for this player.
+     * Used by the anti-cheese block-pos checks: a player standing outside a zone shouldn't be
+     * able to mine into a village, interact with a chest poking through a wall, etc.
+     */
+    public static boolean isBlockInLockedZone(Player player, BlockPos pos) {
+        PlayerState state = STATE.get(player.getUUID());
+        if (state == null) return false;
+        return isPosInsideAnyLock(pos, state);
+    }
+
     private static void applyContainment(BlockPos pos, PlayerState state) {
         List<StructureCluster> active = new ArrayList<>();
         LinkedHashSet<String> activeStructureIds = new LinkedHashSet<>();
@@ -385,22 +446,22 @@ public class StructureLockHandler {
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getPos())) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, null)) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
-        if (shouldBlockInteraction(event.getEntity(), true, false)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) event.setCanceled(true);
     }
 
     /**
@@ -410,33 +471,59 @@ public class StructureLockHandler {
      */
     @SubscribeEvent
     public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
-        if (shouldBlockInteraction(event.getEntity(), false, true)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getPos())) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void onAttackEntity(AttackEntityEvent event) {
-        if (shouldBlockInteraction(event.getEntity(), false, true)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getTarget().blockPosition())) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (shouldBlockInteraction(event.getPlayer(), false, true)) event.setCanceled(true);
+        if (shouldBlockInteraction(event.getPlayer(), false, true, event.getPos())) event.setCanceled(true);
     }
 
     /**
-     * Shared gate for every interaction handler: server-side only, must be a non-spectator
-     * player inside an active locked cluster, and the relevant config flag must be on. The
-     * {@code right}/{@code left} flags pick which config switch applies.
+     * Shared gate for every interaction handler. Triggers when the player is inside a locked
+     * zone OR when the target block/entity is inside one (anti-cheese: prevents mining or
+     * reaching into a zone from outside). Plus the per-side config flag must be on.
      */
-    private static boolean shouldBlockInteraction(Player player, boolean right, boolean left) {
+    private static boolean shouldBlockInteraction(Player player, boolean right, boolean left, BlockPos targetPos) {
         if (player == null) return false;
         if (player.level().isClientSide()) return false;
         if (!(player instanceof ServerPlayer sp)) return false;
         if (sp.isSpectator()) return false;
-        if (!isInsideLockedStructure(sp)) return false;
+
+        boolean playerInside = isInsideLockedStructure(sp);
+        boolean targetInside = targetPos != null && isBlockInLockedZone(sp, targetPos);
+        if (!playerInside && !targetInside) return false;
+
         if (right && !Config.COMMON.structureBlockRightClick.get()) return false;
         if (left && !Config.COMMON.structureBlockLeftClick.get()) return false;
         return true;
+    }
+
+    /**
+     * Cancels and discards projectiles whose impact would land inside a locked zone. Uses
+     * the shooter's cached lock geometry — projectiles without a player owner (e.g. dispenser
+     * arrows) are not checked. Gated by {@code structureBlockProjectiles}.
+     */
+    @SubscribeEvent
+    public static void onProjectileImpact(ProjectileImpactEvent event) {
+        if (event.getProjectile().level().isClientSide()) return;
+        if (!Config.COMMON.structureBlockProjectiles.get()) return;
+        if (!(event.getProjectile().getOwner() instanceof ServerPlayer shooter)) return;
+
+        PlayerState state = STATE.get(shooter.getUUID());
+        if (state == null || state.cachedLockedNearby.isEmpty()) return;
+
+        Vec3 hit = event.getRayTraceResult().getLocation();
+        BlockPos hitPos = BlockPos.containing(hit.x, hit.y, hit.z);
+        if (!isPosInsideAnyLock(hitPos, state)) return;
+
+        event.setCanceled(true);
+        event.getProjectile().discard();
     }
 
     @SubscribeEvent
