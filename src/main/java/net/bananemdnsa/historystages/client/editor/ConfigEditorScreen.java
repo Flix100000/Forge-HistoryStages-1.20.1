@@ -347,6 +347,12 @@ public class ConfigEditorScreen extends Screen {
         structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
                 Config.COMMON.structureDamageInterval.get().toString(), false, "20",
                 "How often (in ticks) to deal damage while inside a locked structure."));
+        structureLock.add(new ConfigEntry("structureBlockRightClick", ConfigType.BOOLEAN,
+                Config.COMMON.structureBlockRightClick.get().toString(), false, "true",
+                "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureBlockLeftClick", ConfigType.BOOLEAN,
+                Config.COMMON.structureBlockLeftClick.get().toString(), false, "true",
+                "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked structure?"));
         commonSections.add(structureLock);
 
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");

@@ -210,6 +210,8 @@ public class Config {
         public final ModConfigSpec.BooleanValue structureLockInChat;
         public final ModConfigSpec.IntValue structureLockPadding;
         public final ModConfigSpec.IntValue structureClusterDistance;
+        public final ModConfigSpec.BooleanValue structureBlockRightClick;
+        public final ModConfigSpec.BooleanValue structureBlockLeftClick;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -438,6 +440,14 @@ public class Config {
                             "Higher = larger, more 'filled-in' lock zones. Lower = more precise, more gaps. [Default: 6]"
                     )
                     .defineInRange("clusterDistance", 6, 0, 32);
+
+            structureBlockRightClick = builder
+                    .comment("Cancel ALL right-click interactions (blocks, items, entities) while the player is inside a locked structure? [Default: true]")
+                    .define("blockRightClick", true);
+
+            structureBlockLeftClick = builder
+                    .comment("Cancel ALL left-click interactions (attacking entities, breaking blocks) while the player is inside a locked structure? [Default: true]")
+                    .define("blockLeftClick", true);
 
             builder.pop(); // structure_lock
 
