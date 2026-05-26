@@ -97,7 +97,7 @@ public final class GameplayEvents {
 
             ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
             if (entityId != null && StageLockHelper.isEntityAttackLockedForPlayer(entityId.toString(), player.getUUID())) {
-                showMessage(player, "message.historystages.mob_unknown");
+                sendMobLockFeedback(player, entityId.toString());
                 return InteractionResult.FAIL;
             }
 
@@ -141,7 +141,7 @@ public final class GameplayEvents {
             }
             ResourceLocation entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
             if (entityId != null && StageLockHelper.isEntityAttackLockedForPlayer(entityId.toString(), player.getUUID())) {
-                showMessage(player, "message.historystages.mob_unknown");
+                sendMobLockFeedback(player, entityId.toString());
                 return false;
             }
             return true;
@@ -330,6 +330,18 @@ public final class GameplayEvents {
         }
 
         return false;
+    }
+
+    private static void sendMobLockFeedback(Player player, String entityId) {
+        if (!(player instanceof ServerPlayer sp)) return;
+        long now = System.currentTimeMillis();
+        Long last = MESSAGE_COOLDOWNS.get(sp.getUUID());
+        if (last != null && now - last < COOLDOWN_MS) return;
+        MESSAGE_COOLDOWNS.put(sp.getUUID(), now);
+        var names = StageLockHelper.getMissingStageDisplayNamesForEntityAttack(entityId, sp.getUUID());
+        net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(sp,
+                new net.bananemdnsa.historystages.network.LockFeedbackPayload(
+                        net.bananemdnsa.historystages.network.LockFeedbackPayload.KIND_MOB, names));
     }
 
     private static void showMessage(Player player, String translationKey) {

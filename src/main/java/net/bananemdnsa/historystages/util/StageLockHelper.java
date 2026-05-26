@@ -88,6 +88,57 @@ public final class StageLockHelper {
         return false;
     }
 
+    public static List<String> getMissingStageDisplayNamesForEntityAttack(String entityId, UUID playerUuid) {
+        List<String> names = new java.util.ArrayList<>();
+        for (String stage : StageManager.getAllStagesForAttackLockedEntity(entityId)) {
+            if (!StageData.SERVER_CACHE.contains(stage)) {
+                StageEntry entry = StageManager.getStages().get(stage);
+                names.add(entry != null ? entry.getDisplayName() : stage);
+            }
+        }
+        Set<String> individualStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
+        for (String stage : StageManager.getAllIndividualStagesForAttackLockedEntity(entityId)) {
+            if (!individualStages.contains(stage)) {
+                StageEntry entry = StageManager.getIndividualStages().get(stage);
+                names.add(entry != null ? entry.getDisplayName() : stage);
+            }
+        }
+        return names;
+    }
+
+    public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        Set<String> itemStages = StageManager.getDualPhaseItems().get(itemId);
+        if (itemStages != null) {
+            for (String stage : itemStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+        Set<String> modStages = StageManager.getDualPhaseMods().get(modId);
+        if (modStages != null) {
+            for (String stage : modStages) {
+                if (!ClientStageCache.isStageUnlocked(stage)) return true;
+            }
+        }
+        Item item = stack.getItem();
+        for (Map.Entry<String, Set<String>> tagEntry : StageManager.getDualPhaseTags().entrySet()) {
+            net.minecraft.tags.TagKey<Item> tagKey = net.minecraft.tags.TagKey.create(
+                    net.minecraft.core.registries.Registries.ITEM,
+                    ResourceLocation.parse(tagEntry.getKey()));
+            if (item.builtInRegistryHolder().is(tagKey)) {
+                for (String stage : tagEntry.getValue()) {
+                    if (!ClientStageCache.isStageUnlocked(stage)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static boolean isItemLockedForClient(ItemStack stack) {
         if (stack.isEmpty()) {
             return false;

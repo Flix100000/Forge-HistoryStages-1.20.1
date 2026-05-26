@@ -13,6 +13,7 @@ import net.minecraft.world.item.ItemStack;
 public final class LockOverlayRenderer {
     private static final ResourceLocation LOCK_ICON = HistoryStages.id("textures/gui/lock_overlay.png");
     private static final ResourceLocation SILVER_LOCK_ICON = HistoryStages.id("textures/gui/lock_overlay_silver.png");
+    private static final ResourceLocation DUAL_LOCK_ICON = HistoryStages.id("textures/gui/lock_overlay_dual.png");
     private static int suppressionDepth = 0;
 
     private LockOverlayRenderer() {
@@ -28,6 +29,7 @@ public final class LockOverlayRenderer {
         }
 
         boolean globallyLocked = isGloballyLocked(stack);
+        boolean dualPhaseGlobal = globallyLocked && StageLockHelper.isDualPhaseGloballyLockedClient(stack);
         boolean individuallyLocked = !globallyLocked
                 && Config.CLIENT.showSilverLockIcons
                 && StageLockHelper.isActionLockedByIndividualStageClient(stack, "icon");
@@ -36,7 +38,8 @@ public final class LockOverlayRenderer {
             return;
         }
 
-        ResourceLocation icon = individuallyLocked ? SILVER_LOCK_ICON : LOCK_ICON;
+        ResourceLocation icon = dualPhaseGlobal ? DUAL_LOCK_ICON
+                : (individuallyLocked ? SILVER_LOCK_ICON : LOCK_ICON);
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(x, y, 250);
         guiGraphics.pose().scale(0.25f, 0.25f, 1.0f);

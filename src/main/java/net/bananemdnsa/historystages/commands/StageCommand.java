@@ -199,7 +199,7 @@ public final class StageCommand {
         for (ServerPlayer player : players) {
             for (String stageId : new ArrayList<>(data.getUnlockedStages(player.getUUID()))) {
                 data.removeStage(player.getUUID(), stageId);
-                if (Config.COMMON.individualLockItemUsage) {
+                if (Config.COMMON.individualDropOnRevoke) {
                     StageLockHelper.dropLockedItemsForPlayer(player, stageId);
                 }
                 changed++;
@@ -246,7 +246,7 @@ public final class StageCommand {
         for (ServerPlayer player : players) {
             if (data.hasStage(player.getUUID(), stageId)) {
                 data.removeStage(player.getUUID(), stageId);
-                if (Config.COMMON.individualLockItemUsage) {
+                if (Config.COMMON.individualDropOnRevoke) {
                     StageLockHelper.dropLockedItemsForPlayer(player, stageId);
                 }
                 changed++;

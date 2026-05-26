@@ -18,4 +18,8 @@ public final class ClientStageCache {
     public static boolean isStageUnlocked(String stage) {
         return unlockedStages.contains(stage);
     }
+
+    public static void clear() {
+        unlockedStages = Collections.emptySet();
+    }
 }

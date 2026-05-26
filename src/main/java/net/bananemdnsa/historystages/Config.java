@@ -167,6 +167,50 @@ public final class Config {
         private final Client client = new Client();
     }
 
+    public static Map<String, String> snapshotCommon() {
+        Map<String, String> values = new java.util.LinkedHashMap<>();
+        values.put("showWelcomeMessage", Boolean.toString(COMMON.showWelcomeMessage));
+        values.put("showDebugErrors", Boolean.toString(COMMON.showDebugErrors));
+        values.put("enableRuntimeLogging", Boolean.toString(COMMON.enableRuntimeLogging));
+        values.put("lockMobLoot", Boolean.toString(COMMON.lockMobLoot));
+        values.put("lockItemUsage", Boolean.toString(COMMON.lockItemUsage));
+        values.put("lockEntityItems", Boolean.toString(COMMON.lockEntityItems));
+        values.put("individualLockItemUsage", Boolean.toString(COMMON.individualLockItemUsage));
+        values.put("individualLockItemPickup", Boolean.toString(COMMON.individualLockItemPickup));
+        values.put("individualDropOnRevoke", Boolean.toString(COMMON.individualDropOnRevoke));
+        values.put("lockBlockInteraction", Boolean.toString(COMMON.lockBlockInteraction));
+        values.put("individualLockBlockInteraction", Boolean.toString(COMMON.individualLockBlockInteraction));
+        values.put("lockBlockBreaking", Boolean.toString(COMMON.lockBlockBreaking));
+        values.put("individualLockBlockBreaking", Boolean.toString(COMMON.individualLockBlockBreaking));
+        values.put("lockedBlockBreakSpeedMultiplier", Float.toString(COMMON.lockedBlockBreakSpeedMultiplier));
+        values.put("individualLockedBlockBreakSpeedMultiplier", Float.toString(COMMON.individualLockedBlockBreakSpeedMultiplier));
+        values.put("researchTimeInSeconds", Integer.toString(COMMON.researchTimeInSeconds));
+        values.put("showDependencyScreenInPedestal", Boolean.toString(COMMON.showDependencyScreenInPedestal));
+        values.put("broadcastChat", Boolean.toString(COMMON.broadcastChat));
+        values.put("unlockMessageFormat", String.valueOf(COMMON.unlockMessageFormat));
+        values.put("useActionbar", Boolean.toString(COMMON.useActionbar));
+        values.put("useSounds", Boolean.toString(COMMON.useSounds));
+        values.put("useToasts", Boolean.toString(COMMON.useToasts));
+        values.put("defaultStageIcon", String.valueOf(COMMON.defaultStageIcon));
+        values.put("useReplacements", Boolean.toString(COMMON.useReplacements));
+        values.put("lockContainerInteraction", Boolean.toString(COMMON.lockContainerInteraction));
+        values.put("lockEnchanting", Boolean.toString(COMMON.lockEnchanting));
+        values.put("individualLockEnchanting", Boolean.toString(COMMON.individualLockEnchanting));
+        values.put("individualBroadcastChat", Boolean.toString(COMMON.individualBroadcastChat));
+        values.put("individualUnlockMessageFormat", String.valueOf(COMMON.individualUnlockMessageFormat));
+        values.put("individualUseActionbar", Boolean.toString(COMMON.individualUseActionbar));
+        values.put("individualUseSounds", Boolean.toString(COMMON.individualUseSounds));
+        values.put("individualUseToasts", Boolean.toString(COMMON.individualUseToasts));
+        values.put("structureMessageEnabled", Boolean.toString(COMMON.structureMessageEnabled));
+        values.put("structureLockInChat", Boolean.toString(COMMON.structureLockInChat));
+        values.put("structureDamageEnabled", Boolean.toString(COMMON.structureDamageEnabled));
+        values.put("structureDamageAmount", Float.toString(COMMON.structureDamageAmount));
+        values.put("structureDamageInterval", Integer.toString(COMMON.structureDamageInterval));
+        values.put("structureCheckInterval", Integer.toString(COMMON.structureCheckInterval));
+        values.put("structureLockMessageFormat", String.valueOf(COMMON.structureLockMessageFormat));
+        return values;
+    }
+
     public static void applyEditorValues(Map<String, String> clientValues, Map<String, String> commonValues) {
         if (clientValues != null) {
             clientValues.forEach((key, value) -> {

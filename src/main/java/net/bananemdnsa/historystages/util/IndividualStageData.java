@@ -93,7 +93,24 @@ public class IndividualStageData extends SavedData {
         if (added) {
             OptionalFTBQuestsHooks.individualUnlocked(stage, player);
             setDirty();
+            String displayName = displayNameOf(stage);
+            net.bananemdnsa.historystages.api.StageEvents.INDIVIDUAL_UNLOCKED.invoker().onChanged(stage, displayName, player);
+
+            net.minecraft.server.MinecraftServer server = ServerHolder.get();
+            if (server != null) {
+                net.minecraft.server.level.ServerPlayer sp = server.getPlayerList().getPlayer(player);
+                if (sp != null) {
+                    var entry = net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stage);
+                    String icon = entry != null ? entry.getIcon() : null;
+                    net.bananemdnsa.historystages.network.Networking.sendStageUnlockedToast(sp, displayName, icon);
+                }
+            }
         }
+    }
+
+    private static String displayNameOf(String stageId) {
+        var entry = net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stageId);
+        return entry != null ? entry.getDisplayName() : stageId;
     }
 
     public boolean removeStage(UUID player, String stage) {
@@ -104,9 +121,25 @@ public class IndividualStageData extends SavedData {
                 cached.remove(stage);
             }
             setDirty();
+            net.bananemdnsa.historystages.api.StageEvents.INDIVIDUAL_LOCKED.invoker().onChanged(stage, displayNameOf(stage), player);
             return true;
         }
         return false;
+    }
+
+    /**
+     * Removes the stage and, if {@code individualDropOnRevoke} is enabled, drops every
+     * inventory item that would now be locked.
+     */
+    public boolean removeStageWithDrop(net.minecraft.server.MinecraftServer server, UUID player, String stage) {
+        boolean removed = removeStage(player, stage);
+        if (removed && net.bananemdnsa.historystages.Config.COMMON.individualDropOnRevoke && server != null) {
+            net.minecraft.server.level.ServerPlayer serverPlayer = server.getPlayerList().getPlayer(player);
+            if (serverPlayer != null) {
+                StageLockHelper.dropLockedItemsForPlayer(serverPlayer, stage);
+            }
+        }
+        return removed;
     }
 
     public boolean hasStage(UUID player, String stage) {

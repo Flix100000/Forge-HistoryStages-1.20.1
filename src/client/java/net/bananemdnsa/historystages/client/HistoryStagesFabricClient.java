@@ -10,6 +10,7 @@ public class HistoryStagesFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientNetworking.register();
+        ClientDisconnectHandler.register();
         ClientDebugCommand.register();
         TooltipHandler.register();
         EditorButtonHandler.register();

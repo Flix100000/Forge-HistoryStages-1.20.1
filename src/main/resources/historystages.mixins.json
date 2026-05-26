@@ -8,6 +8,9 @@
     "BlockStateBaseMixin",
     "CraftingMenuMixin",
     "EnchantmentMenuMixin",
+    "ItemEntityPickupMixin",
+    "LivingEntityDropMixin",
+    "PlayerOpenMenuMixin",
     "RecipeManagerCheckMixin",
     "RecipeManagerMixin",
     "ServerPlayerMixin"

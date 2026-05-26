@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages;
 
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.events.EntityItemLockHandler;
 import net.bananemdnsa.historystages.events.GameplayEvents;
 import net.bananemdnsa.historystages.events.MobSpawnLockEvents;
 import net.bananemdnsa.historystages.events.StructureLockEvents;
@@ -39,6 +40,7 @@ public class HistoryStagesFabric implements ModInitializer {
         GameplayEvents.register();
         MobSpawnLockEvents.register();
         StructureLockEvents.register();
+        EntityItemLockHandler.register();
         initOptionalFTBQuests();
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
@@ -51,6 +53,7 @@ public class HistoryStagesFabric implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            net.bananemdnsa.historystages.util.ServerHolder.set(server);
             OptionalFTBQuestsHooks.setServer(server);
             StageManager.validateAgainstRegistries();
             Networking.syncAll(server);
@@ -59,6 +62,7 @@ public class HistoryStagesFabric implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            net.bananemdnsa.historystages.util.ServerHolder.set(null);
             OptionalFTBQuestsHooks.clearServer(server);
             DebugLogger.flushRuntimeBuffer();
         });

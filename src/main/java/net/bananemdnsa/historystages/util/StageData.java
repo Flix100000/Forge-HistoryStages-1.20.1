@@ -80,6 +80,15 @@ public class StageData extends SavedData {
             SERVER_CACHE.add(stage); // CACHE AKTUALISIEREN
             OptionalFTBQuestsHooks.globalUnlocked(stage);
             setDirty();
+            String displayName = lookupDisplayName(stage, false);
+            net.bananemdnsa.historystages.api.StageEvents.UNLOCKED.invoker().onChanged(stage, displayName);
+
+            net.minecraft.server.MinecraftServer server = net.bananemdnsa.historystages.util.ServerHolder.get();
+            if (server != null) {
+                var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stage);
+                String icon = entry != null ? entry.getIcon() : null;
+                net.bananemdnsa.historystages.network.Networking.sendStageUnlockedToastToAll(server, displayName, icon);
+            }
         }
     }
 
@@ -87,7 +96,15 @@ public class StageData extends SavedData {
         if (unlockedStages.remove(stage)) {
             SERVER_CACHE.remove(stage); // AUS CACHE ENTFERNEN
             setDirty();
+            net.bananemdnsa.historystages.api.StageEvents.LOCKED.invoker().onChanged(stage, lookupDisplayName(stage, false));
         }
+    }
+
+    private static String lookupDisplayName(String stageId, boolean individual) {
+        var entry = individual
+                ? net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stageId)
+                : net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
+        return entry != null ? entry.getDisplayName() : stageId;
     }
 
     public boolean hasStage(String stage) {

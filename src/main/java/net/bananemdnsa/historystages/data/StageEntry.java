@@ -297,4 +297,8 @@ public class StageEntry {
     public String toJson() {
         return GSON.toJson(this);
     }
+
+    public static StageEntry fromJson(String json) {
+        return GSON.fromJson(json, StageEntry.class);
+    }
 }
