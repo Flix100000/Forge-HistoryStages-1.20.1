@@ -353,9 +353,6 @@ public class ConfigEditorScreen extends Screen {
         structureLock.add(new ConfigEntry("structureBlockLeftClick", ConfigType.BOOLEAN,
                 Config.COMMON.structureBlockLeftClick.get().toString(), false, "true",
                 "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked structure?"));
-        structureLock.add(new ConfigEntry("structureWallMode", ConfigType.BOOLEAN,
-                Config.COMMON.structureWallMode.get().toString(), false, "true",
-                "WALL mode: bounce the player back at the boundary. Disable for DAMAGE mode (legacy)."));
         structureLock.add(new ConfigEntry("structureBlockProjectiles", ConfigType.BOOLEAN,
                 Config.COMMON.structureBlockProjectiles.get().toString(), false, "true",
                 "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked structure?"));

@@ -194,7 +194,6 @@
   "editor.historystages.config.structureDamageInterval": "Schadensintervall (Ticks)",
   "editor.historystages.config.structureBlockRightClick": "Rechtsklick blockieren",
   "editor.historystages.config.structureBlockLeftClick": "Linksklick blockieren",
-  "editor.historystages.config.structureWallMode": "Wand-Modus (Rückstoß)",
   "editor.historystages.config.structureBlockProjectiles": "Projektile blockieren",
 
   "editor.historystages.config.lock_messages": "Lock-Nachrichten",

@@ -194,7 +194,6 @@
   "editor.historystages.config.structureDamageInterval": "Damage Interval (ticks)",
   "editor.historystages.config.structureBlockRightClick": "Block Right-Click",
   "editor.historystages.config.structureBlockLeftClick": "Block Left-Click",
-  "editor.historystages.config.structureWallMode": "Wall Mode (bounce-back)",
   "editor.historystages.config.structureBlockProjectiles": "Block Projectiles",
 
   "editor.historystages.config.lock_messages": "Lock Messages",

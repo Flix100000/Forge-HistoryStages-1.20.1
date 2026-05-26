@@ -64,10 +64,6 @@ public class StructureLockHandler {
         List<StructureCluster> cachedActiveLockedClusters = Collections.emptyList();
         /** Hash of the last-sent border BB list, to skip redundant network sends. */
         int lastBorderHash = 0;
-        /** Last known outside-the-zone position (for wall-mode bounce-back). Null until first tick. */
-        Vec3 lastSafePos = null;
-        /** Whether the player was inside a locked zone on the previous tick (for wall-mode transition detection). */
-        boolean lastTickInside = false;
     }
 
     @SubscribeEvent
@@ -82,13 +78,6 @@ public class StructureLockHandler {
         int interval = Config.COMMON.structureCheckInterval.get();
         long chunkKey = (((long) player.chunkPosition().x) << 32) | (player.chunkPosition().z & 0xFFFFFFFFL);
         boolean chunkChanged = chunkKey != state.lastChunkKey;
-
-        // Wall-mode bounce runs BEFORE recompute so the player is teleported out before any
-        // damage/message handlers see them as "inside". Uses the previous tick's cached zones —
-        // safe because zones change only via recompute (chunk-change or interval).
-        if (Config.COMMON.structureWallMode.get()) {
-            applyWallMode(player, state);
-        }
 
         state.checkCooldown--;
         if (chunkChanged || state.checkCooldown <= 0) {
@@ -252,36 +241,6 @@ public class StructureLockHandler {
     private static void fastContainmentUpdate(ServerPlayer player, PlayerState state) {
         if (state.cachedLockedNearby.isEmpty()) return;
         applyContainment(player.blockPosition(), state);
-    }
-
-    /**
-     * Wall-mode enforcement: bounces the player back to the last safe outside position when
-     * they cross a zone boundary INWARDS. Inside→outside and inside→inside moves are allowed
-     * so a player who was already trapped (logged out inside, then admin locked the stage)
-     * can still move around and escape; only fresh entry from outside is blocked.
-     */
-    private static void applyWallMode(ServerPlayer player, PlayerState state) {
-        Vec3 currentPos = player.position();
-        boolean insideNow = isPosInsideAnyLock(player.blockPosition(), state);
-
-        if (state.lastSafePos == null) {
-            // First-tick init: don't bounce regardless of where we are.
-            if (!insideNow) state.lastSafePos = currentPos;
-            state.lastTickInside = insideNow;
-            return;
-        }
-
-        if (insideNow && !state.lastTickInside) {
-            // Crossed from outside to inside this tick. Teleport back to the saved safe spot.
-            player.teleportTo(state.lastSafePos.x, state.lastSafePos.y, state.lastSafePos.z);
-            // Don't update lastSafePos / lastTickInside — after teleport the player is back outside.
-            return;
-        }
-
-        if (!insideNow) {
-            state.lastSafePos = currentPos;
-        }
-        state.lastTickInside = insideNow;
     }
 
     private static boolean isPosInsideAnyLock(BlockPos pos, PlayerState state) {
