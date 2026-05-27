@@ -244,7 +244,6 @@ public class StageDetailScreen extends Screen {
     private static final int HEADER_HEIGHT = 62;
     private static final int CARD_HEIGHT = 22;
     private static final int CARD_GAP = 3;
-    private static final int ADD_ROW_HEIGHT = 22;
     private static final int TAB_HEIGHT = 16;
     private static final int TAB_PAD = 8;
     private static final float SMALL_SCALE = 0.85f;
@@ -381,6 +380,12 @@ public class StageDetailScreen extends Screen {
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
                 btn -> saveStage(), this.width - 60, this.height - 25, 50, 18));
+
+        int addBtnW = 120;
+        this.addRenderableWidget(StyledButton.of(
+                Component.literal("+ ").append(Component.translatable("editor.historystages.add")),
+                btn -> openAddDialog(),
+                (this.width - addBtnW) / 2, this.height - 25, addBtnW, 18));
 
         // Top-left button row (y=22): Settings | Dependencies | Icon
         String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
@@ -694,7 +699,7 @@ public class StageDetailScreen extends Screen {
     }
 
     void updateMaxScroll() {
-        int contentHeight = getActiveList().size() * (CARD_HEIGHT + CARD_GAP) + ADD_ROW_HEIGHT + CARD_GAP;
+        int contentHeight = getActiveList().size() * (CARD_HEIGHT + CARD_GAP) + CARD_GAP;
         int visibleHeight = this.height - HEADER_HEIGHT - 50;
         maxScroll = Math.max(0, contentHeight - visibleHeight);
         scrollOffset = Math.min(scrollOffset, maxScroll);
@@ -1065,36 +1070,12 @@ public class StageDetailScreen extends Screen {
             cardHoverStartTime = System.currentTimeMillis();
         }
 
-        // Add button with card styling and subtle hover glow
-        if (y + ADD_ROW_HEIGHT > listTop - 20 && y < listBottom + 20) {
-            String addText = "+ " + Component.translatable("editor.historystages.add").getString();
-            int addTextW = this.font.width(addText);
-            int addBoxRight = contentLeft + addTextW + 20;
-            boolean addHovered = effectiveMouseX >= contentLeft && effectiveMouseX <= addBoxRight
-                    && effectiveMouseY >= y && effectiveMouseY < y + ADD_ROW_HEIGHT
-                    && effectiveMouseY >= listTop && effectiveMouseY <= listBottom;
-
-            // Use index -1 for add button hover progress
-            float addProgress = cardHoverProgress.getOrDefault(-1, 0.0f);
-            if (addHovered) addProgress = Math.min(1.0f, addProgress + 0.1f);
-            else addProgress = Math.max(0.0f, addProgress - 0.07f);
-            if (addProgress > 0.001f) cardHoverProgress.put(-1, addProgress);
-            else cardHoverProgress.remove(-1);
-
-            int addBorderAlpha = (int) (0x25 + addProgress * 0x1B);
-            int addBgAlpha = (int) (0x18 + addProgress * 0x18);
-            guiGraphics.fill(contentLeft, y, addBoxRight, y + ADD_ROW_HEIGHT, (addBorderAlpha << 24) | 0xFFFFFF);
-            guiGraphics.fill(contentLeft + 1, y + 1, addBoxRight - 1, y + ADD_ROW_HEIGHT - 1, (addBgAlpha << 24) | 0xFFFFFF);
-
-            if (addProgress > 0.01f) {
-                int greenAlpha = (int) (addProgress * 0xAA);
-                guiGraphics.fill(contentLeft, y, contentLeft + 2, y + ADD_ROW_HEIGHT, (greenAlpha << 24) | 0x55FF55);
-            }
-
-            int addG = (int) (0x88 + addProgress * 0x77);
-            int addRB = (int) (0x33 + addProgress * 0x22);
-            guiGraphics.drawString(this.font, addText, contentLeft + 6, y + 7,
-                    (0xFF << 24) | (addRB << 16) | (addG << 8) | addRB, false);
+        // Empty state: show a centered hint when the active category has no entries
+        if (list.isEmpty()) {
+            String emptyText = Component.translatable("editor.historystages.empty").getString();
+            int centerX = (contentLeft + contentRight) / 2;
+            int centerY = (listTop + listBottom) / 2;
+            guiGraphics.drawCenteredString(this.font, emptyText, centerX, centerY - 4, 0x888888);
         }
 
         guiGraphics.disableScissor();
@@ -2540,12 +2521,6 @@ public class StageDetailScreen extends Screen {
             y += CARD_HEIGHT + CARD_GAP;
         }
 
-        if (mouseY >= y && mouseY < y + ADD_ROW_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
-            String addText = "+ " + Component.translatable("editor.historystages.add").getString();
-            int addTextW = this.font.width(addText);
-            int addBoxRight = contentLeft + addTextW + 20;
-            if (mouseX >= contentLeft && mouseX <= addBoxRight) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); openAddDialog(); return true; }
-        }
         return false;
     }
 

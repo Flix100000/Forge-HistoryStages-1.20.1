@@ -52,6 +52,7 @@
   "editor.historystages.field.icon": "Stage Icon",
   "editor.historystages.search_items": "Search items...",
   "editor.historystages.add": "Add",
+  "editor.historystages.empty": "No entries in this category yet. Click '+ Add' below to add one.",
   "editor.historystages.remove": "Remove",
   "editor.historystages.copy_id": "Copy ID",
   "editor.historystages.edit": "Edit",
