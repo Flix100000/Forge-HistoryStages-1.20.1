@@ -44,6 +44,13 @@ public record SyncIndividualStagesPacket(Set<String> unlockedStages) implements 
             if (mc.levelRenderer != null) {
                 mc.levelRenderer.allChanged();
             }
+
+            // JEI hiding (Issue #64): refresh visibility after individual-stage cache updated.
+            if (net.neoforged.fml.ModList.get().isLoaded("jei")) {
+                try {
+                    net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
+                } catch (Throwable ignored) {}
+            }
         });
     }
 

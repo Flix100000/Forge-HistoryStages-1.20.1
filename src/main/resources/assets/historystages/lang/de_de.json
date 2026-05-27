@@ -206,6 +206,11 @@
   "editor.historystages.config.hideFulfilledDependencies": "Erf\u00fcllte ausblenden",
   "editor.historystages.config.showDependencyScreenInPedestal": "Abh\u00e4ngigkeits-Checkliste im Podest",
 
+  "editor.historystages.config.jei_hiding": "JEI-Ausblendung",
+  "editor.historystages.config.hideLockedItemsInJei": "Gesperrte Items in JEI ausblenden",
+  "editor.historystages.config.hideLockedRecipesInJei": "Gesperrte Rezepte in JEI ausblenden",
+  "editor.historystages.config.lockedItemMultiStagePolicy": "Multi-Stage-Sperr-Logik",
+
   "editor.historystages.dep.title": "Abh\u00e4ngigkeiten",
   "editor.historystages.stage_settings.button": "Einstellungen",
   "editor.historystages.stage_settings.title": "Stage-Einstellungen",
