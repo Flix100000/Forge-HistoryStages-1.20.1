@@ -47,6 +47,14 @@ repositories {
         name = "Curios"
         url "https://maven.theillusivec4.top/"
     }
+    maven {
+        name = "Wisp Forest"
+        url "https://maven.wispforest.io/releases"
+    }
+    maven {
+        name = "Sinytra"
+        url "https://maven.su5ed.dev/releases"
+    }
 }
 
 base {
@@ -168,6 +176,9 @@ dependencies {
 
     // Curios (optional integration)
     compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
+
+    // Accessories (optional integration)
+    compileOnly "io.wispforest:accessories-neoforge:1.1.0-beta.53+1.21.1"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar

@@ -13,7 +13,6 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -69,27 +68,36 @@ public class ContainerClickMixin {
         if (slotId < 0 || slotId >= menu.slots.size()) return;
         Slot slot = menu.slots.get(slotId);
 
+        boolean targetIsEquipSlot = historystages$isPlayerEquipmentSlot(slot, serverPlayer)
+                || historystages$isExternalArmorSlot(slot, serverPlayer);
+
         ItemStack candidate = ItemStack.EMPTY;
         switch (clickType) {
             case PICKUP -> {
-                if (historystages$isPlayerEquipmentSlot(slot, serverPlayer)) {
+                if (targetIsEquipSlot) {
                     candidate = menu.getCarried();
                 }
             }
             case QUICK_MOVE -> {
-                if (menu instanceof InventoryMenu
-                        && !historystages$isPlayerEquipmentSlot(slot, serverPlayer)) {
+                if (!targetIsEquipSlot) {
                     ItemStack source = slot.getItem();
-                    EquipmentSlot natural = serverPlayer.getEquipmentSlotForItem(source);
-                    if (!source.isEmpty()
-                            && (natural.getType() == EquipmentSlot.Type.HUMANOID_ARMOR || natural == EquipmentSlot.OFFHAND)
-                            && serverPlayer.getItemBySlot(natural).isEmpty()) {
-                        candidate = source;
+                    if (!source.isEmpty()) {
+                        EquipmentSlot natural = serverPlayer.getEquipmentSlotForItem(source);
+                        boolean isArmorOrOffhand = natural.getType() == EquipmentSlot.Type.HUMANOID_ARMOR
+                                || natural == EquipmentSlot.OFFHAND;
+                        // Block shift-click if either the vanilla armor/offhand slot is empty,
+                        // or any non-vanilla ArmorSlot in the open menu (e.g. Accessories' wrapped
+                        // armor slots) would accept the item.
+                        if (isArmorOrOffhand
+                                && (serverPlayer.getItemBySlot(natural).isEmpty()
+                                    || historystages$menuHasExternalArmorTargetFor(menu, source, serverPlayer))) {
+                            candidate = source;
+                        }
                     }
                 }
             }
             case SWAP -> {
-                if (historystages$isPlayerEquipmentSlot(slot, serverPlayer)) {
+                if (targetIsEquipSlot) {
                     Inventory inv = serverPlayer.getInventory();
                     if (button == 40) {
                         candidate = inv.offhand.get(0);
@@ -118,6 +126,40 @@ public class ContainerClickMixin {
         if (slot.container != player.getInventory()) return false;
         int idx = slot.getContainerSlot();
         return idx >= 36 && idx <= 40;
+    }
+
+    /**
+     * Detects {@code ArmorSlot} instances backed by a non-vanilla container. Mods like
+     * Accessories render the player's vanilla armor slots through their own UI by
+     * wrapping them in a custom container, so {@link #historystages$isPlayerEquipmentSlot}
+     * misses them. Anything that writes through an {@code ArmorSlot} ultimately routes
+     * back to the player's vanilla equipment, so treating it as an equip target is safe.
+     *
+     * <p>{@code net.minecraft.world.inventory.ArmorSlot} is package-private, so we walk
+     * the class hierarchy by name instead of using {@code instanceof}.
+     */
+    @Unique
+    private static boolean historystages$isExternalArmorSlot(Slot slot, ServerPlayer player) {
+        if (slot.container == player.getInventory()) return false;
+        for (Class<?> c = slot.getClass(); c != null; c = c.getSuperclass()) {
+            if ("net.minecraft.world.inventory.ArmorSlot".equals(c.getName())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if any non-vanilla {@code ArmorSlot} in the open menu would accept
+     * the given stack and is currently empty. Used to detect shift-click equip attempts
+     * into mod-rendered armor slots whose target isn't the player's main inventory.
+     */
+    @Unique
+    private static boolean historystages$menuHasExternalArmorTargetFor(AbstractContainerMenu menu, ItemStack stack, ServerPlayer player) {
+        for (Slot s : menu.slots) {
+            if (historystages$isExternalArmorSlot(s, player) && !s.hasItem() && s.mayPlace(stack)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Unique

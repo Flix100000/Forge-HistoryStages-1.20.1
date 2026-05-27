@@ -97,6 +97,15 @@ public class HistoryStages {
             }
         }
 
+        if (ModList.get().isLoaded("accessories")) {
+            try {
+                net.bananemdnsa.historystages.events.AccessoriesEquipLockHandler.register();
+                LOGGER.info("[HistoryStages] Accessories integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load Accessories integration.", e);
+            }
+        }
+
         NeoForge.EVENT_BUS.register(this);
     }
 
