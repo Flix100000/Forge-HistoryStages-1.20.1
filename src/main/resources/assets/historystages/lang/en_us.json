@@ -215,6 +215,11 @@
   "editor.historystages.config.hideFulfilledDependencies": "Hide Fulfilled Dependencies",
   "editor.historystages.config.showDependencyScreenInPedestal": "Dependency Screen in Pedestal",
 
+  "editor.historystages.config.jei_hiding": "JEI Hiding",
+  "editor.historystages.config.hideLockedItemsInJei": "Hide Locked Items in JEI",
+  "editor.historystages.config.hideLockedRecipesInJei": "Hide Locked Recipes in JEI",
+  "editor.historystages.config.lockedItemMultiStagePolicy": "Multi-Stage Lock Policy",
+
   "editor.historystages.dep.title": "Dependencies",
   "editor.historystages.stage_settings.button": "Settings",
   "editor.historystages.stage_settings.title": "Stage Settings",

@@ -270,6 +270,35 @@ public class StageLockHelper {
         return false;
     }
 
+    /**
+     * Lenient client-side lock check: returns true only if the item has at least one
+     * assigned stage AND none of its assigned stages (global or individual) is unlocked.
+     * If the item has no assigned stages at all, returns false.
+     *
+     * Used by JEI hiding when Config.CLIENT.lockedItemMultiStagePolicy == LENIENT.
+     */
+    public static boolean isItemLockedForClientLenient(ItemStack stack) {
+        if (stack.isEmpty()) return false;
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (res == null) return false;
+
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        List<String> globalStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
+        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
+
+        if (globalStages.isEmpty() && individualStages.isEmpty()) return false;
+
+        for (String stage : globalStages) {
+            if (ClientStageCache.isStageUnlocked(stage)) return false;
+        }
+        for (String stage : individualStages) {
+            if (ClientIndividualStageCache.isStageUnlocked(stage)) return false;
+        }
+        return true;
+    }
+
     public static boolean isItemLockedByIndividualStageClient(ItemStack stack) {
         if (stack.isEmpty()) return false;
         ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());

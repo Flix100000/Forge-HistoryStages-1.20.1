@@ -50,6 +50,14 @@ public record SyncStagesPacket(List<String> unlockedStages) implements CustomPac
                         ExternalMods.refreshEMI();
                     }
 
+                    // JEI hiding (Issue #64): refresh visibility after stage cache updated.
+                    // Null-safe — no-op if JEI is not installed.
+                    if (net.neoforged.fml.ModList.get().isLoaded("jei")) {
+                        try {
+                            net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
+                        } catch (Throwable ignored) {}
+                    }
+
                     System.out.println("[HistoryStages] Hard-Reset & Mod-Sync completed.");
                 } catch (Exception e) {
                     e.printStackTrace();

@@ -36,6 +36,16 @@ public class Config {
         public final ModConfigSpec.BooleanValue showDependenciesOnScroll;
         public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
 
+        // JEI Hiding (Issue #64)
+        public final ModConfigSpec.BooleanValue hideLockedItemsInJei;
+        public final ModConfigSpec.BooleanValue hideLockedRecipesInJei;
+        public final ModConfigSpec.EnumValue<MultiStagePolicy> lockedItemMultiStagePolicy;
+
+        public enum MultiStagePolicy {
+            STRICT,   // locked while ANY assigned stage is locked
+            LENIENT   // unlocked as soon as ANY assigned stage is unlocked
+        }
+
         public Client(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -147,6 +157,25 @@ public class Config {
             hideFulfilledDependencies = builder
                     .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
                     .define("hideFulfilledDependencies", false);
+
+            builder.pop();
+
+            builder.comment("JEI integration — fully hide locked items/recipes instead of using the lock overlay (Issue #64)")
+                    .push("jei_hiding");
+
+            hideLockedItemsInJei = builder
+                    .comment("Remove locked items from the JEI ingredient panel entirely. [Default: false]")
+                    .define("hideLockedItemsInJei", false);
+
+            hideLockedRecipesInJei = builder
+                    .comment("Hide recipes whose OUTPUT is a locked item in JEI. [Default: false]")
+                    .define("hideLockedRecipesInJei", false);
+
+            lockedItemMultiStagePolicy = builder
+                    .comment("How to treat items assigned to multiple stages:",
+                            "STRICT  = locked while ANY assigned stage is still locked (default).",
+                            "LENIENT = unlocked as soon as ANY assigned stage is unlocked.")
+                    .defineEnum("lockedItemMultiStagePolicy", MultiStagePolicy.STRICT);
 
             builder.pop();
         }
