@@ -192,6 +192,9 @@
   "editor.historystages.config.structureDamageEnabled": "Schaden in Strukturen",
   "editor.historystages.config.structureDamageAmount": "Schadensmenge",
   "editor.historystages.config.structureDamageInterval": "Schadensintervall (Ticks)",
+  "editor.historystages.config.structureBlockRightClick": "Rechtsklick blockieren",
+  "editor.historystages.config.structureBlockLeftClick": "Linksklick blockieren",
+  "editor.historystages.config.structureBlockProjectiles": "Projektile blockieren",
 
   "editor.historystages.config.lock_messages": "Lock-Nachrichten",
   "editor.historystages.config.msgDimensionUnknown": "Dimension unbekannt",
@@ -200,6 +203,12 @@
   "editor.historystages.config.msgBlockLocked": "Block gesperrt",
   "editor.historystages.config.msgEntityItemLocked": "Auslage gesperrt",
   "editor.historystages.config.msgEnchantmentLocked": "Verzauberung gesperrt",
+
+  "editor.historystages.config.structure_visuals": "Struktursperre-Visuals",
+  "editor.historystages.config.structureBorderEnabled": "Force-Field-Rand anzeigen",
+  "editor.historystages.config.structureBorderDistance": "Sichtbarkeitsdistanz Rand",
+  "editor.historystages.config.structureLockOverlayEnabled": "Roter Bildschirm-Overlay",
+  "editor.historystages.config.structureLockOverlayOpacity": "Overlay-Deckkraft",
 
   "editor.historystages.config.dependencies": "Abh\u00e4ngigkeiten",
   "editor.historystages.config.showDependenciesOnScroll": "Abh\u00e4ngigkeiten auf Rolle zeigen",

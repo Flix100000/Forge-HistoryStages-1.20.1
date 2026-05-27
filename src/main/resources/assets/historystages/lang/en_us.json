@@ -192,6 +192,9 @@
   "editor.historystages.config.structureDamageEnabled": "Damage in Structures",
   "editor.historystages.config.structureDamageAmount": "Damage Amount",
   "editor.historystages.config.structureDamageInterval": "Damage Interval (ticks)",
+  "editor.historystages.config.structureBlockRightClick": "Block Right-Click",
+  "editor.historystages.config.structureBlockLeftClick": "Block Left-Click",
+  "editor.historystages.config.structureBlockProjectiles": "Block Projectiles",
 
   "editor.historystages.config.lock_messages": "Lock Messages",
   "editor.historystages.config.msgDimensionUnknown": "Dimension Unknown",
@@ -200,6 +203,12 @@
   "editor.historystages.config.msgBlockLocked": "Block Locked",
   "editor.historystages.config.msgEntityItemLocked": "Entity Item Locked",
   "editor.historystages.config.msgEnchantmentLocked": "Enchantment Locked",
+
+  "editor.historystages.config.structure_visuals": "Structure Lock Visuals",
+  "editor.historystages.config.structureBorderEnabled": "Show Force-Field Border",
+  "editor.historystages.config.structureBorderDistance": "Border Reveal Distance",
+  "editor.historystages.config.structureLockOverlayEnabled": "Red Screen Overlay",
+  "editor.historystages.config.structureLockOverlayOpacity": "Overlay Opacity",
 
   "editor.historystages.config.dependencies": "Dependencies",
   "editor.historystages.config.showDependenciesOnScroll": "Show Dependencies on Scroll",

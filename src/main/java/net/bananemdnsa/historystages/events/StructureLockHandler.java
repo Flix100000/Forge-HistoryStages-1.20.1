@@ -4,29 +4,33 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncLockBordersPacket;
+import net.bananemdnsa.historystages.structure.ClusterBuilder;
+import net.bananemdnsa.historystages.structure.ClusterDebugRenderer;
+import net.bananemdnsa.historystages.structure.StructureCluster;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.MenuProvider;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SpawnerBlock;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkAccess;
+import net.neoforged.neoforge.common.util.TriState;
 import net.minecraft.world.level.levelgen.structure.Structure;
-import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.entity.ProjectileImpactEvent;
+import net.neoforged.neoforge.event.entity.player.AttackEntityEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import java.util.ArrayList;
@@ -53,6 +57,16 @@ public class StructureLockHandler {
         int messageCooldown = 0;
         List<String> cachedLockedStructureIds = Collections.emptyList();
         List<String> cachedLockedStageIds = Collections.emptyList();
+        /** Clusters near the player belonging to any locked structure (regardless of stage gating). */
+        List<StructureCluster> cachedNearbyClusters = Collections.emptyList();
+        /** Nearby clusters whose structure is actually locked — input set for the per-tick fast containment check. */
+        List<StructureCluster> cachedLockedNearby = Collections.emptyList();
+        /** Per-cluster mapping of which stage IDs that cluster contributes to (filled by recompute, read by fast update). */
+        Map<StructureCluster, Set<String>> cachedClusterStages = Collections.emptyMap();
+        /** Subset of locked-nearby clusters that contain the player right now. */
+        List<StructureCluster> cachedActiveLockedClusters = Collections.emptyList();
+        /** Hash of the last-sent border BB list, to skip redundant network sends. */
+        int lastBorderHash = 0;
     }
 
     @SubscribeEvent
@@ -72,8 +86,15 @@ public class StructureLockHandler {
         if (chunkChanged || state.checkCooldown <= 0) {
             state.checkCooldown = interval;
             state.lastChunkKey = chunkKey;
-            recomputeLockedStructures(player, state);
+            recompute(player, state);
+        } else {
+            // Cheap per-tick containment recheck so the lock state reacts within one tick
+            // when the player crosses a zone boundary inside an already-scanned area, instead
+            // of waiting up to checkInterval ticks for the next full recompute.
+            fastContainmentUpdate(player, state);
         }
+
+        ClusterDebugRenderer.tick(player, state.cachedNearbyClusters, state.cachedActiveLockedClusters);
 
         if (state.cachedLockedStructureIds.isEmpty()) return;
 
@@ -95,21 +116,34 @@ public class StructureLockHandler {
         }
     }
 
-    private static void recomputeLockedStructures(ServerPlayer player, PlayerState state) {
+    private static void recompute(ServerPlayer player, PlayerState state) {
         ServerLevel level = player.serverLevel();
         BlockPos pos = player.blockPosition();
 
-        List<Holder.Reference<Structure>> holders = collectStructureHoldersAt(level, pos);
-        if (holders.isEmpty()) {
+        int padding = Config.COMMON.structureLockPadding.get();
+        int clusterDistance = Config.COMMON.structureClusterDistance.get();
+
+        List<StructureCluster> nearby = ClusterBuilder.collectClustersNear(
+                level, pos, CHUNK_SCAN_RADIUS, padding, clusterDistance);
+
+        state.cachedNearbyClusters = nearby;
+
+        if (nearby.isEmpty()) {
             state.cachedLockedStructureIds = Collections.emptyList();
             state.cachedLockedStageIds = Collections.emptyList();
+            state.cachedActiveLockedClusters = Collections.emptyList();
+            state.cachedLockedNearby = Collections.emptyList();
+            state.cachedClusterStages = Collections.emptyMap();
+            syncBordersIfChanged(player, state, Collections.emptyList());
             return;
         }
 
-        // Build present IDs + tags for fast lookup against stage entries
+        // Collect structure IDs/tags from ALL nearby clusters so we can match locked
+        // entries even when the player is just close to (not inside) a structure.
         Set<String> presentIds = new HashSet<>();
         Set<String> presentTags = new HashSet<>();
-        for (Holder.Reference<Structure> h : holders) {
+        for (StructureCluster c : nearby) {
+            Holder.Reference<Structure> h = c.structure();
             h.unwrapKey().ifPresent(k -> presentIds.add(k.location().toString()));
             h.tags().forEach(t -> presentTags.add(t.location().toString()));
         }
@@ -120,10 +154,9 @@ public class StructureLockHandler {
         LinkedHashSet<String> lockedStructures = new LinkedHashSet<>();
         LinkedHashSet<String> lockedStages = new LinkedHashSet<>();
 
-        // Global stages
         for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
             String stageId = e.getKey();
-            if (StageData.SERVER_CACHE.contains(stageId)) continue; // already unlocked
+            if (StageData.SERVER_CACHE.contains(stageId)) continue;
             List<String> entries = e.getValue().getStructures();
             if (entries == null || entries.isEmpty()) continue;
             for (String entry : entries) {
@@ -135,7 +168,6 @@ public class StructureLockHandler {
             }
         }
 
-        // Individual stages (per-player)
         for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
             String stageId = e.getKey();
             if (playerStages.contains(stageId)) continue;
@@ -150,15 +182,130 @@ public class StructureLockHandler {
             }
         }
 
-        state.cachedLockedStructureIds = new ArrayList<>(lockedStructures);
-        state.cachedLockedStageIds = new ArrayList<>(lockedStages);
+        // Locked clusters near the player + their per-cluster stage contribution. We compute
+        // (cluster -> stages) here once and cache it so the per-tick fast containment update
+        // can derive activeStageIds without re-iterating every stage entry.
+        List<StructureCluster> lockedNearby = new ArrayList<>();
+        Map<StructureCluster, Set<String>> clusterStages = new HashMap<>();
+        for (StructureCluster c : nearby) {
+            if (!structureMatchesLocked(c, lockedStructures)) continue;
+            lockedNearby.add(c);
+
+            Set<String> idView = new HashSet<>();
+            c.structure().unwrapKey().ifPresent(k -> idView.add(k.location().toString()));
+            Set<String> tagView = new HashSet<>();
+            c.structure().tags().forEach(t -> tagView.add(t.location().toString()));
+
+            Set<String> stages = new LinkedHashSet<>();
+            for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
+                if (!lockedStages.contains(e.getKey())) continue;
+                List<String> entries = e.getValue().getStructures();
+                if (entries == null) continue;
+                for (String entry : entries) {
+                    if (matchEntry(entry, idView, tagView) != null) {
+                        stages.add(e.getKey());
+                        break;
+                    }
+                }
+            }
+            for (Map.Entry<String, StageEntry> e : StageManager.getIndividualStages().entrySet()) {
+                if (!lockedStages.contains(e.getKey())) continue;
+                List<String> entries = e.getValue().getStructures();
+                if (entries == null) continue;
+                for (String entry : entries) {
+                    if (matchEntry(entry, idView, tagView) != null) {
+                        stages.add(e.getKey());
+                        break;
+                    }
+                }
+            }
+            clusterStages.put(c, stages);
+        }
+
+        state.cachedLockedNearby = lockedNearby;
+        state.cachedClusterStages = clusterStages;
+
+        // Derive the active (containing) subset + per-cluster stage IDs.
+        applyContainment(player.blockPosition(), state);
+
+        // Send the full lockShape geometry to the client. The renderer culls interior faces
+        // (where a shape's face is occluded by another shape) so the force-field texture
+        // traces the actual silhouette of the orange union, not box-by-box.
+        List<BoundingBox> borderShapes = new ArrayList<>();
+        for (StructureCluster c : lockedNearby) borderShapes.addAll(c.lockShapes());
+        syncBordersIfChanged(player, state, borderShapes);
     }
 
     /**
-     * Checks whether a stage entry (either "minecraft:village" or "#minecraft:village")
-     * matches the player's current structure context. Returns the matching structure ID
-     * label or null if no match.
+     * Per-tick recheck of which locked-nearby clusters contain the player, using the cached
+     * cluster list and the per-cluster stage mapping built by {@link #recompute}. No structure
+     * scan, no stage-entry iteration — just one {@code contains(pos)} per locked cluster.
      */
+    private static void fastContainmentUpdate(ServerPlayer player, PlayerState state) {
+        if (state.cachedLockedNearby.isEmpty()) return;
+        applyContainment(player.blockPosition(), state);
+    }
+
+    private static boolean isPosInsideAnyLock(BlockPos pos, PlayerState state) {
+        for (StructureCluster c : state.cachedLockedNearby) {
+            if (c.contains(pos)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * True when the given block position lies inside any locked cluster cached for this player.
+     * Used by the anti-cheese block-pos checks: a player standing outside a zone shouldn't be
+     * able to mine into a village, interact with a chest poking through a wall, etc.
+     */
+    public static boolean isBlockInLockedZone(Player player, BlockPos pos) {
+        PlayerState state = STATE.get(player.getUUID());
+        if (state == null) return false;
+        return isPosInsideAnyLock(pos, state);
+    }
+
+    private static void applyContainment(BlockPos pos, PlayerState state) {
+        List<StructureCluster> active = new ArrayList<>();
+        LinkedHashSet<String> activeStructureIds = new LinkedHashSet<>();
+        LinkedHashSet<String> activeStageIds = new LinkedHashSet<>();
+        for (StructureCluster c : state.cachedLockedNearby) {
+            if (!c.contains(pos)) continue;
+            active.add(c);
+            c.structure().unwrapKey().ifPresent(k -> activeStructureIds.add(k.location().toString()));
+            Set<String> stages = state.cachedClusterStages.get(c);
+            if (stages != null) activeStageIds.addAll(stages);
+        }
+        state.cachedActiveLockedClusters = active;
+        state.cachedLockedStructureIds = new ArrayList<>(activeStructureIds);
+        state.cachedLockedStageIds = new ArrayList<>(activeStageIds);
+    }
+
+    private static boolean structureMatchesLocked(StructureCluster c, Set<String> lockedStructures) {
+        String id = c.structure().unwrapKey().map(k -> k.location().toString()).orElse(null);
+        if (id != null && lockedStructures.contains(id)) return true;
+        return c.structure().tags().anyMatch(t -> lockedStructures.contains("#" + t.location()));
+    }
+
+    private static void syncBordersIfChanged(ServerPlayer player, PlayerState state, List<BoundingBox> shapes) {
+        int hash = computeBoxHash(shapes);
+        if (hash == state.lastBorderHash) return;
+        state.lastBorderHash = hash;
+        PacketHandler.sendLockBordersToPlayer(new SyncLockBordersPacket(shapes), player);
+    }
+
+    private static int computeBoxHash(List<BoundingBox> shapes) {
+        int h = shapes.size();
+        for (BoundingBox b : shapes) {
+            h = h * 31 + b.minX();
+            h = h * 31 + b.minY();
+            h = h * 31 + b.minZ();
+            h = h * 31 + b.maxX();
+            h = h * 31 + b.maxY();
+            h = h * 31 + b.maxZ();
+        }
+        return h;
+    }
+
     private static String matchEntry(String entry, Set<String> presentIds, Set<String> presentTags) {
         if (entry == null || entry.isEmpty()) return null;
         if (entry.startsWith("#")) {
@@ -169,8 +316,9 @@ public class StructureLockHandler {
     }
 
     /**
-     * Returns ResourceLocation IDs of all structures containing the given position.
-     * Used by the debug command and other callers that only need IDs.
+     * Returns ResourceLocation IDs of all structures whose start BB contains pos.
+     * Kept for compatibility with {@code /history debug structure} which lists every
+     * structure the player is currently inside, independent of the active lock mode.
      */
     public static List<String> collectStructureIdsAt(ServerLevel level, BlockPos pos) {
         List<Holder.Reference<Structure>> holders = collectStructureHoldersAt(level, pos);
@@ -183,46 +331,32 @@ public class StructureLockHandler {
     }
 
     /**
-     * Returns Holder.Reference for every structure whose bounding box contains pos.
-     * Uses two strategies and merges results:
-     * 1. Vanilla {@code StructureManager.getAllStructuresAt} (cross-chunk references).
-     * 2. Manual scan of loaded chunks in a radius — catches structures at the edge of loading.
+     * Lists structures whose vanilla start bounding box contains {@code pos}. Used by the
+     * structure debug command — intentionally independent of the cluster-based lock logic
+     * so admins always see every structure that geometrically overlaps the position.
      */
     public static List<Holder.Reference<Structure>> collectStructureHoldersAt(ServerLevel level, BlockPos pos) {
-        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
-
-        Set<Structure> found = new LinkedHashSet<>();
-
-        // Strategy 1: vanilla lookup
-        try {
-            Map<Structure, ?> all = level.structureManager().getAllStructuresAt(pos);
-            found.addAll(all.keySet());
-        } catch (Throwable t) {
-            // Some chunks may not have structure references populated — fall through
-        }
-
-        // Strategy 2: scan loaded chunks in a radius and match bounding boxes directly
-        ChunkPos center = new ChunkPos(pos);
+        var registry = level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+        net.minecraft.world.level.ChunkPos center = new net.minecraft.world.level.ChunkPos(pos);
+        Set<Structure> seen = new LinkedHashSet<>();
         for (int cx = center.x - CHUNK_SCAN_RADIUS; cx <= center.x + CHUNK_SCAN_RADIUS; cx++) {
             for (int cz = center.z - CHUNK_SCAN_RADIUS; cz <= center.z + CHUNK_SCAN_RADIUS; cz++) {
-                ChunkAccess chunk = level.getChunkSource().getChunkNow(cx, cz);
+                var chunk = level.getChunkSource().getChunkNow(cx, cz);
                 if (chunk == null) continue;
-                for (Map.Entry<Structure, StructureStart> e : chunk.getAllStarts().entrySet()) {
-                    StructureStart start = e.getValue();
+                for (var entry : chunk.getAllStarts().entrySet()) {
+                    var start = entry.getValue();
                     if (start == null || !start.isValid()) continue;
                     if (!start.getBoundingBox().isInside(pos)) continue;
-                    found.add(e.getKey());
+                    seen.add(entry.getKey());
                 }
             }
         }
-
-        if (found.isEmpty()) return Collections.emptyList();
-
-        List<Holder.Reference<Structure>> out = new ArrayList<>(found.size());
-        for (Structure s : found) {
-            ResourceLocation key = registry.getKey(s);
+        if (seen.isEmpty()) return Collections.emptyList();
+        List<Holder.Reference<Structure>> out = new ArrayList<>(seen.size());
+        for (Structure s : seen) {
+            var key = registry.getKey(s);
             if (key == null) continue;
-            registry.getHolder(net.minecraft.resources.ResourceKey.create(Registries.STRUCTURE, key))
+            registry.getHolder(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, key))
                     .ifPresent(out::add);
         }
         return out;
@@ -238,7 +372,7 @@ public class StructureLockHandler {
         String formatted = format
                 .replace("{structure}", structureId)
                 .replace("{stage}", stageName)
-                .replace('&', '\u00A7');
+                .replace('&', '§');
 
         Component msg = Component.literal(formatted);
 
@@ -258,10 +392,6 @@ public class StructureLockHandler {
         return entry != null ? entry.getDisplayName() : stageId;
     }
 
-    /**
-     * Checks if the player is currently inside any locked structure
-     * (used by interaction blockers).
-     */
     public static boolean isInsideLockedStructure(Player player) {
         PlayerState state = STATE.get(player.getUUID());
         return state != null && !state.cachedLockedStructureIds.isEmpty();
@@ -272,24 +402,175 @@ public class StructureLockHandler {
     }
 
     /**
-     * Blocks interaction with containers and spawners while the player
-     * is inside a locked structure.
+     * Blanket-cancels every right-click interaction while the player is inside a locked
+     * structure (blocks, item self-use, entity interactions). Gated by
+     * {@code structureBlockRightClick}.
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (event.getEntity().level().isClientSide()) return;
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        if (player.isSpectator()) return;
-        if (!isInsideLockedStructure(player)) return;
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getPos())) {
+            cancelBlockClick(event);
+            return;
+        }
+        // Also catch placements where the CLICKED block is outside the zone but the resulting
+        // placement target is inside: water/lava buckets, TNT, block placement against the
+        // boundary wall. Without this a player could flood a locked village from the outside.
+        BlockPos placePos = event.getPos().relative(event.getFace());
+        if (shouldBlockInteraction(event.getEntity(), true, false, placePos)) {
+            cancelBlockClick(event);
+        }
+    }
 
-        BlockState blockState = event.getLevel().getBlockState(event.getPos());
-        Block block = blockState.getBlock();
-        boolean hasGui = block instanceof MenuProvider
-                || event.getLevel().getBlockEntity(event.getPos()) instanceof MenuProvider;
-        boolean isSpawner = block instanceof SpawnerBlock;
+    @SubscribeEvent
+    public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, null)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
 
-        if (!hasGui && !isSpawner) return;
+    @SubscribeEvent
+    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
+
+    /**
+     * Blanket-cancels every left-click interaction while the player is inside a locked
+     * structure (attacking entities, starting/continuing block-break). Gated by
+     * {@code structureBlockLeftClick}.
+     */
+    @SubscribeEvent
+    public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getPos())) {
+            cancelBlockClick(event);
+        }
+    }
+
+    /**
+     * Cancellation for both RightClickBlock and LeftClickBlock. The combination
+     * {@code setUseItem(FALSE) + setUseBlock(FALSE) + setCanceled(true) + setCancellationResult(FAIL)}
+     * tells the server-side logic the action did not happen. But the client already locally
+     * predicted the placement / item consumption, and the FAIL result doesn't always trigger
+     * a re-sync — so we also push the full inventory state back to the client to undo the
+     * prediction. Without the {@link #forceInventoryResync} call the placed block / emptied
+     * bucket would stay missing from the player's hand even though the world wasn't changed.
+     */
+    private static void cancelBlockClick(PlayerInteractEvent.RightClickBlock event) {
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.FALSE);
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.FAIL);
+        forceInventoryResync(event.getEntity());
+    }
+
+    private static void cancelBlockClick(PlayerInteractEvent.LeftClickBlock event) {
+        // LeftClickBlock has no setCancellationResult — block-break doesn't return a result
+        // that needs client-side sync. The TriState calls plus setCanceled are enough; no
+        // inventory resync needed because left-click doesn't consume items.
+        event.setUseBlock(TriState.FALSE);
+        event.setUseItem(TriState.FALSE);
+        event.setCanceled(true);
+    }
+
+    private static void forceInventoryResync(Player player) {
+        if (player instanceof ServerPlayer sp) {
+            sp.containerMenu.broadcastFullState();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getTarget().blockPosition())) event.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (shouldBlockInteraction(event.getPlayer(), false, true, event.getPos())) event.setCanceled(true);
+    }
+
+    /**
+     * Shared gate for every interaction handler. Triggers when the player is inside a locked
+     * zone OR when the target block/entity is inside one (anti-cheese: prevents mining or
+     * reaching into a zone from outside). Plus the per-side config flag must be on.
+     */
+    private static boolean shouldBlockInteraction(Player player, boolean right, boolean left, BlockPos targetPos) {
+        if (player == null) return false;
+        if (player.level().isClientSide()) return false;
+        if (!(player instanceof ServerPlayer sp)) return false;
+        if (sp.isSpectator()) return false;
+
+        boolean playerInside = isInsideLockedStructure(sp);
+        boolean targetInside = targetPos != null && isBlockInLockedZone(sp, targetPos);
+        if (!playerInside && !targetInside) return false;
+
+        if (right && !Config.COMMON.structureBlockRightClick.get()) return false;
+        if (left && !Config.COMMON.structureBlockLeftClick.get()) return false;
+        return true;
+    }
+
+    /**
+     * Cancels and discards projectiles whose impact would land inside a locked zone. Uses
+     * the shooter's cached lock geometry — projectiles without a player owner (e.g. dispenser
+     * arrows) are not checked. Gated by {@code structureBlockProjectiles}.
+     */
+    @SubscribeEvent
+    public static void onProjectileImpact(ProjectileImpactEvent event) {
+        if (event.getProjectile().level().isClientSide()) return;
+        if (!Config.COMMON.structureBlockProjectiles.get()) return;
+        if (!(event.getProjectile().getOwner() instanceof ServerPlayer shooter)) return;
+
+        PlayerState state = STATE.get(shooter.getUUID());
+        if (state == null || state.cachedLockedNearby.isEmpty()) return;
+
+        Vec3 hit = event.getRayTraceResult().getLocation();
+        BlockPos hitPos = BlockPos.containing(hit.x, hit.y, hit.z);
+        if (!isPosInsideAnyLock(hitPos, state)) return;
 
         event.setCanceled(true);
+        event.getProjectile().discard();
+    }
+
+    /**
+     * Filters explosion affected-blocks: any block that lies inside any online player's cached
+     * locked zone is removed from the list, so the explosion can't damage protected structure
+     * blocks. TNT, creeper, end-crystal, bed-in-nether — all explosion types route through
+     * this event. We scan every player's cache because explosions have no clean "owner" to
+     * attribute the source to (and even if they did, the zones nearby ANY player matter).
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (event.getLevel().isClientSide()) return;
+        if (STATE.isEmpty()) return;
+        List<BlockPos> affected = event.getAffectedBlocks();
+        if (affected.isEmpty()) return;
+
+        affected.removeIf(pos -> {
+            for (PlayerState s : STATE.values()) {
+                for (StructureCluster c : s.cachedLockedNearby) {
+                    if (c.contains(pos)) return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        // Prevents the per-UUID STATE map from growing forever as players cycle through.
+        clearPlayer(event.getEntity().getUUID());
     }
 }

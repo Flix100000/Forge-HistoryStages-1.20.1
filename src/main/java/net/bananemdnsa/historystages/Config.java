@@ -20,6 +20,10 @@ public class Config {
         public final ModConfigSpec.BooleanValue dimShowChat;
         public final ModConfigSpec.BooleanValue dimShowStagesInChat;
         public final ModConfigSpec.BooleanValue showLockIcons;
+        public final ModConfigSpec.BooleanValue structureBorderEnabled;
+        public final ModConfigSpec.DoubleValue structureBorderDistance;
+        public final ModConfigSpec.BooleanValue structureLockOverlayEnabled;
+        public final ModConfigSpec.DoubleValue structureLockOverlayOpacity;
         public final ModConfigSpec.BooleanValue mobUseActionbar;
         public final ModConfigSpec.BooleanValue mobShowChat;
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
@@ -65,6 +69,22 @@ public class Config {
             showLockIcons = builder
                     .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
                     .define("showLockIcons", true);
+
+            structureBorderEnabled = builder
+                    .comment("Render a force-field-style border on the walls of locked structures when you get close? [Default: true]")
+                    .define("structureBorderEnabled", true);
+
+            structureBorderDistance = builder
+                    .comment("How close (in blocks) to a locked structure wall before the border becomes visible. The border fades in as you approach. [Default: 8.0]")
+                    .defineInRange("structureBorderDistance", 8.0, 1.0, 32.0);
+
+            structureLockOverlayEnabled = builder
+                    .comment("While standing inside a locked structure, tint the whole screen red (like looking through red glasses) to signal the lock? [Default: true]")
+                    .define("structureLockOverlayEnabled", true);
+
+            structureLockOverlayOpacity = builder
+                    .comment("Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque). [Default: 0.30]")
+                    .defineInRange("structureLockOverlayOpacity", 0.30, 0.0, 1.0);
 
             builder.pop();
 
@@ -217,6 +237,11 @@ public class Config {
         public final ModConfigSpec.BooleanValue structureMessageEnabled;
         public final ModConfigSpec.ConfigValue<String> structureLockMessageFormat;
         public final ModConfigSpec.BooleanValue structureLockInChat;
+        public final ModConfigSpec.IntValue structureLockPadding;
+        public final ModConfigSpec.IntValue structureClusterDistance;
+        public final ModConfigSpec.BooleanValue structureBlockRightClick;
+        public final ModConfigSpec.BooleanValue structureBlockLeftClick;
+        public final ModConfigSpec.BooleanValue structureBlockProjectiles;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -424,6 +449,39 @@ public class Config {
             structureDamageInterval = builder
                     .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
                     .defineInRange("damageInterval", 20, 1, 600);
+
+            structureLockPadding = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "Extra blocks added around each piece of a locked structure (rooms, corridors, houses, ...).",
+                            "Note: a fixed safety buffer of 2 blocks is ALWAYS added on top of this value, so",
+                            "the effective padding around structure walls is (lockPadding + 2). Setting this to 0",
+                            "still leaves a 2-block safety wall between you and the structure. [Default: 0]"
+                    )
+                    .defineInRange("lockPadding", 0, 0, 16);
+
+            structureClusterDistance = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "How far apart (in blocks) two pieces of the same structure can be while still being",
+                            "joined into one connected lock zone. Example for a village: with a low value, each",
+                            "house is its own little zone and the gaps between houses are walkable; with a higher",
+                            "value, neighbouring houses + paths fuse into one lock zone covering the whole area.",
+                            "Higher = larger, more 'filled-in' lock zones. Lower = more precise, more gaps. [Default: 6]"
+                    )
+                    .defineInRange("clusterDistance", 6, 0, 32);
+
+            structureBlockRightClick = builder
+                    .comment("Cancel ALL right-click interactions (blocks, items, entities) while the player is inside a locked structure? [Default: true]")
+                    .define("blockRightClick", true);
+
+            structureBlockLeftClick = builder
+                    .comment("Cancel ALL left-click interactions (attacking entities, breaking blocks) while the player is inside a locked structure? [Default: true]")
+                    .define("blockLeftClick", true);
+
+            structureBlockProjectiles = builder
+                    .comment("Cancel projectiles (arrows, snowballs, ender pearls, etc.) the moment they would impact something inside a locked structure? [Default: true]")
+                    .define("blockProjectiles", true);
 
             builder.pop(); // structure_lock
 

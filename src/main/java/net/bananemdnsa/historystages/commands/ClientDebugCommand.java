@@ -7,7 +7,9 @@ import com.mojang.serialization.JsonOps;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.RequestClusterShapesPacket;
 import net.bananemdnsa.historystages.network.RequestStructureDebugPacket;
+import net.bananemdnsa.historystages.network.ToggleStructureVizPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.CommandSourceStack;
@@ -63,6 +65,10 @@ public final class ClientDebugCommand {
                                 .executes(ctx -> openEditor(ctx.getSource())))
                         .then(Commands.literal("structure")
                                 .executes(ctx -> requestStructure(ctx.getSource())))
+                        .then(Commands.literal("viz")
+                                .executes(ctx -> toggleViz(ctx.getSource())))
+                        .then(Commands.literal("shapes")
+                                .executes(ctx -> requestShapes(ctx.getSource())))
                         .then(Commands.literal("nbt")
                                 .then(Commands.literal("preset")
                                         .executes(ctx -> handlePreset(ctx.getSource())))
@@ -92,6 +98,24 @@ public final class ClientDebugCommand {
             return 0;
         }
         PacketHandler.sendToServer(new RequestStructureDebugPacket());
+        return 1;
+    }
+
+    private static int toggleViz(CommandSourceStack source) {
+        if (Minecraft.getInstance().player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+        PacketHandler.sendToServer(new ToggleStructureVizPacket());
+        return 1;
+    }
+
+    private static int requestShapes(CommandSourceStack source) {
+        if (Minecraft.getInstance().player == null) {
+            source.sendFailure(Component.literal("This command can only be run by a player."));
+            return 0;
+        }
+        PacketHandler.sendToServer(new RequestClusterShapesPacket());
         return 1;
     }
 

@@ -38,6 +38,8 @@ public class PacketHandler {
         registrar.playToServer(CheckDependencyPacket.TYPE, CheckDependencyPacket.STREAM_CODEC, CheckDependencyPacket::handle);
         registrar.playToServer(DepositDependencyPacket.TYPE, DepositDependencyPacket.STREAM_CODEC, DepositDependencyPacket::handle);
         registrar.playToServer(RequestStructureDebugPacket.TYPE, RequestStructureDebugPacket.STREAM_CODEC, RequestStructureDebugPacket::handle);
+        registrar.playToServer(ToggleStructureVizPacket.TYPE, ToggleStructureVizPacket.STREAM_CODEC, ToggleStructureVizPacket::handle);
+        registrar.playToServer(RequestClusterShapesPacket.TYPE, RequestClusterShapesPacket.STREAM_CODEC, RequestClusterShapesPacket::handle);
 
         // Dependency sync (Server → Client)
         registrar.playToClient(SyncDependencyStatusPacket.TYPE, SyncDependencyStatusPacket.STREAM_CODEC, SyncDependencyStatusPacket::handle);
@@ -47,6 +49,9 @@ public class PacketHandler {
 
         // Lock feedback (Server → Client) — client reads its own CLIENT config to decide display
         registrar.playToClient(LockFeedbackPacket.TYPE, LockFeedbackPacket.STREAM_CODEC, LockFeedbackPacket::handle);
+
+        // Lock border sync (Server → Client) — drives the force-field overlay near locked structures
+        registrar.playToClient(SyncLockBordersPacket.TYPE, SyncLockBordersPacket.STREAM_CODEC, SyncLockBordersPacket::handle);
     }
 
     public static void sendToAll(SyncStagesPacket packet) {
@@ -91,6 +96,10 @@ public class PacketHandler {
 
     // Send lock feedback (dimension or mob) to a specific player — client decides display
     public static void sendLockFeedbackToPlayer(LockFeedbackPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    public static void sendLockBordersToPlayer(SyncLockBordersPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
 
