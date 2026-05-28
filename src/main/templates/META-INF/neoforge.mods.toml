@@ -57,7 +57,7 @@ side="BOTH"
 [[dependencies.${mod_id}]]
 modId="ftbquests"
 type="optional"
-versionRange="[2100,)"
+versionRange="[2101,)"
 ordering="AFTER"
 side="BOTH"
 
