@@ -16,7 +16,6 @@
     "ServerPlayerMixin"
   ],
   "client": [
-      "client.EditorScreenBackgroundMixin",
       "client.GuiGraphicsMixin",
       "client.jei.RecipeLayoutMixin"
   ],
