@@ -56,6 +56,7 @@ public record CheckDependencyPacket(String stageId, boolean isIndividual, BlockP
 
             // Try to read deposited NBT from the pedestal scroll for accurate status
             CompoundTag depositedTag = null;
+            double costReduction = 0.0;
             BlockEntity be = player.level().getBlockEntity(packet.pos);
             if (be instanceof ResearchPedestalBlockEntity pedestal) {
                 ItemStack scroll = pedestal.getScrollStack();
@@ -63,9 +64,13 @@ public record CheckDependencyPacket(String stageId, boolean isIndividual, BlockP
                 if (scrollTag.contains("DepositedDependencies")) {
                     depositedTag = scrollTag.getCompound("DepositedDependencies");
                 }
+                costReduction = scrollTag.contains("LockedCostReduction")
+                        ? ResearchPedestalBlockEntity.getLockedCostReduction(scrollTag)
+                        : pedestal.getActiveBooster().costReduction();
             }
 
-            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag);
+            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag,
+                    costReduction);
             PacketDistributor.sendToPlayer(player, new SyncDependencyStatusPacket(packet.stageId, result));
         });
     }

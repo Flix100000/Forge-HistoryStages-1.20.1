@@ -6,6 +6,9 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.research.BoosterUtil;
+import net.bananemdnsa.historystages.research.ResearchBooster;
+import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
@@ -77,6 +80,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     }
                 } else {
                     ResearchPedestalBlockEntity.this.ownerUUID = null;
+                    ResearchPedestalBlockEntity.this.resetResearchState();
                 }
             } else if (slot == 1) {
                 // Reset deposit delay when deposit slot changes
@@ -104,6 +108,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private UUID ownerUUID = null;
     private UUID lastInteractingPlayer = null;
     private boolean dependenciesMet = true;
+    private double progressAccumulator = 0.0;
+    private int currentSpeedPercent = 0;
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.RESEARCH_PEDESTAL_BE.get(), pPos, pBlockState);
@@ -117,6 +123,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 3 -> ResearchPedestalBlockEntity.this.isCurrentScrollIndividual() ? 1 : 0;
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet ? 1 : 0;
                     case 5 -> ResearchPedestalBlockEntity.this.depositDelay;
+                    case 6 -> ResearchPedestalBlockEntity.this.currentSpeedPercent;
                     default -> 0;
                 };
             }
@@ -128,12 +135,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 2 -> ResearchPedestalBlockEntity.this.finishDelay = pValue;
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet = pValue == 1;
                     case 5 -> ResearchPedestalBlockEntity.this.depositDelay = pValue;
+                    case 6 -> ResearchPedestalBlockEntity.this.currentSpeedPercent = pValue;
                 }
             }
 
             @Override
             public int getCount() {
-                return 6;
+                return 7;
             }
         };
     }
@@ -156,6 +164,34 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 ? StageManager.getIndividualStages().get(stageId)
                 : StageManager.getStages().get(stageId);
         return entry != null && entry.hasDependencies();
+    }
+
+    /**
+     * Read the cost reduction locked into the scroll on first deposit, or 0.0 if not yet locked.
+     */
+    public static double getLockedCostReduction(ItemStack scroll) {
+        if (scroll.isEmpty()) return 0.0;
+        CompoundTag tag = scroll.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        return getLockedCostReduction(tag);
+    }
+
+    /** Read the locked cost reduction from an already-copied scroll tag. */
+    public static double getLockedCostReduction(CompoundTag scrollTag) {
+        if (scrollTag == null || !scrollTag.contains("LockedCostReduction")) return 0.0;
+        return scrollTag.getDouble("LockedCostReduction");
+    }
+
+    /** Booster effect from the block directly under this pedestal, if any. */
+    public ResearchBooster getActiveBooster() {
+        if (level == null) return ResearchBooster.NONE;
+        return ResearchBoosterRegistry.forBlockState(level.getBlockState(worldPosition.below()))
+                .orElse(ResearchBooster.NONE);
+    }
+
+    /** Single point of truth for clearing in-progress research state on this pedestal. */
+    private void resetResearchState() {
+        this.progress = 0;
+        this.progressAccumulator = 0.0;
     }
 
     private void loadProgressFromItem(ItemStack stack) {
@@ -204,6 +240,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 : new CompoundTag();
         boolean changed = false;
 
+        // Use locked cost reduction if present, else preview using the current pedestal's booster.
+        boolean alreadyLocked = scrollTag.contains("LockedCostReduction");
+        double costReduction = alreadyLocked
+                ? getLockedCostReduction(scrollTag)
+                : getActiveBooster().costReduction();
+
         outer:
         for (int i = 0; i < entry.getDependencies().size(); i++) {
             var group = entry.getDependencies().get(i);
@@ -212,7 +254,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 if (reqRl != null && reqRl.equals(depositRl)) {
                     String key = "Group_" + i + "_Item_" + reqRl;
                     int current = deposited.getInt(key);
-                    int needed = reqItem.getCount() - current;
+                    int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);
+                    int needed = effectiveRequired - current;
                     if (needed > 0) {
                         int toTake = Math.min(needed, depositStack.getCount());
                         depositStack.shrink(toTake);
@@ -226,6 +269,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         if (changed) {
             scrollTag.put("DepositedDependencies", deposited);
+            // First deposit ever for this scroll: lock the cost reduction value.
+            if (!alreadyLocked) {
+                scrollTag.putDouble("LockedCostReduction", costReduction);
+            }
             scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(scrollTag));
             setChanged();
 
@@ -237,7 +284,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     if (player != null) {
                         CompoundTag updatedDeposited = scrollTag.contains("DepositedDependencies")
                                 ? scrollTag.getCompound("DepositedDependencies") : null;
-                        var result = DependencyChecker.checkAll(entry, player, level, updatedDeposited);
+                        double scrollCost = scrollTag.contains("LockedCostReduction")
+                                ? scrollTag.getDouble("LockedCostReduction") : 0.0;
+                        var result = DependencyChecker.checkAll(entry, player, level, updatedDeposited,
+                                scrollCost);
                         PacketDistributor_sendToPlayer(player,
                                 new SyncDependencyStatusPacket(stageId, result));
                     }
@@ -271,13 +321,18 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         CompoundTag depositedData = scrollTag.contains("DepositedDependencies")
                 ? scrollTag.getCompound("DepositedDependencies") : new CompoundTag();
 
+        double costReduction = scrollTag.contains("LockedCostReduction")
+                ? getLockedCostReduction(scrollTag)
+                : getActiveBooster().costReduction();
+
         for (int i = 0; i < entry.getDependencies().size(); i++) {
             var group = entry.getDependencies().get(i);
             for (var item : group.getItems()) {
                 if (item.getId().equals(depositRl.toString())) {
                     String key = "Group_" + i + "_Item_" + item.getId();
                     int count = depositedData.getInt(key);
-                    if (count < item.getCount()) return true;
+                    int effectiveRequired = BoosterUtil.effectiveCount(item.getCount(), costReduction);
+                    if (count < effectiveRequired) return true;
                 }
             }
         }
@@ -286,6 +341,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
     public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestalBlockEntity entity) {
         if (level.isClientSide) return;
+
+        // Refresh active speed multiplier from the booster below (synced to client via data slot 6).
+        ResearchBooster activeBooster = entity.getActiveBooster();
+        entity.currentSpeedPercent = BoosterUtil.percent(activeBooster.speedReduction());
 
         // Handle item deposit (slot 1): wait MAX_DEPOSIT_DELAY ticks then process
         ItemStack depositSlot = entity.itemHandler.getStackInSlot(1);
@@ -357,8 +416,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                 CompoundTag depositedTag = stackTag.contains("DepositedDependencies")
                                         ? stackTag.getCompound("DepositedDependencies")
                                         : null;
+                                double tickCost = stackTag.contains("LockedCostReduction")
+                                        ? stackTag.getDouble("LockedCostReduction") : 0.0;
                                 DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
-                                        depositedTag);
+                                        depositedTag, tickCost);
                                 metTotal = result.isFulfilled();
                             } else {
                                 // No player available — pause research
@@ -377,8 +438,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 if (metTotal) {
                     isResearching = true;
                     if (entity.progress < maxProgress) {
-                        entity.progress++;
-                        if (entity.progress % 10 == 0) {
+                        entity.progressAccumulator += BoosterUtil.speedMultiplier(activeBooster.speedReduction());
+                        int wholeTicks = (int) entity.progressAccumulator;
+                        if (wholeTicks > 0) {
+                            entity.progress = Math.min(maxProgress, entity.progress + wholeTicks);
+                            entity.progressAccumulator -= wholeTicks;
+                        }
+                        if (entity.progress % 10 == 0 || entity.progress >= maxProgress) {
                             CompoundTag nbt = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
                             nbt.putInt("ResearchProgress", entity.progress);
                             nbt.putInt("MaxProgress", maxProgress);
@@ -393,10 +459,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 }
                 // If dependencies not met, research pauses (progress stays, no increment)
             } else {
-                entity.progress = 0;
+                entity.resetResearchState();
             }
         } else {
-            entity.progress = 0;
+            entity.resetResearchState();
             entity.finishDelay = 0;
         }
 
@@ -424,7 +490,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
         }
 
-        this.progress = 0;
+        this.resetResearchState();
         this.finishDelay = 0;
         stack.shrink(1);
         setChanged();

@@ -71,6 +71,8 @@ public class HistoryStages {
         modEventBus.addListener(this::onRegisterItemDecorators);
         modEventBus.addListener(this::registerScreens);
         modEventBus.addListener(this::registerCapabilities);
+        modEventBus.addListener(this::onConfigLoad);
+        modEventBus.addListener(this::onConfigReload);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
@@ -107,6 +109,20 @@ public class HistoryStages {
         }
 
         NeoForge.EVENT_BUS.register(this);
+    }
+
+    private void onConfigLoad(net.neoforged.fml.event.config.ModConfigEvent.Loading event) {
+        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
+                    Config.COMMON.researchBoosters.get());
+        }
+    }
+
+    private void onConfigReload(net.neoforged.fml.event.config.ModConfigEvent.Reloading event) {
+        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
+                    Config.COMMON.researchBoosters.get());
+        }
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {

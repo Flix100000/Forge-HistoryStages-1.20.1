@@ -136,6 +136,9 @@ public class ConfigEditorScreen extends Screen {
         visuals.add(new ConfigEntry("showLockIcons", ConfigType.BOOLEAN,
                 Config.CLIENT.showLockIcons.get().toString(), true, "true",
                 "Show a lock icon overlay on locked items in JEI and Inventories?"));
+        visuals.add(new ConfigEntry("showBoosterTooltips", ConfigType.BOOLEAN,
+                Config.CLIENT.showBoosterTooltips.get().toString(), true, "true",
+                "Show a tooltip on Research Pedestal booster blocks describing their speed/cost effect?"));
         clientSections.add(visuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
@@ -318,10 +321,13 @@ public class ConfigEditorScreen extends Screen {
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
                 Config.COMMON.researchTimeInSeconds.get().toString(), false, "20",
-                "Default research time in seconds. Used as fallback if a stage does not define its own."));
+                "Default research time in seconds. Used as fallback if a stage does not define its own. Range 1-86400."));
         research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
                 Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
                 "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
+        research.add(new ConfigEntry("researchBoosters", ConfigType.BOOSTER_LIST,
+                encodeBoosterList(Config.COMMON.researchBoosters.get()), false, "",
+                "Booster blocks placed under a Research Pedestal. Speed/cost values are percentages 0-90."));
         commonSections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");
@@ -676,6 +682,14 @@ public class ConfigEditorScreen extends Screen {
                 guiGraphics.drawString(this.font, display, controlX, y + 8,
                         listHovered ? 0xFFCC00 : 0xDDDDDD, false);
             }
+            case BOOSTER_LIST -> {
+                int count = entry.value.isEmpty() ? 0 : entry.value.split(";").length;
+                String display = "[" + count + " boosters] \u00A77(click to edit)";
+                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                guiGraphics.drawString(this.font, display, controlX, y + 8,
+                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
+            }
             case ITEM -> {
                 // Render a 16x16 item icon + the item ID text
                 ItemStack preview = resolveItemStack(entry.value);
@@ -784,6 +798,7 @@ public class ConfigEditorScreen extends Screen {
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
+            case BOOSTER_LIST -> this.minecraft.setScreen(new BoosterListEditorScreen(this, entry));
         }
     }
 
@@ -932,6 +947,7 @@ public class ConfigEditorScreen extends Screen {
                 case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
                 case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
                 case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
+                case "showBoosterTooltips" -> Config.CLIENT.showBoosterTooltips.set(Boolean.parseBoolean(value));
                 case "structureBorderEnabled" -> Config.CLIENT.structureBorderEnabled.set(Boolean.parseBoolean(value));
                 case "structureBorderDistance" -> {
                     try { Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
@@ -967,7 +983,16 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM
+        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST
+    }
+
+    /** Encode the live booster config list as the editor's internal string: "block,speed,cost;block,speed,cost". */
+    private static String encodeBoosterList(java.util.List<? extends String> entries) {
+        return entries.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.joining(";"));
     }
 
     static class ConfigEntry {
@@ -1575,6 +1600,344 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public void onClose() {
             this.minecraft.setScreen(parent);
+        }
+    }
+
+    /**
+     * Editor for the researchBoosters config list. Each row shows a block icon,
+     * its ID and two EditBoxes for speed / cost percent (0-90). The "Add" button
+     * opens a SearchableItemList to pick a block.
+     *
+     * Internal entry serialization: "block_id,speed,cost" joined by ';'.
+     */
+    static class BoosterListEditorScreen extends Screen {
+        private final ConfigEditorScreen parent;
+        private final ConfigEntry entry;
+        private final List<BoosterRow> rows = new ArrayList<>();
+        private SearchableItemList itemOverlay;
+        private double scrollOffset = 0;
+        private int maxScroll = 0;
+        private boolean draggingScrollbar = false;
+        private static final int ROW_HEIGHT = 26;
+        private static final int LIST_TOP = 50;
+        private static final int FIELD_W = 30;
+
+        BoosterListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
+            super(Component.translatable("editor.historystages.config." + entry.key));
+            this.parent = parent;
+            this.entry = entry;
+            decode(entry.value);
+        }
+
+        private void decode(String value) {
+            rows.clear();
+            if (value == null || value.isEmpty()) return;
+            for (String part : value.split(";")) {
+                String trimmed = part.trim();
+                if (trimmed.isEmpty()) continue;
+                String[] tokens = trimmed.split(",");
+                if (tokens.length != 3) continue;
+                String blockId = tokens[0].trim();
+                int speed = parseClampedPercent(tokens[1].trim());
+                int cost = parseClampedPercent(tokens[2].trim());
+                rows.add(new BoosterRow(blockId, speed, cost));
+            }
+        }
+
+        private static int parseClampedPercent(String s) {
+            try {
+                int v = Integer.parseInt(s);
+                return Math.max(0, Math.min(90, v));
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+
+        @Override
+        protected void init() {
+            this.addRenderableWidget(StyledButton.of(
+                    Component.translatable("editor.historystages.back"),
+                    btn -> saveAndClose(), 10, this.height - 30, 60, 20));
+
+            this.addRenderableWidget(StyledButton.of(
+                    Component.translatable("editor.historystages.add"),
+                    btn -> openPicker(),
+                    this.width / 2 - 50, this.height - 30, 100, 20));
+
+            rebuildEditBoxes();
+            updateMaxScroll();
+        }
+
+        /**
+         * Open the block picker, after clearing any focus and hiding the EditBoxes
+         * so they don't visually leak through (or accept input behind) the modal overlay.
+         */
+        private void openPicker() {
+            this.setFocused(null);
+            for (BoosterRow r : rows) {
+                r.speedBox.setFocused(false);
+                r.costBox.setFocused(false);
+                r.speedBox.setVisible(false);
+                r.costBox.setVisible(false);
+            }
+            itemOverlay = new SearchableItemList(blockId -> {
+                if (rows.stream().noneMatch(r -> r.blockId.equals(blockId))) {
+                    BoosterRow nr = new BoosterRow(blockId, 5, 0);
+                    rows.add(nr);
+                    rebuildEditBoxes();
+                    updateMaxScroll();
+                }
+                itemOverlay = null;
+            });
+            itemOverlay.show(this.width / 2, this.height / 2, this.width);
+        }
+
+        private void rebuildEditBoxes() {
+            // Remove existing edit boxes from this screen's children
+            for (BoosterRow r : rows) {
+                if (r.speedBox != null) this.removeWidget(r.speedBox);
+                if (r.costBox != null) this.removeWidget(r.costBox);
+            }
+            for (BoosterRow r : rows) {
+                r.speedBox = new EditBox(this.font, 0, 0, FIELD_W, 16,
+                        Component.literal("speed"));
+                r.speedBox.setMaxLength(2);
+                r.speedBox.setValue(String.valueOf(r.speed));
+                r.speedBox.setResponder(v -> r.speed = parseClampedPercent(v));
+
+                r.costBox = new EditBox(this.font, 0, 0, FIELD_W, 16,
+                        Component.literal("cost"));
+                r.costBox.setMaxLength(2);
+                r.costBox.setValue(String.valueOf(r.cost));
+                r.costBox.setResponder(v -> r.cost = parseClampedPercent(v));
+
+                this.addRenderableWidget(r.speedBox);
+                this.addRenderableWidget(r.costBox);
+            }
+        }
+
+        private void updateMaxScroll() {
+            int listBottom = this.height - 40;
+            int contentHeight = rows.size() * ROW_HEIGHT;
+            int visibleHeight = listBottom - LIST_TOP;
+            maxScroll = Math.max(0, contentHeight - visibleHeight);
+            scrollOffset = Math.min(scrollOffset, maxScroll);
+        }
+
+        private void saveAndClose() {
+            StringBuilder sb = new StringBuilder();
+            for (BoosterRow r : rows) {
+                if (r.blockId == null || r.blockId.isEmpty()) continue;
+                if (sb.length() > 0) sb.append(';');
+                sb.append(r.blockId).append(',').append(r.speed).append(',').append(r.cost);
+            }
+            entry.value = sb.toString();
+            this.minecraft.setScreen(parent);
+        }
+
+        @Override
+        public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {}
+
+        @Override
+        public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
+            boolean overlayOpen = itemOverlay != null;
+            // Skip the title/subtitle/separators while the picker is up so they don't bleed
+            // through the dim layer above the picker panel.
+            if (!overlayOpen) {
+                guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+                guiGraphics.drawCenteredString(this.font, rows.size() + " boosters", this.width / 2, 25, 0x999999);
+                guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+            }
+
+            int listBottom = this.height - 40;
+            int contentLeft = 40;
+            int contentRight = this.width - 40;
+
+            int speedLabelX = contentRight - 180;
+            int speedBoxX = speedLabelX + 38;
+            int costLabelX = speedBoxX + FIELD_W + 12;
+            int costBoxX = costLabelX + 32;
+            int removeX = contentRight - 14;
+
+            // EditBoxes render via super.render() outside the scissor, so we hide any whose
+            // row would be clipped. Visible state for the picker overlay is also handled here.
+            guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
+
+            int y = LIST_TOP - (int) scrollOffset;
+            for (int i = 0; i < rows.size(); i++) {
+                BoosterRow r = rows.get(i);
+                boolean fullyVisible = !overlayOpen && y >= LIST_TOP && y + ROW_HEIGHT <= listBottom;
+                r.speedBox.setVisible(fullyVisible);
+                r.costBox.setVisible(fullyVisible);
+                if (y + ROW_HEIGHT > LIST_TOP - 10 && y < listBottom + 10) {
+                    boolean hovered = mouseX >= contentLeft && mouseX <= contentRight
+                            && mouseY >= y && mouseY < y + ROW_HEIGHT
+                            && mouseY >= LIST_TOP && mouseY <= listBottom;
+                    if (hovered) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, 0x20FFFFFF);
+                    }
+
+                    // Block icon
+                    ResourceLocation rl = ResourceLocation.tryParse(r.blockId);
+                    if (rl != null) {
+                        Item item = BuiltInRegistries.ITEM.get(rl);
+                        if (item != null) {
+                            guiGraphics.renderItem(new ItemStack(item), contentLeft + 2, y + 5);
+                        }
+                    }
+
+                    // Block ID
+                    String shownId = r.blockId;
+                    int maxIdWidth = speedLabelX - (contentLeft + 22) - 4;
+                    if (this.font.width(shownId) > maxIdWidth) {
+                        shownId = this.font.plainSubstrByWidth(shownId, maxIdWidth - 6) + "...";
+                    }
+                    guiGraphics.drawString(this.font, shownId, contentLeft + 22, y + 9, 0xCCCCCC, false);
+
+                    // Speed / Cost labels
+                    guiGraphics.drawString(this.font, "Speed", speedLabelX, y + 9, 0xAACCFF, false);
+                    guiGraphics.drawString(this.font, "%", speedBoxX + FIELD_W + 2, y + 9, 0x888888, false);
+                    guiGraphics.drawString(this.font, "Cost", costLabelX, y + 9, 0xAACCFF, false);
+                    guiGraphics.drawString(this.font, "%", costBoxX + FIELD_W + 2, y + 9, 0x888888, false);
+
+                    // Position EditBoxes
+                    r.speedBox.setX(speedBoxX); r.speedBox.setY(y + 5);
+                    r.costBox.setX(costBoxX);   r.costBox.setY(y + 5);
+
+                    // Remove ×
+                    boolean removeHovered = mouseX >= removeX && mouseX <= removeX + 12
+                            && mouseY >= y + 2 && mouseY < y + ROW_HEIGHT - 2
+                            && mouseY >= LIST_TOP && mouseY <= listBottom;
+                    guiGraphics.drawString(this.font, "×", removeX + 2, y + 8,
+                            removeHovered ? 0xFF5555 : 0x888888, false);
+                }
+                y += ROW_HEIGHT;
+            }
+            guiGraphics.disableScissor();
+
+            if (maxScroll > 0) {
+                int scrollAreaHeight = listBottom - LIST_TOP;
+                int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                // Track + thumb, 6px wide for an easier hit target.
+                guiGraphics.fill(contentRight + 2, LIST_TOP, contentRight + 8, listBottom, 0x40000000);
+                guiGraphics.fill(contentRight + 2, barY, contentRight + 8, barY + barHeight, 0xC0FFFFFF);
+            }
+            guiGraphics.fill(30, listBottom + 1, this.width - 30, listBottom + 2, 0xFF555555);
+
+            super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+            if (itemOverlay != null) {
+                guiGraphics.fill(0, 0, this.width, this.height, 0x80000000);
+                itemOverlay.render(guiGraphics, this.font, mouseX, mouseY);
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (itemOverlay != null) {
+                if (itemOverlay.mouseClicked(mouseX, mouseY)) return true;
+                itemOverlay = null;
+                return true;
+            }
+
+            int listBottom = this.height - 40;
+            int contentLeft = 40;
+            int contentRight = this.width - 40;
+            int removeX = contentRight - 14;
+
+            // Scrollbar takes precedence over EditBoxes/buttons so a click on it always wins.
+            if (maxScroll > 0 && mouseX >= contentRight + 1 && mouseX <= contentRight + 9
+                    && mouseY >= LIST_TOP && mouseY <= listBottom) {
+                draggingScrollbar = true;
+                updateScrollFromMouse(mouseY, LIST_TOP, listBottom);
+                return true;
+            }
+
+            if (super.mouseClicked(mouseX, mouseY, button)) return true;
+
+            if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
+                return false;
+
+            int y = LIST_TOP - (int) scrollOffset;
+            for (int i = 0; i < rows.size(); i++) {
+                if (mouseY >= y && mouseY < y + ROW_HEIGHT) {
+                    if (mouseX >= removeX && mouseX <= removeX + 12) {
+                        BoosterRow removed = rows.remove(i);
+                        this.removeWidget(removed.speedBox);
+                        this.removeWidget(removed.costBox);
+                        updateMaxScroll();
+                        return true;
+                    }
+                }
+                y += ROW_HEIGHT;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+            if (draggingScrollbar) {
+                updateScrollFromMouse(mouseY, LIST_TOP, this.height - 40);
+                return true;
+            }
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        }
+
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            if (draggingScrollbar) { draggingScrollbar = false; return true; }
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
+
+        private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
+            int scrollAreaHeight = listBottom - listTop;
+            float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
+            scrollOffset = Math.round(ratio * maxScroll);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        }
+
+        @Override
+        public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+            if (itemOverlay != null) return itemOverlay.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * 16));
+            return true;
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (itemOverlay != null) {
+                if (keyCode == 256) { itemOverlay = null; return true; }
+                return itemOverlay.keyPressed(keyCode);
+            }
+            if (keyCode == 256) { saveAndClose(); return true; }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public boolean charTyped(char c, int modifiers) {
+            if (itemOverlay != null) return itemOverlay.charTyped(c);
+            return super.charTyped(c, modifiers);
+        }
+
+        @Override
+        public void onClose() { saveAndClose(); }
+
+        @Override
+        public boolean isPauseScreen() { return true; }
+
+        private static class BoosterRow {
+            String blockId;
+            int speed;
+            int cost;
+            EditBox speedBox;
+            EditBox costBox;
+            BoosterRow(String blockId, int speed, int cost) {
+                this.blockId = blockId;
+                this.speed = speed;
+                this.cost = cost;
+            }
         }
     }
 }

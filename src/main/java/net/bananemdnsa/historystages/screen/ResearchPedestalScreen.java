@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.network.CheckDependencyPacket;
 import net.bananemdnsa.historystages.network.DepositDependencyPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientDependencyCache;
@@ -99,6 +100,15 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
     protected void renderLabels(GuiGraphics guiGraphics, int pMouseX, int pMouseY) {
         guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, COLOR_PRIMARY, false);
 
+        // Live speed multiplier next to title, gray
+        int speedPercent = menu.getCurrentSpeedPercent();
+        if (speedPercent > 0) {
+            String mText = " " + BoosterUtil.formatMultiplier(speedPercent / 100.0);
+            int titleW = this.font.width(this.title);
+            guiGraphics.drawString(this.font, mText, this.titleLabelX + titleW, this.titleLabelY,
+                    COLOR_SECONDARY, false);
+        }
+
         ItemStack stack = menu.getSlot(36).getItem();
 
         if (!stack.isEmpty()) {
@@ -163,7 +173,11 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                                 48, 52, COLOR_ACCENT, false);
 
                         int remainingTicks = Math.max(0, maxProgress - currentProgress);
-                        int remainingSeconds = (remainingTicks / 20) + (remainingTicks % 20 > 0 ? 1 : 0);
+                        // Account for the live speed multiplier from the booster under the pedestal.
+                        double speedMultiplier = BoosterUtil.speedMultiplier(speedPercent / 100.0);
+                        int effectiveRemainingTicks = (int) Math.ceil(remainingTicks / speedMultiplier);
+                        int remainingSeconds = (effectiveRemainingTicks / 20)
+                                + (effectiveRemainingTicks % 20 > 0 ? 1 : 0);
                         if (percent >= 100) remainingSeconds = 0;
 
                         String timeText;
@@ -367,6 +381,13 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         // Deposit slot label
         guiGraphics.drawString(this.font, "Deposit:", x + 5, y + 142, COLOR_SECONDARY, false);
 
+        // Locked cost reduction from the scroll, gray, under "Deposit:"
+        int lockedPct = BoosterUtil.percent(
+                net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity.getLockedCostReduction(tag));
+        if (lockedPct > 0) {
+            guiGraphics.drawString(this.font, "-" + lockedPct + "%", x + 5, y + 154, COLOR_SECONDARY, false);
+        }
+
         // Deposit progress bar (shows while an item is being processed)
         int dDelay = menu.data.get(5);
         if (dDelay > 0) {
@@ -427,6 +448,10 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                             guiGraphics.renderItem(new ItemStack(mcItem), 3, currentY + 1);
                         }
                         String progressText = entry.getCurrent() + "/" + entry.getRequired();
+                        if (entry.getOriginalRequired() > 0
+                                && entry.getOriginalRequired() != entry.getRequired()) {
+                            progressText += " §7(" + entry.getOriginalRequired() + ")";
+                        }
                         guiGraphics.drawString(this.font, progressText, 25, currentY + 5,
                                 fulfilled ? COLOR_ACCENT : COLOR_PRIMARY, false);
 

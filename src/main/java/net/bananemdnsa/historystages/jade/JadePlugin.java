@@ -2,10 +2,14 @@ package net.bananemdnsa.historystages.jade;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.research.BoosterUtil;
+import net.bananemdnsa.historystages.research.ResearchBooster;
+import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.StageLockHelper;
@@ -29,12 +33,35 @@ public class JadePlugin implements IWailaPlugin {
 
     private static final ResourceLocation LOCKED_BLOCK = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_block");
     private static final ResourceLocation LOCKED_ENTITY_ITEM = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "locked_entity_item");
+    private static final ResourceLocation PEDESTAL_BOOSTER = ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "pedestal_booster");
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {
         registration.registerBlockComponent(LockedBlockProvider.INSTANCE, Block.class);
+        registration.registerBlockComponent(PedestalBoosterProvider.INSTANCE, ResearchPedestalBlock.class);
         registration.registerEntityComponent(LockedEntityItemProvider.INSTANCE, ItemFrame.class);
         registration.registerEntityComponent(LockedEntityItemProvider.INSTANCE, ArmorStand.class);
+    }
+
+    public enum PedestalBoosterProvider implements IBlockComponentProvider {
+        INSTANCE;
+
+        @Override
+        public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
+            if (!Config.CLIENT.jadeShowInfo.get()) return;
+            var below = accessor.getLevel().getBlockState(accessor.getPosition().below());
+            ResearchBooster booster = ResearchBoosterRegistry.forBlockState(below).orElse(null);
+            if (booster == null) return;
+
+            for (Component line : BoosterUtil.describe(booster)) {
+                tooltip.add(line.copy().withStyle(ChatFormatting.AQUA));
+            }
+        }
+
+        @Override
+        public ResourceLocation getUid() {
+            return PEDESTAL_BOOSTER;
+        }
     }
 
     public enum LockedBlockProvider implements IBlockComponentProvider {

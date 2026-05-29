@@ -6,10 +6,14 @@ import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.research.BoosterUtil;
+import net.bananemdnsa.historystages.research.ResearchBooster;
+import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.StageLockHelper;
 import net.bananemdnsa.historystages.util.SearchHiddenContents;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -29,6 +33,33 @@ import java.util.Map;
 
 @EventBusSubscriber(modid = HistoryStages.MOD_ID, value = Dist.CLIENT)
 public class TooltipEventHandler {
+
+    @SubscribeEvent
+    public static void onBoosterTooltip(ItemTooltipEvent event) {
+        if (!Config.CLIENT.showBoosterTooltips.get()) return;
+        if (ResearchBoosterRegistry.all().isEmpty()) return;
+        ItemStack stack = event.getItemStack();
+        if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) return;
+
+        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
+        ResearchBooster booster = ResearchBoosterRegistry.get(id).orElse(null);
+        if (booster == null) return;
+
+        event.getToolTip().add(Component.translatable("tooltip.historystages.research_booster.header")
+                .withStyle(ChatFormatting.AQUA));
+        if (booster.hasSpeed()) {
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.historystages.research_booster.speed",
+                    BoosterUtil.formatMultiplier(booster.speedReduction()))
+                    .withStyle(ChatFormatting.GRAY));
+        }
+        if (booster.hasCost()) {
+            event.getToolTip().add(Component.translatable(
+                    "tooltip.historystages.research_booster.cost",
+                    BoosterUtil.percent(booster.costReduction()))
+                    .withStyle(ChatFormatting.GRAY));
+        }
+    }
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {

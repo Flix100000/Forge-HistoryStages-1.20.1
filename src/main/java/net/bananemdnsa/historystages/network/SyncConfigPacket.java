@@ -67,6 +67,7 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("useToasts", Config.COMMON.useToasts.get().toString());
         values.put("defaultStageIcon", Config.COMMON.defaultStageIcon.get());
         values.put("researchTimeInSeconds", Config.COMMON.researchTimeInSeconds.get().toString());
+        values.put("researchBoosters", Config.COMMON.researchBoosters.get().stream().map(Object::toString).collect(Collectors.joining(";")));
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         values.put("replacementTags", Config.COMMON.replacementTags.get().stream().map(Object::toString).collect(Collectors.joining(",")));
