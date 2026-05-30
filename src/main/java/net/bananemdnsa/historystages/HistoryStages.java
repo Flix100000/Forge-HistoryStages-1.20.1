@@ -274,6 +274,7 @@ public class HistoryStages {
     private static int tickCounter = 0;
     private static final int FLUSH_INTERVAL = 600; // every 30 seconds (20 ticks/s * 30s)
     private static final int CLEANUP_INTERVAL = 6000; // every 5 minutes
+    private static final int PICKUP_LOCK_SCAN_INTERVAL = 40; // every 2 seconds
 
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
@@ -286,6 +287,47 @@ public class HistoryStages {
         }
         if (tickCounter % CLEANUP_INTERVAL == 0) {
             DebugLogger.cleanupThrottleMap();
+        }
+        if (tickCounter % PICKUP_LOCK_SCAN_INTERVAL == 0
+                && event.getServer() != null) {
+            for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
+                dropPickupLockedInventoryItems(player);
+            }
+        }
+    }
+
+    /**
+     * Drops any inventory stacks whose "pickup" action is locked (global or individual).
+     * Catches items that bypass {@link EntityItemPickupEvent} (trades, /give, dispensers,
+     * shift-click from containers, etc.) so locked items can't get stuck in the inventory.
+     */
+    private static void dropPickupLockedInventoryItems(ServerPlayer player) {
+        var inv = player.getInventory();
+        boolean dropped = false;
+
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack.isEmpty()) continue;
+
+            boolean locked = net.bananemdnsa.historystages.util.StageLockHelper
+                    .isActionLockedForServer(stack, "pickup")
+                    || (Config.COMMON.individualLockItemPickup.get()
+                        && net.bananemdnsa.historystages.util.StageLockHelper
+                            .isActionLockedByIndividualStage(stack, player.getUUID(), "pickup"));
+            if (!locked) continue;
+
+            ItemStack toDrop = stack.copy();
+            inv.setItem(i, ItemStack.EMPTY);
+            player.drop(toDrop, false);
+            dropped = true;
+
+            ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(toDrop.getItem());
+            DebugLogger.runtimeThrottled("Inventory", "pickup_drop_" + player.getUUID() + "_" + itemRL,
+                    "<" + player.getName().getString() + "> Dropped locked '" + itemRL + "' x" + toDrop.getCount() + " from inventory [action: pickup]");
+        }
+
+        if (dropped) {
+            player.containerMenu.broadcastChanges();
         }
     }
 
@@ -306,16 +348,18 @@ public class HistoryStages {
                         .isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
             event.setCanceled(true);
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
-            DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Pickup of '" + itemRL + "' blocked [action: pickup]");
+            DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_ind_" + player.getUUID() + "_" + itemRL,
+                    "<" + player.getName().getString() + "> Pickup of '" + itemRL + "' blocked [action: pickup, individual]");
             return;
         }
 
-        // Global stages: log only (existing behavior)
-        if (StageManager.isItemLockedForServer(stack)) {
+        // Global stages: prevent pickup when "pickup" action is locked
+        if (net.bananemdnsa.historystages.util.StageLockHelper
+                .isActionLockedForServer(stack, "pickup")) {
+            event.setCanceled(true);
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
-            DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
-                    "<" + player.getName().getString() + "> Picked up locked '" + itemRL + "' x" + stack.getCount() + " [action: pickup]");
+            DebugLogger.runtimeThrottled("Inventory", "pickup_blocked_" + player.getUUID() + "_" + itemRL,
+                    "<" + player.getName().getString() + "> Pickup of '" + itemRL + "' blocked [action: pickup]");
         }
     }
 
