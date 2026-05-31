@@ -165,6 +165,7 @@
 
   "config.jade.plugin_historystages.locked_block": "Gesperrter Block Info",
   "config.jade.plugin_historystages.locked_entity_item": "Gesperrtes Entity-Item Info",
+  "config.jade.plugin_historystages.pedestal_booster": "Pedestal-Booster Info",
 
   "ftbquests.task.historystages.history_stage": "History Stage",
   "ftbquests.task.historystages.history_stage.title": "History Stage: %s",
