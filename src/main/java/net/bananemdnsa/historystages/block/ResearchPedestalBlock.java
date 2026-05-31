@@ -70,6 +70,17 @@ public class ResearchPedestalBlock extends BaseEntityBlock {
     }
 
     @Override
+    public void onRemove(BlockState oldState, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        if (!oldState.is(newState.getBlock())) {
+            BlockEntity be = level.getBlockEntity(pos);
+            if (be instanceof ResearchPedestalBlockEntity rpbe) {
+                rpbe.dropContents(level, pos);
+            }
+        }
+        super.onRemove(oldState, level, pos, newState, movedByPiston);
+    }
+
+    @Override
     public InteractionResult useWithoutItem(BlockState pState, Level pLevel, BlockPos pPos, Player pPlayer, BlockHitResult pHit) {
         if (!pLevel.isClientSide()) {
             BlockEntity entity = pLevel.getBlockEntity(pPos);

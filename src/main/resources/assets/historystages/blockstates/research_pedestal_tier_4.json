@@ -1,0 +1,37 @@
+{
+  "variants": {
+    "facing=east,part=foot,lit=false,working=false":  { "model": "historystages:block/research_pedestal_4" },
+    "facing=east,part=foot,lit=true,working=false":   { "model": "historystages:block/research_pedestal_4" },
+    "facing=east,part=foot,lit=false,working=true":   { "model": "historystages:block/research_pedestal_4_working" },
+    "facing=east,part=foot,lit=true,working=true":    { "model": "historystages:block/research_pedestal_4_working" },
+    "facing=south,part=foot,lit=false,working=false": { "model": "historystages:block/research_pedestal_4", "y": 90 },
+    "facing=south,part=foot,lit=true,working=false":  { "model": "historystages:block/research_pedestal_4", "y": 90 },
+    "facing=south,part=foot,lit=false,working=true":  { "model": "historystages:block/research_pedestal_4_working", "y": 90 },
+    "facing=south,part=foot,lit=true,working=true":   { "model": "historystages:block/research_pedestal_4_working", "y": 90 },
+    "facing=west,part=foot,lit=false,working=false":  { "model": "historystages:block/research_pedestal_4", "y": 180 },
+    "facing=west,part=foot,lit=true,working=false":   { "model": "historystages:block/research_pedestal_4", "y": 180 },
+    "facing=west,part=foot,lit=false,working=true":   { "model": "historystages:block/research_pedestal_4_working", "y": 180 },
+    "facing=west,part=foot,lit=true,working=true":    { "model": "historystages:block/research_pedestal_4_working", "y": 180 },
+    "facing=north,part=foot,lit=false,working=false": { "model": "historystages:block/research_pedestal_4", "y": 270 },
+    "facing=north,part=foot,lit=true,working=false":  { "model": "historystages:block/research_pedestal_4", "y": 270 },
+    "facing=north,part=foot,lit=false,working=true":  { "model": "historystages:block/research_pedestal_4_working", "y": 270 },
+    "facing=north,part=foot,lit=true,working=true":   { "model": "historystages:block/research_pedestal_4_working", "y": 270 },
+
+    "facing=east,part=head,lit=false,working=false":  { "model": "historystages:block/research_pedestal_4_head" },
+    "facing=east,part=head,lit=true,working=false":   { "model": "historystages:block/research_pedestal_4_head" },
+    "facing=east,part=head,lit=false,working=true":   { "model": "historystages:block/research_pedestal_4_working_head" },
+    "facing=east,part=head,lit=true,working=true":    { "model": "historystages:block/research_pedestal_4_working_head" },
+    "facing=south,part=head,lit=false,working=false": { "model": "historystages:block/research_pedestal_4_head", "y": 90 },
+    "facing=south,part=head,lit=true,working=false":  { "model": "historystages:block/research_pedestal_4_head", "y": 90 },
+    "facing=south,part=head,lit=false,working=true":  { "model": "historystages:block/research_pedestal_4_working_head", "y": 90 },
+    "facing=south,part=head,lit=true,working=true":   { "model": "historystages:block/research_pedestal_4_working_head", "y": 90 },
+    "facing=west,part=head,lit=false,working=false":  { "model": "historystages:block/research_pedestal_4_head", "y": 180 },
+    "facing=west,part=head,lit=true,working=false":   { "model": "historystages:block/research_pedestal_4_head", "y": 180 },
+    "facing=west,part=head,lit=false,working=true":   { "model": "historystages:block/research_pedestal_4_working_head", "y": 180 },
+    "facing=west,part=head,lit=true,working=true":    { "model": "historystages:block/research_pedestal_4_working_head", "y": 180 },
+    "facing=north,part=head,lit=false,working=false": { "model": "historystages:block/research_pedestal_4_head", "y": 270 },
+    "facing=north,part=head,lit=true,working=false":  { "model": "historystages:block/research_pedestal_4_head", "y": 270 },
+    "facing=north,part=head,lit=false,working=true":  { "model": "historystages:block/research_pedestal_4_working_head", "y": 270 },
+    "facing=north,part=head,lit=true,working=true":   { "model": "historystages:block/research_pedestal_4_working_head", "y": 270 }
+  }
+}

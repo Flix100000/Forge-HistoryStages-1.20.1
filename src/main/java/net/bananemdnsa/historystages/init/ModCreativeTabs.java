@@ -24,6 +24,9 @@ public class ModCreativeTabs {
                     .displayItems((parameters, output) -> {
                         // 1. Research pedestal and creative scroll
                         output.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_2_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_3_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_4_ITEM.get());
 
                         ItemStack creativeScroll = new ItemStack(ModItems.CREATIVE_SCROLL.get());
                         CompoundTag creativeNbt = new CompoundTag();

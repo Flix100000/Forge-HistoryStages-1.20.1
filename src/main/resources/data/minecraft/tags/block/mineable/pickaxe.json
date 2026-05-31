@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "historystages:research_pedestal",
+    "historystages:research_pedestal_tier_2",
+    "historystages:research_pedestal_tier_3",
+    "historystages:research_pedestal_tier_4"
+  ]
+}

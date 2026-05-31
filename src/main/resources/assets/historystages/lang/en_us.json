@@ -1,5 +1,8 @@
 {
   "block.historystages.research_pedestal": "Research Pedestal",
+  "block.historystages.research_pedestal_tier_2": "Research Pedestal Tier II",
+  "block.historystages.research_pedestal_tier_3": "Research Pedestal Tier III",
+  "block.historystages.research_pedestal_tier_4": "Research Pedestal Tier IV",
   "item.historystages.research_scroll": "Research Scroll",
   "item.historystages.creative_scroll": "Creative Scroll",
   "tooltip.historystages.creative_scroll.info1": "Use this scroll in a Research Pedestal",
