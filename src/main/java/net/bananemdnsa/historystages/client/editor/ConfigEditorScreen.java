@@ -221,7 +221,7 @@ public class ConfigEditorScreen extends Screen {
         jeiHiding.add(new ConfigEntry("hideLockedRecipesInJei", ConfigType.BOOLEAN,
                 Config.CLIENT.hideLockedRecipesInJei.get().toString(), true, "false",
                 "Hide recipes whose OUTPUT is a locked item in JEI."));
-        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.STRING,
+        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.MULTI_STAGE_POLICY,
                 Config.CLIENT.lockedItemMultiStagePolicy.get().name(), true, "STRICT",
                 "Multi-stage policy: STRICT (hide while any stage locked) or LENIENT (show when any unlocked)."));
         clientSections.add(jeiHiding);
@@ -693,6 +693,15 @@ public class ConfigEditorScreen extends Screen {
                 guiGraphics.drawString(this.font, display, controlX, y + 8,
                         listHovered ? 0xFFCC00 : 0xDDDDDD, false);
             }
+            case MULTI_STAGE_POLICY -> {
+                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
+                String toggleText = strict ? "\u2714 STRICT" : "\u2718 LENIENT";
+                int toggleColor = strict ? 0x55FF55 : 0xFFAA55;
+                boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                if (toggleHovered) toggleColor = strict ? 0x88FF88 : 0xFFCC88;
+                guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
+            }
             case ITEM -> {
                 // Render a 16x16 item icon + the item ID text
                 ItemStack preview = resolveItemStack(entry.value);
@@ -802,6 +811,10 @@ public class ConfigEditorScreen extends Screen {
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
             case BOOSTER_LIST -> this.minecraft.setScreen(new BoosterListEditorScreen(this, entry));
+            case MULTI_STAGE_POLICY -> {
+                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
+                entry.value = strict ? "LENIENT" : "STRICT";
+            }
         }
     }
 
@@ -987,7 +1000,7 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST
+        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY
     }
 
     /** Encode the live booster config list as the editor's internal string:
