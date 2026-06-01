@@ -3,7 +3,6 @@ package net.bananemdnsa.historystages.network;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -51,10 +50,20 @@ public class DeleteStagePacket {
                 StageData data = StageData.get(player.serverLevel());
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-                String prefix = msg.individual ? "Individual stage" : "Stage";
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' deleted."));
+                String titleKey = msg.individual
+                        ? "editor.historystages.toast.individual_stage_deleted.title"
+                        : "editor.historystages.toast.stage_deleted.title";
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.success(titleKey,
+                                "editor.historystages.toast.stage_deleted.message", msg.stageId),
+                        player);
             } else {
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to delete stage '" + msg.stageId + "'."));
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.error(
+                                "editor.historystages.toast.stage_delete_failed.title",
+                                "editor.historystages.toast.stage_delete_failed.message",
+                                msg.stageId),
+                        player);
             }
         });
         ctx.get().setPacketHandled(true);

@@ -2,7 +2,6 @@ package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.Config;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
@@ -53,7 +52,11 @@ public class SaveConfigPacket {
                 Config.COMMON_SPEC.save();
                 // Sync updated config to all connected clients
                 PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §aCommon config saved."));
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.success(
+                                "editor.historystages.toast.config_saved.title",
+                                "editor.historystages.toast.config_saved.message"),
+                        player);
             }
         });
         ctx.get().setPacketHandled(true);

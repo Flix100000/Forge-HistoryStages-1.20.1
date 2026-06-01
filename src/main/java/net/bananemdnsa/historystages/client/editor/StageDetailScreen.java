@@ -2640,7 +2640,7 @@ public class StageDetailScreen extends Screen {
                                 () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(),
-                            () -> Minecraft.getInstance().keyboardHandler.setClipboard(entryValue));
+                            () -> { Minecraft.getInstance().keyboardHandler.setClipboard(entryValue); EditorToastHandler.copiedToClipboard(entryValue); });
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).remove(entryIdx);
                         // When removing an item, shift NBT and lockActions indices

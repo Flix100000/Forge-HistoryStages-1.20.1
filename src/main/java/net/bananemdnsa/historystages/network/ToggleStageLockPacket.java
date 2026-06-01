@@ -53,6 +53,15 @@ public class ToggleStageLockPacket {
             data.setDirty();
             StageData.refreshCache(data.getUnlockedStages());
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
+
+            String titleKey = msg.unlock
+                    ? "editor.historystages.toast.stage_unlocked_editor.title"
+                    : "editor.historystages.toast.stage_locked_editor.title";
+            PacketHandler.sendEditorFeedback(
+                    EditorFeedbackPacket.success(titleKey,
+                            "editor.historystages.toast.stage_lock_changed.message",
+                            displayName),
+                    player);
         });
         ctx.get().setPacketHandled(true);
     }

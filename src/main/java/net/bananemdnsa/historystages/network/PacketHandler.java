@@ -57,6 +57,14 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, RequestStructureDebugPacket.class,
                                 RequestStructureDebugPacket::encode,
                                 RequestStructureDebugPacket::decode, RequestStructureDebugPacket::handle);
+                INSTANCE.registerMessage(id++, EditorFeedbackPacket.class,
+                                EditorFeedbackPacket::encode,
+                                EditorFeedbackPacket::decode, EditorFeedbackPacket::handle);
+        }
+
+        // Send editor-styled toast feedback to a specific player
+        public static void sendEditorFeedback(EditorFeedbackPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }
 
         // Send lock feedback (dimension or mob) to a specific player — client decides display
