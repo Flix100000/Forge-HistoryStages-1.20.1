@@ -20,6 +20,11 @@ public class MultiBlockTier3Block extends MultiBlockResearchPedestalBlock {
     }
 
     @Override
+    public int getTier() {
+        return 3;
+    }
+
+    @Override
     protected MapCodec<? extends BaseEntityBlock> codec() {
         return CODEC;
     }

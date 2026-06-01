@@ -27,7 +27,7 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-public class ResearchPedestalBlock extends BaseEntityBlock {
+public class ResearchPedestalBlock extends BaseEntityBlock implements TieredPedestal {
     public static final MapCodec<ResearchPedestalBlock> CODEC = simpleCodec(ResearchPedestalBlock::new);
     public static final BooleanProperty WORKING = BooleanProperty.create("working");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
@@ -41,6 +41,12 @@ public class ResearchPedestalBlock extends BaseEntityBlock {
     public ResearchPedestalBlock(Properties pProperties) {
         super(pProperties.noOcclusion().lightLevel(state -> state.getValue(LIT) ? 13 : 0));
         this.registerDefaultState(this.stateDefinition.any().setValue(WORKING, false).setValue(LIT, false));
+    }
+
+    /** Pedestal tier (1-4). Subclasses override for higher tiers. */
+    @Override
+    public int getTier() {
+        return 1;
     }
 
     @Override

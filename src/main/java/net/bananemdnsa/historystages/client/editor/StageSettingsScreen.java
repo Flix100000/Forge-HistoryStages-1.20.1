@@ -1,8 +1,11 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
+import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.research.TierMode;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -11,7 +14,8 @@ public class StageSettingsScreen extends Screen {
 
     @FunctionalInterface
     public interface SaveCallback {
-        void onSave(String stageId, String displayName, int researchTime);
+        void onSave(String stageId, String displayName, int researchTime,
+                    int minPedestalTier, TierMode pedestalTierMode);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -26,18 +30,25 @@ public class StageSettingsScreen extends Screen {
     private String editStageId;
     private String editDisplayName;
     private int editResearchTime;
+    private int editMinTier;
+    private TierMode editTierMode;
 
     private final String origStageId;
     private final String origDisplayName;
     private final String origResearchTime;
+    private final int origMinTier;
+    private final TierMode origTierMode;
 
     private boolean hasChanges = false;
 
     private EditBox stageIdField;
     private EditBox displayNameField;
     private EditBox researchTimeField;
+    private PedestalTierDropdown tierDropdown;
+    private Button tierModeButton;
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
+                               int minPedestalTier, TierMode pedestalTierMode,
                                boolean isNewStage, SaveCallback onSave) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
         this.parent = parent;
@@ -47,10 +58,14 @@ public class StageSettingsScreen extends Screen {
         this.editStageId = stageId;
         this.editDisplayName = displayName;
         this.editResearchTime = researchTime;
+        this.editMinTier = minPedestalTier;
+        this.editTierMode = pedestalTierMode != null ? pedestalTierMode : TierMode.MIN;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
         this.origResearchTime = String.valueOf(researchTime);
+        this.origMinTier = minPedestalTier;
+        this.origTierMode = this.editTierMode;
     }
 
     @Override
@@ -59,8 +74,11 @@ public class StageSettingsScreen extends Screen {
         String labelId = Component.translatable("editor.historystages.field.stage_id").getString();
         String labelName = Component.translatable("editor.historystages.field.display_name").getString();
         String labelTime = Component.translatable("editor.historystages.field.research_time").getString();
-        int maxLabelW = Math.max(this.font.width(labelId),
-                Math.max(this.font.width(labelName), this.font.width(labelTime)));
+        String labelTier = Component.translatable("editor.historystages.field.min_pedestal_tier").getString();
+        String labelMode = Component.translatable("editor.historystages.field.pedestal_tier_mode").getString();
+        int maxLabelW = Math.max(Math.max(this.font.width(labelId),
+                Math.max(this.font.width(labelName), this.font.width(labelTime))),
+                Math.max(this.font.width(labelTier), this.font.width(labelMode)));
         int fieldX = labelX + maxLabelW + 10;
         int fieldWidth = Math.min(200, this.width - fieldX - 40);
 
@@ -102,6 +120,24 @@ public class StageSettingsScreen extends Screen {
         });
         this.addRenderableWidget(researchTimeField);
 
+        // Min pedestal tier dropdown (row at y=88)
+        tierDropdown = new PedestalTierDropdown(editMinTier, 160, picked -> {
+            editMinTier = picked;
+            if (picked != origMinTier) hasChanges = true;
+        });
+        tierDropdown.setPosition(fieldX, 88);
+
+        // Tier mode toggle (row at y=110)
+        tierModeButton = StyledButton.of(
+                Component.translatable(tierModeLabelKey(editTierMode)),
+                btn -> {
+                    editTierMode = (editTierMode == TierMode.MIN) ? TierMode.EXACT : TierMode.MIN;
+                    btn.setMessage(Component.translatable(tierModeLabelKey(editTierMode)));
+                    if (editTierMode != origTierMode) hasChanges = true;
+                },
+                fieldX, 110, 160, FIELD_HEIGHT);
+        this.addRenderableWidget(tierModeButton);
+
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
                 btn -> confirmDiscard(), 10, this.height - 25, 50, 18));
@@ -126,9 +162,15 @@ public class StageSettingsScreen extends Screen {
             return;
         }
         saveError = "";
-        onSave.onSave(editStageId, editDisplayName, editResearchTime);
+        onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode);
         hasChanges = false;
         this.minecraft.setScreen(parent);
+    }
+
+    private static String tierModeLabelKey(TierMode mode) {
+        return mode == TierMode.EXACT
+                ? "editor.historystages.tier_mode.exact"
+                : "editor.historystages.tier_mode.min";
     }
 
     private void confirmDiscard() {
@@ -188,6 +230,15 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.drawString(this.font,
                 Component.translatable("editor.historystages.field.research_time").getString(),
                 labelX, 71, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font,
+                Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
+                labelX, 93, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font,
+                Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
+                labelX, 115, 0xAAAAAA, false);
+
+        // Tier dropdown: render the button inline, popup over everything.
+        tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
 
         // Unsaved changes animation (left of Save button)
         if (hasChanges) {
@@ -205,6 +256,17 @@ public class StageSettingsScreen extends Screen {
         if (!saveError.isEmpty()) {
             guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 38, 0xFF5555);
         }
+
+        // Popup always last so it overlays everything.
+        tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (tierDropdown != null && tierDropdown.mouseClicked(mouseX, mouseY)) {
+            return true;
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
     }
 
     private void drawSmallText(GuiGraphics g, String text, int x, int y, int color) {

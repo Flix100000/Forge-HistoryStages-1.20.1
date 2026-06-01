@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
+import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -16,6 +17,12 @@ public class StageEntry {
 
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
+
+    @SerializedName("min_pedestal_tier")
+    private int minPedestalTier; // 0/missing → treated as 1 (works on every tier)
+
+    @SerializedName("pedestal_tier_mode")
+    private String pedestalTierMode; // "min" or "exact"; null → "min"
 
     @JsonAdapter(ItemEntryListAdapter.class)
     private List<ItemEntry> items;
@@ -58,6 +65,17 @@ public class StageEntry {
 
     public int getResearchTime() {
         return researchTime; // 0 means "use global default from config"
+    }
+
+    public int getMinPedestalTier() {
+        int t = minPedestalTier;
+        if (t < 1) return 1;
+        if (t > 4) return 4;
+        return t;
+    }
+
+    public TierMode getPedestalTierMode() {
+        return TierMode.parse(pedestalTierMode, TierMode.MIN);
     }
 
     /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
@@ -176,6 +194,16 @@ public class StageEntry {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public void setResearchTime(int researchTime) { this.researchTime = researchTime; }
 
+    public void setMinPedestalTier(int tier) {
+        if (tier < 1) tier = 1;
+        if (tier > 4) tier = 4;
+        this.minPedestalTier = tier;
+    }
+
+    public void setPedestalTierMode(TierMode mode) {
+        this.pedestalTierMode = (mode != null ? mode : TierMode.MIN).serialize();
+    }
+
     /** Sets items from simple string IDs (no NBT). */
     public void setItems(List<String> items) {
         if (items == null) {
@@ -272,6 +300,8 @@ public class StageEntry {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
         copy.setResearchTime(researchTime);
+        copy.setMinPedestalTier(getMinPedestalTier());
+        copy.setPedestalTierMode(getPedestalTierMode());
         copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTagEntries(getTagEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));
         copy.setModEntries(getModEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));

@@ -59,6 +59,16 @@ public class TooltipEventHandler {
                     BoosterUtil.percent(booster.costReduction()))
                     .withStyle(ChatFormatting.GRAY));
         }
+        // Tier gating — only show when it actually narrows the booster
+        // (tier > 1 or mode == EXACT).
+        if (booster.minTier() > 1 || booster.tierMode() == net.bananemdnsa.historystages.research.TierMode.EXACT) {
+            String key = booster.tierMode() == net.bananemdnsa.historystages.research.TierMode.EXACT
+                    ? "tooltip.historystages.research_booster.tier.exact"
+                    : "tooltip.historystages.research_booster.tier.min";
+            event.getToolTip().add(Component.translatable(key,
+                    net.bananemdnsa.historystages.research.TierMatcher.roman(booster.minTier()))
+                    .withStyle(ChatFormatting.GRAY));
+        }
     }
 
     @SubscribeEvent
@@ -72,6 +82,7 @@ public class TooltipEventHandler {
         if (stack.is(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get())) {
             CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
             var nbt = customData.copyTag();
+
             if (nbt.contains("ResearchProgress")) {
                 int progress = nbt.getInt("ResearchProgress");
                 int maxProgress = nbt.contains("MaxProgress") ? nbt.getInt("MaxProgress") : 400;

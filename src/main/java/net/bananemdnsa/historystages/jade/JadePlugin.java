@@ -2,7 +2,10 @@ package net.bananemdnsa.historystages.jade;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
+import net.bananemdnsa.historystages.block.TieredPedestal;
+import net.bananemdnsa.historystages.research.TierMatcher;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
@@ -39,6 +42,7 @@ public class JadePlugin implements IWailaPlugin {
     public void registerClient(IWailaClientRegistration registration) {
         registration.registerBlockComponent(LockedBlockProvider.INSTANCE, Block.class);
         registration.registerBlockComponent(PedestalBoosterProvider.INSTANCE, ResearchPedestalBlock.class);
+        registration.registerBlockComponent(PedestalBoosterProvider.INSTANCE, MultiBlockResearchPedestalBlock.class);
         registration.registerEntityComponent(LockedEntityItemProvider.INSTANCE, ItemFrame.class);
         registration.registerEntityComponent(LockedEntityItemProvider.INSTANCE, ArmorStand.class);
     }
@@ -49,12 +53,36 @@ public class JadePlugin implements IWailaPlugin {
         @Override
         public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
             if (!Config.CLIENT.jadeShowInfo.get()) return;
-            var below = accessor.getLevel().getBlockState(accessor.getPosition().below());
-            ResearchBooster booster = ResearchBoosterRegistry.forBlockState(below).orElse(null);
+
+            var selfState = accessor.getBlockState();
+            int pedestalTier = selfState.getBlock() instanceof TieredPedestal tp ? tp.getTier() : 1;
+
+            // Pos 1: directly below; Pos 2 (multiblock only): below the head.
+            var level = accessor.getLevel();
+            var pos = accessor.getPosition();
+            describeBoosterAt(tooltip, level.getBlockState(pos.below()), pedestalTier);
+
+            if (selfState.getBlock() instanceof MultiBlockResearchPedestalBlock) {
+                var facing = selfState.getValue(MultiBlockResearchPedestalBlock.FACING);
+                var headBelow = pos.relative(facing).below();
+                describeBoosterAt(tooltip, level.getBlockState(headBelow), pedestalTier);
+            }
+        }
+
+        private static void describeBoosterAt(ITooltip tooltip,
+                net.minecraft.world.level.block.state.BlockState belowState, int pedestalTier) {
+            ResearchBooster booster = ResearchBoosterRegistry.forBlockState(belowState).orElse(null);
             if (booster == null) return;
 
-            for (Component line : BoosterUtil.describe(booster)) {
-                tooltip.add(line.copy().withStyle(ChatFormatting.AQUA));
+            boolean accepted = TierMatcher.matches(pedestalTier, booster.minTier(), booster.tierMode());
+            if (accepted) {
+                for (Component line : BoosterUtil.describe(booster)) {
+                    tooltip.add(line.copy().withStyle(ChatFormatting.AQUA));
+                }
+            } else {
+                tooltip.add(Component.translatable("jade.historystages.booster.tier_required",
+                        TierMatcher.roman(booster.minTier()))
+                        .withStyle(ChatFormatting.RED));
             }
         }
 

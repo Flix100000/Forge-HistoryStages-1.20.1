@@ -34,8 +34,15 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
-public class MultiBlockResearchPedestalBlock extends BaseEntityBlock {
+public class MultiBlockResearchPedestalBlock extends BaseEntityBlock implements TieredPedestal {
     public static final MapCodec<MultiBlockResearchPedestalBlock> CODEC = simpleCodec(MultiBlockResearchPedestalBlock::new);
+
+    /** Pedestal tier (1-4). Subclasses (Tier3/4) override. */
+    @Override
+    public int getTier() {
+        return 1;
+    }
+
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
     public static final EnumProperty<Part> PART = EnumProperty.create("part", Part.class);
     public static final BooleanProperty WORKING = ResearchPedestalBlock.WORKING;

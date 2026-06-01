@@ -25,9 +25,10 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
-        // Slots 0..6: progress, max, finishDelay, individualMode, depsMet, depositDelay, speedPercent
+        // Slots 0..9: progress, max, finishDelay, individualMode, depsMet, depositDelay,
+        // speedPercent, tierMismatch, requiredTier, requiredTierMode
         this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()),
-                new SimpleContainerData(7));
+                new SimpleContainerData(10));
     }
 
     // Server-Konstruktor
@@ -175,5 +176,18 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     /** @return the current speed reduction (0..90) from the booster under the pedestal, live. */
     public int getCurrentSpeedPercent() {
         return data.get(6);
+    }
+
+    public boolean isTierMismatch() {
+        return data.get(7) == 1;
+    }
+
+    public int getRequiredTier() {
+        return data.get(8);
+    }
+
+    /** @return 0 = MIN, 1 = EXACT. */
+    public int getRequiredTierMode() {
+        return data.get(9);
     }
 }

@@ -18,6 +18,11 @@ public class ResearchPedestalTier2Block extends ResearchPedestalBlock {
     }
 
     @Override
+    public int getTier() {
+        return 2;
+    }
+
+    @Override
     protected MapCodec<? extends BaseEntityBlock> codec() {
         return CODEC;
     }

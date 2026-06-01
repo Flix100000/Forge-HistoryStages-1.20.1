@@ -134,6 +134,7 @@
   "editor.historystages.config.researchTimeInSeconds": "Forschungszeit (Sekunden)",
   "editor.historystages.config.researchBoosters": "Forschungs-Booster",
   "editor.historystages.config.showBoosterTooltips": "Booster-Tooltips anzeigen",
+  "editor.historystages.config.showScrollTierTooltip": "Schriftrollen-Stufe im Tooltip anzeigen",
   "editor.historystages.config.useReplacements": "Ersetzungen nutzen",
   "editor.historystages.config.replacementItems": "Ersetzungs-Items",
   "editor.historystages.config.replacementTags": "Ersetzungs-Tags",
@@ -329,5 +330,18 @@
   "editor.historystages.spawn_sources.desc.structure": "Mobs die zu Strukturen gehören: Pillager-Patrouillen, Raids [STRUCTURE, PATROL, EVENT]",
   "editor.historystages.spawn_sources.desc.breeding": "Babys aus Zucht und Mob-Umwandlungen, z.B. Zombie→Ertrunkener [BREEDING, CONVERSION, REINFORCEMENT, JOCKEY]",
   "editor.historystages.spawn_sources.desc.summon": "Mobs die per /summon-Befehl beschworen werden [COMMAND]",
-  "editor.historystages.spawn_sources.desc.spawn_egg": "Spawn-Eier, Eimer-Freilassung (Fische, Axolotl), Werfer [SPAWN_EGG, BUCKET, DISPENSER]"
+  "editor.historystages.spawn_sources.desc.spawn_egg": "Spawn-Eier, Eimer-Freilassung (Fische, Axolotl), Werfer [SPAWN_EGG, BUCKET, DISPENSER]",
+  "editor.historystages.edit": "Bearbeiten",
+  "editor.historystages.booster.edit_title": "Booster bearbeiten",
+  "editor.historystages.field.min_pedestal_tier": "Min. Podest-Stufe",
+  "editor.historystages.field.pedestal_tier_mode": "Stufen-Modus",
+  "editor.historystages.tier_mode.min": "Diese Stufe oder höher",
+  "editor.historystages.tier_mode.exact": "Nur diese Stufe",
+  "screen.historystages.tier_required.min": "Benötigt Podest Stufe %s oder höher",
+  "screen.historystages.tier_required.exact": "Benötigt Podest Stufe %s",
+  "tooltip.historystages.research_booster.tier.min": "Funktioniert auf Podest Stufe %s oder höher",
+  "tooltip.historystages.research_booster.tier.exact": "Funktioniert nur auf Podest Stufe %s",
+  "tooltip.historystages.research_scroll.tier.min": "Benötigt Podest Stufe %s oder höher",
+  "tooltip.historystages.research_scroll.tier.exact": "Benötigt Podest Stufe %s",
+  "jade.historystages.booster.tier_required": "Booster benötigt Podest Stufe %s"
 }
