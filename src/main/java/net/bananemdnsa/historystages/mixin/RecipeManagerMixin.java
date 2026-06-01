@@ -46,7 +46,6 @@ public class RecipeManagerMixin {
         }
 
         AllRecipesCache.set(new ArrayList<>(this.byName.values()));
-        System.out.println("[HistoryStages] Recipe cache updated (query-time filtering active).");
     }
 
     /**
