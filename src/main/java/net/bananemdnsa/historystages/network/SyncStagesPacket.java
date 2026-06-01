@@ -50,6 +50,14 @@ public class SyncStagesPacket {
                         if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
                             ExternalMods.refreshEMI();
                         }
+
+                        // JEI hiding (Issue #64): refresh visibility after stage cache updated.
+                        // Null-safe — no-op if JEI is not installed.
+                        if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+                            try {
+                                net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
+                            } catch (Throwable ignored) {}
+                        }
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

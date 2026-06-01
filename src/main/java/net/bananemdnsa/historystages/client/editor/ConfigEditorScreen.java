@@ -169,6 +169,19 @@ public class ConfigEditorScreen extends Screen {
                 "Hide already fulfilled dependencies in scroll tooltips?"));
         clientSections.add(dependenciesClient);
 
+        // JEI hiding (Issue #64)
+        ConfigSection jeiHiding = new ConfigSection("editor.historystages.config.jei_hiding");
+        jeiHiding.add(new ConfigEntry("hideLockedItemsInJei", ConfigType.BOOLEAN,
+                Config.CLIENT.hideLockedItemsInJei.get().toString(), true, "false",
+                "Remove locked items from the JEI ingredient panel entirely."));
+        jeiHiding.add(new ConfigEntry("hideLockedRecipesInJei", ConfigType.BOOLEAN,
+                Config.CLIENT.hideLockedRecipesInJei.get().toString(), true, "false",
+                "Hide recipes whose OUTPUT is a locked item in JEI."));
+        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.STRING,
+                Config.CLIENT.lockedItemMultiStagePolicy.get().name(), true, "STRICT",
+                "Multi-stage policy: STRICT (hide while any stage locked) or LENIENT (show when any unlocked)."));
+        clientSections.add(jeiHiding);
+
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
                 Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
@@ -889,6 +902,13 @@ public class ConfigEditorScreen extends Screen {
                 entry.initialValue = entry.value;
             }
         }
+
+        // JEI hiding (Issue #64): live-apply config changes if JEI is loaded.
+        if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
+            try {
+                net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
+            } catch (Throwable ignored) {}
+        }
     }
 
     private void applyClientConfig(Map<String, String> values) {
@@ -916,6 +936,18 @@ public class ConfigEditorScreen extends Screen {
                     Config.CLIENT.showDependenciesOnScroll.set(Boolean.parseBoolean(value));
                 case "hideFulfilledDependencies" ->
                     Config.CLIENT.hideFulfilledDependencies.set(Boolean.parseBoolean(value));
+                case "hideLockedItemsInJei" ->
+                    Config.CLIENT.hideLockedItemsInJei.set(Boolean.parseBoolean(value));
+                case "hideLockedRecipesInJei" ->
+                    Config.CLIENT.hideLockedRecipesInJei.set(Boolean.parseBoolean(value));
+                case "lockedItemMultiStagePolicy" -> {
+                    try {
+                        Config.CLIENT.lockedItemMultiStagePolicy.set(
+                                Config.Client.MultiStagePolicy.valueOf(value.trim().toUpperCase()));
+                    } catch (IllegalArgumentException ignored) {
+                        // Invalid value, keep current — user typo, no-op
+                    }
+                }
             }
         }
     }

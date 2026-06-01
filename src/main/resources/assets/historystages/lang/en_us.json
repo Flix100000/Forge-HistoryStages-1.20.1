@@ -152,6 +152,11 @@
   "editor.historystages.config.showDependenciesOnScroll": "Show Dependencies on Scroll",
   "editor.historystages.config.hideFulfilledDependencies": "Hide Fulfilled Dependencies",
   "editor.historystages.config.showDependencyScreenInPedestal": "Dependency Screen in Pedestal",
+
+  "editor.historystages.config.jei_hiding": "JEI Hiding",
+  "editor.historystages.config.hideLockedItemsInJei": "Hide Locked Items in JEI",
+  "editor.historystages.config.hideLockedRecipesInJei": "Hide Locked Recipes in JEI",
+  "editor.historystages.config.lockedItemMultiStagePolicy": "Multi-Stage Lock Policy",
   "editor.historystages.duplicate": "Duplicate",
   "editor.historystages.id_empty": "Stage ID cannot be empty!",
   "editor.historystages.id_invalid": "Stage ID contains invalid characters!",
