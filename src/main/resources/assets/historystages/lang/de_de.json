@@ -50,6 +50,7 @@
   "editor.historystages.field.stage_id": "Stufen-ID",
   "editor.historystages.search_items": "Items suchen...",
   "editor.historystages.add": "Hinzuf\u00fcgen",
+  "editor.historystages.empty": "Keine Eintr\u00e4ge in dieser Kategorie. Klicke unten auf '+ Hinzuf\u00fcgen'.",
   "editor.historystages.remove": "Entfernen",
   "editor.historystages.copy_id": "ID kopieren",
   "editor.historystages.edit": "Bearbeiten",
