@@ -1572,7 +1572,7 @@ public class DependencyEditorScreen extends Screen {
         contextMenu.addEntry(t("editor.historystages.dep.context.count"),
                 () -> openCountDialog("item_count", group.getItems().get(idx).getId(), idx));
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> Minecraft.getInstance().keyboardHandler.setClipboard(group.getItems().get(idx).getId()));
+                () -> { String v = group.getItems().get(idx).getId(); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
             DependencyItem orig = group.getItems().get(idx);
             group.getItems().add(idx + 1, orig.copy());
@@ -1603,7 +1603,7 @@ public class DependencyEditorScreen extends Screen {
     private void showSimpleContextMenu(int mx, int my, int idx, List<String> list, String type) {
         contextMenu = new ContextMenu();
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> Minecraft.getInstance().keyboardHandler.setClipboard(list.get(idx)));
+                () -> { String v = list.get(idx); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
             list.add(idx + 1, list.get(idx));
             hasChanges = true;
@@ -1623,7 +1623,7 @@ public class DependencyEditorScreen extends Screen {
             hasChanges = true;
         });
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> Minecraft.getInstance().keyboardHandler.setClipboard(dep.getStageId()));
+                () -> { String v = dep.getStageId(); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
             group.getIndividualStages().add(idx + 1, dep.copy());
             hasChanges = true;
@@ -1656,7 +1656,7 @@ public class DependencyEditorScreen extends Screen {
         contextMenu.addEntry(t("editor.historystages.dep.context.count"),
                 () -> openCountDialog("kill_count", kill.getEntityId(), idx));
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> Minecraft.getInstance().keyboardHandler.setClipboard(kill.getEntityId()));
+                () -> { String v = kill.getEntityId(); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
             group.getEntityKills().add(idx + 1, kill.copy());
             hasChanges = true;
@@ -1674,7 +1674,7 @@ public class DependencyEditorScreen extends Screen {
         contextMenu.addEntry(t("editor.historystages.dep.context.min_value"),
                 () -> openCountDialog("stat_value", stat.getStatId(), idx));
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> Minecraft.getInstance().keyboardHandler.setClipboard(stat.getStatId()));
+                () -> { String v = stat.getStatId(); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
             group.getStats().add(idx + 1, stat.copy());
             hasChanges = true;

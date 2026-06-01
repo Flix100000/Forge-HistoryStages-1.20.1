@@ -653,7 +653,7 @@ public class StageOverviewScreen extends Screen {
                         : StageManager.getStages().get(duplicateFromId);
                 if (source != null) {
                     StageEntry copy = source.copy();
-                    PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual));
+                    PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual, true));
                     this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
                 } else { this.minecraft.setScreen(parent); }
             } else {

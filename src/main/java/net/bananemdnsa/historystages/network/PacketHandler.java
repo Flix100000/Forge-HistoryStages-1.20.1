@@ -50,6 +50,9 @@ public class PacketHandler {
         // Lock feedback (Server → Client) — client reads its own CLIENT config to decide display
         registrar.playToClient(LockFeedbackPacket.TYPE, LockFeedbackPacket.STREAM_CODEC, LockFeedbackPacket::handle);
 
+        // Editor feedback (Server → Client) — toast notifications for editor actions
+        registrar.playToClient(EditorFeedbackPacket.TYPE, EditorFeedbackPacket.STREAM_CODEC, EditorFeedbackPacket::handle);
+
         // Lock border sync (Server → Client) — drives the force-field overlay near locked structures
         registrar.playToClient(SyncLockBordersPacket.TYPE, SyncLockBordersPacket.STREAM_CODEC, SyncLockBordersPacket::handle);
     }
@@ -100,6 +103,10 @@ public class PacketHandler {
     }
 
     public static void sendLockBordersToPlayer(SyncLockBordersPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    public static void sendEditorFeedback(EditorFeedbackPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
 

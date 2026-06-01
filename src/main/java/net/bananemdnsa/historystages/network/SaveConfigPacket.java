@@ -3,7 +3,6 @@ package net.bananemdnsa.historystages.network;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -52,7 +51,11 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 applyCommonConfig(msg.configValues);
                 Config.COMMON_SPEC.save();
                 PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §aCommon config saved."));
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.success(
+                                "editor.historystages.toast.config_saved.title",
+                                "editor.historystages.toast.config_saved.message"),
+                        player);
             }
         });
     }

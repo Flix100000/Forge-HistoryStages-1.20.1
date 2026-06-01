@@ -6,7 +6,6 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -15,7 +14,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 
-public record SaveStagePacket(String stageId, String stageJson, boolean individual) implements CustomPacketPayload {
+public record SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate) implements CustomPacketPayload {
     private static final Gson GSON = new Gson();
 
     public static final CustomPacketPayload.Type<SaveStagePacket> TYPE =
@@ -25,24 +24,30 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
             StreamCodec.of(SaveStagePacket::encode, SaveStagePacket::decode);
 
     public SaveStagePacket(String stageId, StageEntry entry) {
-        this(stageId, entry.toJson(), false);
+        this(stageId, entry.toJson(), false, false);
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual) {
-        this(stageId, entry.toJson(), individual);
+        this(stageId, entry.toJson(), individual, false);
+    }
+
+    public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
+        this(stageId, entry.toJson(), individual, duplicate);
     }
 
     private static void encode(FriendlyByteBuf buffer, SaveStagePacket msg) {
         buffer.writeUtf(msg.stageId);
         buffer.writeUtf(msg.stageJson, 65536);
         buffer.writeBoolean(msg.individual);
+        buffer.writeBoolean(msg.duplicate);
     }
 
     private static SaveStagePacket decode(FriendlyByteBuf buffer) {
         String stageId = buffer.readUtf();
         String stageJson = buffer.readUtf(65536);
         boolean individual = buffer.readBoolean();
-        return new SaveStagePacket(stageId, stageJson, individual);
+        boolean duplicate = buffer.readBoolean();
+        return new SaveStagePacket(stageId, stageJson, individual, duplicate);
     }
 
     public static void handle(SaveStagePacket msg, IPayloadContext ctx) {
@@ -65,11 +70,28 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
                 StageData data = StageData.get(player.serverLevel());
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-                String prefix = msg.individual ? "Individual stage" : "Stage";
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §a" + prefix + " '" + msg.stageId + "' saved successfully."));
+                String titleKey;
+                String messageKey;
+                if (msg.duplicate) {
+                    titleKey = "editor.historystages.toast.stage_duplicated.title";
+                    messageKey = "editor.historystages.toast.stage_duplicated.message";
+                } else {
+                    titleKey = msg.individual
+                            ? "editor.historystages.toast.individual_stage_saved.title"
+                            : "editor.historystages.toast.stage_saved.title";
+                    messageKey = "editor.historystages.toast.stage_saved.message";
+                }
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.success(titleKey, messageKey, msg.stageId),
+                        player);
                 PacketHandler.reloadRecipesOnly(player.server);
             } else {
-                player.sendSystemMessage(Component.literal("§7[HistoryStages] §cFailed to save stage '" + msg.stageId + "'."));
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.error(
+                                "editor.historystages.toast.stage_save_failed.title",
+                                "editor.historystages.toast.stage_save_failed.message",
+                                msg.stageId),
+                        player);
             }
         });
     }

@@ -55,6 +55,15 @@ public record ToggleStageLockPacket(String stageId, boolean unlock) implements C
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
             PacketHandler.reloadRecipesOnly(player.server);
+
+            String titleKey = msg.unlock
+                    ? "editor.historystages.toast.stage_unlocked_editor.title"
+                    : "editor.historystages.toast.stage_locked_editor.title";
+            PacketHandler.sendEditorFeedback(
+                    EditorFeedbackPacket.success(titleKey,
+                            "editor.historystages.toast.stage_lock_changed.message",
+                            displayName),
+                    player);
         });
     }
 
