@@ -10,6 +10,7 @@ import net.bananemdnsa.historystages.network.CheckDependencyPacket;
 import net.bananemdnsa.historystages.network.DepositDependencyPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.research.BoosterUtil;
+import net.bananemdnsa.historystages.research.TierMatcher;
 import net.bananemdnsa.historystages.util.ClientStageCache;
 import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.util.ClientDependencyCache;
@@ -163,8 +164,16 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 }
                 guiGraphics.drawString(this.font, prefix + stageName, 8, 18, nameColor, false);
 
-                // Dependency status warning
-                if (!menu.areDependenciesMet()) {
+                // Tier mismatch takes precedence over the dependencies warning —
+                // the player needs to move the scroll before deposits matter.
+                if (menu.isTierMismatch()) {
+                    String key = menu.getRequiredTierMode() == 1
+                            ? "screen.historystages.tier_required.exact"
+                            : "screen.historystages.tier_required.min";
+                    Component warning = Component.translatable(key, TierMatcher.roman(menu.getRequiredTier()));
+                    int ww = this.font.width(warning);
+                    guiGraphics.drawString(this.font, warning, (176 / 2) - (ww / 2), 58, COLOR_ERROR, false);
+                } else if (!menu.areDependenciesMet()) {
                     Component warning = Component.translatable("screen.historystages.dependencies_not_met");
                     int ww = this.font.width(warning);
                     // Center under the research bar (bar is at y=40, height 7)

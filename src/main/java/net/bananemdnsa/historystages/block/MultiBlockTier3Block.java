@@ -17,6 +17,11 @@ public class MultiBlockTier3Block extends MultiBlockResearchPedestalBlock {
     }
 
     @Override
+    public int getTier() {
+        return 3;
+    }
+
+    @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         VoxelShape[] shapes = state.getValue(PART) == Part.FOOT ? FOOT : HEAD;
         return shapes[state.getValue(FACING).get2DDataValue()];

@@ -24,6 +24,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
         public final ForgeConfigSpec.BooleanValue showLockIcons;
         public final ForgeConfigSpec.BooleanValue showBoosterTooltips;
+        public final ForgeConfigSpec.BooleanValue showScrollTierTooltip;
         public final ForgeConfigSpec.BooleanValue mobUseActionbar;
         public final ForgeConfigSpec.BooleanValue mobShowChat;
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
@@ -69,6 +70,10 @@ public class Config {
             showBoosterTooltips = builder
                     .comment("Show a tooltip on Research Pedestal booster blocks describing their speed/cost effect? [Default: true]")
                     .define("showBoosterTooltips", true);
+
+            showScrollTierTooltip = builder
+                    .comment("Show the minimum required Pedestal tier on Research Scroll tooltips? [Default: true]")
+                    .define("showScrollTierTooltip", true);
 
             builder.pop();
 
@@ -333,15 +338,15 @@ public class Config {
             researchBoosters = builder
                     .comment(
                             "Booster blocks placed directly UNDER a Research Pedestal modify the active research.",
-                            "Format per entry: \"block_id, speed_percent, cost_percent\"",
+                            "Format per entry: \"block_id, speed_percent, cost_percent, tier, mode\"",
                             "  speed_percent: research time reduction (0-90). 90% = max (research runs 10x).",
                             "  cost_percent:  item-dependency count reduction (0-90). Locked into the scroll on first deposit.",
+                            "  tier:          minimum pedestal tier the booster works under (1-4).",
+                            "  mode:          'min' = this tier and higher, 'exact' = only this tier.",
+                            "Legacy 3-column rows are accepted and treated as tier=1, mode=min.",
                             "Unknown block ids and out-of-range values are logged and skipped/clamped.")
-                    .defineList("researchBoosters",
-                            List.of(
-                                    "minecraft:bookshelf, 5, 0",
-                                    "minecraft:enchanting_table, 25, 10"
-                            ),
+                    .defineListAllowEmpty("researchBoosters",
+                            List.of(),
                             obj -> obj instanceof String);
 
             builder.pop(); // Schließt "research"

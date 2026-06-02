@@ -39,9 +39,12 @@ public final class ResearchBoosterRegistry {
             if (line.isEmpty() || line.startsWith("#")) continue;
 
             String[] parts = line.split(",");
-            if (parts.length != 3) {
+            // Accepted formats:
+            //   3 cols (legacy): block_id, speed%, cost%
+            //   5 cols (current): block_id, speed%, cost%, tier, mode
+            if (parts.length != 3 && parts.length != 5) {
                 LOGGER.warn(
-                        "[ResearchBooster] Skipping malformed entry '{}': expected 'block_id, speed%, cost%'",
+                        "[ResearchBooster] Skipping malformed entry '{}': expected 'block_id, speed%, cost%' or 'block_id, speed%, cost%, tier, mode'",
                         line);
                 continue;
             }
@@ -63,16 +66,44 @@ public final class ResearchBoosterRegistry {
                 continue;
             }
 
+            int tier = 1;
+            TierMode mode = TierMode.MIN;
+            if (parts.length == 5) {
+                tier = clampTier(parts[3].trim(), line);
+                mode = TierMode.parse(parts[4].trim(), TierMode.MIN);
+            }
+
             if (map.containsKey(blockId)) {
                 LOGGER.warn(
                         "[ResearchBooster] Duplicate block id '{}' — using last definition", blockId);
             }
 
-            map.put(blockId, new ResearchBooster(speed / 100.0, cost / 100.0));
+            map.put(blockId, new ResearchBooster(speed / 100.0, cost / 100.0, tier, mode));
         }
 
         BOOSTERS = Map.copyOf(map);
         LOGGER.info("[ResearchBooster] Loaded {} booster entries", BOOSTERS.size());
+    }
+
+    private static int clampTier(String token, String line) {
+        int value;
+        try {
+            value = Integer.parseInt(token);
+        } catch (NumberFormatException e) {
+            LOGGER.warn(
+                    "[ResearchBooster] Entry '{}': tier '{}' is not a number, treating as 1",
+                    line, token);
+            return 1;
+        }
+        if (value < 1) {
+            LOGGER.warn("[ResearchBooster] Entry '{}': tier {} < 1, clamping to 1", line, value);
+            return 1;
+        }
+        if (value > 4) {
+            LOGGER.warn("[ResearchBooster] Entry '{}': tier {} > 4, clamping to 4", line, value);
+            return 4;
+        }
+        return value;
     }
 
     private static int clampPercent(String token, String line, String which) {

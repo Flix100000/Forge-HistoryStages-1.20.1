@@ -1,7 +1,9 @@
 package net.bananemdnsa.historystages.block.entity;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
+import net.bananemdnsa.historystages.block.TieredPedestal;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
@@ -12,6 +14,8 @@ import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.research.ResearchBooster;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
+import net.bananemdnsa.historystages.research.TierMatcher;
+import net.bananemdnsa.historystages.research.TierMode;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
@@ -189,6 +193,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private boolean dependenciesMet = true; // Tracks if current stage's dependencies are fulfilled
     private double progressAccumulator = 0.0;
     private int currentSpeedPercent = 0;
+    private boolean tierMismatch = false;
+    private int requiredTier = 1;
+    private TierMode requiredTierMode = TierMode.MIN;
 
     /** Read the cost reduction locked into the scroll on first deposit, or 0.0 if not yet locked. */
     public static double getLockedCostReduction(ItemStack scroll) {
@@ -202,17 +209,53 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return scrollTag.getDouble("LockedCostReduction");
     }
 
-    /** Booster effect from the block directly under this pedestal, if any. */
+    /**
+     * Booster effect for this pedestal. Scans all positions under the pedestal
+     * (1 for single-block tiers, 2 for multiblock Tier 3/4), drops any booster
+     * whose tier gating rejects this pedestal, and returns the strongest of
+     * what remains (speed first, then cost; foot wins on a total tie).
+     */
     public ResearchBooster getActiveBooster() {
         if (level == null) return ResearchBooster.NONE;
-        return ResearchBoosterRegistry.forBlockState(level.getBlockState(worldPosition.below()))
+        BlockState selfState = level.getBlockState(worldPosition);
+        int pedestalTier = tierOf(selfState);
+
+        ResearchBooster best = candidate(level.getBlockState(worldPosition.below()), pedestalTier);
+
+        if (selfState.getBlock() instanceof MultiBlockResearchPedestalBlock) {
+            Direction facing = selfState.getValue(MultiBlockResearchPedestalBlock.FACING);
+            ResearchBooster head = candidate(level.getBlockState(worldPosition.relative(facing).below()),
+                    pedestalTier);
+            // Foot wins on tie: only replace when strictly stronger.
+            if (head != ResearchBooster.NONE
+                    && ResearchBooster.BY_STRENGTH.compare(head, best) > 0) {
+                best = head;
+            }
+        }
+        return best;
+    }
+
+    private static ResearchBooster candidate(BlockState belowState, int pedestalTier) {
+        ResearchBooster b = ResearchBoosterRegistry.forBlockState(belowState)
                 .orElse(ResearchBooster.NONE);
+        if (b == ResearchBooster.NONE) return ResearchBooster.NONE;
+        if (!TierMatcher.matches(pedestalTier, b.minTier(), b.tierMode())) {
+            return ResearchBooster.NONE;
+        }
+        return b;
+    }
+
+    private static int tierOf(BlockState state) {
+        return state.getBlock() instanceof TieredPedestal tp ? tp.getTier() : 1;
     }
 
     /** Single point of truth for clearing in-progress research state on this pedestal. */
     private void resetResearchState() {
         this.progress = 0;
         this.progressAccumulator = 0.0;
+        this.tierMismatch = false;
+        this.requiredTier = 1;
+        this.requiredTierMode = TierMode.MIN;
     }
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
@@ -228,6 +271,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet ? 1 : 0;
                     case 5 -> ResearchPedestalBlockEntity.this.depositDelay;
                     case 6 -> ResearchPedestalBlockEntity.this.currentSpeedPercent;
+                    case 7 -> ResearchPedestalBlockEntity.this.tierMismatch ? 1 : 0;
+                    case 8 -> ResearchPedestalBlockEntity.this.requiredTier;
+                    case 9 -> ResearchPedestalBlockEntity.this.requiredTierMode.ordinal();
                     default -> 0;
                 };
             }
@@ -240,12 +286,16 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 4 -> ResearchPedestalBlockEntity.this.dependenciesMet = pValue == 1;
                     case 5 -> ResearchPedestalBlockEntity.this.depositDelay = pValue;
                     case 6 -> ResearchPedestalBlockEntity.this.currentSpeedPercent = pValue;
+                    case 7 -> ResearchPedestalBlockEntity.this.tierMismatch = pValue == 1;
+                    case 8 -> ResearchPedestalBlockEntity.this.requiredTier = pValue;
+                    case 9 -> ResearchPedestalBlockEntity.this.requiredTierMode =
+                            pValue == TierMode.EXACT.ordinal() ? TierMode.EXACT : TierMode.MIN;
                 }
             }
 
             @Override
             public int getCount() {
-                return 7;
+                return 10;
             }
         };
     }
@@ -369,10 +419,23 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (!alreadyUnlocked) {
                 // Check non-item dependencies before allowing research
                 boolean metTotal = false;
-                if (!isCreative) {
-                    StageEntry stageEntry = isIndividual
+                StageEntry stageEntryForTier = isCreative ? null
+                        : (isIndividual
                             ? StageManager.getIndividualStages().get(stageId)
-                            : StageManager.getStages().get(stageId);
+                            : StageManager.getStages().get(stageId));
+
+                // Stage tier gating: pause research if the pedestal tier doesn't satisfy
+                // the stage's min_pedestal_tier + pedestal_tier_mode.
+                int pedestalTier = tierOf(state);
+                int needTier = stageEntryForTier != null ? stageEntryForTier.getMinPedestalTier() : 1;
+                TierMode needMode = stageEntryForTier != null
+                        ? stageEntryForTier.getPedestalTierMode() : TierMode.MIN;
+                entity.requiredTier = needTier;
+                entity.requiredTierMode = needMode;
+                entity.tierMismatch = !TierMatcher.matches(pedestalTier, needTier, needMode);
+
+                if (!isCreative) {
+                    StageEntry stageEntry = stageEntryForTier;
 
                     if (stageEntry != null) {
                         if (stageEntry.hasDependencies()) {
@@ -407,6 +470,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 } else {
                     // Creative always fulfills
                     metTotal = true;
+                }
+
+                // Tier mismatch acts like an unmet dependency: pause progress.
+                if (entity.tierMismatch) {
+                    metTotal = false;
                 }
 
                 entity.dependenciesMet = metTotal;

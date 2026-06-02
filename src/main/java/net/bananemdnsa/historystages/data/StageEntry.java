@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
+import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,6 +19,12 @@ public class StageEntry {
 
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
+
+    @SerializedName("min_pedestal_tier")
+    private int minPedestalTier; // 0/missing → treated as 1 (works on every tier)
+
+    @SerializedName("pedestal_tier_mode")
+    private String pedestalTierMode; // "min" or "exact"; null → "min"
 
     @SerializedName("icon")
     private String icon; // item id, null = use default (research scroll)
@@ -62,6 +69,17 @@ public class StageEntry {
 
     public int getResearchTime() {
         return researchTime; // 0 means "use global default from config"
+    }
+
+    public int getMinPedestalTier() {
+        int t = minPedestalTier;
+        if (t < 1) return 1;
+        if (t > 4) return 4;
+        return t;
+    }
+
+    public TierMode getPedestalTierMode() {
+        return TierMode.parse(pedestalTierMode, TierMode.MIN);
     }
 
     /** Returns the custom icon item id, or null if not set (use default). */
@@ -188,6 +206,16 @@ public class StageEntry {
         this.researchTime = researchTime;
     }
 
+    public void setMinPedestalTier(int tier) {
+        if (tier < 1) tier = 1;
+        if (tier > 4) tier = 4;
+        this.minPedestalTier = tier;
+    }
+
+    public void setPedestalTierMode(TierMode mode) {
+        this.pedestalTierMode = (mode != null ? mode : TierMode.MIN).serialize();
+    }
+
     public void setIcon(String icon) {
         this.icon = (icon != null && !icon.isEmpty()) ? icon : null;
     }
@@ -286,6 +314,8 @@ public class StageEntry {
         StageEntry copy = new StageEntry();
         copy.setDisplayName(getDisplayName());
         copy.setResearchTime(researchTime);
+        copy.setMinPedestalTier(getMinPedestalTier());
+        copy.setPedestalTierMode(getPedestalTierMode());
         copy.setIcon(icon);
         copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTagEntries(getTagEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));

@@ -64,6 +64,8 @@ public class StageDetailScreen extends Screen {
     private String editStageId;
     private String editDisplayName;
     private int editResearchTime;
+    private int editMinPedestalTier;
+    private net.bananemdnsa.historystages.research.TierMode editPedestalTierMode;
     private String editIcon; // null = use default
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
@@ -270,6 +272,8 @@ public class StageDetailScreen extends Screen {
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get()
                 : e.getResearchTime();
+        this.editMinPedestalTier = e.getMinPedestalTier();
+        this.editPedestalTierMode = e.getPedestalTierMode();
         this.editIcon = e.getIcon();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
@@ -3153,11 +3157,14 @@ public class StageDetailScreen extends Screen {
 
     private void openStageSettings() {
         this.minecraft.setScreen(new StageSettingsScreen(this,
-                editStageId, editDisplayName, editResearchTime, isNewStage,
-                (newId, newName, newTime) -> {
+                editStageId, editDisplayName, editResearchTime,
+                editMinPedestalTier, editPedestalTierMode, isNewStage,
+                (newId, newName, newTime, newTier, newMode) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
+                    editMinPedestalTier = newTier;
+                    editPedestalTierMode = newMode;
                     hasChanges = true;
                 }));
     }
@@ -3181,6 +3188,8 @@ public class StageDetailScreen extends Screen {
         StageEntry newEntry = new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
+        newEntry.setMinPedestalTier(editMinPedestalTier);
+        newEntry.setPedestalTierMode(editPedestalTierMode);
         newEntry.setIcon(editIcon);
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {

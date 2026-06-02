@@ -15,6 +15,11 @@ public class ResearchPedestalTier2Block extends ResearchPedestalBlock {
     }
 
     @Override
+    public int getTier() {
+        return 2;
+    }
+
+    @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         return SHAPE;
     }

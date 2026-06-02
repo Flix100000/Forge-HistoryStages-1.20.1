@@ -137,6 +137,9 @@ public class ConfigEditorScreen extends Screen {
         visuals.add(new ConfigEntry("showBoosterTooltips", ConfigType.BOOLEAN,
                 Config.CLIENT.showBoosterTooltips.get().toString(), true, "true",
                 "Show a tooltip on Research Pedestal booster blocks describing their speed/cost effect?"));
+        visuals.add(new ConfigEntry("showScrollTierTooltip", ConfigType.BOOLEAN,
+                Config.CLIENT.showScrollTierTooltip.get().toString(), true, "true",
+                "Show the minimum required Pedestal tier on Research Scroll tooltips?"));
         visuals.add(new ConfigEntry("showLockIcons", ConfigType.BOOLEAN,
                 Config.CLIENT.showLockIcons.get().toString(), true, "true",
                 "Show a lock icon overlay on locked items in JEI and Inventories?"));
@@ -949,6 +952,7 @@ public class ConfigEditorScreen extends Screen {
                 case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));
                 case "showLockIcons" -> Config.CLIENT.showLockIcons.set(Boolean.parseBoolean(value));
                 case "showBoosterTooltips" -> Config.CLIENT.showBoosterTooltips.set(Boolean.parseBoolean(value));
+                case "showScrollTierTooltip" -> Config.CLIENT.showScrollTierTooltip.set(Boolean.parseBoolean(value));
                 case "dimUseActionbar" -> Config.CLIENT.dimUseActionbar.set(Boolean.parseBoolean(value));
                 case "dimShowChat" -> Config.CLIENT.dimShowChat.set(Boolean.parseBoolean(value));
                 case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
@@ -1652,6 +1656,10 @@ public class ConfigEditorScreen extends Screen {
         private static final int ROW_HEIGHT = 26;
         private static final int LIST_TOP = 50;
         private static final int FIELD_W = 30;
+        private static final long MARQUEE_DELAY_MS = 800;
+        private static final float MARQUEE_SPEED = 25.0f;
+        private int hoveredRow = -1;
+        private long hoverStartTime = 0L;
 
         BoosterListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
             super(Component.translatable("editor.historystages.config." + entry.key));
@@ -1667,11 +1675,21 @@ public class ConfigEditorScreen extends Screen {
                 String trimmed = part.trim();
                 if (trimmed.isEmpty()) continue;
                 String[] tokens = trimmed.split(",");
-                if (tokens.length != 3) continue;
+                if (tokens.length != 3 && tokens.length != 5) continue;
                 String blockId = tokens[0].trim();
                 int speed = parseClampedPercent(tokens[1].trim());
                 int cost = parseClampedPercent(tokens[2].trim());
-                rows.add(new BoosterRow(blockId, speed, cost));
+                int tier = 1;
+                net.bananemdnsa.historystages.research.TierMode mode =
+                        net.bananemdnsa.historystages.research.TierMode.MIN;
+                if (tokens.length == 5) {
+                    try {
+                        tier = Math.max(1, Math.min(4, Integer.parseInt(tokens[3].trim())));
+                    } catch (NumberFormatException ignored) {}
+                    mode = net.bananemdnsa.historystages.research.TierMode.parse(
+                            tokens[4].trim(), net.bananemdnsa.historystages.research.TierMode.MIN);
+                }
+                rows.add(new BoosterRow(blockId, speed, cost, tier, mode));
             }
         }
 
@@ -1706,18 +1724,12 @@ public class ConfigEditorScreen extends Screen {
         private void openPicker() {
             this.setFocused(null);
             for (BoosterRow r : rows) {
-                if (r.speedBox != null) {
-                    r.speedBox.setFocused(false);
-                    r.speedBox.setVisible(false);
-                }
-                if (r.costBox != null) {
-                    r.costBox.setFocused(false);
-                    r.costBox.setVisible(false);
-                }
+                if (r.editButton != null) r.editButton.visible = false;
             }
             itemOverlay = new SearchableItemList(blockId -> {
                 if (rows.stream().noneMatch(r -> r.blockId.equals(blockId))) {
-                    BoosterRow nr = new BoosterRow(blockId, 5, 0);
+                    BoosterRow nr = new BoosterRow(blockId, 5, 0, 1,
+                            net.bananemdnsa.historystages.research.TierMode.MIN);
                     rows.add(nr);
                     rebuildEditBoxes();
                     updateMaxScroll();
@@ -1728,27 +1740,62 @@ public class ConfigEditorScreen extends Screen {
         }
 
         private void rebuildEditBoxes() {
-            // Remove existing edit boxes from this screen's children
             for (BoosterRow r : rows) {
-                if (r.speedBox != null) this.removeWidget(r.speedBox);
-                if (r.costBox != null) this.removeWidget(r.costBox);
+                if (r.editButton != null) this.removeWidget(r.editButton);
             }
             for (BoosterRow r : rows) {
-                r.speedBox = new EditBox(this.font, 0, 0, FIELD_W, 16,
-                        Component.literal("speed"));
-                r.speedBox.setMaxLength(2);
-                r.speedBox.setValue(String.valueOf(r.speed));
-                r.speedBox.setResponder(v -> r.speed = parseClampedPercent(v));
-
-                r.costBox = new EditBox(this.font, 0, 0, FIELD_W, 16,
-                        Component.literal("cost"));
-                r.costBox.setMaxLength(2);
-                r.costBox.setValue(String.valueOf(r.cost));
-                r.costBox.setResponder(v -> r.cost = parseClampedPercent(v));
-
-                this.addRenderableWidget(r.speedBox);
-                this.addRenderableWidget(r.costBox);
+                final BoosterRow rRef = r;
+                r.editButton = StyledButton.of(
+                        Component.translatable("editor.historystages.edit"),
+                        btn -> this.minecraft.setScreen(new BoosterEditScreen(this, rRef)),
+                        0, 0, 50, 18);
+                this.addRenderableWidget(r.editButton);
             }
+        }
+
+        /**
+         * Truncate-with-"..." until the row is hovered for {@link #MARQUEE_DELAY_MS}, then
+         * scroll the full ID horizontally.
+         */
+        private void drawIdMaybeMarquee(GuiGraphics g, String text, int x, int y,
+                                        int w, int h, boolean hovered, int rowIndex) {
+            int textW = this.font.width(text);
+            int textColor = hovered ? 0xFFFFFF : 0xCCCCCC;
+            if (hovered) {
+                if (hoveredRow != rowIndex) {
+                    hoveredRow = rowIndex;
+                    hoverStartTime = System.currentTimeMillis();
+                }
+            }
+            if (textW <= w) {
+                g.drawString(this.font, text, x, y, textColor, false);
+                return;
+            }
+            if (hovered && hoveredRow == rowIndex) {
+                long elapsed = System.currentTimeMillis() - hoverStartTime;
+                if (elapsed > MARQUEE_DELAY_MS) {
+                    float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
+                    int maxMarquee = textW - w + 10;
+                    float cycle = maxMarquee * 2f;
+                    float pos = scrollProg % cycle;
+                    int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
+                    g.enableScissor(x, y - 4, x + w, y + h);
+                    g.drawString(this.font, text, x - scrollOff, y, textColor, false);
+                    g.disableScissor();
+                    return;
+                }
+            }
+            g.drawString(this.font, this.font.plainSubstrByWidth(text, w - 6) + "...",
+                    x, y, textColor, false);
+        }
+
+        /** "Speed +5% · Cost +0% · Tier II+" */
+        private static String formatSummary(BoosterRow r) {
+            String roman = net.bananemdnsa.historystages.research.TierMatcher.roman(r.tier);
+            String tierStr = r.mode == net.bananemdnsa.historystages.research.TierMode.EXACT
+                    ? roman
+                    : roman + "+";
+            return "Speed +" + r.speed + "%  ·  Cost +" + r.cost + "%  ·  Tier " + tierStr;
         }
 
         private void updateMaxScroll() {
@@ -1764,7 +1811,8 @@ public class ConfigEditorScreen extends Screen {
             for (BoosterRow r : rows) {
                 if (r.blockId == null || r.blockId.isEmpty()) continue;
                 if (sb.length() > 0) sb.append(';');
-                sb.append(r.blockId).append(',').append(r.speed).append(',').append(r.cost);
+                sb.append(r.blockId).append(',').append(r.speed).append(',').append(r.cost)
+                        .append(',').append(r.tier).append(',').append(r.mode.serialize());
             }
             entry.value = sb.toString();
             this.minecraft.setScreen(parent);
@@ -1787,25 +1835,25 @@ public class ConfigEditorScreen extends Screen {
             int contentLeft = 40;
             int contentRight = this.width - 40;
 
-            int speedLabelX = contentRight - 180;
-            int speedBoxX = speedLabelX + 38;
-            int costLabelX = speedBoxX + FIELD_W + 12;
-            int costBoxX = costLabelX + 32;
             int removeX = contentRight - 14;
+            int editButtonX = removeX - 8 - 50; // edit button width 50
+            int summaryRightX = editButtonX - 8;
 
+            // Buttons render via super.render() outside the scissor — toggle visible based on row clipping.
             guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
 
             int y = LIST_TOP - (int) scrollOffset;
+            boolean anyHover = false;
             for (int i = 0; i < rows.size(); i++) {
                 BoosterRow r = rows.get(i);
                 boolean fullyVisible = !overlayOpen && y >= LIST_TOP && y + ROW_HEIGHT <= listBottom;
-                r.speedBox.setVisible(fullyVisible);
-                r.costBox.setVisible(fullyVisible);
+                if (r.editButton != null) r.editButton.visible = fullyVisible;
                 if (y + ROW_HEIGHT > LIST_TOP - 10 && y < listBottom + 10) {
                     boolean hovered = mouseX >= contentLeft && mouseX <= contentRight
                             && mouseY >= y && mouseY < y + ROW_HEIGHT
                             && mouseY >= LIST_TOP && mouseY <= listBottom;
                     if (hovered) {
+                        anyHover = true;
                         guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, 0x20FFFFFF);
                     }
 
@@ -1818,23 +1866,19 @@ public class ConfigEditorScreen extends Screen {
                         }
                     }
 
-                    // Block ID
-                    String shownId = r.blockId;
-                    int maxIdWidth = speedLabelX - (contentLeft + 22) - 4;
-                    if (this.font.width(shownId) > maxIdWidth) {
-                        shownId = this.font.plainSubstrByWidth(shownId, maxIdWidth - 6) + "...";
-                    }
-                    guiGraphics.drawString(this.font, shownId, contentLeft + 22, y + 9, 0xCCCCCC, false);
+                    // Right-aligned summary, then ID gets the remaining space.
+                    String summary = formatSummary(r);
+                    int summaryW = this.font.width(summary);
+                    int summaryX = summaryRightX - summaryW;
+                    guiGraphics.drawString(this.font, summary, summaryX, y + 9, 0xAACCFF, false);
 
-                    // Speed / Cost labels
-                    guiGraphics.drawString(this.font, "Speed", speedLabelX, y + 9, 0xAACCFF, false);
-                    guiGraphics.drawString(this.font, "%", speedBoxX + FIELD_W + 2, y + 9, 0x888888, false);
-                    guiGraphics.drawString(this.font, "Cost", costLabelX, y + 9, 0xAACCFF, false);
-                    guiGraphics.drawString(this.font, "%", costBoxX + FIELD_W + 2, y + 9, 0x888888, false);
+                    int idX = contentLeft + 22;
+                    int maxIdWidth = summaryX - idX - 8;
+                    drawIdMaybeMarquee(guiGraphics, r.blockId, idX, y + 9,
+                            maxIdWidth, ROW_HEIGHT - 2, hovered, i);
 
-                    // Position EditBoxes
-                    r.speedBox.setX(speedBoxX); r.speedBox.setY(y + 5);
-                    r.costBox.setX(costBoxX);   r.costBox.setY(y + 5);
+                    // Position Edit button
+                    r.editButton.setX(editButtonX); r.editButton.setY(y + 4);
 
                     // Remove ×
                     boolean removeHovered = mouseX >= removeX && mouseX <= removeX + 12
@@ -1845,6 +1889,7 @@ public class ConfigEditorScreen extends Screen {
                 }
                 y += ROW_HEIGHT;
             }
+            if (!anyHover) hoveredRow = -1;
             guiGraphics.disableScissor();
 
             if (maxScroll > 0) {
@@ -1894,8 +1939,7 @@ public class ConfigEditorScreen extends Screen {
                 if (mouseY >= y && mouseY < y + ROW_HEIGHT) {
                     if (mouseX >= removeX && mouseX <= removeX + 12) {
                         BoosterRow removed = rows.remove(i);
-                        if (removed.speedBox != null) this.removeWidget(removed.speedBox);
-                        if (removed.costBox != null) this.removeWidget(removed.costBox);
+                        if (removed.editButton != null) this.removeWidget(removed.editButton);
                         updateMaxScroll();
                         return true;
                     }
@@ -1956,17 +2000,163 @@ public class ConfigEditorScreen extends Screen {
         @Override
         public boolean isPauseScreen() { return true; }
 
-        private static class BoosterRow {
+        static class BoosterRow {
             String blockId;
             int speed;
             int cost;
-            EditBox speedBox;
-            EditBox costBox;
-            BoosterRow(String blockId, int speed, int cost) {
+            int tier;
+            net.bananemdnsa.historystages.research.TierMode mode;
+            net.minecraft.client.gui.components.Button editButton;
+            BoosterRow(String blockId, int speed, int cost, int tier,
+                       net.bananemdnsa.historystages.research.TierMode mode) {
                 this.blockId = blockId;
                 this.speed = speed;
                 this.cost = cost;
+                this.tier = tier;
+                this.mode = mode;
             }
         }
+    }
+
+    /**
+     * Detail screen for a single BoosterRow: speed/cost EditBoxes, tier dropdown,
+     * mode toggle. Mutates the row in place on Save and returns to the list.
+     */
+    static class BoosterEditScreen extends Screen {
+        private final BoosterListEditorScreen parent;
+        private final BoosterListEditorScreen.BoosterRow row;
+
+        private EditBox speedField;
+        private EditBox costField;
+        private net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown tierDropdown;
+        private net.minecraft.client.gui.components.Button modeButton;
+
+        // Working copies — only written back on Save.
+        private int editSpeed;
+        private int editCost;
+        private int editTier;
+        private net.bananemdnsa.historystages.research.TierMode editMode;
+
+        BoosterEditScreen(BoosterListEditorScreen parent, BoosterListEditorScreen.BoosterRow row) {
+            super(Component.translatable("editor.historystages.booster.edit_title"));
+            this.parent = parent;
+            this.row = row;
+            this.editSpeed = row.speed;
+            this.editCost = row.cost;
+            this.editTier = row.tier;
+            this.editMode = row.mode;
+        }
+
+        @Override
+        protected void init() {
+            int labelX = 30;
+            String labelSpeed = "Speed %";
+            String labelCost  = "Cost %";
+            String labelTier  = Component.translatable("editor.historystages.field.min_pedestal_tier").getString();
+            String labelMode  = Component.translatable("editor.historystages.field.pedestal_tier_mode").getString();
+            int maxLabelW = Math.max(Math.max(this.font.width(labelSpeed), this.font.width(labelCost)),
+                    Math.max(this.font.width(labelTier), this.font.width(labelMode)));
+            int fieldX = labelX + maxLabelW + 10;
+
+            speedField = new EditBox(this.font, fieldX, 44, 60, 18, Component.literal("speed"));
+            speedField.setMaxLength(2);
+            speedField.setValue(String.valueOf(editSpeed));
+            speedField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+            speedField.setResponder(v -> {
+                try { editSpeed = Math.max(0, Math.min(90, Integer.parseInt(v))); }
+                catch (NumberFormatException ignored) { editSpeed = 0; }
+            });
+            this.addRenderableWidget(speedField);
+
+            costField = new EditBox(this.font, fieldX, 66, 60, 18, Component.literal("cost"));
+            costField.setMaxLength(2);
+            costField.setValue(String.valueOf(editCost));
+            costField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+            costField.setResponder(v -> {
+                try { editCost = Math.max(0, Math.min(90, Integer.parseInt(v))); }
+                catch (NumberFormatException ignored) { editCost = 0; }
+            });
+            this.addRenderableWidget(costField);
+
+            tierDropdown = new net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown(
+                    editTier, 160, picked -> editTier = picked);
+            tierDropdown.setPosition(fieldX, 88);
+
+            modeButton = StyledButton.of(
+                    Component.translatable(modeKey(editMode)),
+                    btn -> {
+                        editMode = (editMode == net.bananemdnsa.historystages.research.TierMode.MIN)
+                                ? net.bananemdnsa.historystages.research.TierMode.EXACT
+                                : net.bananemdnsa.historystages.research.TierMode.MIN;
+                        btn.setMessage(Component.translatable(modeKey(editMode)));
+                    },
+                    fieldX, 110, 160, 18);
+            this.addRenderableWidget(modeButton);
+
+            this.addRenderableWidget(StyledButton.of(
+                    Component.translatable("editor.historystages.back"),
+                    btn -> this.minecraft.setScreen(parent),
+                    10, this.height - 25, 50, 18));
+            this.addRenderableWidget(StyledButton.of(
+                    Component.translatable("editor.historystages.save"),
+                    btn -> save(), this.width - 60, this.height - 25, 50, 18));
+        }
+
+        private void save() {
+            row.speed = editSpeed;
+            row.cost = editCost;
+            row.tier = editTier;
+            row.mode = editMode;
+            this.minecraft.setScreen(parent);
+        }
+
+        private static String modeKey(net.bananemdnsa.historystages.research.TierMode m) {
+            return m == net.bananemdnsa.historystages.research.TierMode.EXACT
+                    ? "editor.historystages.tier_mode.exact"
+                    : "editor.historystages.tier_mode.min";
+        }
+
+        @Override
+        public void renderBackground(GuiGraphics g) {}
+
+        @Override
+        public void render(GuiGraphics g, int mouseX, int mouseY, float pt) {
+            g.fill(0, 0, this.width, this.height, 0xC0000000);
+            super.render(g, mouseX, mouseY, pt);
+
+            g.drawCenteredString(this.font,
+                    Component.translatable("editor.historystages.booster.edit_title"),
+                    this.width / 2, 8, 0xFFFFFF);
+
+            // Block icon + ID header
+            ResourceLocation rl = ResourceLocation.tryParse(row.blockId);
+            if (rl != null) {
+                Item item = ForgeRegistries.ITEMS.getValue(rl);
+                if (item != null) g.renderItem(new ItemStack(item), 30, 22);
+            }
+            g.drawString(this.font, row.blockId, 52, 26, 0xCCCCCC, false);
+
+            int labelX = 30;
+            g.drawString(this.font, "Speed %", labelX, 49, 0xAAAAAA, false);
+            g.drawString(this.font, "Cost %",  labelX, 71, 0xAAAAAA, false);
+            g.drawString(this.font,
+                    Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
+                    labelX, 93, 0xAAAAAA, false);
+            g.drawString(this.font,
+                    Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
+                    labelX, 115, 0xAAAAAA, false);
+
+            tierDropdown.renderButton(g, this.font, mouseX, mouseY);
+            tierDropdown.renderPopup(g, this.font, mouseX, mouseY);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (tierDropdown != null && tierDropdown.mouseClicked(mouseX, mouseY)) return true;
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override
+        public boolean isPauseScreen() { return true; }
     }
 }

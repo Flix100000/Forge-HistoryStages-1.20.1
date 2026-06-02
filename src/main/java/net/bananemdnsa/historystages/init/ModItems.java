@@ -69,6 +69,29 @@ public class ModItems {
                     tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
                             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
 
+                    // Min required pedestal tier (above dependencies block, when narrowing).
+                    if (net.bananemdnsa.historystages.Config.CLIENT.showScrollTierTooltip.get()
+                            && stack.hasTag() && stack.getTag().contains("StageResearch")) {
+                        String tierStageId = stack.getTag().getString("StageResearch");
+                        StageEntry tierEntry = StageManager.isIndividualStage(tierStageId)
+                                ? StageManager.getIndividualStages().get(tierStageId)
+                                : StageManager.getStages().get(tierStageId);
+                        if (tierEntry != null) {
+                            int minTier = tierEntry.getMinPedestalTier();
+                            net.bananemdnsa.historystages.research.TierMode mode =
+                                    tierEntry.getPedestalTierMode();
+                            if (minTier > 1
+                                    || mode == net.bananemdnsa.historystages.research.TierMode.EXACT) {
+                                String key = mode == net.bananemdnsa.historystages.research.TierMode.EXACT
+                                        ? "tooltip.historystages.research_scroll.tier.exact"
+                                        : "tooltip.historystages.research_scroll.tier.min";
+                                tooltip.add(Component.translatable(key,
+                                        net.bananemdnsa.historystages.research.TierMatcher.roman(minTier))
+                                        .withStyle(ChatFormatting.GRAY));
+                            }
+                        }
+                    }
+
                     // Show dependencies in tooltip
                     if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
                         String stageId = stack.getTag().getString("StageResearch");

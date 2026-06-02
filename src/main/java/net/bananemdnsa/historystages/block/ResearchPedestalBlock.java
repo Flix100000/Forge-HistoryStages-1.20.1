@@ -27,7 +27,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraftforge.network.NetworkHooks;
 import org.jetbrains.annotations.Nullable;
 
-public class ResearchPedestalBlock extends BaseEntityBlock {
+public class ResearchPedestalBlock extends BaseEntityBlock implements TieredPedestal {
     public static final BooleanProperty WORKING = BooleanProperty.create("working");
     public static final BooleanProperty LIT = BooleanProperty.create("lit");
     private static final VoxelShape SHAPE = makeShape();
@@ -36,6 +36,12 @@ public class ResearchPedestalBlock extends BaseEntityBlock {
         // noOcclusion() verhindert, dass Nachbarblöcke unsichtbar werden
         super(pProperties.noOcclusion().lightLevel(state -> state.getValue(LIT) ? 13 : 0));
         this.registerDefaultState(this.stateDefinition.any().setValue(WORKING, false).setValue(LIT, false));
+    }
+
+    /** Pedestal tier (1-4). Subclasses override for higher tiers. */
+    @Override
+    public int getTier() {
+        return 1;
     }
 
     // Diese drei Methoden fixen den "Durchsicht-Bug" (X-Ray) bei Nachbarblöcken:
