@@ -23,6 +23,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue dimShowChat;
         public final ForgeConfigSpec.BooleanValue dimShowStagesInChat;
         public final ForgeConfigSpec.BooleanValue showLockIcons;
+        public final ForgeConfigSpec.BooleanValue showBoosterTooltips;
         public final ForgeConfigSpec.BooleanValue mobUseActionbar;
         public final ForgeConfigSpec.BooleanValue mobShowChat;
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
@@ -64,6 +65,10 @@ public class Config {
             showLockIcons = builder
                     .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
                     .define("showLockIcons", true);
+
+            showBoosterTooltips = builder
+                    .comment("Show a tooltip on Research Pedestal booster blocks describing their speed/cost effect? [Default: true]")
+                    .define("showBoosterTooltips", true);
 
             builder.pop();
 
@@ -188,6 +193,7 @@ public class Config {
         // Forschungsstation
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
         public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
+        public final ForgeConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
 
         // Loot-Ersetzungen
         public final ForgeConfigSpec.BooleanValue useReplacements;
@@ -318,11 +324,25 @@ public class Config {
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
-                    .defineInRange("researchTimeInSeconds", 20, 1, 3600);
+                    .defineInRange("researchTimeInSeconds", 20, 1, 86400);
 
             showDependencyScreenInPedestal = builder
                     .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
                     .define("showDependencyScreenInPedestal", true);
+
+            researchBoosters = builder
+                    .comment(
+                            "Booster blocks placed directly UNDER a Research Pedestal modify the active research.",
+                            "Format per entry: \"block_id, speed_percent, cost_percent\"",
+                            "  speed_percent: research time reduction (0-90). 90% = max (research runs 10x).",
+                            "  cost_percent:  item-dependency count reduction (0-90). Locked into the scroll on first deposit.",
+                            "Unknown block ids and out-of-range values are logged and skipped/clamped.")
+                    .defineList("researchBoosters",
+                            List.of(
+                                    "minecraft:bookshelf, 5, 0",
+                                    "minecraft:enchanting_table, 25, 10"
+                            ),
+                            obj -> obj instanceof String);
 
             builder.pop(); // Schließt "research"
 

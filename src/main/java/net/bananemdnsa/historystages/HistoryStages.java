@@ -68,6 +68,8 @@ public class HistoryStages {
         modEventBus.addListener(this::addCreative);
         // Hier fügen wir den Decorator hinzu:
         modEventBus.addListener(this::onRegisterItemDecorators);
+        modEventBus.addListener(this::onConfigLoad);
+        modEventBus.addListener(this::onConfigReload);
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
@@ -95,6 +97,20 @@ public class HistoryStages {
         }
 
         MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    private void onConfigLoad(net.minecraftforge.fml.event.config.ModConfigEvent.Loading event) {
+        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
+                    Config.COMMON.researchBoosters.get());
+        }
+    }
+
+    private void onConfigReload(net.minecraftforge.fml.event.config.ModConfigEvent.Reloading event) {
+        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
+                    Config.COMMON.researchBoosters.get());
+        }
     }
 
     private void onRegisterItemDecorators(RegisterItemDecorationsEvent event) {

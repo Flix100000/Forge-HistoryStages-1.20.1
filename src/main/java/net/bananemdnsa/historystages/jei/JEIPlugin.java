@@ -8,13 +8,19 @@ import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.registration.IAdvancedRegistration;
+import mezz.jei.api.registration.IRecipeCatalystRegistration;
+import mezz.jei.api.registration.IRecipeCategoryRegistration;
+import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
+import net.bananemdnsa.historystages.research.BoosterUtil;
+import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -210,6 +216,31 @@ public class JEIPlugin implements IModPlugin {
                 LOGGER.warn("[HistoryStages/JEI] addIngredientsAtRuntime failed", e);
             }
         }
+    }
+
+    @Override
+    public void registerCategories(IRecipeCategoryRegistration registration) {
+        registration.addRecipeCategories(
+                new BoosterRecipeCategory(registration.getJeiHelpers().getGuiHelper()));
+    }
+
+    @Override
+    public void registerRecipes(IRecipeRegistration registration) {
+        List<BoosterRecipe> recipes = new ArrayList<>();
+        ResearchBoosterRegistry.forEachStack((stack, booster) -> recipes.add(new BoosterRecipe(
+                stack,
+                BoosterUtil.percent(booster.speedReduction()),
+                BoosterUtil.percent(booster.costReduction()))));
+        registration.addRecipes(BoosterRecipeCategory.TYPE, recipes);
+    }
+
+    @Override
+    public void registerRecipeCatalysts(IRecipeCatalystRegistration registration) {
+        // Catalyst on the pedestal itself + each booster block so right-click opens this category.
+        registration.addRecipeCatalyst(
+                new ItemStack(ModBlocks.RESEARCH_PEDESTAL.get()), BoosterRecipeCategory.TYPE);
+        ResearchBoosterRegistry.forEachStack((stack, booster) ->
+                registration.addRecipeCatalyst(stack, BoosterRecipeCategory.TYPE));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

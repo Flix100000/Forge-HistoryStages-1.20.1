@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.data.dependency;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
 import net.minecraft.advancements.Advancement;
@@ -31,6 +32,11 @@ public class DependencyChecker {
      */
     public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
             CompoundTag depositedData) {
+        return checkAll(entry, player, level, depositedData, 0.0);
+    }
+
+    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
+            CompoundTag depositedData, double costReduction) {
         List<DependencyGroup> groups = entry.getDependencies();
         if (groups == null || groups.isEmpty()) {
             return DependencyResult.noDependencies();
@@ -40,7 +46,8 @@ public class DependencyChecker {
         boolean allFulfilled = true;
 
         for (int i = 0; i < groups.size(); i++) {
-            DependencyResult.GroupResult result = checkGroup(groups.get(i), i, player, level, depositedData);
+            DependencyResult.GroupResult result = checkGroup(groups.get(i), i, player, level, depositedData,
+                    costReduction);
             groupResults.add(result);
             if (!result.isFulfilled()) {
                 allFulfilled = false;
@@ -50,12 +57,17 @@ public class DependencyChecker {
         return new DependencyResult(allFulfilled, groupResults);
     }
 
-    /**
-     * Check a single dependency group. Entries within are connected by the group's
-     * logic (AND/OR).
-     */
     public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex, ServerPlayer player,
             Level level, CompoundTag depositedData) {
+        return checkGroup(group, groupIndex, player, level, depositedData, 0.0);
+    }
+
+    /**
+     * Check a single dependency group. Entries within are connected by the group's
+     * logic (AND/OR). costReduction in [0,0.9] shrinks item requirements.
+     */
+    public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex, ServerPlayer player,
+            Level level, CompoundTag depositedData, double costReduction) {
         List<DependencyResult.EntryResult> entries = new ArrayList<>();
         boolean isActuallyOr = "OR".equalsIgnoreCase(group.getLogic());
 
@@ -64,14 +76,17 @@ public class DependencyChecker {
             ResourceLocation rl = ResourceLocation.tryParse(item.getId());
             String idString = rl != null ? rl.toString() : item.getId();
 
+            int original = item.getCount();
+            int required = BoosterUtil.effectiveCount(original, costReduction);
             int current = (depositedData != null)
                     ? depositedData.getInt("Group_" + groupIndex + "_Item_" + idString)
                     : 0;
-            boolean met = current >= item.getCount();
+            boolean met = current >= required;
             String itemName = getItemDisplayName(item.getId());
+            int originalForUi = (required == original) ? 0 : original;
             entries.add(
-                    new DependencyResult.EntryResult("item", idString, item.getCount() + "x " + itemName, met, current,
-                            item.getCount()));
+                    new DependencyResult.EntryResult("item", idString, required + "x " + itemName, met, current,
+                            required, originalForUi, false));
         }
 
         // Global Stages

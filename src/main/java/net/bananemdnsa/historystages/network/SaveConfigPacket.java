@@ -88,6 +88,16 @@ public class SaveConfigPacket {
                 case "researchTimeInSeconds" -> {
                     try { Config.COMMON.researchTimeInSeconds.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
                 }
+                case "showDependencyScreenInPedestal" -> Config.COMMON.showDependencyScreenInPedestal.set(Boolean.parseBoolean(value));
+                case "researchBoosters" -> {
+                    List<String> boosterList = Arrays.stream(value.split(";"))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toList());
+                    Config.COMMON.researchBoosters.set(boosterList);
+                    // Rebuild the in-memory registry so changes apply immediately.
+                    net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(boosterList);
+                }
                 case "useReplacements" -> Config.COMMON.useReplacements.set(Boolean.parseBoolean(value));
                 case "replacementItems" -> {
                     List<String> itemList = Arrays.stream(value.split(","))

@@ -52,15 +52,24 @@ public class CheckDependencyPacket {
                 return;
 
             CompoundTag depositedTag = null;
+            double costReduction = 0.0;
             BlockEntity be = player.level().getBlockEntity(packet.pos);
             if (be instanceof net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity pedestal) {
-                depositedTag = pedestal.getScrollStack().hasTag()
-                        && pedestal.getScrollStack().getTag().contains("DepositedDependencies")
-                                ? pedestal.getScrollStack().getTag().getCompound("DepositedDependencies")
-                                : null;
+                net.minecraft.world.item.ItemStack scroll = pedestal.getScrollStack();
+                if (scroll.hasTag()) {
+                    CompoundTag scrollTag = scroll.getTag();
+                    if (scrollTag.contains("DepositedDependencies")) {
+                        depositedTag = scrollTag.getCompound("DepositedDependencies");
+                    }
+                    costReduction = scrollTag.contains("LockedCostReduction")
+                            ? net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity
+                                    .getLockedCostReduction(scrollTag)
+                            : pedestal.getActiveBooster().costReduction();
+                }
             }
 
-            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag);
+            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag,
+                    costReduction);
             PacketHandler.INSTANCE.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
                     new SyncDependencyStatusPacket(packet.stageId, result));
