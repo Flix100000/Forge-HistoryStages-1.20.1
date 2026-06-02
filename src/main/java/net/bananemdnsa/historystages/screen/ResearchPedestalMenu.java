@@ -1,7 +1,6 @@
 package net.bananemdnsa.historystages.screen;
 
 import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
-import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModMenuTypes;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.entity.player.Inventory;
@@ -108,8 +107,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player pPlayer) {
-        return stillValid(ContainerLevelAccess.create(level, blockEntity.getBlockPos()), pPlayer,
-                ModBlocks.RESEARCH_PEDESTAL.get());
+        net.minecraft.core.BlockPos pos = blockEntity.getBlockPos();
+        if (level.getBlockEntity(pos) != blockEntity) return false;
+        return pPlayer.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
     }
 
     private void addPlayerInventory(Inventory playerInventory) {

@@ -258,8 +258,33 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
     }
 
+    /** Drop both inventory slots at the given position. Saves current research progress to the
+     *  scroll first so the dropped item reflects the latest tick. */
+    public void dropContents(Level dropLevel, BlockPos pos) {
+        ItemStack scroll = itemHandler.getStackInSlot(0);
+        if (!scroll.isEmpty()) {
+            CompoundTag tag = scroll.hasTag() ? scroll.getTag().copy() : new CompoundTag();
+            if (tag.contains("StageResearch")) {
+                tag.putInt("ResearchProgress", this.progress);
+                tag.putInt("MaxProgress", getMaxProgressForCurrentStage());
+                scroll.setTag(tag);
+            }
+        }
+        for (int i = 0; i < itemHandler.getSlots(); i++) {
+            ItemStack stack = itemHandler.getStackInSlot(i);
+            if (!stack.isEmpty()) {
+                net.minecraft.world.Containers.dropItemStack(dropLevel,
+                        pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, stack);
+                itemHandler.setStackInSlot(i, ItemStack.EMPTY);
+            }
+        }
+    }
+
     @Override
     public Component getDisplayName() {
+        if (level != null) {
+            return level.getBlockState(worldPosition).getBlock().getName();
+        }
         return Component.translatable("block.historystages.research_pedestal");
     }
 
@@ -419,6 +444,18 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 || state.getValue(ResearchPedestalBlock.LIT) != isResearching) {
             level.setBlock(pos, state.setValue(ResearchPedestalBlock.WORKING, hasValidBook)
                     .setValue(ResearchPedestalBlock.LIT, isResearching), 3);
+            // For multiblock pedestals, mirror WORKING/LIT onto the head part so its shape
+            // and lighting stay in sync with the foot.
+            if (state.getBlock() instanceof net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock) {
+                net.minecraft.core.Direction facing = state.getValue(net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock.FACING);
+                BlockPos headPos = pos.relative(facing);
+                BlockState headState = level.getBlockState(headPos);
+                if (headState.is(state.getBlock())) {
+                    level.setBlock(headPos, headState
+                            .setValue(ResearchPedestalBlock.WORKING, hasValidBook)
+                            .setValue(ResearchPedestalBlock.LIT, isResearching), 3);
+                }
+            }
         }
         setChanged(level, pos, state);
     }

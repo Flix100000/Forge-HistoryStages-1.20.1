@@ -15,7 +15,10 @@ public class ModBlockEntities {
     public static final RegistryObject<BlockEntityType<ResearchPedestalBlockEntity>> RESEARCH_PEDESTAL_BE =
             BLOCK_ENTITIES.register("research_pedestal_be", () ->
                     BlockEntityType.Builder.of(ResearchPedestalBlockEntity::new,
-                            ModBlocks.RESEARCH_PEDESTAL.get()).build(null));
+                            ModBlocks.RESEARCH_PEDESTAL.get(),
+                            ModBlocks.RESEARCH_PEDESTAL_TIER_2.get(),
+                            ModBlocks.RESEARCH_PEDESTAL_TIER_3.get(),
+                            ModBlocks.RESEARCH_PEDESTAL_TIER_4.get()).build(null));
 
     public static void register(IEventBus eventBus) {
         BLOCK_ENTITIES.register(eventBus);

@@ -20,8 +20,11 @@ public class ModCreativeTabs {
                     .icon(() -> new ItemStack(ModItems.RESEARCH_SCROLL.get())) // Das Icon des Tabs
                     .title(Component.translatable("creativetab.history_tab"))
                     .displayItems((parameters, output) -> {
-                        // 1. Forschungsstation und Creative Scroll
+                        // 1. Research pedestals and Creative Scroll
                         output.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_2_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_3_ITEM.get());
+                        output.accept(ModItems.RESEARCH_PEDESTAL_TIER_4_ITEM.get());
 
                         ItemStack creativeScroll = new ItemStack(ModItems.CREATIVE_SCROLL.get());
                         creativeScroll.getOrCreateTag().putString("StageResearch", ModItems.CREATIVE_STAGE_ID);

@@ -1,5 +1,8 @@
 {
   "block.historystages.research_pedestal": "Forschungspodest",
+  "block.historystages.research_pedestal_tier_2": "Forschungspodest Tier II",
+  "block.historystages.research_pedestal_tier_3": "Forschungspodest Tier III",
+  "block.historystages.research_pedestal_tier_4": "Forschungspodest Tier IV",
   "item.historystages.research_scroll": "Forschungsrolle",
   "item.historystages.creative_scroll": "Kreativrolle",
   "tooltip.historystages.creative_scroll.info1": "Benutze diese Rolle in einem Forschungspodest,",

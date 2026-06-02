@@ -165,6 +165,15 @@ public class ModItems {
     public static final RegistryObject<Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
             () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
 
+    public static final RegistryObject<Item> RESEARCH_PEDESTAL_TIER_2_ITEM = ITEMS.register("research_pedestal_tier_2",
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL_TIER_2.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> RESEARCH_PEDESTAL_TIER_3_ITEM = ITEMS.register("research_pedestal_tier_3",
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL_TIER_3.get(), new Item.Properties()));
+
+    public static final RegistryObject<Item> RESEARCH_PEDESTAL_TIER_4_ITEM = ITEMS.register("research_pedestal_tier_4",
+            () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL_TIER_4.get(), new Item.Properties()));
+
     /**
      * Finds a specific entry result in the cached data.
      */
