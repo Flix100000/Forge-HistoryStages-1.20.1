@@ -35,8 +35,18 @@ Found a bug or have a feature request? Please open an issue on the [Issue Tracke
 
 ## Contributors
 
-Contributions are welcome! See [CONTRIBUTORS.md](CONTRIBUTORS.md) for a list of everyone who has helped improve History Stages.
+Contributions are very welcome — bug fixes, features, translations, art, docs, anything. The easiest way to start is to open a [Contribution Offer issue](https://github.com/Flix100000/History-Stages/issues/new?template=contribution_offer.yml) so we can coordinate before you put in the work.
+
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for everyone who has helped improve History Stages so far.
 
 ## License
 
-This project is licensed under the [GPL-3.0 License](LICENSE).
+**All Rights Reserved** — source is public, but the mod is not open source.
+
+Quick rules:
+- Use in modpacks (public, private, commercial): **allowed**
+- Use in Let's Plays, streams, servers: **allowed**
+- Fork to prepare a PR: **allowed**
+- Publish forks / modified versions / re-uploads: **not allowed**
+
+Full terms: [LICENSE](LICENSE).

@@ -74,6 +74,15 @@ If yes, describe what breaks and how users should migrate. If no, write "None".
 - [ ] Public APIs / commands / events are documented in code or readme where appropriate
 - [ ] Version number / changelog updated (if this is release-bound)
 
+## License Acknowledgement (required)
+<!--
+History Stages is licensed All Rights Reserved (see LICENSE).
+By submitting this pull request, you agree that your contribution
+is licensed to the project owner (Flix100000) under the project's
+license terms and may be relicensed by the project owner as needed.
+-->
+- [ ] I have read [LICENSE](../LICENSE) and agree that, by submitting this pull request, my contribution is licensed to the project owner under the project's All Rights Reserved license and may be relicensed by the project owner as needed.
+
 ## Screenshots / Videos
 <!-- Required for UI changes. Before/after if you can. -->
 
