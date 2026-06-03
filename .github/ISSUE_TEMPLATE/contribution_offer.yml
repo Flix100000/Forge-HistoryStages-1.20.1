@@ -11,6 +11,19 @@ body:
 
         For small fixes (typos, one-line bugs), feel free to skip this and open a Pull Request directly.
 
+        ---
+
+        **A note on the license:**
+
+        History Stages is **All Rights Reserved** — the source is publicly visible, but the mod is not open source under the OSI definition.
+        You are welcome to fork the repository **for the purpose of preparing a pull request**, but forks must not be distributed or published as a standalone mod.
+
+        By submitting a contribution (code, translation, art, etc.), you agree that your contribution is licensed to the project owner (Flix100000) under the project's license terms and may be relicensed as needed.
+
+        See [LICENSE.txt](../LICENSE.txt) for the full terms.
+
+        ---
+
   - type: dropdown
     id: area
     attributes:
@@ -73,7 +86,7 @@ body:
     attributes:
       label: Before you start
       options:
-        - label: I understand contributions will be licensed under GPL-3.0.
+        - label: I understand contributions will be licensed under the project's All Rights Reserved license (see LICENSE.txt) and may be relicensed by the project owner as needed.
           required: true
         - label: I will wait for confirmation before starting significant work to avoid wasted effort.
           required: false
