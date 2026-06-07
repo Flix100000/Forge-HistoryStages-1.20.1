@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,7 +20,7 @@ public class StageEntry {
     private String mode;   // "default" | "auto" | "external"; null → default
 
     @SerializedName("auto_trigger")
-    private net.bananemdnsa.historystages.data.auto.AutoTrigger autoTrigger;
+    private AutoTrigger autoTrigger;
 
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
@@ -201,23 +202,23 @@ public class StageEntry {
     public void setResearchTime(int researchTime) { this.researchTime = researchTime; }
 
     /** Returns the stage's mode, defaulting to DEFAULT if unset or unknown. */
-    public net.bananemdnsa.historystages.data.StageMode getMode() {
-        return net.bananemdnsa.historystages.data.StageMode.parse(mode);
+    public StageMode getMode() {
+        return StageMode.parse(mode);
     }
 
     /** Raw mode string from JSON — used by StageManager to log warnings on unknown values. */
     public String getRawMode() { return mode; }
 
-    public void setMode(net.bananemdnsa.historystages.data.StageMode m) {
-        this.mode = (m != null ? m : net.bananemdnsa.historystages.data.StageMode.DEFAULT).serialize();
+    public void setMode(StageMode m) {
+        this.mode = (m != null ? m : StageMode.DEFAULT).serialize();
     }
 
     /** Returns the auto-trigger config, or null if none is set. */
-    public net.bananemdnsa.historystages.data.auto.AutoTrigger getAutoTrigger() {
+    public AutoTrigger getAutoTrigger() {
         return autoTrigger;
     }
 
-    public void setAutoTrigger(net.bananemdnsa.historystages.data.auto.AutoTrigger autoTrigger) {
+    public void setAutoTrigger(AutoTrigger autoTrigger) {
         this.autoTrigger = autoTrigger;
     }
 
