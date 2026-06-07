@@ -32,4 +32,21 @@ public sealed interface TriggerCondition permits
      * never on memory addresses, JSON array position, or runtime state.
      */
     long signature();
+
+    /** FNV-1a 64-bit prime — used to mix the type hash and the value hash. */
+    long FNV_PRIME_64 = 1099511628211L;
+
+    /**
+     * Default signature derivation: stable mix of the trigger's type discriminator and a
+     * single string value (typically the id). Records with multiple value components
+     * should pass a composite string (e.g. {@code id + "|" + subMode}) or override
+     * {@link #signature()} directly.
+     *
+     * <p>Relies on {@link String#hashCode()}, which is contractually stable per the
+     * Java Language Specification — safe to persist as a progress identity hash.</p>
+     */
+    default long defaultSignature(String value) {
+        long h = type().hashCode() & 0xFFFFFFFFL;
+        return h * FNV_PRIME_64 ^ (String.valueOf(value).hashCode() & 0xFFFFFFFFL);
+    }
 }

@@ -15,9 +15,5 @@ public record EntityTrigger(
 
     @Override public String type() { return "entity"; }
 
-    @Override public long signature() {
-        long h = type().hashCode() & 0xFFFFFFFFL;
-        String composite = String.valueOf(id) + "|" + resolvedSubMode();
-        return h * 1099511628211L ^ (composite.hashCode() & 0xFFFFFFFFL);
-    }
+    @Override public long signature() { return defaultSignature(id + "|" + resolvedSubMode()); }
 }
