@@ -5,7 +5,6 @@ import com.google.gson.annotations.SerializedName;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 @JsonAdapter(AutoTriggerAdapter.class)
@@ -38,7 +37,7 @@ public class AutoTrigger {
     public void setMode(String mode) { this.mode = mode; }
 
     public List<TriggerCondition> getTriggers() {
-        return triggers != null ? triggers : Collections.emptyList();
+        return triggers;
     }
 
     public void setTriggers(List<TriggerCondition> triggers) {
