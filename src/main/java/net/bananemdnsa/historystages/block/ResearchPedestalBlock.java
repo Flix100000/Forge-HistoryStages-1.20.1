@@ -122,4 +122,15 @@ public class ResearchPedestalBlock extends BaseEntityBlock implements TieredPede
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
         return SHAPE;
     }
+
+    @Override
+    public boolean hasAnalogOutputSignal(BlockState state) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+        BlockEntity be = level.getBlockEntity(pos);
+        return be instanceof ResearchPedestalBlockEntity rpbe ? rpbe.getComparatorOutput() : 0;
+    }
 }

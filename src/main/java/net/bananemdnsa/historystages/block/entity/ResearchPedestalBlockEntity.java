@@ -118,6 +118,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private boolean tierMismatch = false;
     private int requiredTier = 1;
     private TierMode requiredTierMode = TierMode.MIN;
+    private int lastComparatorOutput = -1;
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
         super(ModBlockEntities.RESEARCH_PEDESTAL_BE.get(), pPos, pBlockState);
@@ -578,6 +579,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
         }
         setChanged(level, pos, state);
+        entity.updateComparatorIfChanged(level, pos, state);
     }
 
     private void finishResearch(ItemStack stack) {
@@ -763,6 +765,35 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
         }
         return Config.COMMON.researchTimeInSeconds.get() * 20;
+    }
+
+    /**
+     * Comparator output (0-15) based on research progress.
+     * 0 = no scroll or no progress, 15 = research complete.
+     * Linear mapping in between so a comparator can drive redstone proportional to progress.
+     */
+    public int getComparatorOutput() {
+        if (this.itemHandler.getStackInSlot(0).isEmpty()) return 0;
+        if (this.progress <= 0) return 0;
+        int max = getMaxProgressForCurrentStage();
+        if (max <= 0) return 0;
+        return Math.min(15, 1 + (14 * this.progress) / max);
+    }
+
+    /** Push a comparator-output change to redstone neighbors on this pedestal (and the head if multiblock). */
+    private void updateComparatorIfChanged(Level level, BlockPos pos, BlockState state) {
+        int current = getComparatorOutput();
+        if (current == lastComparatorOutput) return;
+        lastComparatorOutput = current;
+        level.updateNeighbourForOutputSignal(pos, state.getBlock());
+        if (state.getBlock() instanceof MultiBlockResearchPedestalBlock) {
+            Direction facing = state.getValue(MultiBlockResearchPedestalBlock.FACING);
+            BlockPos headPos = pos.relative(facing);
+            BlockState headState = level.getBlockState(headPos);
+            if (headState.is(state.getBlock())) {
+                level.updateNeighbourForOutputSignal(headPos, headState.getBlock());
+            }
+        }
     }
 
     public boolean isCurrentScrollIndividual() {
