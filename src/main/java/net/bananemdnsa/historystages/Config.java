@@ -229,6 +229,8 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue structureMessageEnabled;
         public final ForgeConfigSpec.ConfigValue<String> structureLockMessageFormat;
         public final ForgeConfigSpec.BooleanValue structureLockInChat;
+        public final ForgeConfigSpec.IntValue structureLockPadding;
+        public final ForgeConfigSpec.IntValue structureClusterDistance;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ForgeConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -450,6 +452,27 @@ public class Config {
             structureDamageInterval = builder
                     .comment("How often (in ticks) to deal damage while inside a locked structure. [Default: 20]")
                     .defineInRange("damageInterval", 20, 1, 600);
+
+            structureLockPadding = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "Extra blocks added around each piece of a locked structure (rooms, corridors, houses, ...).",
+                            "Note: a fixed safety buffer of 2 blocks is ALWAYS added on top of this value, so",
+                            "the effective padding around structure walls is (lockPadding + 2). Setting this to 0",
+                            "still leaves a 2-block safety wall between you and the structure. [Default: 0]"
+                    )
+                    .defineInRange("lockPadding", 0, 0, 16);
+
+            structureClusterDistance = builder
+                    .comment(
+                            "ADVANCED — leave this alone if you don't know what it does.",
+                            "How far apart (in blocks) two pieces of the same structure can be while still being",
+                            "joined into one connected lock zone. Example for a village: with a low value, each",
+                            "house is its own little zone and the gaps between houses are walkable; with a higher",
+                            "value, neighbouring houses + paths fuse into one lock zone covering the whole area.",
+                            "Higher = larger, more 'filled-in' lock zones. Lower = more precise, more gaps. [Default: 6]"
+                    )
+                    .defineInRange("clusterDistance", 6, 0, 32);
 
             builder.pop(); // Schließt "structure_lock"
 
