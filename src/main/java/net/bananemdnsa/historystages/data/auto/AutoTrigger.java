@@ -25,11 +25,9 @@ public class AutoTrigger {
         this.triggers = triggers != null ? new ArrayList<>(triggers) : new ArrayList<>();
     }
 
-    /** Returns "any" or "all". Defaults to "any". */
-    public String resolvedMode() {
-        if (mode == null) return "any";
-        String s = mode.toLowerCase();
-        return s.equals("all") ? "all" : "any";
+    /** Returns the combine mode. Defaults to {@link CombineMode#ANY}. */
+    public CombineMode resolvedMode() {
+        return CombineMode.parse(mode);
     }
 
     public String getRawMode() { return mode; }

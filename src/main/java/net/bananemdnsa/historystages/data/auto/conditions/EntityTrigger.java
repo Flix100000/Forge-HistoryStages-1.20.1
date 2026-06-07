@@ -7,13 +7,11 @@ public record EntityTrigger(
         @SerializedName("sub_mode") String subMode  // "any" | "kill" | "interact"; null → "any"
 ) implements TriggerCondition {
 
-    public String resolvedSubMode() {
-        if (subMode == null) return "any";
-        String s = subMode.toLowerCase();
-        return (s.equals("kill") || s.equals("interact")) ? s : "any";
+    public EntitySubMode resolvedSubMode() {
+        return EntitySubMode.parse(subMode);
     }
 
     @Override public String type() { return "entity"; }
 
-    @Override public long signature() { return defaultSignature(id + "|" + resolvedSubMode()); }
+    @Override public long signature() { return defaultSignature(id + "|" + resolvedSubMode().serialize()); }
 }
