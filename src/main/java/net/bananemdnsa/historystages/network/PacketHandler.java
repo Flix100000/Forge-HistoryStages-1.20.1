@@ -60,6 +60,17 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, EditorFeedbackPacket.class,
                                 EditorFeedbackPacket::encode,
                                 EditorFeedbackPacket::decode, EditorFeedbackPacket::handle);
+                INSTANCE.registerMessage(id++, SyncLockBordersPacket.class,
+                                SyncLockBordersPacket::encode,
+                                SyncLockBordersPacket::decode, SyncLockBordersPacket::handle);
+                INSTANCE.registerMessage(id++, RequestClusterShapesPacket.class,
+                                RequestClusterShapesPacket::encode,
+                                RequestClusterShapesPacket::decode, RequestClusterShapesPacket::handle);
+        }
+
+        // Send the locked-structure border BBs to a specific player.
+        public static void sendLockBordersToPlayer(SyncLockBordersPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
         }
 
         // Send editor-styled toast feedback to a specific player

@@ -25,6 +25,11 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue showLockIcons;
         public final ForgeConfigSpec.BooleanValue showBoosterTooltips;
         public final ForgeConfigSpec.BooleanValue showScrollTierTooltip;
+        // Structure lock visuals
+        public final ForgeConfigSpec.BooleanValue structureBorderEnabled;
+        public final ForgeConfigSpec.DoubleValue structureBorderDistance;
+        public final ForgeConfigSpec.BooleanValue structureLockOverlayEnabled;
+        public final ForgeConfigSpec.DoubleValue structureLockOverlayOpacity;
         public final ForgeConfigSpec.BooleanValue mobUseActionbar;
         public final ForgeConfigSpec.BooleanValue mobShowChat;
         public final ForgeConfigSpec.BooleanValue mobShowStagesInChat;
@@ -74,6 +79,22 @@ public class Config {
             showScrollTierTooltip = builder
                     .comment("Show the minimum required Pedestal tier on Research Scroll tooltips? [Default: true]")
                     .define("showScrollTierTooltip", true);
+
+            structureBorderEnabled = builder
+                    .comment("Render a red force-field overlay on the walls of locked structures as you approach them? [Default: true]")
+                    .define("structureBorderEnabled", true);
+
+            structureBorderDistance = builder
+                    .comment("How close (in blocks) to a locked structure wall before the border becomes visible. The border fades in as you approach. [Default: 8.0]")
+                    .defineInRange("structureBorderDistance", 8.0, 1.0, 32.0);
+
+            structureLockOverlayEnabled = builder
+                    .comment("While standing inside a locked structure, tint the whole screen red (like looking through red glasses) to signal the lock? [Default: true]")
+                    .define("structureLockOverlayEnabled", true);
+
+            structureLockOverlayOpacity = builder
+                    .comment("Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque). [Default: 0.30]")
+                    .defineInRange("structureLockOverlayOpacity", 0.30, 0.0, 1.0);
 
             builder.pop();
 

@@ -40,6 +40,10 @@ public class SyncIndividualStagesPacket {
             if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
+                    // Individual-stage set just changed — clear cached lock borders so a stale
+                    // wall doesn't linger until the next server tick re-syncs.
+                    net.bananemdnsa.historystages.client.LockBorderClientCache.clear();
+
                     if (mc.levelRenderer != null) {
                         mc.levelRenderer.allChanged();
                     }

@@ -41,6 +41,10 @@ public class SyncStagesPacket {
                 net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
                 mc.execute(() -> {
                     try {
+                        // Stage set just changed — the cached lock borders may be stale.
+                        // Clear them; the server's next tick will re-send the correct list.
+                        net.bananemdnsa.historystages.client.LockBorderClientCache.clear();
+
                         // Grafik-Refresh für Lock-Overlays
                         if (mc.levelRenderer != null) {
                             mc.levelRenderer.allChanged();

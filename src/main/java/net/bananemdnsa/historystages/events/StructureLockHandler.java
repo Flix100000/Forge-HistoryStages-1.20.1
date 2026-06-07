@@ -4,8 +4,12 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SyncLockBordersPacket;
 import net.bananemdnsa.historystages.structure.ClusterBuilder;
+import net.bananemdnsa.historystages.structure.ClusterDebugRenderer;
 import net.bananemdnsa.historystages.structure.StructureCluster;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.util.IndividualStageData;
 import net.bananemdnsa.historystages.util.StageData;
@@ -27,6 +31,7 @@ import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -93,6 +98,8 @@ public class StructureLockHandler {
             fastContainmentUpdate(player, state);
         }
 
+        ClusterDebugRenderer.tick(player, state.cachedNearbyClusters, state.cachedActiveLockedClusters);
+
         if (state.cachedLockedStructureIds.isEmpty()) return;
 
         if (Config.COMMON.structureMessageEnabled.get()) {
@@ -131,6 +138,7 @@ public class StructureLockHandler {
             state.cachedActiveLockedClusters = Collections.emptyList();
             state.cachedLockedNearby = Collections.emptyList();
             state.cachedClusterStages = Collections.emptyMap();
+            syncBordersIfChanged(player, state, Collections.emptyList());
             return;
         }
 
@@ -223,6 +231,33 @@ public class StructureLockHandler {
 
         // Derive the active (containing) subset + per-cluster stage IDs.
         applyContainment(player.blockPosition(), state);
+
+        // Send the full lockShape geometry to the client. The renderer culls interior faces
+        // (where a shape's face is occluded by another shape) so the force-field texture
+        // traces the actual silhouette of the orange union, not box-by-box.
+        List<BoundingBox> borderShapes = new ArrayList<>();
+        for (StructureCluster c : lockedNearby) borderShapes.addAll(c.lockShapes());
+        syncBordersIfChanged(player, state, borderShapes);
+    }
+
+    private static void syncBordersIfChanged(ServerPlayer player, PlayerState state, List<BoundingBox> shapes) {
+        int hash = computeBoxHash(shapes);
+        if (hash == state.lastBorderHash) return;
+        state.lastBorderHash = hash;
+        PacketHandler.sendLockBordersToPlayer(new SyncLockBordersPacket(shapes), player);
+    }
+
+    private static int computeBoxHash(List<BoundingBox> shapes) {
+        int h = shapes.size();
+        for (BoundingBox b : shapes) {
+            h = h * 31 + b.minX();
+            h = h * 31 + b.minY();
+            h = h * 31 + b.minZ();
+            h = h * 31 + b.maxX();
+            h = h * 31 + b.maxY();
+            h = h * 31 + b.maxZ();
+        }
+        return h;
     }
 
     /**
@@ -393,6 +428,19 @@ public class StructureLockHandler {
 
     public static void clearPlayer(UUID uuid) {
         STATE.remove(uuid);
+    }
+
+    /**
+     * On logout, drop per-player tracking state and push an empty border list so the client
+     * (if reconnecting to the same instance) won't briefly see stale geometry.
+     */
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        STATE.remove(player.getUUID());
+        ClusterDebugRenderer.disable(player.getUUID());
+        PacketHandler.sendLockBordersToPlayer(
+                new SyncLockBordersPacket(Collections.emptyList()), player);
     }
 
     /**
