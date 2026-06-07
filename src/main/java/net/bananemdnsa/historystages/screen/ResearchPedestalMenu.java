@@ -43,7 +43,12 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
         addPlayerHotbar(inv);
 
         // Internal Slot 0: Scroll
-        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 0, 26, 35));
+        this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 0, 26, 35) {
+            @Override
+            public boolean mayPickup(@NotNull Player player) {
+                return !ResearchPedestalMenu.this.blockEntity.isScrollLocked() && super.mayPickup(player);
+            }
+        });
 
         // Internal Slot 1: Deposit (Inside the dependency panel)
         this.addSlot(new SlotItemHandler(this.blockEntity.getItemHandler(), 1, 246, 142) {

@@ -328,6 +328,9 @@ public class ConfigEditorScreen extends Screen {
         research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
                 Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
                 "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
+        research.add(new ConfigEntry("lockScrollWhileResearching", ConfigType.BOOLEAN,
+                Config.COMMON.lockScrollWhileResearching.get().toString(), false, "false",
+                "Lock the scroll in the pedestal once research has started? Prevents players and hoppers from removing it."));
         research.add(new ConfigEntry("researchBoosters", ConfigType.BOOSTER_LIST,
                 encodeBoosterList(Config.COMMON.researchBoosters.get()), false, "",
                 "Booster blocks placed under a Research Pedestal. Speed/cost values are percentages 0-90."));

@@ -222,6 +222,7 @@ public class Config {
         public final ModConfigSpec.IntValue researchTimeInSeconds;
         public final ModConfigSpec.BooleanValue showDependencyScreenInPedestal;
         public final ModConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
+        public final ModConfigSpec.BooleanValue lockScrollWhileResearching;
 
         // Loot-Ersetzungen
         public final ModConfigSpec.BooleanValue useReplacements;
@@ -376,6 +377,10 @@ public class Config {
                     .defineListAllowEmpty("researchBoosters",
                             List.of(),
                             obj -> obj instanceof String);
+
+            lockScrollWhileResearching = builder
+                    .comment("Lock the scroll in the pedestal once research has started? Prevents players (and hoppers) from removing the scroll until research completes or the pedestal is broken. [Default: false]")
+                    .define("lockScrollWhileResearching", false);
 
             builder.pop(); // research
 

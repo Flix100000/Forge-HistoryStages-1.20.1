@@ -95,6 +95,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                     net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(boosterList);
                 }
                 case "showDependencyScreenInPedestal" -> Config.COMMON.showDependencyScreenInPedestal.set(Boolean.parseBoolean(value));
+                case "lockScrollWhileResearching" -> Config.COMMON.lockScrollWhileResearching.set(Boolean.parseBoolean(value));
                 case "useReplacements" -> Config.COMMON.useReplacements.set(Boolean.parseBoolean(value));
                 case "replacementItems" -> {
                     List<String> itemList = Arrays.stream(value.split(","))

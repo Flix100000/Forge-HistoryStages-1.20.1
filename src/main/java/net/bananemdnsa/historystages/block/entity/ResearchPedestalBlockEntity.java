@@ -56,6 +56,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     // Slot 0: Research Scroll, Slot 1: Deposit item
     private final ItemStackHandler itemHandler = new ItemStackHandler(2) {
         @Override
+        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot == 0 && isScrollLocked()) return ItemStack.EMPTY;
+            return super.extractItem(slot, amount, simulate);
+        }
+
+        @Override
         protected void onContentsChanged(int slot) {
             if (slot == 0) {
                 ItemStack stack = getStackInSlot(0);
@@ -794,6 +800,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 level.updateNeighbourForOutputSignal(headPos, headState.getBlock());
             }
         }
+    }
+
+    /** True when the scroll cannot be removed: lock-config on AND research has begun. */
+    public boolean isScrollLocked() {
+        return Config.COMMON.lockScrollWhileResearching.get() && this.progress > 0;
     }
 
     public boolean isCurrentScrollIndividual() {
