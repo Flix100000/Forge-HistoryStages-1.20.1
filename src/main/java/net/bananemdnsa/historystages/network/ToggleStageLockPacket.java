@@ -52,6 +52,10 @@ public class ToggleStageLockPacket {
 
             data.setDirty();
             StageData.refreshCache(data.getUnlockedStages());
+            // Structure-lock caches are keyed off lockedStructureIds — force every
+            // tracked player to recompute on the next tick so the force-field /
+            // screen overlay appear immediately when a stage gets locked again.
+            net.bananemdnsa.historystages.events.StructureLockHandler.invalidateAll();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
             String titleKey = msg.unlock

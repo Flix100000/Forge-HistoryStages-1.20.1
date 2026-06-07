@@ -74,6 +74,10 @@ public class SaveStagePacket {
             if (success) {
                 StageManager.reloadStages();
                 StageData data = StageData.get(player.serverLevel());
+                // Stage edits can add/remove structure entries — invalidate the
+                // structure-lock per-player cache so borders + screen overlay
+                // reflect the change on the next server tick.
+                net.bananemdnsa.historystages.events.StructureLockHandler.invalidateAll();
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 

@@ -436,6 +436,25 @@ public class StructureLockHandler {
     }
 
     /**
+     * Force every tracked player's state to recompute on the next server tick.
+     *
+     * Called from packet handlers whose payload changes which structures are
+     * locked (toggle, save, delete, individual-stage sync). Without this the
+     * border + screen overlay can stay missing for up to {@code checkInterval}
+     * ticks after a lock change because the cached
+     * {@code cachedLockedNearby}/{@code lastBorderHash} pair is still on the
+     * pre-change snapshot. Resetting {@code lastBorderHash} to a sentinel also
+     * guarantees the next {@link #syncBordersIfChanged} call actually sends,
+     * even when the new border set happens to hash to the same value.
+     */
+    public static void invalidateAll() {
+        for (PlayerState s : STATE.values()) {
+            s.checkCooldown = 0;
+            s.lastBorderHash = Integer.MIN_VALUE;
+        }
+    }
+
+    /**
      * On logout, drop per-player tracking state and push an empty border list so the client
      * (if reconnecting to the same instance) won't briefly see stale geometry.
      */
