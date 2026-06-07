@@ -66,6 +66,9 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, RequestClusterShapesPacket.class,
                                 RequestClusterShapesPacket::encode,
                                 RequestClusterShapesPacket::decode, RequestClusterShapesPacket::handle);
+                INSTANCE.registerMessage(id++, ToggleStructureVizPacket.class,
+                                ToggleStructureVizPacket::encode,
+                                ToggleStructureVizPacket::decode, ToggleStructureVizPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.

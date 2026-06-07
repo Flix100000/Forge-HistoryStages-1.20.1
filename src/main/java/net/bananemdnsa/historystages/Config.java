@@ -252,6 +252,9 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue structureLockInChat;
         public final ForgeConfigSpec.IntValue structureLockPadding;
         public final ForgeConfigSpec.IntValue structureClusterDistance;
+        public final ForgeConfigSpec.BooleanValue structureBlockRightClick;
+        public final ForgeConfigSpec.BooleanValue structureBlockLeftClick;
+        public final ForgeConfigSpec.BooleanValue structureBlockProjectiles;
 
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ForgeConfigSpec.ConfigValue<String> msgDimensionUnknown;
@@ -494,6 +497,18 @@ public class Config {
                             "Higher = larger, more 'filled-in' lock zones. Lower = more precise, more gaps. [Default: 6]"
                     )
                     .defineInRange("clusterDistance", 6, 0, 32);
+
+            structureBlockRightClick = builder
+                    .comment("Cancel ALL right-click interactions (blocks, items, entities) while the player is inside a locked structure? [Default: true]")
+                    .define("blockRightClick", true);
+
+            structureBlockLeftClick = builder
+                    .comment("Cancel ALL left-click interactions (attacking entities, breaking blocks) while the player is inside a locked structure? [Default: true]")
+                    .define("blockLeftClick", true);
+
+            structureBlockProjectiles = builder
+                    .comment("Cancel projectiles (arrows, snowballs, ender pearls, etc.) the moment they would impact something inside a locked structure? [Default: true]")
+                    .define("blockProjectiles", true);
 
             builder.pop(); // Schließt "structure_lock"
 

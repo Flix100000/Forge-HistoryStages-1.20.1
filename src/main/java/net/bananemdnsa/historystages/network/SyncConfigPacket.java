@@ -86,6 +86,9 @@ public class SyncConfigPacket {
         values.put("structureMessageEnabled", Config.COMMON.structureMessageEnabled.get().toString());
         values.put("structureLockMessageFormat", Config.COMMON.structureLockMessageFormat.get());
         values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
+        values.put("structureBlockRightClick", Config.COMMON.structureBlockRightClick.get().toString());
+        values.put("structureBlockLeftClick", Config.COMMON.structureBlockLeftClick.get().toString());
+        values.put("structureBlockProjectiles", Config.COMMON.structureBlockProjectiles.get().toString());
         values.put("msgDimensionUnknown", Config.COMMON.msgDimensionUnknown.get());
         values.put("msgMobUnknown", Config.COMMON.msgMobUnknown.get());
         values.put("msgItemLocked", Config.COMMON.msgItemLocked.get());

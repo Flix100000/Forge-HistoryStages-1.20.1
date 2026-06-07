@@ -21,18 +21,21 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.MenuProvider;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.SpawnerBlock;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.entity.ProjectileImpactEvent;
+import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.ExplosionEvent;
+import net.minecraftforge.eventbus.api.Event;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
@@ -444,23 +447,173 @@ public class StructureLockHandler {
     }
 
     /**
-     * Blocks interaction with containers and spawners while the player is inside a locked structure.
+     * Blanket-cancels every right-click interaction while the player OR the target block/entity
+     * is inside a locked structure. Catches blocks (GUIs, doors, redstone, placement), item
+     * self-use (eating, throwing pearls, drawing bows), and entity interactions (villager
+     * trading, mounting, item-frame insertion). Gated by {@code structureBlockRightClick}.
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (event.getEntity().level().isClientSide()) return;
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        if (player.isSpectator()) return;
-        if (!isInsideLockedStructure(player)) return;
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getPos())) {
+            cancelBlockClick(event);
+            return;
+        }
+        // Also catch placements where the CLICKED block is outside the zone but the resulting
+        // placement target is inside: water/lava buckets, TNT, block placement against the
+        // boundary wall. Without this a player could flood a locked village from the outside.
+        BlockPos placePos = event.getPos().relative(event.getFace());
+        if (shouldBlockInteraction(event.getEntity(), true, false, placePos)) {
+            cancelBlockClick(event);
+        }
+    }
 
-        BlockState state = event.getLevel().getBlockState(event.getPos());
-        Block block = state.getBlock();
-        boolean hasGui = block instanceof MenuProvider
-                || event.getLevel().getBlockEntity(event.getPos()) instanceof MenuProvider;
-        boolean isSpawner = block instanceof SpawnerBlock;
+    @SubscribeEvent
+    public static void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, null)) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
 
-        if (!hasGui && !isSpawner) return;
+    @SubscribeEvent
+    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
+
+    @SubscribeEvent
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (shouldBlockInteraction(event.getEntity(), true, false, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+            event.setCancellationResult(InteractionResult.FAIL);
+            forceInventoryResync(event.getEntity());
+        }
+    }
+
+    /**
+     * Blanket-cancels every left-click interaction while the player OR the target block/entity
+     * is inside a locked structure (attacking entities, starting/continuing block-break).
+     * Gated by {@code structureBlockLeftClick}.
+     */
+    @SubscribeEvent
+    public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getPos())) {
+            cancelBlockClick(event);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onAttackEntity(AttackEntityEvent event) {
+        if (shouldBlockInteraction(event.getEntity(), false, true, event.getTarget().blockPosition())) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (shouldBlockInteraction(event.getPlayer(), false, true, event.getPos())) {
+            event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Cancellation for RightClickBlock. The combination
+     * {@code setUseItem(DENY) + setUseBlock(DENY) + setCanceled(true) + setCancellationResult(FAIL)}
+     * tells server-side logic the action did not happen. But the client already locally predicted
+     * the placement / item consumption, and the FAIL result doesn't always trigger a re-sync —
+     * so we also push the full container state back to the client to undo the prediction.
+     * Without {@link #forceInventoryResync} the placed block / emptied bucket would stay missing
+     * from the player's hand even though the world wasn't changed.
+     */
+    private static void cancelBlockClick(PlayerInteractEvent.RightClickBlock event) {
+        event.setUseBlock(Event.Result.DENY);
+        event.setUseItem(Event.Result.DENY);
+        event.setCanceled(true);
+        event.setCancellationResult(InteractionResult.FAIL);
+        forceInventoryResync(event.getEntity());
+    }
+
+    private static void cancelBlockClick(PlayerInteractEvent.LeftClickBlock event) {
+        // LeftClickBlock has no item consumption that needs client-side undo. The Result.DENY
+        // calls plus setCanceled are enough; no inventory resync needed.
+        event.setUseBlock(Event.Result.DENY);
+        event.setUseItem(Event.Result.DENY);
+        event.setCanceled(true);
+    }
+
+    private static void forceInventoryResync(Player player) {
+        if (player instanceof ServerPlayer sp) {
+            sp.containerMenu.broadcastChanges();
+        }
+    }
+
+    /**
+     * Shared gate for every interaction handler. Triggers when the player is inside a locked
+     * zone OR when the target block/entity is inside one (anti-cheese: prevents mining or
+     * reaching into a zone from outside). Plus the per-side config flag must be on.
+     */
+    private static boolean shouldBlockInteraction(Player player, boolean right, boolean left, BlockPos targetPos) {
+        if (player == null) return false;
+        if (player.level().isClientSide()) return false;
+        if (!(player instanceof ServerPlayer sp)) return false;
+        if (sp.isSpectator()) return false;
+
+        boolean playerInside = isInsideLockedStructure(sp);
+        boolean targetInside = targetPos != null && isBlockInLockedZone(sp, targetPos);
+        if (!playerInside && !targetInside) return false;
+
+        if (right && !Config.COMMON.structureBlockRightClick.get()) return false;
+        if (left && !Config.COMMON.structureBlockLeftClick.get()) return false;
+        return true;
+    }
+
+    /**
+     * Cancels and discards projectiles whose impact would land inside a locked zone. Uses the
+     * shooter's cached lock geometry — projectiles without a player owner (e.g. dispenser arrows)
+     * are not checked. Gated by {@code structureBlockProjectiles}.
+     */
+    @SubscribeEvent
+    public static void onProjectileImpact(ProjectileImpactEvent event) {
+        if (event.getProjectile().level().isClientSide()) return;
+        if (!Config.COMMON.structureBlockProjectiles.get()) return;
+        if (!(event.getProjectile().getOwner() instanceof ServerPlayer shooter)) return;
+
+        PlayerState state = STATE.get(shooter.getUUID());
+        if (state == null || state.cachedLockedNearby.isEmpty()) return;
+
+        Vec3 hit = event.getRayTraceResult().getLocation();
+        BlockPos hitPos = BlockPos.containing(hit.x, hit.y, hit.z);
+        if (!isPosInsideAnyLock(hitPos, state)) return;
 
         event.setCanceled(true);
+        event.getProjectile().discard();
+    }
+
+    /**
+     * Filters explosion affected-blocks: any block that lies inside any online player's cached
+     * locked zone is removed from the list, so the explosion can't damage protected structure
+     * blocks. TNT, creeper, end-crystal, bed-in-nether — all explosion types route through this
+     * event. Scans every player's cache because explosions have no clean "owner" to attribute
+     * the source to.
+     */
+    @SubscribeEvent
+    public static void onExplosionDetonate(ExplosionEvent.Detonate event) {
+        if (event.getLevel().isClientSide()) return;
+        if (STATE.isEmpty()) return;
+        List<BlockPos> affected = event.getAffectedBlocks();
+        if (affected.isEmpty()) return;
+
+        affected.removeIf(pos -> {
+            for (PlayerState s : STATE.values()) {
+                for (StructureCluster c : s.cachedLockedNearby) {
+                    if (c.contains(pos)) return true;
+                }
+            }
+            return false;
+        });
     }
 }

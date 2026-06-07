@@ -145,6 +145,21 @@ public class ConfigEditorScreen extends Screen {
                 "Show a lock icon overlay on locked items in JEI and Inventories?"));
         clientSections.add(visuals);
 
+        ConfigSection structureVisuals = new ConfigSection("editor.historystages.config.structure_visuals");
+        structureVisuals.add(new ConfigEntry("structureBorderEnabled", ConfigType.BOOLEAN,
+                Config.CLIENT.structureBorderEnabled.get().toString(), true, "true",
+                "Render a red force-field overlay on the walls of locked structures as you approach them?"));
+        structureVisuals.add(new ConfigEntry("structureBorderDistance", ConfigType.STRING,
+                Config.CLIENT.structureBorderDistance.get().toString(), true, "8.0",
+                "How close (in blocks) to a locked structure wall before the border becomes visible."));
+        structureVisuals.add(new ConfigEntry("structureLockOverlayEnabled", ConfigType.BOOLEAN,
+                Config.CLIENT.structureLockOverlayEnabled.get().toString(), true, "true",
+                "While standing inside a locked structure, tint the whole screen red?"));
+        structureVisuals.add(new ConfigEntry("structureLockOverlayOpacity", ConfigType.STRING,
+                Config.CLIENT.structureLockOverlayOpacity.get().toString(), true, "0.30",
+                "Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque)."));
+        clientSections.add(structureVisuals);
+
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
         jade.add(new ConfigEntry("jadeShowInfo", ConfigType.BOOLEAN,
                 Config.CLIENT.jadeShowInfo.get().toString(), true, "true",
@@ -355,6 +370,15 @@ public class ConfigEditorScreen extends Screen {
         structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
                 Config.COMMON.structureDamageInterval.get().toString(), false, "20",
                 "How often (in ticks) to deal damage while inside a locked structure."));
+        structureLock.add(new ConfigEntry("structureBlockRightClick", ConfigType.BOOLEAN,
+                Config.COMMON.structureBlockRightClick.get().toString(), false, "true",
+                "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureBlockLeftClick", ConfigType.BOOLEAN,
+                Config.COMMON.structureBlockLeftClick.get().toString(), false, "true",
+                "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked structure?"));
+        structureLock.add(new ConfigEntry("structureBlockProjectiles", ConfigType.BOOLEAN,
+                Config.COMMON.structureBlockProjectiles.get().toString(), false, "true",
+                "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked structure?"));
         commonSections.add(structureLock);
 
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
@@ -953,6 +977,14 @@ public class ConfigEditorScreen extends Screen {
                 case "showLockIcons" -> Config.CLIENT.showLockIcons.set(Boolean.parseBoolean(value));
                 case "showBoosterTooltips" -> Config.CLIENT.showBoosterTooltips.set(Boolean.parseBoolean(value));
                 case "showScrollTierTooltip" -> Config.CLIENT.showScrollTierTooltip.set(Boolean.parseBoolean(value));
+                case "structureBorderEnabled" -> Config.CLIENT.structureBorderEnabled.set(Boolean.parseBoolean(value));
+                case "structureBorderDistance" -> {
+                    try { Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "structureLockOverlayEnabled" -> Config.CLIENT.structureLockOverlayEnabled.set(Boolean.parseBoolean(value));
+                case "structureLockOverlayOpacity" -> {
+                    try { Config.CLIENT.structureLockOverlayOpacity.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
                 case "dimUseActionbar" -> Config.CLIENT.dimUseActionbar.set(Boolean.parseBoolean(value));
                 case "dimShowChat" -> Config.CLIENT.dimShowChat.set(Boolean.parseBoolean(value));
                 case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
