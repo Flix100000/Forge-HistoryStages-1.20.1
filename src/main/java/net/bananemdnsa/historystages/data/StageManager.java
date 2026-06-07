@@ -64,7 +64,8 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "icon", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies"
+            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies",
+            "min_pedestal_tier", "pedestal_tier_mode"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"

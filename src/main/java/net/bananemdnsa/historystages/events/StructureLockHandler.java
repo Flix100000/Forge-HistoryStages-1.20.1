@@ -18,6 +18,8 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
+import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -545,10 +547,25 @@ public class StructureLockHandler {
         event.setCanceled(true);
     }
 
+    /**
+     * Force the client's inventory + hotbar back into sync with the server.
+     *
+     * {@code broadcastChanges()} alone is insufficient here: it only sends slot
+     * deltas, and when we cancel a placement the server-side slot never changed
+     * — the delta is empty, so the client keeps its (wrong) optimistic
+     * prediction that the block/bucket was consumed. We have to push the full
+     * inventory contents and the held-item index explicitly via the
+     * Clientbound* packets, which forces the client to discard its prediction.
+     */
     private static void forceInventoryResync(Player player) {
-        if (player instanceof ServerPlayer sp) {
-            sp.containerMenu.broadcastChanges();
-        }
+        if (!(player instanceof ServerPlayer sp)) return;
+        sp.containerMenu.broadcastChanges();
+        sp.connection.send(new ClientboundContainerSetContentPacket(
+                sp.inventoryMenu.containerId,
+                sp.inventoryMenu.incrementStateId(),
+                sp.inventoryMenu.getItems(),
+                sp.inventoryMenu.getCarried()));
+        sp.connection.send(new ClientboundSetCarriedItemPacket(sp.getInventory().selected));
     }
 
     /**
