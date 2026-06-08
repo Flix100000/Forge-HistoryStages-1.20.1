@@ -67,9 +67,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (slot == 0) {
                 ItemStack stack = getStackInSlot(0);
                 if (!stack.isEmpty()) {
-                    // EXTERNAL-mode scrolls cannot be researched at the Pedestal.
+                    // EXTERNAL- and AUTO-mode scrolls cannot be researched at the Pedestal.
                     // Refuse the insert: notify the player and put the scroll back.
-                    if (rejectIfExternalScroll(stack)) {
+                    if (rejectIfNotResearchable(stack)) {
                         return;
                     }
                     loadProgressFromItem(stack);
@@ -281,15 +281,15 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     /**
-     * If the inserted scroll references an EXTERNAL-mode stage, refuse it:
-     * pop it back into the inserting player's inventory (or drop it if no
-     * player is known) and send an action-bar message. Skips the Creative
-     * Scroll and any scroll whose stage cannot be looked up (treated as
-     * legacy / valid).
+     * If the inserted scroll references an EXTERNAL- or AUTO-mode stage,
+     * refuse it: pop it back into the inserting player's inventory (or drop
+     * it if no player is known) and send an action-bar message. Skips the
+     * Creative Scroll and any scroll whose stage cannot be looked up
+     * (treated as legacy / valid).
      *
      * @return true if the scroll was rejected and the slot was cleared.
      */
-    private boolean rejectIfExternalScroll(ItemStack stack) {
+    private boolean rejectIfNotResearchable(ItemStack stack) {
         CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         if (!tag.contains("StageResearch")) return false;
         String stageId = tag.getString("StageResearch");
@@ -299,7 +299,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 ? StageManager.getIndividualStages().get(stageId)
                 : StageManager.getStages().get(stageId);
         if (entry == null) return false;
-        if (entry.getMode() != StageMode.EXTERNAL) return false;
+        StageMode m = entry.getMode();
+        if (m != StageMode.EXTERNAL && m != StageMode.AUTO) return false;
 
         // Notify and return the scroll. lastInteractingPlayer is set in
         // createMenu(), so it's populated whenever the player opens the UI.
