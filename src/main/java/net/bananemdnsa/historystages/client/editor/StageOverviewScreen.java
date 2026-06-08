@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
@@ -250,10 +251,15 @@ public class StageOverviewScreen extends Screen {
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
 
+            // Mode badge (D/A/E)
+            String modeBadge = modeBadge(entry.getMode());
+            int modeColor = modeColor(entry.getMode());
+            guiGraphics.drawString(this.font, modeBadge, listLeft + 16, entryTop + 6, modeColor, false);
+
             // Stage name with marquee for long names
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
-            int nameX = listLeft + 22;
+            int nameX = listLeft + 28;
             int nameAvailW = (listRight - lockBtnW - 10) - nameX - 5; // account for lock button
             int nameW = this.font.width(displayText);
 
@@ -358,10 +364,15 @@ public class StageOverviewScreen extends Screen {
                 // Silver lock icon (individual stages are per-player, no global unlock state)
                 guiGraphics.drawString(this.font, "\uD83D\uDD12", listLeft + 5, entryTop + 6, 0xBBBBBB, false);
 
+                // Mode badge (D/A/E)
+                String indModeBadge = modeBadge(entry.getMode());
+                int indModeColor = modeColor(entry.getMode());
+                guiGraphics.drawString(this.font, indModeBadge, listLeft + 16, entryTop + 6, indModeColor, false);
+
                 // Stage name with marquee
                 String displayText = entry.getDisplayName() + " \u00A78(" + stageId + ")";
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
-                int nameX = listLeft + 22;
+                int nameX = listLeft + 28;
                 int nameAvailW = listRight - nameX - 5;
                 int nameW = this.font.width(displayText);
 
@@ -586,6 +597,22 @@ public class StageOverviewScreen extends Screen {
     @Override public boolean shouldCloseOnEsc() { return true; }
     @Override public void onClose() { this.minecraft.setScreen(null); }
     @Override public boolean isPauseScreen() { return true; }
+
+    private static String modeBadge(StageMode m) {
+        return switch (m) {
+            case AUTO -> "A";
+            case EXTERNAL -> "E";
+            default -> "D";
+        };
+    }
+
+    private static int modeColor(StageMode m) {
+        return switch (m) {
+            case AUTO -> 0xFF55FF55;
+            case EXTERNAL -> 0xFFFFAA00;
+            default -> 0xFFAAAAAA;
+        };
+    }
 
     /**
      * Dialog screen that asks for a Stage ID before creating/duplicating a stage.
