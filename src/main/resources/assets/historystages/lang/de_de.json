@@ -10,6 +10,7 @@
   "tooltip.historystages.locked": "\u00a7cGesperrt! Ben\u00f6tigt: \u00a77%s",
   "command.historystages.unlocked_all": "Alle Stufen wurden freigeschaltet.",
   "command.historystages.not_found": "Stufe '%s' nicht gefunden!",
+  "historystages.pedestal.external_refused": "Diese Schriftrolle kann hier nicht erforscht werden.",
   "screen.historystages.already_learned": "\u00a7cBereits erforscht!",
   "screen.historystages.dependencies_not_met": "\u00a7cAufgaben nicht erf\u00fcllt!",
   "screen.historystages.speed_multiplier": "Tempo: %s",

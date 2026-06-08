@@ -10,6 +10,7 @@
   "tooltip.historystages.locked": "§cLocked! Requires: §7%s",
   "command.historystages.unlocked_all": "All stages have been unlocked.",
   "command.historystages.not_found": "Stage '%s' not found!",
+  "historystages.pedestal.external_refused": "This scroll cannot be researched here.",
   "screen.historystages.already_learned": "§cAlready learned!",
   "screen.historystages.dependencies_not_met": "§cRequirements not met!",
   "screen.historystages.speed_multiplier": "Speed: %s",
