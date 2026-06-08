@@ -10,9 +10,12 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import net.minecraft.server.MinecraftServer;
 
 import net.bananemdnsa.historystages.data.dependency.*;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
@@ -662,6 +665,13 @@ public class StageManager {
 
     public static void reloadStages() {
         load();
+        // After re-indexing AUTO stages, drop progress entries that no longer
+        // correspond to indexed AUTO stages (e.g. mode flipped AUTO → DEFAULT
+        // via the editor, or auto_trigger was removed).
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null && server.overworld() != null) {
+            AutoTriggerManager.pruneOrphans(server.overworld());
+        }
     }
 
     /**
