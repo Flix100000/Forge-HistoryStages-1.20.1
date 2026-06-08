@@ -150,6 +150,8 @@ public class StageManager {
         DebugLogger.setStagesLoaded(STAGES.size());
 
         loadIndividual();
+
+        net.bananemdnsa.historystages.data.auto.AutoTriggerManager.rebuildIndex();
     }
 
     private static void validateFileName(String id, String fileName) {

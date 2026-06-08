@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncConfigPacket;
@@ -274,6 +275,9 @@ public class HistoryStages {
             // Initialize individual stage cache
             IndividualStageData individualData = IndividualStageData.get(sl);
             individualData.refreshCache();
+
+            // Drop AUTO-progress entries for stages that no longer exist or are no longer AUTO
+            AutoTriggerManager.pruneOrphans(sl);
 
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {

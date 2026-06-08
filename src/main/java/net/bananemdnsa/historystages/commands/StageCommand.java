@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageUnlockHelper;
+import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
@@ -229,6 +230,7 @@ public class StageCommand {
             List<String> toRemove = new ArrayList<>(d.getUnlockedStages());
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
+                AutoTriggerManager.clearProgress(stageId, source.getLevel());
                 var entry = StageManager.getStages().get(stageId);
                 String displayName = entry != null ? entry.getDisplayName() : stageId;
                 NeoForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
@@ -244,6 +246,7 @@ public class StageCommand {
         } else {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
+            AutoTriggerManager.clearProgress(s, source.getLevel());
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
             NeoForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
@@ -410,6 +413,7 @@ public class StageCommand {
         List<String> toRemove = new ArrayList<>(playerStages);
         for (String stageId : toRemove) {
             data.removeStage(target.getUUID(), stageId);
+            AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
             var entry = StageManager.getIndividualStages().get(stageId);
             String displayName = entry != null ? entry.getDisplayName() : stageId;
             NeoForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stageId, displayName, target.getUUID()));
@@ -463,6 +467,7 @@ public class StageCommand {
 
         data.removeStage(target.getUUID(), stageId);
         data.setDirty();
+        AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
 
         var entry = StageManager.getIndividualStages().get(stageId);
         String displayName = entry != null ? entry.getDisplayName() : stageId;
