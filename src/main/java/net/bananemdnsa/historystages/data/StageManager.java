@@ -12,6 +12,17 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 
 import net.bananemdnsa.historystages.data.dependency.*;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.util.DebugLogger;
 
 import java.io.File;
@@ -68,7 +79,8 @@ public class StageManager {
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies", "icon",
-            "min_pedestal_tier", "pedestal_tier_mode"
+            "min_pedestal_tier", "pedestal_tier_mode",
+            "mode", "auto_trigger"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -461,6 +473,37 @@ public class StageManager {
                     }
                 }
             }
+        }
+
+        // --- Mode ---
+        String rawMode = entry.getRawMode();
+        if (rawMode != null && !StageMode.isKnown(rawMode)) {
+            addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has unknown mode '" + rawMode + "'. Defaulting to 'default'.");
+            DebugLogger.warn("Invalid Mode", "Stage '" + stageId + "' has unknown mode '" + rawMode + "'. Allowed: default, auto, external. Defaulting to 'default'.");
+        }
+
+        StageMode resolvedMode = entry.getMode();
+        AutoTrigger autoTrig = entry.getAutoTrigger();
+
+        if (resolvedMode == StageMode.AUTO) {
+            if (autoTrig == null || autoTrig.isEmpty()) {
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' is mode=auto but has no triggers. It will never auto-unlock.");
+                DebugLogger.warn("Empty AutoTrigger", "Stage '" + stageId + "' has mode=auto with empty or missing 'auto_trigger.triggers'. It will never auto-unlock — must be unlocked via command or dependency cascade.");
+            } else {
+                for (TriggerCondition t : autoTrig.getTriggers()) {
+                    validateTriggerCondition(stageId, t);
+                }
+                String rawCombineMode = autoTrig.getRawMode();
+                if (rawCombineMode != null
+                        && !rawCombineMode.equalsIgnoreCase("any")
+                        && !rawCombineMode.equalsIgnoreCase("all")) {
+                    addMessage(MessageLevel.WARN, "Stage '" + stageId + "' auto_trigger.mode '" + rawCombineMode + "' is invalid. Defaulting to 'any'.");
+                    DebugLogger.warn("Invalid AutoTrigger Mode", "Stage '" + stageId + "' has auto_trigger.mode '" + rawCombineMode + "'. Expected 'any' or 'all'. Defaulting to 'any'.");
+                }
+            }
+        } else if (autoTrig != null && !autoTrig.isEmpty()) {
+            addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has auto_trigger but mode=" + resolvedMode.serialize() + ". The auto_trigger will be ignored.");
+            DebugLogger.info("Unused AutoTrigger", "Stage '" + stageId + "' has an auto_trigger configured but its mode is '" + resolvedMode.serialize() + "'. The auto_trigger will be ignored (only mode=auto uses it).");
         }
 
         int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
@@ -1538,5 +1581,46 @@ public class StageManager {
 
     public static boolean isIndividualStage(String stageId) {
         return INDIVIDUAL_STAGES.containsKey(stageId);
+    }
+
+    private static void validateTriggerCondition(String stageId, TriggerCondition t) {
+        if (t == null) {
+            addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has a null auto_trigger entry (skipped during load).");
+            return;
+        }
+        String typeName = t.type();
+        switch (t) {
+            case BiomeTrigger bt -> checkTriggerRl(stageId, typeName, bt.id());
+            case StructureTrigger st -> checkTriggerRl(stageId, typeName, st.id());
+            case DimensionTrigger dt -> checkTriggerRl(stageId, typeName, dt.id());
+            case ItemTrigger it -> checkTriggerRl(stageId, typeName, it.id());
+            case EntityTrigger et -> {
+                checkTriggerRl(stageId, typeName, et.id());
+                String sm = et.subMode();
+                if (sm != null
+                        && !sm.equalsIgnoreCase("any")
+                        && !sm.equalsIgnoreCase("kill")
+                        && !sm.equalsIgnoreCase("interact")) {
+                    addMessage(MessageLevel.WARN, "Entity trigger '" + et.id() + "' in stage '" + stageId + "' has invalid sub_mode '" + sm + "'. Defaulting to 'any'.");
+                    DebugLogger.warn("Invalid AutoTrigger SubMode", "Entity trigger '" + et.id() + "' in stage '" + stageId + "' has sub_mode '" + sm + "'. Expected 'any', 'kill', or 'interact'. Defaulting to 'any'.");
+                }
+            }
+            case BlockPlaceTrigger bp -> checkTriggerRl(stageId, typeName, bp.id());
+            case BlockBreakTrigger bb -> checkTriggerRl(stageId, typeName, bb.id());
+            case AdvancementTrigger at -> checkTriggerRl(stageId, typeName, at.id());
+            case PlaytimeTrigger pt -> {
+                if (pt.days() < 0) {
+                    addMessage(MessageLevel.WARN, "Playtime trigger in stage '" + stageId + "' has negative days (" + pt.days() + "). Treated as 0.");
+                    DebugLogger.warn("Invalid AutoTrigger Days", "Playtime trigger in stage '" + stageId + "' has days=" + pt.days() + ". Negative values are clamped to 0 at runtime.");
+                }
+            }
+        }
+    }
+
+    private static void checkTriggerRl(String stageId, String triggerType, String id) {
+        if (!isValidResourceLocation(id)) {
+            addMessage(MessageLevel.WARN, "Trigger '" + triggerType + "' in stage '" + stageId + "' has invalid id '" + id + "'. It will never match.");
+            DebugLogger.warn("Invalid AutoTrigger Id", "Trigger '" + triggerType + "' in stage '" + stageId + "' has id '" + id + "' which is not a valid ResourceLocation. The trigger will never match — fix the id.");
+        }
     }
 }
