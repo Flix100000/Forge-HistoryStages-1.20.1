@@ -5,12 +5,16 @@ import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
@@ -59,6 +63,38 @@ public final class AutoTriggerEventBridge {
         AutoTriggerManager.process(
                 "block_place",
                 t -> (t instanceof BlockPlaceTrigger bp) && blockId.equals(bp.id()),
+                player);
+    }
+
+    @SubscribeEvent
+    public void onItemPickup(ItemEntityPickupEvent.Post event) {
+        if (!(event.getPlayer() instanceof ServerPlayer player)) return;
+        ItemStack stack = event.getItemEntity().getItem();
+        if (stack.isEmpty()) return;
+        fireItemTrigger(player, stack);
+    }
+
+    @SubscribeEvent
+    public void onContainerOpen(PlayerContainerEvent.Open event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        scanInventoryForItemTriggers(player);
+    }
+
+    private static void scanInventoryForItemTriggers(ServerPlayer player) {
+        var inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack s = inv.getItem(i);
+            if (!s.isEmpty()) fireItemTrigger(player, s);
+        }
+    }
+
+    private static void fireItemTrigger(ServerPlayer player, ItemStack stack) {
+        ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (key == null) return;
+        String itemId = key.toString();
+        AutoTriggerManager.process(
+                "item",
+                t -> (t instanceof ItemTrigger it) && itemId.equals(it.id()),
                 player);
     }
 
