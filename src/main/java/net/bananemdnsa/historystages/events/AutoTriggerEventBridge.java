@@ -5,6 +5,8 @@ import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.EntitySubMode;
+import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -12,10 +14,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 
 /**
@@ -109,6 +113,42 @@ public final class AutoTriggerEventBridge {
         AutoTriggerManager.process(
                 "block_break",
                 t -> (t instanceof BlockBreakTrigger bb) && blockId.equals(bb.id()),
+                player);
+    }
+
+    @SubscribeEvent
+    public void onLivingDeath(LivingDeathEvent event) {
+        if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
+        if (event.getEntity() == null) return;
+        ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(event.getEntity().getType());
+        if (key == null) return;
+        String entityId = key.toString();
+        AutoTriggerManager.process(
+                "entity",
+                t -> {
+                    if (!(t instanceof EntityTrigger et)) return false;
+                    if (!entityId.equals(et.id())) return false;
+                    EntitySubMode mode = et.resolvedSubMode();
+                    return mode == EntitySubMode.ANY || mode == EntitySubMode.KILL;
+                },
+                player);
+    }
+
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (event.getTarget() == null) return;
+        ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(event.getTarget().getType());
+        if (key == null) return;
+        String entityId = key.toString();
+        AutoTriggerManager.process(
+                "entity",
+                t -> {
+                    if (!(t instanceof EntityTrigger et)) return false;
+                    if (!entityId.equals(et.id())) return false;
+                    EntitySubMode mode = et.resolvedSubMode();
+                    return mode == EntitySubMode.ANY || mode == EntitySubMode.INTERACT;
+                },
                 player);
     }
 }
