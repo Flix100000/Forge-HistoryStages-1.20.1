@@ -318,6 +318,8 @@ public class HistoryStages {
         if (tickCounter % CLEANUP_INTERVAL == 0) {
             DebugLogger.cleanupThrottleMap();
         }
+
+        net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
     }
 
     @SubscribeEvent

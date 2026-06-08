@@ -2,17 +2,29 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.EntitySubMode;
 import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.stats.Stats;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.HashSet;
+import java.util.Set;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
@@ -150,5 +162,56 @@ public final class AutoTriggerEventBridge {
                     return mode == EntitySubMode.ANY || mode == EntitySubMode.INTERACT;
                 },
                 player);
+    }
+
+    /** Called every server tick from {@code HistoryStages.onServerTick}. */
+    public static void pollPlayers(MinecraftServer server, int tickCounter) {
+        if (server == null) return;
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+            if (tickCounter % 20 == 0) {
+                pollBiome(p);
+                pollStructure(p);
+            }
+            if (tickCounter % 100 == 0) {
+                pollPlaytime(p);
+            }
+        }
+    }
+
+    private static void pollBiome(ServerPlayer p) {
+        ServerLevel sl = p.serverLevel();
+        if (sl == null) return;
+        Holder<Biome> biomeHolder = sl.getBiome(p.blockPosition());
+        ResourceLocation biomeLoc = sl.registryAccess()
+                .registryOrThrow(Registries.BIOME)
+                .getKey(biomeHolder.value());
+        if (biomeLoc == null) return;
+        String biomeId = biomeLoc.toString();
+        AutoTriggerManager.process(
+                "biome",
+                t -> (t instanceof BiomeTrigger bt) && biomeId.equals(bt.id()),
+                p);
+    }
+
+    private static void pollStructure(ServerPlayer p) {
+        ServerLevel sl = p.serverLevel();
+        if (sl == null) return;
+        // Reuse the existing structure-detection helper used elsewhere in the codebase
+        // (bounding-box scan over loaded chunks in a fixed radius around the player).
+        java.util.List<String> coveringIds = StructureLockHandler.collectStructureIdsAt(sl, p.blockPosition());
+        if (coveringIds.isEmpty()) return;
+        Set<String> covering = new HashSet<>(coveringIds);
+        AutoTriggerManager.process(
+                "structure",
+                t -> (t instanceof StructureTrigger st) && covering.contains(st.id()),
+                p);
+    }
+
+    private static void pollPlaytime(ServerPlayer p) {
+        int playTicks = p.getStats().getValue(Stats.CUSTOM.get(Stats.PLAY_TIME));
+        AutoTriggerManager.process(
+                "playtime",
+                t -> (t instanceof PlaytimeTrigger pt) && playTicks >= pt.requiredTicks(),
+                p);
     }
 }
