@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
@@ -204,13 +205,14 @@ public class StageCommand {
             return syncAndReload(source, d, "All stages unlocked.");
         } else {
             if (!StageManager.getStages().containsKey(s)) return 0;
-            d.addStage(s);
+            boolean changed = StageUnlockHelper.unlockGlobal(s, source.getLevel());
+            if (!changed) return 0;
             var entry = StageManager.getStages().get(s);
             String displayName = entry != null ? entry.getDisplayName() : s;
-            NeoForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
             DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
-            broadcastEffect(source, s, true);
-            return syncAndReload(source, d, "Unlocked: " + s);
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Unlocked: " + s), true);
+            source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
+            return 1;
         }
     }
 
@@ -438,48 +440,8 @@ public class StageCommand {
             return 0;
         }
 
-        data.addStage(target.getUUID(), stageId);
-        data.setDirty();
-
-        var entry = StageManager.getIndividualStages().get(stageId);
-        String displayName = entry != null ? entry.getDisplayName() : stageId;
-        NeoForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stageId, displayName, target.getUUID()));
-
-        // Sync to the target player
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        // Notify the target player
-        if (Config.COMMON.individualBroadcastChat.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.sendSystemMessage(
-                    Component.literal("[HistoryStages] ")
-                            .withStyle(ChatFormatting.GRAY)
-                            .append(Component.literal(finalChat))
-            );
-        }
-        if (Config.COMMON.individualUseActionbar.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.displayClientMessage(Component.literal(finalChat), true);
-        }
-        if (Config.COMMON.individualUseSounds.get()) {
-            target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-        }
-        if (Config.COMMON.individualUseToasts.get()) {
-            String iconId = (!entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
-            PacketHandler.sendToastToPlayer(
-                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName, iconId),
-                    target
-            );
-        }
+        boolean changed = StageUnlockHelper.unlockIndividual(stageId, target);
+        if (!changed) return 0;
 
         DebugLogger.runtime("Individual Unlock", source.getTextName(),
                 "Unlocked individual stage '" + stageId + "' for " + target.getName().getString());

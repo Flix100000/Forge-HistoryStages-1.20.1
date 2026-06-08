@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.data.auto;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
@@ -151,13 +152,11 @@ public final class AutoTriggerManager {
 
     private static void unlockStage(String stageId, boolean isIndividual,
                                     ServerPlayer player, ServerLevel level) {
-        // Temporary inline impl — Task 13 will replace this with StageUnlockHelper calls.
         if (isIndividual) {
-            IndividualStageData.get(level).addStage(player.getUUID(), stageId);
+            StageUnlockHelper.unlockIndividual(stageId, player);
         } else {
-            StageData.get(level).addStage(stageId);
+            StageUnlockHelper.unlockGlobal(stageId, level);
         }
-        // NOTE: missing the sync packets and event-bus fire — Task 13 fixes this.
     }
 
     public static void clearProgress(String stageId, boolean isIndividual,
