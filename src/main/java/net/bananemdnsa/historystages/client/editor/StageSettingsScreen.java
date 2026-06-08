@@ -3,6 +3,8 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.research.TierMode;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -15,7 +17,8 @@ public class StageSettingsScreen extends Screen {
     @FunctionalInterface
     public interface SaveCallback {
         void onSave(String stageId, String displayName, int researchTime,
-                    int minPedestalTier, TierMode pedestalTierMode);
+                    int minPedestalTier, TierMode pedestalTierMode,
+                    StageMode mode, AutoTrigger autoTrigger);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -32,12 +35,15 @@ public class StageSettingsScreen extends Screen {
     private int editResearchTime;
     private int editMinTier;
     private TierMode editTierMode;
+    private StageMode editMode;
+    private AutoTrigger editAutoTrigger;
 
     private final String origStageId;
     private final String origDisplayName;
     private final String origResearchTime;
     private final int origMinTier;
     private final TierMode origTierMode;
+    private final StageMode origMode;
 
     private boolean hasChanges = false;
 
@@ -46,9 +52,12 @@ public class StageSettingsScreen extends Screen {
     private EditBox researchTimeField;
     private PedestalTierDropdown tierDropdown;
     private Button tierModeButton;
+    private Button stageModeButton;
+    private Button autoTriggerButton;
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
+                               StageMode mode, AutoTrigger autoTrigger,
                                boolean isNewStage, SaveCallback onSave) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
         this.parent = parent;
@@ -60,12 +69,15 @@ public class StageSettingsScreen extends Screen {
         this.editResearchTime = researchTime;
         this.editMinTier = minPedestalTier;
         this.editTierMode = pedestalTierMode != null ? pedestalTierMode : TierMode.MIN;
+        this.editMode = mode != null ? mode : StageMode.DEFAULT;
+        this.editAutoTrigger = autoTrigger;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
         this.origResearchTime = String.valueOf(researchTime);
         this.origMinTier = minPedestalTier;
         this.origTierMode = this.editTierMode;
+        this.origMode = this.editMode;
     }
 
     @Override
@@ -75,10 +87,12 @@ public class StageSettingsScreen extends Screen {
         String labelName = Component.translatable("editor.historystages.field.display_name").getString();
         String labelTime = Component.translatable("editor.historystages.field.research_time").getString();
         String labelTier = Component.translatable("editor.historystages.field.min_pedestal_tier").getString();
-        String labelMode = Component.translatable("editor.historystages.field.pedestal_tier_mode").getString();
+        String labelTierMode = Component.translatable("editor.historystages.field.pedestal_tier_mode").getString();
+        String labelStageMode = "Mode";
         int maxLabelW = Math.max(Math.max(this.font.width(labelId),
                 Math.max(this.font.width(labelName), this.font.width(labelTime))),
-                Math.max(this.font.width(labelTier), this.font.width(labelMode)));
+                Math.max(Math.max(this.font.width(labelTier), this.font.width(labelTierMode)),
+                        this.font.width(labelStageMode)));
         int fieldX = labelX + maxLabelW + 10;
         int fieldWidth = Math.min(200, this.width - fieldX - 40);
 
@@ -105,7 +119,19 @@ public class StageSettingsScreen extends Screen {
         });
         this.addRenderableWidget(displayNameField);
 
-        researchTimeField = new EditBox(this.font, fieldX, 66, 80, FIELD_HEIGHT,
+        // Stage Mode button (row at y=66) — cycles DEFAULT -> AUTO -> EXTERNAL
+        stageModeButton = StyledButton.of(
+                Component.literal(stageModeLabel(editMode)),
+                btn -> {
+                    editMode = nextMode(editMode);
+                    if (editMode != origMode) hasChanges = true;
+                    rebuildModeSubsections();
+                },
+                fieldX, 66, fieldWidth, FIELD_HEIGHT);
+        this.addRenderableWidget(stageModeButton);
+
+        // Research time (row at y=88) — DEFAULT only
+        researchTimeField = new EditBox(this.font, fieldX, 88, 80, FIELD_HEIGHT,
                 Component.translatable("editor.historystages.field.research_time"));
         researchTimeField.setMaxLength(5);
         researchTimeField.setValue(String.valueOf(editResearchTime));
@@ -120,14 +146,14 @@ public class StageSettingsScreen extends Screen {
         });
         this.addRenderableWidget(researchTimeField);
 
-        // Min pedestal tier dropdown (row at y=88)
+        // Min pedestal tier dropdown (row at y=110) — DEFAULT only
         tierDropdown = new PedestalTierDropdown(editMinTier, 160, picked -> {
             editMinTier = picked;
             if (picked != origMinTier) hasChanges = true;
         });
-        tierDropdown.setPosition(fieldX, 88);
+        tierDropdown.setPosition(fieldX, 110);
 
-        // Tier mode toggle (row at y=110)
+        // Tier mode toggle (row at y=132) — DEFAULT only
         tierModeButton = StyledButton.of(
                 Component.translatable(tierModeLabelKey(editTierMode)),
                 btn -> {
@@ -135,8 +161,25 @@ public class StageSettingsScreen extends Screen {
                     btn.setMessage(Component.translatable(tierModeLabelKey(editTierMode)));
                     if (editTierMode != origTierMode) hasChanges = true;
                 },
-                fieldX, 110, 160, FIELD_HEIGHT);
+                fieldX, 132, 160, FIELD_HEIGHT);
         this.addRenderableWidget(tierModeButton);
+
+        // Auto-trigger config button — AUTO only
+        autoTriggerButton = StyledButton.of(
+                Component.literal("Auto-Trigger konfigurieren →"),
+                btn -> {
+                    if (editAutoTrigger == null) {
+                        editAutoTrigger = new AutoTrigger();
+                        hasChanges = true;
+                    }
+                    this.minecraft.setScreen(new AutoTriggerEditorScreen(this, editAutoTrigger,
+                            updated -> {
+                                editAutoTrigger = updated;
+                                hasChanges = true;
+                            }));
+                },
+                fieldX, 88, fieldWidth, FIELD_HEIGHT);
+        this.addRenderableWidget(autoTriggerButton);
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
@@ -145,6 +188,38 @@ public class StageSettingsScreen extends Screen {
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
                 btn -> save(), this.width - 60, this.height - 25, 50, 18));
+
+        rebuildModeSubsections();
+    }
+
+    private void rebuildModeSubsections() {
+        boolean isDefault = editMode == StageMode.DEFAULT;
+        boolean isAuto = editMode == StageMode.AUTO;
+        // EXTERNAL — only the help text (rendered in render())
+
+        researchTimeField.visible = isDefault;
+        researchTimeField.active = isDefault;
+        tierModeButton.visible = isDefault;
+        tierModeButton.active = isDefault;
+        // tierDropdown is not a registered widget — visibility handled in render()/mouseClicked()
+        autoTriggerButton.visible = isAuto;
+        autoTriggerButton.active = isAuto;
+    }
+
+    private static StageMode nextMode(StageMode m) {
+        return switch (m) {
+            case DEFAULT -> StageMode.AUTO;
+            case AUTO -> StageMode.EXTERNAL;
+            case EXTERNAL -> StageMode.DEFAULT;
+        };
+    }
+
+    private static String stageModeLabel(StageMode m) {
+        return switch (m) {
+            case DEFAULT -> "Default (Pedestal research)";
+            case AUTO -> "Auto (discovery triggers)";
+            case EXTERNAL -> "External (scripted unlock)";
+        };
     }
 
     private void save() {
@@ -162,7 +237,8 @@ public class StageSettingsScreen extends Screen {
             return;
         }
         saveError = "";
-        onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode);
+        onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
+                editMode, editAutoTrigger);
         hasChanges = false;
         this.minecraft.setScreen(parent);
     }
@@ -227,18 +303,38 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.drawString(this.font,
                 Component.translatable("editor.historystages.field.display_name").getString(),
                 labelX, 49, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.research_time").getString(),
-                labelX, 71, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
-                labelX, 93, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
-                labelX, 115, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font, "Mode", labelX, 71, 0xAAAAAA, false);
 
-        // Tier dropdown: render the button inline, popup over everything.
-        tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+        boolean isDefault = editMode == StageMode.DEFAULT;
+        boolean isAuto = editMode == StageMode.AUTO;
+        boolean isExternal = editMode == StageMode.EXTERNAL;
+
+        if (isDefault) {
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.research_time").getString(),
+                    labelX, 93, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
+                    labelX, 115, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
+                    labelX, 137, 0xAAAAAA, false);
+
+            // Tier dropdown: render the button inline, popup over everything.
+            tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+        } else if (isAuto) {
+            guiGraphics.drawString(this.font, "Auto-Trigger", labelX, 93, 0xAAAAAA, false);
+            int count = editAutoTrigger == null ? 0 : editAutoTrigger.getTriggers().size();
+            guiGraphics.drawString(this.font, count + " trigger(s) configured",
+                    labelX, 115, 0x888888, false);
+        } else if (isExternal) {
+            guiGraphics.drawString(this.font,
+                    "Scroll exists but cannot be researched at the Pedestal.",
+                    labelX, 93, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    "Unlock via /stage unlock or scripts.",
+                    labelX, 105, 0xAAAAAA, false);
+        }
 
         // Unsaved changes animation (left of Save button)
         if (hasChanges) {
@@ -258,12 +354,15 @@ public class StageSettingsScreen extends Screen {
         }
 
         // Popup always last so it overlays everything.
-        tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        if (isDefault) {
+            tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (tierDropdown != null && tierDropdown.mouseClicked(mouseX, mouseY)) {
+        if (editMode == StageMode.DEFAULT && tierDropdown != null
+                && tierDropdown.mouseClicked(mouseX, mouseY)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
