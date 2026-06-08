@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
@@ -500,6 +501,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     metTotal = true;
                 } else {
                     StageEntry stageEntry = stageEntryForTier;
+
+                    // Only DEFAULT-mode stages can be researched at the Pedestal.
+                    // AUTO has no scroll (defensive); EXTERNAL is rejected with user
+                    // feedback in onScrollInserted(). Here we silently pause progress
+                    // for any non-DEFAULT stage so research never starts.
+                    if (stageEntry != null && stageEntry.getMode() != StageMode.DEFAULT) {
+                        stageEntry = null;
+                    }
 
                     if (stageEntry != null) {
                         if (stageEntry.hasDependencies()) {
