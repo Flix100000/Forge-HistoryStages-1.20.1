@@ -186,6 +186,10 @@ public class StageCommand {
     private static int handleUnlock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
+        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // emits a single combined broadcast/toast/event instead of one per stage. Future
+        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             boolean changed = false;
             for (String id : StageManager.getStages().keySet()) {
@@ -220,6 +224,10 @@ public class StageCommand {
     private static int handleLock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
+        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // emits a single combined broadcast/toast/event instead of one per stage. Future
+        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             if (d.getUnlockedStages().isEmpty()) {
                 source.sendFailure(Component.literal("No active stages found to lock!"));
@@ -364,6 +372,10 @@ public class StageCommand {
         return 1;
     }
 
+    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // emits a single combined broadcast/toast/event instead of one per stage. Future
+    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // the change should be mirrored here for consistency.
     private static int handleIndividualUnlockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
         java.util.Set<String> alreadyUnlocked = data.getUnlockedStages(target.getUUID());
@@ -400,6 +412,10 @@ public class StageCommand {
         return 1;
     }
 
+    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // emits a single combined broadcast/toast/event instead of one per stage. Future
+    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // the change should be mirrored here for consistency.
     private static int handleIndividualLockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
         java.util.Set<String> playerStages = data.getUnlockedStages(target.getUUID());
