@@ -111,6 +111,7 @@ public class HistoryStages {
         }
 
         NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new net.bananemdnsa.historystages.events.AutoTriggerEventBridge());
     }
 
     private void onConfigLoad(net.neoforged.fml.event.config.ModConfigEvent.Loading event) {
