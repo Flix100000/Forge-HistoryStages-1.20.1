@@ -2,12 +2,17 @@ package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.BlockEvent;
 
 /**
  * Single Forge-bus listener that forwards relevant world events into
@@ -40,6 +45,34 @@ public final class AutoTriggerEventBridge {
         AutoTriggerManager.process(
                 "advancement",
                 t -> (t instanceof AdvancementTrigger at) && advId.equals(at.id()),
+                player);
+    }
+
+    @SubscribeEvent
+    public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        BlockState placed = event.getPlacedBlock();
+        if (placed == null) return;
+        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(placed.getBlock());
+        if (key == null) return;
+        String blockId = key.toString();
+        AutoTriggerManager.process(
+                "block_place",
+                t -> (t instanceof BlockPlaceTrigger bp) && blockId.equals(bp.id()),
+                player);
+    }
+
+    @SubscribeEvent
+    public void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (!(event.getPlayer() instanceof ServerPlayer player)) return;
+        BlockState state = event.getState();
+        if (state == null) return;
+        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        if (key == null) return;
+        String blockId = key.toString();
+        AutoTriggerManager.process(
+                "block_break",
+                t -> (t instanceof BlockBreakTrigger bb) && blockId.equals(bb.id()),
                 player);
     }
 }
