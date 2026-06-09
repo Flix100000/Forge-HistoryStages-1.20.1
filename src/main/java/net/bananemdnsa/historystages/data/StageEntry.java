@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,12 @@ public class StageEntry {
 
     @SerializedName("display_name")
     private String displayName;
+
+    @SerializedName("mode")
+    private String mode;   // "default" | "auto" | "external"; null → default
+
+    @SerializedName("auto_trigger")
+    private AutoTrigger autoTrigger;
 
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
@@ -194,6 +201,27 @@ public class StageEntry {
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public void setResearchTime(int researchTime) { this.researchTime = researchTime; }
 
+    /** Returns the stage's mode, defaulting to DEFAULT if unset or unknown. */
+    public StageMode getMode() {
+        return StageMode.parse(mode);
+    }
+
+    /** Raw mode string from JSON — used by StageManager to log warnings on unknown values. */
+    public String getRawMode() { return mode; }
+
+    public void setMode(StageMode m) {
+        this.mode = (m != null ? m : StageMode.DEFAULT).serialize();
+    }
+
+    /** Returns the auto-trigger config, or null if none is set. */
+    public AutoTrigger getAutoTrigger() {
+        return autoTrigger;
+    }
+
+    public void setAutoTrigger(AutoTrigger autoTrigger) {
+        this.autoTrigger = autoTrigger;
+    }
+
     public void setMinPedestalTier(int tier) {
         if (tier < 1) tier = 1;
         if (tier > 4) tier = 4;
@@ -317,6 +345,8 @@ public class StageEntry {
         locksCopy.setModLinked(getEntities().getModLinked());
         copy.setEntities(locksCopy);
         copy.setDependencies(getDependencies().stream().map(DependencyGroup::copy).collect(Collectors.toList()));
+        copy.mode = this.mode;
+        copy.autoTrigger = (this.autoTrigger != null) ? this.autoTrigger.copy() : null;
         return copy;
     }
 

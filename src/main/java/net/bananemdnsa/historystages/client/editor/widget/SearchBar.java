@@ -35,6 +35,13 @@ public class SearchBar {
     private boolean allSelected = false;
     private int x, y, width;
     private Consumer<String> onChange;
+    /**
+     * When true the bar uses the editor's "light" chrome (semi-transparent white tint +
+     * gold/grey bottom accent), matching {@code StageOverviewScreen} / the detail-screen
+     * category search. Default is the popup widget's dark-inset look.
+     */
+    private boolean lightStyle = false;
+    private float hoverProgress = 0.0f;
 
     public SearchBar(String placeholder) {
         this.placeholder = placeholder;
@@ -47,6 +54,17 @@ public class SearchBar {
     /** Access the embedded dropdown to register filter options. */
     public FilterDropdown filters() {
         return filterDropdown;
+    }
+
+    /**
+     * Enables the editor-style "light" rendering — semi-transparent white tint, subtle
+     * edge highlights, gold bottom accent when focused. Use in non-popup contexts (e.g.
+     * the trigger editor) so the bar matches the surrounding editor chrome instead of
+     * looking like a popup-overlay search field.
+     */
+    public SearchBar setLightStyle(boolean light) {
+        this.lightStyle = light;
+        return this;
     }
 
     public SearchBar onChange(Consumer<String> callback) {
@@ -114,8 +132,27 @@ public class SearchBar {
         int sy = y;
         int sw = searchFieldWidth();
 
-        g.fill(sx - 1, sy - 1, sx + sw + 1, sy + HEIGHT + 1, 0xFF4A4A4A);
-        g.fill(sx, sy, sx + sw, sy + HEIGHT, 0xFF0D0D0D);
+        if (lightStyle) {
+            // Smoothly track focus/hover for the brighter editor-style background
+            boolean hovered = mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + HEIGHT;
+            if (focused || hovered) hoverProgress = Math.min(1.0f, hoverProgress + 0.10f);
+            else hoverProgress = Math.max(0.0f, hoverProgress - 0.08f);
+            float hp = hoverProgress;
+
+            int bgAlpha = (int) (0x25 + hp * 0x18);
+            g.fill(sx, sy, sx + sw, sy + HEIGHT, (bgAlpha << 24) | 0xFFFFFF);
+            // Top + side edge highlights (matches StyledButton / detail-screen search)
+            g.fill(sx, sy, sx + sw, sy + 1, 0x20FFFFFF);
+            g.fill(sx, sy, sx + 1, sy + HEIGHT, 0x15FFFFFF);
+            g.fill(sx + sw - 1, sy, sx + sw, sy + HEIGHT, 0x15FFFFFF);
+            // Bottom accent: gold when focused, grey otherwise
+            int accentAlpha = focused ? (int) (0xCC + hp * 0x33) : (int) (0x40 + hp * 0x40);
+            int accentRGB = focused ? 0xFFCC00 : 0x888888;
+            g.fill(sx, sy + HEIGHT - 2, sx + sw, sy + HEIGHT, (accentAlpha << 24) | accentRGB);
+        } else {
+            g.fill(sx - 1, sy - 1, sx + sw + 1, sy + HEIGHT + 1, 0xFF4A4A4A);
+            g.fill(sx, sy, sx + sw, sy + HEIGHT, 0xFF0D0D0D);
+        }
 
         g.pose().pushPose();
         g.pose().translate(0, 0, 300);
@@ -124,7 +161,8 @@ public class SearchBar {
             int textW = font.width(text);
             g.fill(sx + 3, sy + 3, sx + 5 + textW, sy + HEIGHT - 3, 0xFF4A6A9A);
         }
-        g.drawString(font, displayText, sx + 4, sy + 6, text.isEmpty() ? 0x666666 : 0xFFFFFF, false);
+        int textColor = text.isEmpty() ? (lightStyle ? 0x999999 : 0x666666) : 0xFFFFFF;
+        g.drawString(font, displayText, sx + 4, sy + 6, textColor, false);
         if (focused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
             int cursorX = sx + 4 + (text.isEmpty() ? 0 : font.width(text));
             g.fill(cursorX, sy + 4, cursorX + 1, sy + HEIGHT - 4, 0xFFFFFFFF);

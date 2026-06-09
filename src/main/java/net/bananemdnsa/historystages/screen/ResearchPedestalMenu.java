@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.screen;
 
 import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
+import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModMenuTypes;
 import net.minecraft.core.component.DataComponents;
@@ -65,6 +68,15 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
                 if (!scrollTag.contains("StageResearch"))
                     return false;
                 String stageId = scrollTag.getString("StageResearch");
+
+                // Only DEFAULT-mode stages accept deposits. AUTO/EXTERNAL scrolls
+                // never legitimately enter research, so block dependency deposits too.
+                StageEntry modeEntry = StageManager.isIndividualStage(stageId)
+                        ? StageManager.getIndividualStages().get(stageId)
+                        : StageManager.getStages().get(stageId);
+                if (modeEntry != null && modeEntry.getMode() != StageMode.DEFAULT) {
+                    return false;
+                }
 
                 // Block placement if the stage is already unlocked
                 if (ResearchPedestalMenu.this.blockEntity.isCurrentScrollIndividual()) {

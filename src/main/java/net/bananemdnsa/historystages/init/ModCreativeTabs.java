@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.init;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -34,20 +35,22 @@ public class ModCreativeTabs {
                         creativeScroll.set(DataComponents.CUSTOM_DATA, CustomData.of(creativeNbt));
                         output.accept(creativeScroll);
 
-                        // 2. Global stage scrolls
-                        for (String stageId : StageManager.getStages().keySet()) {
+                        // 2. Global stage scrolls (skip AUTO-mode: those have no scroll)
+                        for (var stageEntry : StageManager.getStages().entrySet()) {
+                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = new CompoundTag();
-                            nbt.putString("StageResearch", stageId);
+                            nbt.putString("StageResearch", stageEntry.getKey());
                             scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
                             output.accept(scroll);
                         }
 
-                        // 3. Individual stage scrolls
-                        for (String stageId : StageManager.getIndividualStages().keySet()) {
+                        // 3. Individual stage scrolls (skip AUTO-mode)
+                        for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
+                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = new CompoundTag();
-                            nbt.putString("StageResearch", stageId);
+                            nbt.putString("StageResearch", stageEntry.getKey());
                             scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
                             output.accept(scroll);
                         }

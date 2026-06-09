@@ -114,6 +114,9 @@ public class SearchableItemList {
 
     private Set<String> modFilterSet = null;
 
+    /** Optional "is locked by stage" predicate enabled via {@link #setLockedFilter}. */
+    private java.util.function.Predicate<String> lockedFilterFn = null;
+
     public SearchableItemList(Consumer<String> onSelect) {
         this(onSelect, null);
     }
@@ -297,7 +300,21 @@ public class SearchableItemList {
     }
 
     private boolean matchesDropdownFilters(String id) {
-        return SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier);
+        if (!SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier)) return false;
+        if (lockedFilterFn != null && searchBar.filters().isActive("hide_locked")
+                && id != null && lockedFilterFn.test(id)) return false;
+        return true;
+    }
+
+    /**
+     * Registers a "Hide locked" filter (active by default) that excludes items whose id
+     * matches {@code isLocked.test(id)}. Used by the auto-trigger editor to hide items
+     * the current stage already locks.
+     */
+    public void setLockedFilter(String label, java.util.function.Predicate<String> isLocked) {
+        this.lockedFilterFn = isLocked;
+        searchBar.filters().addOption("hide_locked", label, null, true);
+        applyFilter(searchBar.getText() == null ? "" : searchBar.getText());
     }
 
     /** Captures the current selection sets as the frozen Selected-tab snapshot. */

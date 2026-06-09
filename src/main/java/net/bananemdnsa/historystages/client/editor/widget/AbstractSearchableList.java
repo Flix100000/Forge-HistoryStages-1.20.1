@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -36,6 +37,9 @@ public abstract class AbstractSearchableList<T> {
 
     private final Consumer<String> onSelect;
     private final Supplier<Collection<String>> alreadyAddedSupplier;
+
+    /** Optional "is locked by stage" predicate enabled via {@link #addLockedFilter}. */
+    private Predicate<String> lockedFilterFn = null;
 
     protected int panelX, panelY, panelW, panelH;
     private boolean visible = false;
@@ -230,6 +234,20 @@ public abstract class AbstractSearchableList<T> {
         updateMaxScroll();
     }
 
+    /**
+     * Registers a "Hide locked" filter that excludes entries whose
+     * {@link #getIdForFilter id} matches {@code isLocked.test(id)}. The option appears
+     * in the filter dropdown with the supplied label and starts active by default —
+     * use this from the auto-trigger editor to hide things the current stage already
+     * locks (player can't trigger them while the stage isn't unlocked).
+     */
+    public AbstractSearchableList<T> addLockedFilter(String label, Predicate<String> isLocked) {
+        this.lockedFilterFn = isLocked;
+        searchBar.filters().addOption("hide_locked", label, null, true);
+        applyFilter(searchBar.getText() == null ? "" : searchBar.getText());
+        return this;
+    }
+
     private boolean matchesDropdownFilters(T entry) {
         if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
             String checkId = getIdForAddedCheck(entry);
@@ -237,6 +255,10 @@ public abstract class AbstractSearchableList<T> {
                 Collection<String> added = alreadyAddedSupplier.get();
                 if (added != null && added.contains(checkId)) return false;
             }
+        }
+        if (lockedFilterFn != null && searchBar.filters().isActive("hide_locked")) {
+            String checkId = getIdForFilter(entry);
+            if (checkId != null && lockedFilterFn.test(checkId)) return false;
         }
         String nsId = getIdForFilter(entry);
         if (nsId == null) return true;

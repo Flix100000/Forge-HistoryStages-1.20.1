@@ -5,6 +5,8 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncConfigPacket;
@@ -109,6 +111,7 @@ public class HistoryStages {
         }
 
         NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new net.bananemdnsa.historystages.events.AutoTriggerEventBridge());
     }
 
     private void onConfigLoad(net.neoforged.fml.event.config.ModConfigEvent.Loading event) {
@@ -151,13 +154,16 @@ public class HistoryStages {
             event.accept(ModItems.RESEARCH_PEDESTAL_ITEM.get());
         }
 
-        // Generate a research scroll for every stage (global + individual)
+        // Generate a research scroll for every stage (global + individual).
+        // AUTO-mode stages have no scroll (they're unlocked via auto_trigger events).
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
-            for (String stageId : StageManager.getStages().keySet()) {
-                event.accept(createScrollForStage(stageId));
+            for (var stageEntry : StageManager.getStages().entrySet()) {
+                if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                event.accept(createScrollForStage(stageEntry.getKey()));
             }
-            for (String stageId : StageManager.getIndividualStages().keySet()) {
-                event.accept(createScrollForStage(stageId));
+            for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
+                if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                event.accept(createScrollForStage(stageEntry.getKey()));
             }
         }
     }
@@ -271,6 +277,9 @@ public class HistoryStages {
             IndividualStageData individualData = IndividualStageData.get(sl);
             individualData.refreshCache();
 
+            // Drop AUTO-progress entries for stages that no longer exist or are no longer AUTO
+            AutoTriggerManager.pruneOrphans(sl);
+
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {
                 serverInitialized = true;
@@ -309,6 +318,8 @@ public class HistoryStages {
         if (tickCounter % CLEANUP_INTERVAL == 0) {
             DebugLogger.cleanupThrottleMap();
         }
+
+        net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
     }
 
     @SubscribeEvent

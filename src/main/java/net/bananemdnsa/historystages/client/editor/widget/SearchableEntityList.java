@@ -1,15 +1,10 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
-import com.mojang.blaze3d.platform.Lighting;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
@@ -19,13 +14,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SpawnEggItem;
 import net.minecraft.core.registries.BuiltInRegistries;
-import org.joml.Quaternionf;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -49,7 +41,8 @@ public class SearchableEntityList {
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
 
-    private final Map<String, LivingEntity> entityCache = new HashMap<>();
+    /** Optional "is locked by stage" predicate enabled via {@link #setLockedFilter}. */
+    private java.util.function.Predicate<String> lockedFilterFn = null;
 
     private int panelX, panelY, panelW, panelH;
     private int centerX, centerY;
@@ -105,31 +98,8 @@ public class SearchableEntityList {
         }
     }
 
-    private LivingEntity getOrCreateEntity(String entityId) {
-        if (entityCache.containsKey(entityId))
-            return entityCache.get(entityId);
-        if (Minecraft.getInstance().level == null)
-            return null;
-
-        try {
-            ResourceLocation rl = ResourceLocation.tryParse(entityId);
-            if (rl == null)
-                return null;
-            EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
-            if (type == null)
-                return null;
-            Entity entity = type.create(Minecraft.getInstance().level);
-            if (entity instanceof LivingEntity living) {
-                entityCache.put(entityId, living);
-                return living;
-            }
-            if (entity != null)
-                entity.discard();
-        } catch (Exception ignored) {
-        }
-        entityCache.put(entityId, null);
-        return null;
-    }
+    // getOrCreateEntity and renderSpinningEntity were extracted to EntityPreviewRenderer so
+    // non-widget screens (Auto-Trigger Editor) can reuse the same model previews.
 
     /**
      * Returns the entity type ID for a spawn egg item, or null if not a spawn egg.
@@ -221,7 +191,17 @@ public class SearchableEntityList {
     }
 
     private boolean matchesDropdownFilters(String id) {
-        return SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier);
+        if (!SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier)) return false;
+        if (lockedFilterFn != null && searchBar.filters().isActive("hide_locked")
+                && id != null && lockedFilterFn.test(id)) return false;
+        return true;
+    }
+
+    /** See {@link SearchableItemList#setLockedFilter}. */
+    public void setLockedFilter(String label, java.util.function.Predicate<String> isLocked) {
+        this.lockedFilterFn = isLocked;
+        searchBar.filters().addOption("hide_locked", label, null, true);
+        applyFilter(searchBar.getText() == null ? "" : searchBar.getText());
     }
 
     private void updateMaxScroll() {
@@ -320,13 +300,13 @@ public class SearchableEntityList {
             if (index < filteredEntities.size()) {
                 EntityEntry entry = filteredEntities.get(index);
 
-                LivingEntity living = getOrCreateEntity(entry.id);
+                LivingEntity living = EntityPreviewRenderer.getOrCreate(entry.id);
                 if (living != null) {
                     try {
                         float angle = (System.currentTimeMillis() % 3600) / 10.0f;
                         guiGraphics.enableScissor(listX, rowY, listX + 18, rowY + ROW_HEIGHT);
                         int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
-                        renderSpinningEntity(guiGraphics, listX + 9, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
+                        EntityPreviewRenderer.renderSpinning(guiGraphics, listX + 9, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
                         guiGraphics.disableScissor();
                     } catch (Exception ignored) {
                     }
@@ -421,7 +401,7 @@ public class SearchableEntityList {
         }
 
         if (selectedEntityId != null) {
-            LivingEntity previewEntity = getOrCreateEntity(selectedEntityId);
+            LivingEntity previewEntity = EntityPreviewRenderer.getOrCreate(selectedEntityId);
             if (previewEntity != null) {
                 try {
                     float angle = (System.currentTimeMillis() % 7200) / 20.0f;
@@ -431,7 +411,7 @@ public class SearchableEntityList {
                     int prevCenterY = previewY + previewH / 2 + entityScale;
                     guiGraphics.enableScissor(previewX + 1, previewY + 1, previewX + PREVIEW_SIZE - 1,
                             previewY + previewH - 1);
-                    renderSpinningEntity(guiGraphics, prevCenterX, prevCenterY, entityScale, angle, previewEntity);
+                    EntityPreviewRenderer.renderSpinning(guiGraphics, prevCenterX, prevCenterY, entityScale, angle, previewEntity);
                     guiGraphics.disableScissor();
                 } catch (Exception ignored) {
                 }
@@ -581,61 +561,6 @@ public class SearchableEntityList {
         guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF1A1A1A);
         guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D1A);
         guiGraphics.drawString(font, text, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
-    }
-
-    private static void renderSpinningEntity(GuiGraphics guiGraphics, int x, int y, int scale, float angleDegrees,
-            LivingEntity entity) {
-        float origBodyRot = entity.yBodyRot;
-        float origYRot = entity.getYRot();
-        float origXRot = entity.getXRot();
-        float origHeadRotO = entity.yHeadRotO;
-        float origHeadRot = entity.yHeadRot;
-
-        entity.yBodyRot = 180.0F;
-        entity.setYRot(180.0F);
-        entity.setXRot(0.0F);
-        entity.yHeadRot = 180.0F;
-        entity.yHeadRotO = 180.0F;
-
-        org.joml.Matrix4fStack modelViewStack = RenderSystem.getModelViewStack();
-        modelViewStack.pushMatrix();
-        try {
-            modelViewStack.translate(0.0F, 0.0F, 1500.0F);
-            RenderSystem.applyModelViewMatrix();
-
-            PoseStack poseStack = new PoseStack();
-            poseStack.translate((double) x, (double) y, -950.0D);
-            poseStack.scale((float) scale, (float) scale, (float) scale);
-
-            Quaternionf flipAndSpin = new Quaternionf().rotateZ((float) Math.PI);
-            flipAndSpin.mul(new Quaternionf().rotateY(angleDegrees * ((float) Math.PI / 180.0F)));
-            poseStack.mulPose(flipAndSpin);
-
-            Lighting.setupForEntityInInventory();
-            RenderSystem.disableDepthTest();
-
-            EntityRenderDispatcher dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
-            dispatcher.overrideCameraOrientation(new Quaternionf());
-            dispatcher.setRenderShadow(false);
-
-            MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-            RenderSystem.runAsFancy(() -> {
-                dispatcher.render(entity, 0.0D, 0.0D, 0.0D, 0.0F, 1.0F, poseStack, bufferSource, 15728880);
-            });
-            bufferSource.endBatch();
-            dispatcher.setRenderShadow(true);
-            RenderSystem.enableDepthTest();
-        } finally {
-            modelViewStack.popMatrix();
-            RenderSystem.applyModelViewMatrix();
-            Lighting.setupFor3DItems();
-
-            entity.yBodyRot = origBodyRot;
-            entity.setYRot(origYRot);
-            entity.setXRot(origXRot);
-            entity.yHeadRotO = origHeadRotO;
-            entity.yHeadRot = origHeadRot;
-        }
     }
 
     private int[] getInvLayout() {

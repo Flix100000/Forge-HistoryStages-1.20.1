@@ -4,6 +4,8 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageUnlockHelper;
+import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
@@ -124,6 +126,9 @@ public class StageCommand {
                         .executes(ctx -> {
                             StageManager.reloadStages();
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
+                            // Push new definitions to all clients so creative tab / lock decorators reflect mode changes
+                            PacketHandler.sendDefinitionsToAll(
+                                    new net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket(StageManager.getStages()));
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", false);
                         }))
 
@@ -184,6 +189,10 @@ public class StageCommand {
     private static int handleUnlock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
+        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // emits a single combined broadcast/toast/event instead of one per stage. Future
+        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             boolean changed = false;
             for (String id : StageManager.getStages().keySet()) {
@@ -204,19 +213,24 @@ public class StageCommand {
             return syncAndReload(source, d, "All stages unlocked.");
         } else {
             if (!StageManager.getStages().containsKey(s)) return 0;
-            d.addStage(s);
+            boolean changed = StageUnlockHelper.unlockGlobal(s, source.getLevel());
+            if (!changed) return 0;
             var entry = StageManager.getStages().get(s);
             String displayName = entry != null ? entry.getDisplayName() : s;
-            NeoForge.EVENT_BUS.post(new StageEvent.Unlocked(s, displayName));
             DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
-            broadcastEffect(source, s, true);
-            return syncAndReload(source, d, "Unlocked: " + s);
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Unlocked: " + s), true);
+            source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
+            return 1;
         }
     }
 
     private static int handleLock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
+        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // emits a single combined broadcast/toast/event instead of one per stage. Future
+        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             if (d.getUnlockedStages().isEmpty()) {
                 source.sendFailure(Component.literal("No active stages found to lock!"));
@@ -227,6 +241,7 @@ public class StageCommand {
             List<String> toRemove = new ArrayList<>(d.getUnlockedStages());
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
+                AutoTriggerManager.clearProgress(stageId, source.getLevel());
                 var entry = StageManager.getStages().get(stageId);
                 String displayName = entry != null ? entry.getDisplayName() : stageId;
                 NeoForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
@@ -242,6 +257,7 @@ public class StageCommand {
         } else {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
+            AutoTriggerManager.clearProgress(s, source.getLevel());
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
             NeoForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
@@ -359,6 +375,10 @@ public class StageCommand {
         return 1;
     }
 
+    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // emits a single combined broadcast/toast/event instead of one per stage. Future
+    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // the change should be mirrored here for consistency.
     private static int handleIndividualUnlockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
         java.util.Set<String> alreadyUnlocked = data.getUnlockedStages(target.getUUID());
@@ -395,6 +415,10 @@ public class StageCommand {
         return 1;
     }
 
+    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // emits a single combined broadcast/toast/event instead of one per stage. Future
+    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // the change should be mirrored here for consistency.
     private static int handleIndividualLockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
         java.util.Set<String> playerStages = data.getUnlockedStages(target.getUUID());
@@ -408,6 +432,7 @@ public class StageCommand {
         List<String> toRemove = new ArrayList<>(playerStages);
         for (String stageId : toRemove) {
             data.removeStage(target.getUUID(), stageId);
+            AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
             var entry = StageManager.getIndividualStages().get(stageId);
             String displayName = entry != null ? entry.getDisplayName() : stageId;
             NeoForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stageId, displayName, target.getUUID()));
@@ -438,48 +463,8 @@ public class StageCommand {
             return 0;
         }
 
-        data.addStage(target.getUUID(), stageId);
-        data.setDirty();
-
-        var entry = StageManager.getIndividualStages().get(stageId);
-        String displayName = entry != null ? entry.getDisplayName() : stageId;
-        NeoForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stageId, displayName, target.getUUID()));
-
-        // Sync to the target player
-        PacketHandler.sendIndividualStagesToPlayer(
-                new SyncIndividualStagesPacket(data.getUnlockedStages(target.getUUID())),
-                target
-        );
-
-        // Notify the target player
-        if (Config.COMMON.individualBroadcastChat.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.sendSystemMessage(
-                    Component.literal("[HistoryStages] ")
-                            .withStyle(ChatFormatting.GRAY)
-                            .append(Component.literal(finalChat))
-            );
-        }
-        if (Config.COMMON.individualUseActionbar.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
-            String finalChat = configChat.replace("{stage}", displayName)
-                    .replace("{player}", target.getName().getString())
-                    .replace("&", "§");
-            target.displayClientMessage(Component.literal(finalChat), true);
-        }
-        if (Config.COMMON.individualUseSounds.get()) {
-            target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
-        }
-        if (Config.COMMON.individualUseToasts.get()) {
-            String iconId = (!entry.getIcon().isEmpty()) ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
-            PacketHandler.sendToastToPlayer(
-                    new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(displayName, iconId),
-                    target
-            );
-        }
+        boolean changed = StageUnlockHelper.unlockIndividual(stageId, target);
+        if (!changed) return 0;
 
         DebugLogger.runtime("Individual Unlock", source.getTextName(),
                 "Unlocked individual stage '" + stageId + "' for " + target.getName().getString());
@@ -501,6 +486,7 @@ public class StageCommand {
 
         data.removeStage(target.getUUID(), stageId);
         data.setDirty();
+        AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
 
         var entry = StageManager.getIndividualStages().get(stageId);
         String displayName = entry != null ? entry.getDisplayName() : stageId;
