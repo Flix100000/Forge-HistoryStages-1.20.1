@@ -2865,16 +2865,16 @@ public class StageDetailScreen extends Screen {
                     editMode = newStageMode;
                     editAutoTrigger = newAutoTrigger;
                     hasChanges = true;
-                }));
+                },
+                this::buildEntrySnapshot));
     }
 
-    private void saveStage() {
-        String id = editStageId.trim();
-        if (id.isEmpty()) { saveError = Component.translatable("editor.historystages.id_empty").getString(); return; }
-        if (!id.matches("[a-zA-Z0-9_\\-]+")) { saveError = Component.translatable("editor.historystages.id_invalid").getString(); return; }
-        if (editDisplayName.trim().isEmpty()) { saveError = Component.translatable("editor.historystages.display_name_empty").getString(); return; }
-        saveError = "";
-
+    /**
+     * Builds a {@link StageEntry} snapshot from the current edit fields. Used both by
+     * {@link #saveStage()} (when persisting) and by the auto-trigger editor (to drive
+     * the "Hide stage-locked" filter against the live, unsaved lock data).
+     */
+    private StageEntry buildEntrySnapshot() {
         StageEntry newEntry = new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
@@ -2923,7 +2923,17 @@ public class StageDetailScreen extends Screen {
         locks.setModLinked(editModLinked);
         newEntry.setEntities(locks);
         newEntry.setDependencies(editDependencies);
-        PacketHandler.sendToServer(new SaveStagePacket(id, newEntry, isIndividual));
+        return newEntry;
+    }
+
+    private void saveStage() {
+        String id = editStageId.trim();
+        if (id.isEmpty()) { saveError = Component.translatable("editor.historystages.id_empty").getString(); return; }
+        if (!id.matches("[a-zA-Z0-9_\\-]+")) { saveError = Component.translatable("editor.historystages.id_invalid").getString(); return; }
+        if (editDisplayName.trim().isEmpty()) { saveError = Component.translatable("editor.historystages.display_name_empty").getString(); return; }
+        saveError = "";
+
+        PacketHandler.sendToServer(new SaveStagePacket(id, buildEntrySnapshot(), isIndividual));
         hasChanges = false;
     }
 

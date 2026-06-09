@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
@@ -251,16 +252,18 @@ public class StageOverviewScreen extends Screen {
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
 
-            // Mode badge (D/A/E)
-            String modeBadge = modeBadge(entry.getMode());
-            int modeColor = modeColor(entry.getMode());
-            guiGraphics.drawString(this.font, modeBadge, listLeft + 16, entryTop + 6, modeColor, false);
+            // Mode badge (pill placed to the LEFT of the lock button, vertically centered)
+            int badgeWidth = modeBadgeWidth(entry);
+            int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
+            int badgeX = lockBtnX - badgeWidth - 6;
+            if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, badgeX, badgeY);
 
             // Stage name with marquee for long names
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
-            int nameX = listLeft + 28;
-            int nameAvailW = (listRight - lockBtnW - 10) - nameX - 5; // account for lock button
+            int nameX = listLeft + 16;
+            int nameRightLimit = (badgeWidth > 0) ? badgeX : lockBtnX;
+            int nameAvailW = nameRightLimit - nameX - 6;
             int nameW = this.font.width(displayText);
 
             if (nameW > nameAvailW && hovered && i == hoveredStageIndex) {
@@ -364,16 +367,20 @@ public class StageOverviewScreen extends Screen {
                 // Silver lock icon (individual stages are per-player, no global unlock state)
                 guiGraphics.drawString(this.font, "\uD83D\uDD12", listLeft + 5, entryTop + 6, 0xBBBBBB, false);
 
-                // Mode badge (D/A/E)
-                String indModeBadge = modeBadge(entry.getMode());
-                int indModeColor = modeColor(entry.getMode());
-                guiGraphics.drawString(this.font, indModeBadge, listLeft + 16, entryTop + 6, indModeColor, false);
+                // Mode badge (pill placed at the right edge of the row, vertically centered).
+                // Individual stages don't have a lock toggle button, so the badge sits where the
+                // button would be for global stages \u2014 keeps the visual alignment consistent.
+                int badgeWidth = modeBadgeWidth(entry);
+                int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
+                int badgeX = listRight - badgeWidth - 10;
+                if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, badgeX, badgeY);
 
                 // Stage name with marquee
                 String displayText = entry.getDisplayName() + " \u00A78(" + stageId + ")";
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
-                int nameX = listLeft + 28;
-                int nameAvailW = listRight - nameX - 5;
+                int nameX = listLeft + 16;
+                int nameRightLimit = (badgeWidth > 0) ? badgeX : listRight;
+                int nameAvailW = nameRightLimit - nameX - 6;
                 int nameW = this.font.width(displayText);
 
                 if (nameW > nameAvailW && hovered && hoverKey == hoveredStageIndex) {
@@ -598,20 +605,59 @@ public class StageOverviewScreen extends Screen {
     @Override public void onClose() { this.minecraft.setScreen(null); }
     @Override public boolean isPauseScreen() { return true; }
 
-    private static String modeBadge(StageMode m) {
-        return switch (m) {
-            case AUTO -> "A";
-            case EXTERNAL -> "E";
-            default -> "D";
-        };
+    private static final String MODE_BADGE_WARN = "⚠";
+
+    /** Returns the label shown inside the pill for {@code entry}'s mode. */
+    private String modeBadgeLabel(StageEntry entry) {
+        StageMode mode = entry.getMode();
+        String name = mode == StageMode.AUTO
+                ? Component.translatable("editor.historystages.mode.auto").getString()
+                : Component.translatable("editor.historystages.mode.external").getString();
+        if (mode == StageMode.AUTO) {
+            AutoTrigger at = entry.getAutoTrigger();
+            int count = at == null ? 0 : at.getTriggers().size();
+            return name + " (" + count + ")";
+        }
+        return name;
     }
 
-    private static int modeColor(StageMode m) {
-        return switch (m) {
-            case AUTO -> 0xFF55FF55;
-            case EXTERNAL -> 0xFFFFAA00;
-            default -> 0xFFAAAAAA;
-        };
+    private static boolean isAutoEmpty(StageEntry entry) {
+        AutoTrigger at = entry.getAutoTrigger();
+        return at == null || at.isEmpty();
+    }
+
+    /**
+     * Returns the rendered width of the mode badge for {@code entry}, or {@code 0} for
+     * {@link StageMode#DEFAULT} (no badge).
+     */
+    private int modeBadgeWidth(StageEntry entry) {
+        StageMode mode = entry.getMode();
+        if (mode == StageMode.DEFAULT) return 0;
+        int w = this.font.width(modeBadgeLabel(entry)) + 8;
+        if (mode == StageMode.AUTO && isAutoEmpty(entry)) {
+            w += 3 + this.font.width(MODE_BADGE_WARN);
+        }
+        return w;
+    }
+
+    /**
+     * Draws the monochrome pill badge for {@link StageMode#AUTO} / {@link StageMode#EXTERNAL}
+     * at (x, y). No-op for {@link StageMode#DEFAULT}. AUTO badges include the configured
+     * trigger count (e.g. "Auto (3)"); empty AUTO badges additionally show a warn indicator.
+     */
+    private void drawModeBadge(GuiGraphics g, StageEntry entry, int x, int y) {
+        StageMode mode = entry.getMode();
+        if (mode == StageMode.DEFAULT) return;
+        String label = modeBadgeLabel(entry);
+        int textW = this.font.width(label);
+        int pillW = textW + 8;
+        int pillH = 12;
+        g.fill(x, y, x + pillW, y + pillH, 0x20FFFFFF);
+        g.fill(x, y + pillH - 1, x + pillW, y + pillH, 0x30FFFFFF);
+        g.drawString(this.font, label, x + 4, y + 2, 0xFFAAAAAA, false);
+        if (mode == StageMode.AUTO && isAutoEmpty(entry)) {
+            g.drawString(this.font, MODE_BADGE_WARN, x + pillW + 3, y + 2, 0xFFAA55, false);
+        }
     }
 
     /**
