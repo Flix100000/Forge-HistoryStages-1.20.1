@@ -16,6 +16,10 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.ReadOnlyScoreInfo;
+import net.minecraft.world.scores.ScoreHolder;
+import net.minecraft.world.scores.Scoreboard;
 
 import java.util.*;
 
@@ -147,6 +151,16 @@ public class DependencyChecker {
                     stat.getStatId() + " >= " + stat.getMinValue(), met, current, stat.getMinValue()));
         }
 
+        // Scoreboard
+        for (ScoreboardDep sb : group.getScoreboard()) {
+            int current = getScoreboardValue(level, player, sb);
+            boolean met = sb.compare(current);
+            String holderSuffix = sb.isPlayerSelf() ? "" : " [" + sb.getScoreHolder() + "]";
+            String desc = sb.getObjective() + " " + sb.getOp() + " " + sb.getValue() + holderSuffix;
+            entries.add(new DependencyResult.EntryResult("scoreboard", sb.getObjective(),
+                    desc, met, current, sb.getValue()));
+        }
+
         // Determine group fulfillment based on logic (Default: AND)
         boolean fulfilled;
         if (entries.isEmpty()) {
@@ -220,6 +234,22 @@ public class DependencyChecker {
         } catch (Exception e) {
             return 0;
         }
+    }
+
+    private static int getScoreboardValue(Level level, ServerPlayer player, ScoreboardDep dep) {
+        if (level == null || dep.getObjective() == null || dep.getObjective().isEmpty()) return 0;
+        Scoreboard scoreboard = level.getScoreboard();
+        Objective objective = scoreboard.getObjective(dep.getObjective());
+        if (objective == null) return 0;
+        ScoreHolder holder;
+        if (dep.isPlayerSelf()) {
+            if (player == null) return 0;
+            holder = player;
+        } else {
+            holder = ScoreHolder.forNameOnly(dep.getScoreHolder());
+        }
+        ReadOnlyScoreInfo info = scoreboard.getPlayerScoreInfo(holder, objective);
+        return info != null ? info.value() : 0;
     }
 
     private static String getItemDisplayName(String itemId) {

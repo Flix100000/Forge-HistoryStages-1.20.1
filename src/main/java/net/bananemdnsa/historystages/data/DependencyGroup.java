@@ -26,6 +26,8 @@ public class DependencyGroup {
 
     private List<StatDep> stats;
 
+    private List<ScoreboardDep> scoreboard;
+
     public DependencyGroup() {
         this.logic = "AND";
         this.items = new ArrayList<>();
@@ -34,6 +36,7 @@ public class DependencyGroup {
         this.advancements = new ArrayList<>();
         this.entityKills = new ArrayList<>();
         this.stats = new ArrayList<>();
+        this.scoreboard = new ArrayList<>();
     }
 
     // --- Getters ---
@@ -48,6 +51,7 @@ public class DependencyGroup {
     public XpLevelDep getXpLevel() { return xpLevel; }
     public List<EntityKillDep> getEntityKills() { if (entityKills == null) entityKills = new ArrayList<>(); return entityKills; }
     public List<StatDep> getStats() { if (stats == null) stats = new ArrayList<>(); return stats; }
+    public List<ScoreboardDep> getScoreboard() { if (scoreboard == null) scoreboard = new ArrayList<>(); return scoreboard; }
 
     // --- Setters ---
 
@@ -59,6 +63,7 @@ public class DependencyGroup {
     public void setXpLevel(XpLevelDep xpLevel) { this.xpLevel = xpLevel; }
     public void setEntityKills(List<EntityKillDep> entityKills) { this.entityKills = entityKills != null ? entityKills : new ArrayList<>(); }
     public void setStats(List<StatDep> stats) { this.stats = stats != null ? stats : new ArrayList<>(); }
+    public void setScoreboard(List<ScoreboardDep> scoreboard) { this.scoreboard = scoreboard != null ? scoreboard : new ArrayList<>(); }
 
     /**
      * Returns true if this group has no dependencies defined at all.
@@ -70,7 +75,8 @@ public class DependencyGroup {
                 && getAdvancements().isEmpty()
                 && xpLevel == null
                 && getEntityKills().isEmpty()
-                && getStats().isEmpty();
+                && getStats().isEmpty()
+                && getScoreboard().isEmpty();
     }
 
     /**
@@ -96,6 +102,7 @@ public class DependencyGroup {
         copy.setXpLevel(xpLevel != null ? xpLevel.copy() : null);
         copy.setEntityKills(getEntityKills().stream().map(EntityKillDep::copy).collect(Collectors.toList()));
         copy.setStats(getStats().stream().map(StatDep::copy).collect(Collectors.toList()));
+        copy.setScoreboard(getScoreboard().stream().map(ScoreboardDep::copy).collect(Collectors.toList()));
         return copy;
     }
 }
