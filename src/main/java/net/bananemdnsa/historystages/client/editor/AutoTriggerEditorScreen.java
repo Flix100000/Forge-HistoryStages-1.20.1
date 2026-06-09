@@ -185,7 +185,10 @@ public class AutoTriggerEditorScreen extends Screen {
 
         renderCombinePill(g, mx, my);
         renderAddButton(g, mx, my);
-        renderListSearchBar(g, mx, my);
+        // The list search bar renders its text at z=300 internally — drawing it while a
+        // modal overlay is active would let the placeholder + cursor bleed through the
+        // dim layer. Suppress while any overlay/dialog is up.
+        if (!isOverlayActive()) renderListSearchBar(g, mx, my);
         renderList(g, mx, my);
 
         super.render(g, mx, my, pt);
@@ -207,9 +210,7 @@ public class AutoTriggerEditorScreen extends Screen {
         // Dim the rest of the screen whenever a modal overlay is active (Searchable widget,
         // sub-mode chooser, or playtime dialog). Without this the editor's title and the
         // empty-state text bleed through around the overlay's panel.
-        boolean overlayActive = (currentList != null && currentList.isVisible())
-                || pendingEntityId != null
-                || playtimeDialogOpen;
+        boolean overlayActive = isOverlayActive();
         if (overlayActive) {
             g.pose().pushPose();
             g.pose().translate(0, 0, 200);
@@ -950,6 +951,17 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private static boolean isOver(int mx, int my, int x, int y, int w, int h) {
         return mx >= x && mx <= x + w && my >= y && my <= y + h;
+    }
+
+    /**
+     * True when a modal picker / dialog is up (Searchable widget, sub-mode chooser, or
+     * playtime dialog). Used to gate the dim layer and suppress chrome that would
+     * otherwise show through the overlay.
+     */
+    private boolean isOverlayActive() {
+        return (currentList != null && currentList.isVisible())
+                || pendingEntityId != null
+                || playtimeDialogOpen;
     }
 
     /**

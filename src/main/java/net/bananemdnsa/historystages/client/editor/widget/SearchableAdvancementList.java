@@ -1,13 +1,18 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import net.bananemdnsa.historystages.mixin.ClientAdvancementsAccessor;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.multiplayer.ClientAdvancements;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -32,16 +37,29 @@ public class SearchableAdvancementList extends AbstractSearchableList<String> {
 
     @Override
     protected List<String> loadEntries() {
-        List<String> advs = new ArrayList<>();
+        // The AdvancementTree only contains advancements that have a display block, so
+        // recipe-grant advancements (minecraft:recipes/...) and other display-less ones
+        // are missing from getTree().nodes(). We additionally pull the full progress map
+        // via accessor mixin to enumerate every advancement the client has been told about.
+        Set<String> seen = new HashSet<>();
         ClientPacketListener connection = Minecraft.getInstance().getConnection();
         if (connection != null) {
+            ClientAdvancements client = connection.getAdvancements();
             try {
-                for (net.minecraft.advancements.AdvancementNode node : connection.getAdvancements().getTree().nodes()) {
-                    advs.add(node.holder().id().toString());
+                for (net.minecraft.advancements.AdvancementNode node : client.getTree().nodes()) {
+                    seen.add(node.holder().id().toString());
+                }
+            } catch (Exception ignored) {
+            }
+            try {
+                for (AdvancementHolder holder : ((ClientAdvancementsAccessor) (Object) client)
+                        .historystages$getProgress().keySet()) {
+                    seen.add(holder.id().toString());
                 }
             } catch (Exception ignored) {
             }
         }
+        List<String> advs = new ArrayList<>(seen);
         advs.sort(String::compareToIgnoreCase);
         return advs;
     }
