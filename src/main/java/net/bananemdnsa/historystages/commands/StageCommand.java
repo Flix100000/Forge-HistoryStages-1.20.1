@@ -126,6 +126,9 @@ public class StageCommand {
                         .executes(ctx -> {
                             StageManager.reloadStages();
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
+                            // Push new definitions to all clients so creative tab / lock decorators reflect mode changes
+                            PacketHandler.sendDefinitionsToAll(
+                                    new net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket(StageManager.getStages()));
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", false);
                         }))
 

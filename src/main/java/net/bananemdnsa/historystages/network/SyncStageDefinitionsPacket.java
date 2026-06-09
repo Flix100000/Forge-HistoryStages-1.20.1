@@ -57,6 +57,28 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages, Map<Str
             EditorDataCache.setStages(new HashMap<>(msg.stages));
             System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions + "
                     + msg.individualStages.size() + " individual stage definitions from server.");
+
+            // Stage definitions changed at runtime — invalidate the creative tab cache so
+            // newly-non-AUTO stages get their scroll, and former non-AUTO stages lose theirs.
+            // Mirror vanilla CreativeModeInventoryScreen.tryRebuildTabContents: after the
+            // rebuild, re-register the creative search reloaders with the fresh item list,
+            // otherwise the search field keeps the stale (or empty) captured list.
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            if (mc.player != null && mc.level != null) {
+                net.minecraft.core.HolderLookup.Provider registryAccess = mc.level.registryAccess();
+                boolean rebuilt = net.minecraft.world.item.CreativeModeTabs.tryRebuildTabContents(
+                        mc.player.connection.enabledFeatures(),
+                        mc.options.operatorItemsTab().get() && mc.player.canUseGameMasterBlocks(),
+                        registryAccess);
+                if (rebuilt) {
+                    java.util.List<net.minecraft.world.item.ItemStack> searchItems = java.util.List.copyOf(
+                            net.minecraft.world.item.CreativeModeTabs.searchTab().getDisplayItems());
+                    net.minecraft.client.multiplayer.SessionSearchTrees searchTrees =
+                            mc.player.connection.searchTrees();
+                    searchTrees.updateCreativeTooltips(registryAccess, searchItems);
+                    searchTrees.updateCreativeTags(searchItems);
+                }
+            }
         });
     }
 

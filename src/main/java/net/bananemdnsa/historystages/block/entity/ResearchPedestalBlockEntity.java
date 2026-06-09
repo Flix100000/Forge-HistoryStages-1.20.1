@@ -67,11 +67,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (slot == 0) {
                 ItemStack stack = getStackInSlot(0);
                 if (!stack.isEmpty()) {
-                    // EXTERNAL- and AUTO-mode scrolls cannot be researched at the Pedestal.
-                    // Refuse the insert: notify the player and put the scroll back.
-                    if (rejectIfNotResearchable(stack)) {
-                        return;
-                    }
+                    // EXTERNAL- and AUTO-mode scrolls are allowed in the slot but
+                    // research is paused in tick() and the GUI shows a "not researchable"
+                    // message instead of progress.
                     loadProgressFromItem(stack);
                     // Set owner UUID for individual stages ONLY if not already set
                     if (isCurrentScrollIndividual()) {
@@ -278,58 +276,6 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         this.tierMismatch = false;
         this.requiredTier = 1;
         this.requiredTierMode = TierMode.MIN;
-    }
-
-    /**
-     * If the inserted scroll references an EXTERNAL- or AUTO-mode stage,
-     * refuse it: pop it back into the inserting player's inventory (or drop
-     * it if no player is known) and send an action-bar message. Skips the
-     * Creative Scroll and any scroll whose stage cannot be looked up
-     * (treated as legacy / valid).
-     *
-     * @return true if the scroll was rejected and the slot was cleared.
-     */
-    private boolean rejectIfNotResearchable(ItemStack stack) {
-        CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
-        if (!tag.contains("StageResearch")) return false;
-        String stageId = tag.getString("StageResearch");
-        if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) return false;
-
-        StageEntry entry = StageManager.isIndividualStage(stageId)
-                ? StageManager.getIndividualStages().get(stageId)
-                : StageManager.getStages().get(stageId);
-        if (entry == null) return false;
-        StageMode m = entry.getMode();
-        if (m != StageMode.EXTERNAL && m != StageMode.AUTO) return false;
-
-        // Notify and return the scroll. lastInteractingPlayer is set in
-        // createMenu(), so it's populated whenever the player opens the UI.
-        ItemStack returned = stack.copy();
-        // Clear the slot before placing back to avoid re-triggering onContentsChanged
-        // with the same EXTERNAL scroll once the player inventory pushes it back in.
-        itemHandler.setStackInSlot(0, ItemStack.EMPTY);
-
-        if (level != null && !level.isClientSide && level.getServer() != null
-                && lastInteractingPlayer != null) {
-            net.minecraft.server.level.ServerPlayer sp =
-                    level.getServer().getPlayerList().getPlayer(lastInteractingPlayer);
-            if (sp != null) {
-                sp.displayClientMessage(
-                        Component.translatable("historystages.pedestal.external_refused"),
-                        true);
-                sp.getInventory().placeItemBackInInventory(returned);
-                return true;
-            }
-        }
-        // Fallback: drop the scroll near the pedestal so it's not lost.
-        if (level != null && !level.isClientSide) {
-            net.minecraft.world.Containers.dropItemStack(level,
-                    worldPosition.getX() + 0.5,
-                    worldPosition.getY() + 1.0,
-                    worldPosition.getZ() + 0.5,
-                    returned);
-        }
-        return true;
     }
 
     private void loadProgressFromItem(ItemStack stack) {
@@ -560,9 +506,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     StageEntry stageEntry = stageEntryForTier;
 
                     // Only DEFAULT-mode stages can be researched at the Pedestal.
-                    // AUTO has no scroll (defensive); EXTERNAL is rejected with user
-                    // feedback in onScrollInserted(). Here we silently pause progress
-                    // for any non-DEFAULT stage so research never starts.
+                    // EXTERNAL and AUTO scrolls are allowed in the slot but research
+                    // is paused here so progress never accumulates; the GUI shows a
+                    // "not researchable" message instead of the normal progress UI.
                     if (stageEntry != null && stageEntry.getMode() != StageMode.DEFAULT) {
                         stageEntry = null;
                     }
