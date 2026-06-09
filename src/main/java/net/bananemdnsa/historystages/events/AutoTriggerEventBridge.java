@@ -29,7 +29,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -46,6 +45,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (!AutoTriggerManager.hasType("dimension")) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         ResourceLocation toLoc = event.getTo().location();
         String dimId = toLoc.toString();
@@ -57,6 +57,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onAdvancement(AdvancementEvent.AdvancementEarnEvent event) {
+        if (!AutoTriggerManager.hasType("advancement")) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (event.getAdvancement() == null) return;
         ResourceLocation advLoc = event.getAdvancement().id();
@@ -70,6 +71,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
+        if (!AutoTriggerManager.hasType("block_place")) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         BlockState placed = event.getPlacedBlock();
         if (placed == null) return;
@@ -84,30 +86,36 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onItemPickup(ItemEntityPickupEvent.Post event) {
+        if (!AutoTriggerManager.hasType("item")) return;
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
         ItemStack stack = event.getItemEntity().getItem();
         if (stack.isEmpty()) return;
         fireItemTrigger(player, stack);
     }
 
-    @SubscribeEvent
-    public void onContainerOpen(PlayerContainerEvent.Open event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-        scanInventoryForItemTriggers(player);
-    }
-
     private static void scanInventoryForItemTriggers(ServerPlayer player) {
         var inv = player.getInventory();
+        // Dedupe by item id — a player with a stack of cobblestone in 9 slots
+        // shouldn't run the cobblestone trigger 9 times per container open.
+        Set<String> seen = new HashSet<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack s = inv.getItem(i);
-            if (!s.isEmpty()) fireItemTrigger(player, s);
+            if (s.isEmpty()) continue;
+            ResourceLocation key = BuiltInRegistries.ITEM.getKey(s.getItem());
+            if (key == null) continue;
+            String itemId = key.toString();
+            if (!seen.add(itemId)) continue;
+            fireItemTriggerForId(player, itemId);
         }
     }
 
     private static void fireItemTrigger(ServerPlayer player, ItemStack stack) {
         ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (key == null) return;
-        String itemId = key.toString();
+        fireItemTriggerForId(player, key.toString());
+    }
+
+    private static void fireItemTriggerForId(ServerPlayer player, String itemId) {
         AutoTriggerManager.process(
                 "item",
                 t -> (t instanceof ItemTrigger it) && itemId.equals(it.id()),
@@ -116,6 +124,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onBlockBreak(BlockEvent.BreakEvent event) {
+        if (!AutoTriggerManager.hasType("block_break")) return;
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
         BlockState state = event.getState();
         if (state == null) return;
@@ -130,6 +139,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onLivingDeath(LivingDeathEvent event) {
+        if (!AutoTriggerManager.hasType("entity")) return;
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
         if (event.getEntity() == null) return;
         ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(event.getEntity().getType());
@@ -148,6 +158,7 @@ public final class AutoTriggerEventBridge {
 
     @SubscribeEvent
     public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (!AutoTriggerManager.hasType("entity")) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (event.getTarget() == null) return;
         ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(event.getTarget().getType());
@@ -167,14 +178,17 @@ public final class AutoTriggerEventBridge {
     /** Called every server tick from {@code HistoryStages.onServerTick}. */
     public static void pollPlayers(MinecraftServer server, int tickCounter) {
         if (server == null) return;
+        boolean tickBiome     = tickCounter % 20  == 0 && AutoTriggerManager.hasType("biome");
+        boolean tickStructure = tickCounter % 20  == 0 && AutoTriggerManager.hasType("structure");
+        boolean tickInventory = tickCounter % 20  == 0 && AutoTriggerManager.hasType("item");
+        boolean tickPlaytime  = tickCounter % 100 == 0 && AutoTriggerManager.hasType("playtime");
+        if (!tickBiome && !tickStructure && !tickInventory && !tickPlaytime) return;
+
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-            if (tickCounter % 20 == 0) {
-                pollBiome(p);
-                pollStructure(p);
-            }
-            if (tickCounter % 100 == 0) {
-                pollPlaytime(p);
-            }
+            if (tickBiome) pollBiome(p);
+            if (tickStructure) pollStructure(p);
+            if (tickInventory) scanInventoryForItemTriggers(p);
+            if (tickPlaytime) pollPlaytime(p);
         }
     }
 
@@ -196,14 +210,37 @@ public final class AutoTriggerEventBridge {
     private static void pollStructure(ServerPlayer p) {
         ServerLevel sl = p.serverLevel();
         if (sl == null) return;
-        // Reuse the existing structure-detection helper used elsewhere in the codebase
-        // (bounding-box scan over loaded chunks in a fixed radius around the player).
-        java.util.List<String> coveringIds = StructureLockHandler.collectStructureIdsAt(sl, p.blockPosition());
-        if (coveringIds.isEmpty()) return;
-        Set<String> covering = new HashSet<>(coveringIds);
+        net.minecraft.core.BlockPos pos = p.blockPosition();
+
+        // Use the same cluster/shape detection as the structure lock so auto-unlock
+        // fires exactly when the player enters a lock zone — and support #tag entries.
+        int padding = net.bananemdnsa.historystages.Config.COMMON.structureLockPadding.get();
+        int clusterDistance = net.bananemdnsa.historystages.Config.COMMON.structureClusterDistance.get();
+        java.util.List<net.bananemdnsa.historystages.structure.StructureCluster> clusters =
+                net.bananemdnsa.historystages.structure.ClusterBuilder.collectClustersNear(
+                        sl, pos, StructureLockHandler.CHUNK_SCAN_RADIUS, padding, clusterDistance);
+        if (clusters.isEmpty()) return;
+
+        Set<String> presentIds = new HashSet<>();
+        Set<String> presentTags = new HashSet<>();
+        for (net.bananemdnsa.historystages.structure.StructureCluster c : clusters) {
+            if (!c.contains(pos)) continue;
+            Holder.Reference<net.minecraft.world.level.levelgen.structure.Structure> h = c.structure();
+            h.unwrapKey().ifPresent(k -> presentIds.add(k.location().toString()));
+            h.tags().forEach(tag -> presentTags.add(tag.location().toString()));
+        }
+        if (presentIds.isEmpty() && presentTags.isEmpty()) return;
+
         AutoTriggerManager.process(
                 "structure",
-                t -> (t instanceof StructureTrigger st) && covering.contains(st.id()),
+                t -> {
+                    if (!(t instanceof StructureTrigger st)) return false;
+                    String id = st.id();
+                    if (id == null || id.isEmpty()) return false;
+                    return id.startsWith("#")
+                            ? presentTags.contains(id.substring(1))
+                            : presentIds.contains(id);
+                },
                 p);
     }
 

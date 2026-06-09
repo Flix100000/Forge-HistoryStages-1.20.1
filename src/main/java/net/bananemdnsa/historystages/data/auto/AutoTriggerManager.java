@@ -59,6 +59,16 @@ public final class AutoTriggerManager {
         }
     }
 
+    /**
+     * Fast check whether any AUTO stage has at least one trigger of the given type.
+     * Lets event listeners skip registry lookups / object allocations when nothing
+     * could possibly match anyway.
+     */
+    public static boolean hasType(String triggerType) {
+        List<IndexedTrigger> list = INDEX.get(triggerType);
+        return list != null && !list.isEmpty();
+    }
+
     /** Set of all auto-stage ids currently indexed; used for orphan pruning. */
     public static Set<String> indexedStageIds() {
         Set<String> ids = new HashSet<>();
@@ -95,10 +105,16 @@ public final class AutoTriggerManager {
         if (stage == null) return; // stale index entry; will be cleared on next rebuild
 
         if (isUnlocked(stageId, it.isIndividual(), player, level)) return;
-        if (!areDependenciesSatisfied(stage, player, level)) return;
 
+        // Dedupe by signature BEFORE running dependency checks — polled triggers
+        // (biome/structure) fire every second and we don't want to re-evaluate
+        // dependencies for a signature that's already been recorded.
         Set<Long> set = resolveProgressSet(stageId, it.isIndividual(), player, level);
         long sig = it.trigger().signature();
+        if (set.contains(sig)) return;
+
+        if (!areDependenciesSatisfied(stage, player, level)) return;
+
         if (!set.add(sig)) return;
         markDirty(it.isIndividual(), level);
 
