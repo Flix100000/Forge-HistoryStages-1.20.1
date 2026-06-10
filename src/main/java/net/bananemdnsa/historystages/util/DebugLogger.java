@@ -6,9 +6,13 @@ import net.bananemdnsa.historystages.data.EntityLocks;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
+import net.bananemdnsa.historystages.data.dependency.ScoreboardDep;
 import net.bananemdnsa.historystages.data.dependency.StatDep;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
@@ -249,6 +253,13 @@ public class DebugLogger {
                 + structures.size() + attacklock.size() + spawnlock.size();
 
         pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
+        StageMode mode = s.getMode();
+        String rawMode = s.getRawMode();
+        if (rawMode != null && !StageMode.isKnown(rawMode)) {
+            pw.println("  Mode: " + mode.serialize() + " (raw=\"" + rawMode + "\" → unknown, defaulted)");
+        } else {
+            pw.println("  Mode: " + mode.serialize());
+        }
         pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
         if (!s.getIcon().isEmpty()) pw.println("  Icon: " + s.getIcon());
         pw.println("  Total entries: " + entryCount);
@@ -295,8 +306,28 @@ public class DebugLogger {
                     pw.println("      entity_kill: " + kill.getEntityId() + " x" + kill.getCount());
                 for (StatDep stat : group.getStats())
                     pw.println("      stat: " + stat.getStatId() + " >= " + stat.getMinValue());
+                for (ScoreboardDep sb : group.getScoreboard()) {
+                    String holder = sb.isPlayerSelf() ? "<player>" : sb.getScoreHolder();
+                    pw.println("      scoreboard: " + sb.getObjective() + " " + sb.getOp() + " "
+                            + sb.getValue() + " (holder=" + holder + ")");
+                }
                 for (String adv : group.getAdvancements())
                     pw.println("      advancement: " + adv);
+            }
+        }
+
+        AutoTrigger auto = s.getAutoTrigger();
+        if (auto != null && !auto.isEmpty()) {
+            String rawCombine = auto.getRawMode();
+            String combine = auto.resolvedMode().serialize();
+            if (rawCombine != null && !rawCombine.equalsIgnoreCase(combine)) {
+                pw.println("  Auto-trigger (" + auto.getTriggers().size() + ", mode=" + combine
+                        + " | raw=\"" + rawCombine + "\" → unknown, defaulted):");
+            } else {
+                pw.println("  Auto-trigger (" + auto.getTriggers().size() + ", mode=" + combine + "):");
+            }
+            for (TriggerCondition tc : auto.getTriggers()) {
+                pw.println("    - " + tc.type() + ": " + tc);
             }
         }
 

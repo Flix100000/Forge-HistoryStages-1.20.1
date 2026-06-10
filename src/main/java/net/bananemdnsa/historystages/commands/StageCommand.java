@@ -121,6 +121,59 @@ public class StageCommand {
                                             return result;
                                         }))))
 
+                // --- TEMPORARY (unlock-count / timer management) ---
+                .then(Commands.literal("temporary")
+                        .then(Commands.literal("global")
+                                .then(Commands.literal("info")
+                                        .then(Commands.argument("stage", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(false), b))
+                                                .executes(ctx -> handleTempGlobalInfo(ctx.getSource(), StringArgumentType.getString(ctx, "stage")))))
+                                .then(Commands.literal("reset")
+                                        .then(Commands.argument("stage", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(false), b))
+                                                .executes(ctx -> handleTempGlobalSetCount(ctx.getSource(), StringArgumentType.getString(ctx, "stage"), 0, true))))
+                                .then(Commands.literal("setcount")
+                                        .then(Commands.argument("stage", StringArgumentType.word())
+                                                .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(false), b))
+                                                .then(Commands.argument("count", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0))
+                                                        .executes(ctx -> handleTempGlobalSetCount(ctx.getSource(),
+                                                                StringArgumentType.getString(ctx, "stage"),
+                                                                com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "count"), false))))))
+                        .then(Commands.literal("individual")
+                                .then(Commands.argument("players", EntityArgument.players())
+                                        .then(Commands.literal("info")
+                                                .then(Commands.argument("stage", StringArgumentType.word())
+                                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(true), b))
+                                                        .executes(ctx -> {
+                                                            String stage = StringArgumentType.getString(ctx, "stage");
+                                                            int r = 0;
+                                                            for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
+                                                                r += handleTempIndividualInfo(ctx.getSource(), p, stage);
+                                                            return r;
+                                                        })))
+                                        .then(Commands.literal("reset")
+                                                .then(Commands.argument("stage", StringArgumentType.word())
+                                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(true), b))
+                                                        .executes(ctx -> {
+                                                            String stage = StringArgumentType.getString(ctx, "stage");
+                                                            int r = 0;
+                                                            for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
+                                                                r += handleTempIndividualSetCount(ctx.getSource(), p, stage, 0, true);
+                                                            return r;
+                                                        })))
+                                        .then(Commands.literal("setcount")
+                                                .then(Commands.argument("stage", StringArgumentType.word())
+                                                        .suggests((ctx, b) -> SharedSuggestionProvider.suggest(temporaryStageNames(true), b))
+                                                        .then(Commands.argument("count", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0))
+                                                                .executes(ctx -> {
+                                                                    String stage = StringArgumentType.getString(ctx, "stage");
+                                                                    int count = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "count");
+                                                                    int r = 0;
+                                                                    for (ServerPlayer p : EntityArgument.getPlayers(ctx, "players"))
+                                                                        r += handleTempIndividualSetCount(ctx.getSource(), p, stage, count, false);
+                                                                    return r;
+                                                                })))))))
+
                 // --- RELOAD ---
                 .then(Commands.literal("reload")
                         .executes(ctx -> {
@@ -186,6 +239,130 @@ public class StageCommand {
         return 1;
     }
 
+    // =============================================
+    // TEMPORARY-mode management
+    // =============================================
+
+    /** Ids of temporary-mode stages (individual or global), for command suggestions. */
+    private static List<String> temporaryStageNames(boolean individual) {
+        var map = individual ? StageManager.getIndividualStages() : StageManager.getStages();
+        List<String> out = new ArrayList<>();
+        for (var e : map.entrySet()) {
+            if (e.getValue().getMode() == net.bananemdnsa.historystages.data.StageMode.TEMPORARY) out.add(e.getKey());
+        }
+        return out;
+    }
+
+    private static String formatTicks(long ticks) {
+        long totalSec = ticks / 20;
+        long d = totalSec / 86400; long h = (totalSec % 86400) / 3600;
+        long m = (totalSec % 3600) / 60; long sec = totalSec % 60;
+        StringBuilder sb = new StringBuilder();
+        if (d > 0) sb.append(d).append("d ");
+        if (h > 0 || d > 0) sb.append(h).append("h ");
+        if (m > 0 || h > 0 || d > 0) sb.append(m).append("m ");
+        sb.append(sec).append("s");
+        return sb.toString();
+    }
+
+    private static String maxLabel(net.bananemdnsa.historystages.data.temporary.TemporaryConfig cfg) {
+        if (cfg == null) return "1";
+        return cfg.isUnlimited() ? "unlimited" : String.valueOf(cfg.getMaxTriggers());
+    }
+
+    private static int handleTempGlobalInfo(CommandSourceStack source, String stage) {
+        var entry = StageManager.getStages().get(stage);
+        if (entry == null || entry.getMode() != net.bananemdnsa.historystages.data.StageMode.TEMPORARY) {
+            source.sendFailure(Component.literal("Global stage '" + stage + "' not found or not mode=temporary!"));
+            return 0;
+        }
+        var cfg = entry.getTemporary();
+        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel());
+        int count = temp.getGlobalCount(stage);
+        long active = temp.globalActiveTicks(stage);
+        long cd = temp.globalCooldownTicks(stage);
+
+        source.sendSuccess(() -> Component.literal("§6--- Temporary Info: §e" + stage + " §6(global) ---"), false);
+        source.sendSuccess(() -> Component.literal("§9▶ Unlocks: §f" + count + " §7/ §f" + maxLabel(cfg)), false);
+        if (active > 0) source.sendSuccess(() -> Component.literal("§a▶ Currently unlocked, re-locks in §f" + formatTicks(active)), false);
+        else if (cd > 0) source.sendSuccess(() -> Component.literal("§e▶ On cooldown, re-triggerable in §f" + formatTicks(cd)), false);
+        else {
+            boolean spent = cfg != null && !cfg.isUnlimited() && count >= cfg.getMaxTriggers();
+            source.sendSuccess(() -> Component.literal(spent ? "§c▶ Spent (no unlocks left)" : "§7▶ Idle, ready to trigger"), false);
+        }
+        return 1;
+    }
+
+    private static int handleTempGlobalSetCount(CommandSourceStack source, String stage, int count, boolean isReset) {
+        var entry = StageManager.getStages().get(stage);
+        if (entry == null || entry.getMode() != net.bananemdnsa.historystages.data.StageMode.TEMPORARY) {
+            source.sendFailure(Component.literal("Global stage '" + stage + "' not found or not mode=temporary!"));
+            return 0;
+        }
+        var level = source.getLevel();
+        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        if (isReset) {
+            // Re-lock first if it's currently unlocked, otherwise clearing the timer
+            // would leave it unlocked forever.
+            if (temp.globalActiveTicks(stage) > 0) StageUnlockHelper.relockGlobal(stage, level);
+            temp.clearGlobal(stage);
+            DebugLogger.runtime("Temporary", source.getTextName(), "Reset temporary state for global stage '" + stage + "'");
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Reset temporary state for '" + stage + "'."), true);
+        } else {
+            temp.setGlobalCount(stage, count);
+            DebugLogger.runtime("Temporary", source.getTextName(), "Set unlock count of global stage '" + stage + "' to " + count);
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Set unlock count of '" + stage + "' to " + count + "."), true);
+        }
+        return 1;
+    }
+
+    private static int handleTempIndividualInfo(CommandSourceStack source, ServerPlayer player, String stage) {
+        var entry = StageManager.getIndividualStages().get(stage);
+        if (entry == null || entry.getMode() != net.bananemdnsa.historystages.data.StageMode.TEMPORARY) {
+            source.sendFailure(Component.literal("Individual stage '" + stage + "' not found or not mode=temporary!"));
+            return 0;
+        }
+        var cfg = entry.getTemporary();
+        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(player.serverLevel());
+        var uuid = player.getUUID();
+        int count = temp.getIndividualCount(uuid, stage);
+        long active = temp.individualActiveTicks(uuid, stage);
+        long cd = temp.individualCooldownTicks(uuid, stage);
+
+        source.sendSuccess(() -> Component.literal("§6--- Temporary Info: §e" + stage + " §6(" + player.getName().getString() + ") ---"), false);
+        source.sendSuccess(() -> Component.literal("§9▶ Unlocks: §f" + count + " §7/ §f" + maxLabel(cfg)), false);
+        if (active > 0) source.sendSuccess(() -> Component.literal("§a▶ Currently unlocked, re-locks in §f" + formatTicks(active)), false);
+        else if (cd > 0) source.sendSuccess(() -> Component.literal("§e▶ On cooldown, re-triggerable in §f" + formatTicks(cd)), false);
+        else {
+            boolean spent = cfg != null && !cfg.isUnlimited() && count >= cfg.getMaxTriggers();
+            source.sendSuccess(() -> Component.literal(spent ? "§c▶ Spent (no unlocks left)" : "§7▶ Idle, ready to trigger"), false);
+        }
+        return 1;
+    }
+
+    private static int handleTempIndividualSetCount(CommandSourceStack source, ServerPlayer player,
+                                                    String stage, int count, boolean isReset) {
+        var entry = StageManager.getIndividualStages().get(stage);
+        if (entry == null || entry.getMode() != net.bananemdnsa.historystages.data.StageMode.TEMPORARY) {
+            source.sendFailure(Component.literal("Individual stage '" + stage + "' not found or not mode=temporary!"));
+            return 0;
+        }
+        var level = player.serverLevel();
+        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        var uuid = player.getUUID();
+        if (isReset) {
+            if (temp.individualActiveTicks(uuid, stage) > 0) StageUnlockHelper.relockIndividual(stage, player);
+            temp.clearIndividual(uuid, stage);
+            DebugLogger.runtime("Temporary", source.getTextName(), "Reset temporary state for individual stage '" + stage + "' (" + player.getName().getString() + ")");
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Reset temporary state for '" + stage + "' (" + player.getName().getString() + ")."), true);
+        } else {
+            temp.setIndividualCount(uuid, stage, count);
+            DebugLogger.runtime("Temporary", source.getTextName(), "Set unlock count of individual stage '" + stage + "' to " + count + " (" + player.getName().getString() + ")");
+            source.sendSuccess(() -> Component.literal("§7[HistoryStages] Set unlock count of '" + stage + "' to " + count + " (" + player.getName().getString() + ")."), true);
+        }
+        return 1;
+    }
+
     private static int handleUnlock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
@@ -242,6 +419,7 @@ public class StageCommand {
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
                 AutoTriggerManager.clearProgress(stageId, source.getLevel());
+                net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel()).clearGlobal(stageId);
                 var entry = StageManager.getStages().get(stageId);
                 String displayName = entry != null ? entry.getDisplayName() : stageId;
                 NeoForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
@@ -258,6 +436,7 @@ public class StageCommand {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
             AutoTriggerManager.clearProgress(s, source.getLevel());
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel()).clearGlobal(s);
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
             NeoForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
@@ -433,6 +612,8 @@ public class StageCommand {
         for (String stageId : toRemove) {
             data.removeStage(target.getUUID(), stageId);
             AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(target.serverLevel())
+                    .clearIndividual(target.getUUID(), stageId);
             var entry = StageManager.getIndividualStages().get(stageId);
             String displayName = entry != null ? entry.getDisplayName() : stageId;
             NeoForge.EVENT_BUS.post(new StageEvent.IndividualLocked(stageId, displayName, target.getUUID()));
@@ -487,6 +668,8 @@ public class StageCommand {
         data.removeStage(target.getUUID(), stageId);
         data.setDirty();
         AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
+        net.bananemdnsa.historystages.util.TemporaryStageData.get(target.serverLevel())
+                .clearIndividual(target.getUUID(), stageId);
 
         var entry = StageManager.getIndividualStages().get(stageId);
         String displayName = entry != null ? entry.getDisplayName() : stageId;

@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.client.editor.widget;
 
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -47,6 +48,9 @@ public class SearchableStageList extends AbstractSearchableList<SearchableStageL
                 ? StageManager.getIndividualStages()
                 : StageManager.getStages();
         for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+            // Temporary stages re-lock on their own without cascading to dependents,
+            // so they make poor dependency targets — hide them from the picker.
+            if (entry.getValue().getMode() == StageMode.TEMPORARY) continue;
             list.add(new StageListEntry(entry.getKey(), entry.getValue().getDisplayName()));
         }
         list.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));

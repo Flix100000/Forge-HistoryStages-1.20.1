@@ -61,10 +61,25 @@ public class StageOverviewScreen extends Screen {
         super(Component.translatable("editor.historystages.title"));
     }
 
+    /** Re-fetch temporary unlock counts periodically so the display stays current. */
+    private int tempCountRefreshTimer = 0;
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (++tempCountRefreshTimer >= 20) { // ~1s
+            tempCountRefreshTimer = 0;
+            PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
+        }
+    }
+
     @Override
     protected void init() {
         stageOrder = StageManager.getStageOrder();
         individualStageOrder = StageManager.getIndividualStageOrder();
+
+        // Pull the live temporary-stage unlock counts from the server for display.
+        PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
 
         searchFilter = "";
         int searchW = 120;
@@ -253,16 +268,24 @@ public class StageOverviewScreen extends Screen {
             guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
 
             // Mode badge (pill placed to the LEFT of the lock button, vertically centered)
-            int badgeWidth = modeBadgeWidth(entry);
+            int badgeWidth = modeBadgeWidth(entry, stageId);
             int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
             int badgeX = lockBtnX - badgeWidth - 6;
-            if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, badgeX, badgeY);
+            if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, stageId, badgeX, badgeY);
+
+            // Temporary-stage unlock count ("used/max"), placed to the LEFT of the badge.
+            String countText = temporaryCountText(entry, stageId);
+            int countW = countText.isEmpty() ? 0 : this.font.width(countText) + 6;
+            int countX = badgeX - countW;
+            if (!countText.isEmpty()) {
+                guiGraphics.drawString(this.font, countText, countX + 2, badgeY + 2, 0xFFAAAAAA, false);
+            }
 
             // Stage name with marquee for long names
             String displayText = entry.getDisplayName() + " \u00A77(" + stageId + ")";
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
             int nameX = listLeft + 16;
-            int nameRightLimit = (badgeWidth > 0) ? badgeX : lockBtnX;
+            int nameRightLimit = countW > 0 ? countX : ((badgeWidth > 0) ? badgeX : lockBtnX);
             int nameAvailW = nameRightLimit - nameX - 6;
             int nameW = this.font.width(displayText);
 
@@ -370,10 +393,11 @@ public class StageOverviewScreen extends Screen {
                 // Mode badge (pill placed at the right edge of the row, vertically centered).
                 // Individual stages don't have a lock toggle button, so the badge sits where the
                 // button would be for global stages \u2014 keeps the visual alignment consistent.
-                int badgeWidth = modeBadgeWidth(entry);
+                // stageId null: per-player temporary timers aren't synced to the editor.
+                int badgeWidth = modeBadgeWidth(entry, null);
                 int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
                 int badgeX = listRight - badgeWidth - 10;
-                if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, badgeX, badgeY);
+                if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, null, badgeX, badgeY);
 
                 // Stage name with marquee
                 String displayText = entry.getDisplayName() + " \u00A78(" + stageId + ")";
@@ -609,16 +633,47 @@ public class StageOverviewScreen extends Screen {
 
     /** Returns the label shown inside the pill for {@code entry}'s mode. */
     private String modeBadgeLabel(StageEntry entry) {
+        return modeBadgeLabel(entry, null);
+    }
+
+    /**
+     * Returns the label shown inside the pill for {@code entry}'s mode. For an
+     * unlocked TEMPORARY stage ({@code stageId} non-null) the live countdown until
+     * auto re-lock is appended (e.g. "Temporary (2) · 4m 32s").
+     */
+    private String modeBadgeLabel(StageEntry entry, String stageId) {
         StageMode mode = entry.getMode();
-        String name = mode == StageMode.AUTO
-                ? Component.translatable("editor.historystages.mode.auto").getString()
-                : Component.translatable("editor.historystages.mode.external").getString();
-        if (mode == StageMode.AUTO) {
+        String name = switch (mode) {
+            case AUTO -> Component.translatable("editor.historystages.mode.auto").getString();
+            case TEMPORARY -> Component.translatable("editor.historystages.mode.temporary").getString();
+            case EXTERNAL -> Component.translatable("editor.historystages.mode.external").getString();
+            default -> Component.translatable("editor.historystages.mode.external").getString();
+        };
+        // AUTO and TEMPORARY both use auto-triggers — show the configured count.
+        if (mode.usesAutoTrigger()) {
             AutoTrigger at = entry.getAutoTrigger();
             int count = at == null ? 0 : at.getTriggers().size();
-            return name + " (" + count + ")";
+            String label = name + " (" + count + ")";
+            if (mode == StageMode.TEMPORARY && stageId != null) {
+                long remaining = net.bananemdnsa.historystages.network.EditorDataCache.getTemporaryActiveTicks(stageId);
+                if (remaining > 0) label += " §6· " + formatTicksShort(remaining);
+            }
+            return label;
         }
         return name;
+    }
+
+    /** Compact tick formatter for the badge countdown: "1d 2h", "4m 32s", "12s". */
+    private static String formatTicksShort(long ticks) {
+        long totalSec = ticks / 20;
+        long d = totalSec / 86400;
+        long h = (totalSec % 86400) / 3600;
+        long m = (totalSec % 3600) / 60;
+        long s = totalSec % 60;
+        if (d > 0) return d + "d " + h + "h";
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
     }
 
     private static boolean isAutoEmpty(StageEntry entry) {
@@ -627,14 +682,28 @@ public class StageOverviewScreen extends Screen {
     }
 
     /**
-     * Returns the rendered width of the mode badge for {@code entry}, or {@code 0} for
-     * {@link StageMode#DEFAULT} (no badge).
+     * Returns the "used/max" unlock-count label for a temporary stage (e.g. "§72/5"
+     * or "§72/∞"), or an empty string for any other mode. The used count comes from
+     * the server via {@link net.bananemdnsa.historystages.network.EditorDataCache}.
      */
-    private int modeBadgeWidth(StageEntry entry) {
+    private String temporaryCountText(StageEntry entry, String stageId) {
+        if (entry.getMode() != StageMode.TEMPORARY) return "";
+        int used = net.bananemdnsa.historystages.network.EditorDataCache.getTemporaryCount(stageId);
+        var cfg = entry.getTemporary();
+        String max = (cfg == null || cfg.isUnlimited()) ? "∞" : String.valueOf(cfg.getMaxTriggers());
+        return "§7" + used + "/" + max;
+    }
+
+    /**
+     * Returns the rendered width of the mode badge for {@code entry}, or {@code 0} for
+     * {@link StageMode#DEFAULT} (no badge). Pass {@code stageId} for global stages so
+     * the width accounts for the live TEMPORARY countdown; null for individual stages.
+     */
+    private int modeBadgeWidth(StageEntry entry, String stageId) {
         StageMode mode = entry.getMode();
         if (mode == StageMode.DEFAULT) return 0;
-        int w = this.font.width(modeBadgeLabel(entry)) + 8;
-        if (mode == StageMode.AUTO && isAutoEmpty(entry)) {
+        int w = this.font.width(modeBadgeLabel(entry, stageId)) + 8;
+        if (mode.usesAutoTrigger() && isAutoEmpty(entry)) {
             w += 3 + this.font.width(MODE_BADGE_WARN);
         }
         return w;
@@ -645,17 +714,17 @@ public class StageOverviewScreen extends Screen {
      * at (x, y). No-op for {@link StageMode#DEFAULT}. AUTO badges include the configured
      * trigger count (e.g. "Auto (3)"); empty AUTO badges additionally show a warn indicator.
      */
-    private void drawModeBadge(GuiGraphics g, StageEntry entry, int x, int y) {
+    private void drawModeBadge(GuiGraphics g, StageEntry entry, String stageId, int x, int y) {
         StageMode mode = entry.getMode();
         if (mode == StageMode.DEFAULT) return;
-        String label = modeBadgeLabel(entry);
+        String label = modeBadgeLabel(entry, stageId);
         int textW = this.font.width(label);
         int pillW = textW + 8;
         int pillH = 12;
         g.fill(x, y, x + pillW, y + pillH, 0x20FFFFFF);
         g.fill(x, y + pillH - 1, x + pillW, y + pillH, 0x30FFFFFF);
         g.drawString(this.font, label, x + 4, y + 2, 0xFFAAAAAA, false);
-        if (mode == StageMode.AUTO && isAutoEmpty(entry)) {
+        if (mode.usesAutoTrigger() && isAutoEmpty(entry)) {
             g.drawString(this.font, MODE_BADGE_WARN, x + pillW + 3, y + 2, 0xFFAA55, false);
         }
     }

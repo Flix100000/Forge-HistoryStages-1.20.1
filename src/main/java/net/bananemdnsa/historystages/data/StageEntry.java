@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
 import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.List;
@@ -21,6 +22,9 @@ public class StageEntry {
 
     @SerializedName("auto_trigger")
     private AutoTrigger autoTrigger;
+
+    @SerializedName("temporary")
+    private TemporaryConfig temporary; // only used when mode == "temporary"
 
     @SerializedName("research_time")
     private int researchTime; // 0 = use global config default
@@ -222,6 +226,15 @@ public class StageEntry {
         this.autoTrigger = autoTrigger;
     }
 
+    /** Returns the temporary-mode config, or null if none is set. */
+    public TemporaryConfig getTemporary() {
+        return temporary;
+    }
+
+    public void setTemporary(TemporaryConfig temporary) {
+        this.temporary = temporary;
+    }
+
     public void setMinPedestalTier(int tier) {
         if (tier < 1) tier = 1;
         if (tier > 4) tier = 4;
@@ -347,6 +360,7 @@ public class StageEntry {
         copy.setDependencies(getDependencies().stream().map(DependencyGroup::copy).collect(Collectors.toList()));
         copy.mode = this.mode;
         copy.autoTrigger = (this.autoTrigger != null) ? this.autoTrigger.copy() : null;
+        copy.temporary = (this.temporary != null) ? this.temporary.copy() : null;
         return copy;
     }
 

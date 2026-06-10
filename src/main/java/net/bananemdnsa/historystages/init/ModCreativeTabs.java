@@ -35,9 +35,9 @@ public class ModCreativeTabs {
                         creativeScroll.set(DataComponents.CUSTOM_DATA, CustomData.of(creativeNbt));
                         output.accept(creativeScroll);
 
-                        // 2. Global stage scrolls (skip AUTO-mode: those have no scroll)
+                        // 2. Global stage scrolls (skip AUTO/TEMPORARY: those have no scroll)
                         for (var stageEntry : StageManager.getStages().entrySet()) {
-                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = new CompoundTag();
                             nbt.putString("StageResearch", stageEntry.getKey());
@@ -45,9 +45,9 @@ public class ModCreativeTabs {
                             output.accept(scroll);
                         }
 
-                        // 3. Individual stage scrolls (skip AUTO-mode)
+                        // 3. Individual stage scrolls (skip AUTO/TEMPORARY)
                         for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = new CompoundTag();
                             nbt.putString("StageResearch", stageEntry.getKey());

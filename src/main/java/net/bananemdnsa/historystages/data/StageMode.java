@@ -9,12 +9,22 @@ package net.bananemdnsa.historystages.data;
  *       discovery events.</li>
  *   <li>{@link #EXTERNAL} — scroll generated, but the Pedestal refuses to
  *       research it. Modpack devs unlock via {@code /stage unlock} or scripts.</li>
+ *   <li>{@link #TEMPORARY} — no scroll generated. Like {@link #AUTO}, unlocks via
+ *       {@code auto_trigger} discovery events, but re-locks automatically after a
+ *       configured {@code temporary.duration}. Can optionally be re-triggered with
+ *       a cooldown (see {@code temporary}).</li>
  * </ul>
  */
 public enum StageMode {
     DEFAULT("default"),
     AUTO("auto"),
-    EXTERNAL("external");
+    EXTERNAL("external"),
+    TEMPORARY("temporary");
+
+    /** True iff this mode unlocks via {@code auto_trigger} discovery events (AUTO or TEMPORARY). */
+    public boolean usesAutoTrigger() {
+        return this == AUTO || this == TEMPORARY;
+    }
 
     private final String serialized;
 

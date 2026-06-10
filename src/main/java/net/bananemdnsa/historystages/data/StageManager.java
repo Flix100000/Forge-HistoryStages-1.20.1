@@ -83,7 +83,7 @@ public class StageManager {
             "display_name", "research_time", "items", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
-            "mode", "auto_trigger"
+            "mode", "auto_trigger", "temporary"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
@@ -472,9 +472,17 @@ public class StageManager {
 
                 // Warn about unknown stage references (non-fatal, stage might not be loaded yet)
                 for (String depStageId : group.getStages()) {
-                    if (!STAGES.containsKey(depStageId)) {
+                    StageEntry depEntry = STAGES.get(depStageId);
+                    if (depEntry == null) {
                         addMessage(MessageLevel.INFO, "Dependency stage '" + depStageId + "' not found (Stage: " + stageId + "). May load later.");
                         DebugLogger.info("Invalid Dependencies", "Dependency stage '" + depStageId + "' not found (" + groupLabel + "). May be loaded later or is an individual stage.");
+                    } else if (depEntry.getMode() == StageMode.TEMPORARY) {
+                        // Temporary stages re-lock on their own without cascading to dependents,
+                        // so a dependency on one only reflects its state at the moment of the
+                        // dependent's own unlock check. The editor hides temporary stages from the
+                        // dependency picker — this only fires for hand-edited JSON.
+                        addMessage(MessageLevel.WARN, "Dependency stage '" + depStageId + "' is mode=temporary (Stage: " + stageId + "). Not recommended.");
+                        DebugLogger.warn("Temporary Dependency", "Stage '" + stageId + "' depends on temporary stage '" + depStageId + "' (" + groupLabel + "). When a temporary stage re-locks, dependents are NOT re-locked — the dependency only matters at the dependent's own unlock check. Depending on a temporary stage is not recommended.");
                     }
                 }
             }
@@ -490,10 +498,11 @@ public class StageManager {
         StageMode resolvedMode = entry.getMode();
         AutoTrigger autoTrig = entry.getAutoTrigger();
 
-        if (resolvedMode == StageMode.AUTO) {
+        if (resolvedMode.usesAutoTrigger()) {
+            String modeName = resolvedMode.serialize();
             if (autoTrig == null || autoTrig.isEmpty()) {
-                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' is mode=auto but has no triggers. It will never auto-unlock.");
-                DebugLogger.warn("Empty AutoTrigger", "Stage '" + stageId + "' has mode=auto with empty or missing 'auto_trigger.triggers'. It will never auto-unlock — must be unlocked via command or dependency cascade.");
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' is mode=" + modeName + " but has no triggers. It will never auto-unlock.");
+                DebugLogger.warn("Empty AutoTrigger", "Stage '" + stageId + "' has mode=" + modeName + " with empty or missing 'auto_trigger.triggers'. It will never auto-unlock — must be unlocked via command or dependency cascade.");
             } else {
                 for (TriggerCondition t : autoTrig.getTriggers()) {
                     validateTriggerCondition(stageId, t);
@@ -508,7 +517,35 @@ public class StageManager {
             }
         } else if (autoTrig != null && !autoTrig.isEmpty()) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has auto_trigger but mode=" + resolvedMode.serialize() + ". The auto_trigger will be ignored.");
-            DebugLogger.info("Unused AutoTrigger", "Stage '" + stageId + "' has an auto_trigger configured but its mode is '" + resolvedMode.serialize() + "'. The auto_trigger will be ignored (only mode=auto uses it).");
+            DebugLogger.info("Unused AutoTrigger", "Stage '" + stageId + "' has an auto_trigger configured but its mode is '" + resolvedMode.serialize() + "'. The auto_trigger will be ignored (only mode=auto/temporary uses it).");
+        }
+
+        // --- Temporary-mode config ---
+        var tempCfg = entry.getTemporary();
+        if (resolvedMode == StageMode.TEMPORARY) {
+            if (tempCfg == null) {
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' is mode=temporary but has no 'temporary' config. Using defaults (1 hour, not re-triggerable).");
+                DebugLogger.warn("Missing Temporary Config", "Stage '" + stageId + "' has mode=temporary but no 'temporary' object. Defaulting to duration=1 hour, re_triggerable=false.");
+                tempCfg = new net.bananemdnsa.historystages.data.temporary.TemporaryConfig();
+                entry.setTemporary(tempCfg);
+            }
+            if (tempCfg.getDuration() <= 0) {
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has temporary.duration <= 0. Corrected to 1.");
+                DebugLogger.warn("Invalid Temporary Config", "Stage '" + stageId + "' has temporary.duration of " + tempCfg.getDuration() + ". A temporary stage must stay unlocked for at least one unit. Corrected to 1.");
+                tempCfg.setDuration(1);
+            }
+            if (!net.bananemdnsa.historystages.data.temporary.DurationUnit.isKnown(tempCfg.getRawDurationUnit())) {
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has unknown temporary.duration_unit '" + tempCfg.getRawDurationUnit() + "'. Defaulting to 'hours'.");
+                DebugLogger.warn("Invalid Temporary Config", "Stage '" + stageId + "' has unknown temporary.duration_unit '" + tempCfg.getRawDurationUnit() + "'. Allowed: minutes, hours, days. Defaulting to 'hours'.");
+            }
+            if (tempCfg.allowsMultiple()
+                    && !net.bananemdnsa.historystages.data.temporary.DurationUnit.isKnown(tempCfg.getRawCooldownUnit())) {
+                addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has unknown temporary.cooldown_unit '" + tempCfg.getRawCooldownUnit() + "'. Defaulting to 'hours'.");
+                DebugLogger.warn("Invalid Temporary Config", "Stage '" + stageId + "' has unknown temporary.cooldown_unit '" + tempCfg.getRawCooldownUnit() + "'. Allowed: minutes, hours, days. Defaulting to 'hours'.");
+            }
+        } else if (tempCfg != null) {
+            addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has a 'temporary' config but mode=" + resolvedMode.serialize() + ". It will be ignored.");
+            DebugLogger.info("Unused Temporary Config", "Stage '" + stageId + "' has a 'temporary' config but its mode is '" + resolvedMode.serialize() + "'. The config will be ignored (only mode=temporary uses it).");
         }
 
         int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
@@ -671,7 +708,23 @@ public class StageManager {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server != null && server.overworld() != null) {
             AutoTriggerManager.pruneOrphans(server.overworld());
+            // Drop temporary-timer state for stages that no longer exist or are no
+            // longer mode=temporary (e.g. mode flipped via the editor).
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(server.overworld())
+                    .pruneOrphans(temporaryStageIds());
         }
+    }
+
+    /** Ids of all loaded stages (global + individual) currently in mode=temporary. */
+    public static Set<String> temporaryStageIds() {
+        Set<String> ids = new HashSet<>();
+        for (var e : STAGES.entrySet()) {
+            if (e.getValue().getMode() == StageMode.TEMPORARY) ids.add(e.getKey());
+        }
+        for (var e : INDIVIDUAL_STAGES.entrySet()) {
+            if (e.getValue().getMode() == StageMode.TEMPORARY) ids.add(e.getKey());
+        }
+        return ids;
     }
 
     /**

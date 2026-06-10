@@ -155,14 +155,14 @@ public class HistoryStages {
         }
 
         // Generate a research scroll for every stage (global + individual).
-        // AUTO-mode stages have no scroll (they're unlocked via auto_trigger events).
+        // AUTO/TEMPORARY stages have no scroll (they're unlocked via auto_trigger events).
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             for (var stageEntry : StageManager.getStages().entrySet()) {
-                if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                 event.accept(createScrollForStage(stageEntry.getKey()));
             }
             for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-                if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                 event.accept(createScrollForStage(stageEntry.getKey()));
             }
         }
@@ -320,6 +320,22 @@ public class HistoryStages {
         }
 
         net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
+
+        // Advance temporary-mode re-lock timers / cooldowns.
+        var server = event.getServer();
+        if (server != null && server.overworld() != null && tickCounter % 20 == 0) {
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(server.overworld())
+                    .tick(server, tickCounter, HistoryStages::resolveTemporaryConfig);
+        }
+    }
+
+    /** Resolves a stage id to its temporary config, checking global then individual stages. */
+    private static net.bananemdnsa.historystages.data.temporary.TemporaryConfig resolveTemporaryConfig(String stageId) {
+        var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
+        if (entry == null) {
+            entry = net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stageId);
+        }
+        return entry != null ? entry.getTemporary() : null;
     }
 
     @SubscribeEvent
