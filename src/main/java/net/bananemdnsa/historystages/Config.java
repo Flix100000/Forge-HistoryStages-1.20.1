@@ -372,7 +372,6 @@ public class Config {
                             "  cost_percent:  item-dependency count reduction (0-90). Locked into the scroll on first deposit.",
                             "  tier:          minimum pedestal tier the booster works under (1-4).",
                             "  mode:          'min' = this tier and higher, 'exact' = only this tier.",
-                            "Legacy 3-column rows are accepted and treated as tier=1, mode=min.",
                             "Unknown block ids and out-of-range values are logged and skipped/clamped.")
                     .defineListAllowEmpty("researchBoosters",
                             List.of(),
