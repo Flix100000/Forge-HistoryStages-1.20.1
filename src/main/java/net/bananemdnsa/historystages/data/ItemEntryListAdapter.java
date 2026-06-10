@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.data;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 
 import com.google.gson.*;
 import com.google.gson.stream.JsonReader;

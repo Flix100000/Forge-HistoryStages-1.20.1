@@ -1,26 +1,27 @@
 package net.bananemdnsa.historystages.client.editor;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
-import net.bananemdnsa.historystages.client.editor.widget.ModEntitySelectionPopup;
-import net.bananemdnsa.historystages.client.editor.widget.ModStructureSelectionPopup;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableEntityList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableModList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableRecipeList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableStructureList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
+import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntitySelectionPopup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.ModStructureSelectionPopup;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableModList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableRecipeList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.EntityLocks;
+import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SaveStagePacket;
-import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
+import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -296,18 +297,18 @@ public class StageDetailScreen extends Screen {
         }
         this.editTags = new ArrayList<>(e.getTags());
         this.editTagLockActions = new HashMap<>();
-        List<net.bananemdnsa.historystages.data.NamedLockEntry> tagEntries = e.getTagEntries();
+        List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagEntries = e.getTagEntries();
         for (int idx = 0; idx < tagEntries.size(); idx++) {
-            net.bananemdnsa.historystages.data.NamedLockEntry te = tagEntries.get(idx);
+            net.bananemdnsa.historystages.data.lock.NamedLockEntry te = tagEntries.get(idx);
             if (te.hasLockActions()) {
                 editTagLockActions.put(idx, new ArrayList<>(te.getLockActions()));
             }
         }
         this.editMods = new ArrayList<>(e.getMods());
         this.editModLockActions = new HashMap<>();
-        List<net.bananemdnsa.historystages.data.NamedLockEntry> modEntries = e.getModEntries();
+        List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modEntries = e.getModEntries();
         for (int idx = 0; idx < modEntries.size(); idx++) {
-            net.bananemdnsa.historystages.data.NamedLockEntry me = modEntries.get(idx);
+            net.bananemdnsa.historystages.data.lock.NamedLockEntry me = modEntries.get(idx);
             if (me.hasLockActions()) {
                 editModLockActions.put(idx, new ArrayList<>(me.getLockActions()));
             }
@@ -329,7 +330,7 @@ public class StageDetailScreen extends Screen {
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
-        for (net.bananemdnsa.historystages.data.EntitySpawnLockEntry se : e.getEntities().getSpawnlock()) {
+        for (net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry se : e.getEntities().getSpawnlock()) {
             this.editSpawnlock.add(se.getId());
             if (se.hasLockSources()) {
                 this.editSpawnlockSources.put(se.getId(), new ArrayList<>(se.getLockSources()));
@@ -2893,15 +2894,15 @@ public class StageDetailScreen extends Screen {
             itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editItems.get(idx), nbt, lockActions));
         }
         newEntry.setItemEntries(itemEntries);
-        List<net.bananemdnsa.historystages.data.NamedLockEntry> tagEntries = new ArrayList<>();
+        List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagEntries = new ArrayList<>();
         for (int idx = 0; idx < editTags.size(); idx++) {
-            tagEntries.add(new net.bananemdnsa.historystages.data.NamedLockEntry(
+            tagEntries.add(new net.bananemdnsa.historystages.data.lock.NamedLockEntry(
                     editTags.get(idx), editTagLockActions.get(idx)));
         }
         newEntry.setTagEntries(tagEntries);
-        List<net.bananemdnsa.historystages.data.NamedLockEntry> modEntries = new ArrayList<>();
+        List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modEntries = new ArrayList<>();
         for (int idx = 0; idx < editMods.size(); idx++) {
-            modEntries.add(new net.bananemdnsa.historystages.data.NamedLockEntry(
+            modEntries.add(new net.bananemdnsa.historystages.data.lock.NamedLockEntry(
                     editMods.get(idx), editModLockActions.get(idx)));
         }
         newEntry.setModEntries(modEntries);
@@ -2918,9 +2919,9 @@ public class StageDetailScreen extends Screen {
         newEntry.setIcon(editIcon);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
-        List<net.bananemdnsa.historystages.data.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
+        List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
         for (String entityId : editSpawnlock) {
-            spawnlockEntries.add(new net.bananemdnsa.historystages.data.EntitySpawnLockEntry(
+            spawnlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry(
                     entityId, editSpawnlockSources.get(entityId)));
         }
         locks.setSpawnlock(spawnlockEntries);

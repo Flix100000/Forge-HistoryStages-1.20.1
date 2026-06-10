@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.events;
+import net.bananemdnsa.historystages.events.lock.StructureLockHandler;
 
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;

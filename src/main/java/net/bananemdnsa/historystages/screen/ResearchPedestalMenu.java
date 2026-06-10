@@ -82,11 +82,11 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
                 if (ResearchPedestalMenu.this.blockEntity.isCurrentScrollIndividual()) {
                     UUID owner = scrollTag.hasUUID("OwnerUUID") ? scrollTag.getUUID("OwnerUUID") : null;
                     if (owner != null
-                            && net.bananemdnsa.historystages.util.IndividualStageData.hasStageCached(owner, stageId)) {
+                            && net.bananemdnsa.historystages.data.saveddata.IndividualStageData.hasStageCached(owner, stageId)) {
                         return false;
                     }
                 } else {
-                    if (net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stageId)) {
+                    if (net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stageId)) {
                         return false;
                     }
                 }

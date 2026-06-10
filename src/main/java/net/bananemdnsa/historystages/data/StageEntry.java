@@ -1,4 +1,9 @@
 package net.bananemdnsa.historystages.data;
+import net.bananemdnsa.historystages.data.lock.StructureLocksAdapter;
+import net.bananemdnsa.historystages.data.lock.StructureLocks;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntryListAdapter;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
+import net.bananemdnsa.historystages.data.lock.EntityLocks;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;

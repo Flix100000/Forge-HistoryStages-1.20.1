@@ -6,11 +6,11 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
-import net.bananemdnsa.historystages.network.DeleteStagePacket;
+import net.bananemdnsa.historystages.network.serverbound.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SaveStagePacket;
-import net.bananemdnsa.historystages.network.ToggleStageLockPacket;
-import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
+import net.bananemdnsa.historystages.network.serverbound.ToggleStageLockPacket;
+import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -69,7 +69,7 @@ public class StageOverviewScreen extends Screen {
         super.tick();
         if (++tempCountRefreshTimer >= 20) { // ~1s
             tempCountRefreshTimer = 0;
-            PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
+            PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket());
         }
     }
 
@@ -79,7 +79,7 @@ public class StageOverviewScreen extends Screen {
         individualStageOrder = StageManager.getIndividualStageOrder();
 
         // Pull the live temporary-stage unlock counts from the server for display.
-        PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
+        PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket());
 
         searchFilter = "";
         int searchW = 120;

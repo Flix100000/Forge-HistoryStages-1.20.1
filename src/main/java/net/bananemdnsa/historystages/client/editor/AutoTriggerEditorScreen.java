@@ -1,15 +1,15 @@
 package net.bananemdnsa.historystages.client.editor;
 
-import net.bananemdnsa.historystages.client.editor.widget.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableAdvancementList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableAdvancementList;
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableBiomeList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableDimensionList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableEntityList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableStructureList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
 import net.bananemdnsa.historystages.client.editor.widget.StageLockFilter;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.data.StageEntry;

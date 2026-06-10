@@ -9,15 +9,15 @@ import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.init.*;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SyncConfigPacket;
-import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
-import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
-import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
-import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
@@ -85,7 +85,7 @@ public class HistoryStages {
         // Conditional FTB Quests integration
         if (ModList.get().isLoaded("ftbquests")) {
             try {
-                net.bananemdnsa.historystages.ftbquests.FTBQuestsIntegration.init();
+                net.bananemdnsa.historystages.compat.ftbquests.FTBQuestsIntegration.init();
                 LOGGER.info("[HistoryStages] FTB Quests integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load FTB Quests integration.", e);
@@ -94,7 +94,7 @@ public class HistoryStages {
 
         if (ModList.get().isLoaded("curios")) {
             try {
-                NeoForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.CuriosEquipLockHandler.class);
+                NeoForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.lock.CuriosEquipLockHandler.class);
                 LOGGER.info("[HistoryStages] Curios integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load Curios integration.", e);
@@ -103,7 +103,7 @@ public class HistoryStages {
 
         if (ModList.get().isLoaded("accessories")) {
             try {
-                net.bananemdnsa.historystages.events.AccessoriesEquipLockHandler.register();
+                net.bananemdnsa.historystages.events.lock.AccessoriesEquipLockHandler.register();
                 LOGGER.info("[HistoryStages] Accessories integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load Accessories integration.", e);
@@ -199,7 +199,7 @@ public class HistoryStages {
 
             // Sync structure registry so editor UI can populate the searchable list
             PacketHandler.sendStructureRegistryToPlayer(
-                    net.bananemdnsa.historystages.network.SyncStructureRegistryPacket.fromServer(player),
+                    net.bananemdnsa.historystages.network.clientbound.SyncStructureRegistryPacket.fromServer(player),
                     player);
 
             DebugLogger.runtime("Player Login", player.getName().getString(),
@@ -324,7 +324,7 @@ public class HistoryStages {
         // Advance temporary-mode re-lock timers / cooldowns.
         var server = event.getServer();
         if (server != null && server.overworld() != null && tickCounter % 20 == 0) {
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(server.overworld())
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(server.overworld())
                     .tick(server, tickCounter, HistoryStages::resolveTemporaryConfig);
         }
     }

@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.client.editor.widget;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;

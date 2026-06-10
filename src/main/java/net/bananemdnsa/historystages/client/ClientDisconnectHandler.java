@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;

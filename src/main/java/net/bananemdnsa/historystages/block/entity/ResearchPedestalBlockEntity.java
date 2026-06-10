@@ -17,12 +17,12 @@ import net.bananemdnsa.historystages.research.TierMode;
 import net.bananemdnsa.historystages.init.ModBlockEntities;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SyncDependencyStatusPacket;
-import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
-import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -660,7 +660,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 String iconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
                         ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
                 PacketHandler.sendToastToAll(
-                        new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename, iconId));
+                        new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, iconId));
             }
         }
     }
@@ -714,7 +714,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         String indIconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
                                 ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
                         PacketHandler.sendToastToPlayer(
-                                new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(stagename, indIconId),
+                                new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, indIconId),
                                 ownerPlayer);
                     }
                 }

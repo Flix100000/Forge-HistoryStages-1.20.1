@@ -2,9 +2,9 @@ package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.LockFeedback;
-import net.bananemdnsa.historystages.util.LockMessages;
-import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.util.lock.LockFeedback;
+import net.bananemdnsa.historystages.util.lock.LockMessages;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;

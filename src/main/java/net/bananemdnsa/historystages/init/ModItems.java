@@ -4,7 +4,7 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.*;
-import net.bananemdnsa.historystages.util.ClientDependencyCache;
+import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;

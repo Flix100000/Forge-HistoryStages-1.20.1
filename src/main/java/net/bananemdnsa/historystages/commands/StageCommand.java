@@ -7,12 +7,12 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
-import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageLockHelper;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.events.StageEvent;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.server.level.ServerPlayer;
@@ -181,7 +181,7 @@ public class StageCommand {
                             DebugLogger.runtime("Reload", ctx.getSource().getTextName(), "Reloaded stage configurations (" + StageManager.getStages().size() + " stages)");
                             // Push new definitions to all clients so creative tab / lock decorators reflect mode changes
                             PacketHandler.sendDefinitionsToAll(
-                                    new net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket(StageManager.getStages()));
+                                    new net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPacket(StageManager.getStages()));
                             return syncAndReload(ctx.getSource(), StageData.get(ctx.getSource().getLevel()), "Configuration reloaded!", false);
                         }))
 
@@ -277,7 +277,7 @@ public class StageCommand {
             return 0;
         }
         var cfg = entry.getTemporary();
-        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel());
+        var temp = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(source.getLevel());
         int count = temp.getGlobalCount(stage);
         long active = temp.globalActiveTicks(stage);
         long cd = temp.globalCooldownTicks(stage);
@@ -300,7 +300,7 @@ public class StageCommand {
             return 0;
         }
         var level = source.getLevel();
-        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        var temp = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(level);
         if (isReset) {
             // Re-lock first if it's currently unlocked, otherwise clearing the timer
             // would leave it unlocked forever.
@@ -323,7 +323,7 @@ public class StageCommand {
             return 0;
         }
         var cfg = entry.getTemporary();
-        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(player.serverLevel());
+        var temp = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(player.serverLevel());
         var uuid = player.getUUID();
         int count = temp.getIndividualCount(uuid, stage);
         long active = temp.individualActiveTicks(uuid, stage);
@@ -348,7 +348,7 @@ public class StageCommand {
             return 0;
         }
         var level = player.serverLevel();
-        var temp = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        var temp = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(level);
         var uuid = player.getUUID();
         if (isReset) {
             if (temp.individualActiveTicks(uuid, stage) > 0) StageUnlockHelper.relockIndividual(stage, player);
@@ -419,7 +419,7 @@ public class StageCommand {
             for (String stageId : toRemove) {
                 d.removeStage(stageId);
                 AutoTriggerManager.clearProgress(stageId, source.getLevel());
-                net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel()).clearGlobal(stageId);
+                net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(source.getLevel()).clearGlobal(stageId);
                 var entry = StageManager.getStages().get(stageId);
                 String displayName = entry != null ? entry.getDisplayName() : stageId;
                 NeoForge.EVENT_BUS.post(new StageEvent.Locked(stageId, displayName));
@@ -436,7 +436,7 @@ public class StageCommand {
             if (!d.getUnlockedStages().contains(s)) return 0;
             d.removeStage(s);
             AutoTriggerManager.clearProgress(s, source.getLevel());
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(source.getLevel()).clearGlobal(s);
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(source.getLevel()).clearGlobal(s);
             var lockEntry = StageManager.getStages().get(s);
             String lockDisplayName = lockEntry != null ? lockEntry.getDisplayName() : s;
             NeoForge.EVENT_BUS.post(new StageEvent.Locked(s, lockDisplayName));
@@ -492,7 +492,7 @@ public class StageCommand {
 
         // Toast notification
         if (isUnlock && Config.COMMON.useToasts.get()) {
-            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.StageUnlockedToastPacket(name, iconId));
+            PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(name, iconId));
         }
     }
 
@@ -612,7 +612,7 @@ public class StageCommand {
         for (String stageId : toRemove) {
             data.removeStage(target.getUUID(), stageId);
             AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(target.serverLevel())
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(target.serverLevel())
                     .clearIndividual(target.getUUID(), stageId);
             var entry = StageManager.getIndividualStages().get(stageId);
             String displayName = entry != null ? entry.getDisplayName() : stageId;
@@ -668,7 +668,7 @@ public class StageCommand {
         data.removeStage(target.getUUID(), stageId);
         data.setDirty();
         AutoTriggerManager.clearProgress(stageId, true, target, target.serverLevel());
-        net.bananemdnsa.historystages.util.TemporaryStageData.get(target.serverLevel())
+        net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(target.serverLevel())
                 .clearIndividual(target.getUUID(), stageId);
 
         var entry = StageManager.getIndividualStages().get(stageId);

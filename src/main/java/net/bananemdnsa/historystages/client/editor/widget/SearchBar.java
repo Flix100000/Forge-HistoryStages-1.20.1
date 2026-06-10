@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.client.editor.widget;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.FilterDropdown;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;

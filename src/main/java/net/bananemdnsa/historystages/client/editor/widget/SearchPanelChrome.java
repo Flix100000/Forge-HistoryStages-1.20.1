@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.client.editor.widget;
+import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
 
 import net.minecraft.client.gui.GuiGraphics;
 

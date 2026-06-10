@@ -1,4 +1,7 @@
 package net.bananemdnsa.historystages.data;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
+import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
+import net.bananemdnsa.historystages.data.lock.EntityLocks;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -710,7 +713,7 @@ public class StageManager {
             AutoTriggerManager.pruneOrphans(server.overworld());
             // Drop temporary-timer state for stages that no longer exist or are no
             // longer mode=temporary (e.g. mode flipped via the editor).
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(server.overworld())
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(server.overworld())
                     .pruneOrphans(temporaryStageIds());
         }
     }
@@ -1082,11 +1085,11 @@ public class StageManager {
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             if (entry.getValue().getRecipes().contains(recipeId)) {
                 if (isClientSide) {
-                    if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())) {
+                    if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(entry.getKey())) {
                         return true;
                     }
                 } else {
-                    if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
+                    if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(entry.getKey())) {
                         return true;
                     }
                 }
@@ -1104,7 +1107,7 @@ public class StageManager {
         if (requiredStages.isEmpty()) return false;
 
         for (String stage : requiredStages) {
-            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
+            if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) {
                 return true;
             }
         }
@@ -1122,9 +1125,9 @@ public class StageManager {
 
         for (String stage : requiredStages) {
             if (isClientSide) {
-                if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stage)) return true;
+                if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(stage)) return true;
             } else {
-                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) return true;
+                if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) return true;
             }
         }
         return false;

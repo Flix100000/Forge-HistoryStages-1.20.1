@@ -1,4 +1,27 @@
 package net.bananemdnsa.historystages.network;
+import net.bananemdnsa.historystages.network.serverbound.RequestClusterShapesPacket;
+import net.bananemdnsa.historystages.network.serverbound.ToggleStructureVizPacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestStructureDebugPacket;
+import net.bananemdnsa.historystages.network.serverbound.DepositDependencyPacket;
+import net.bananemdnsa.historystages.network.serverbound.CheckDependencyPacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
+import net.bananemdnsa.historystages.network.serverbound.ToggleStageLockPacket;
+import net.bananemdnsa.historystages.network.serverbound.DeleteStagePacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestEditorDataPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncLockBordersPacket;
+import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
+import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStructureRegistryPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncTemporaryCountsPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPacket;
+import net.bananemdnsa.historystages.network.clientbound.EditorSyncPacket;
+import net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.Util;
