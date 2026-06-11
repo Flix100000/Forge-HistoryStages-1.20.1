@@ -69,7 +69,7 @@ public class Config {
                     .define("showAllUntilComplete", true);
 
             showLockIcons = builder
-                    .comment("Show a lock icon overlay on locked items in JEI and Inventories? (Will be disabled if EMI is installed) [Default: true]")
+                    .comment("Show a lock icon overlay on locked items in JEI/EMI and Inventories? [Default: true]")
                     .define("showLockIcons", true);
 
             showBoosterTooltips = builder

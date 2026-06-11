@@ -25,10 +25,11 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         int width = widgets.getWidth();
         int height = widgets.getHeight();
 
-        // Semi-transparent dark overlay rendered above everything
+        // Semi-transparent dark overlay: z=200 sits above the recipe's item icons (~150) but below
+        // tooltips (~400), so the "Locked" tooltip renders on top of the overlay rather than under it.
         widgets.addDrawable(0, 0, width, height, (guiGraphics, mouseX, mouseY, delta) -> {
             guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 400);
+            guiGraphics.pose().translate(0, 0, 200);
 
             guiGraphics.fill(0, 0, width, height, 0xBB000000);
 
@@ -38,14 +39,19 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
             guiGraphics.drawString(font, text, (width - textWidth) / 2, height / 2 - 4, 0xFFFFFF, true);
 
             guiGraphics.pose().popPose();
-        }).tooltipText(java.util.List.of(
+        }).tooltipText(lockedTooltipLines());
+    }
+
+    /** The tooltip shown when hovering a locked recipe. Shared with the RecipeScreen mixin. */
+    public static java.util.List<Component> lockedTooltipLines() {
+        return java.util.List.of(
                 Component.literal("\u00A7c\u00A7lStage Locked"),
                 Component.literal("\u00A77This recipe requires a stage that"),
                 Component.literal("\u00A77has not been unlocked yet.")
-        ));
+        );
     }
 
-    private boolean isRecipeLocked(EmiRecipe recipe) {
+    public static boolean isRecipeLocked(EmiRecipe recipe) {
         // 1. Check by recipe ID
         ResourceLocation recipeId = recipe.getId();
         if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {

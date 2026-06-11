@@ -11,7 +11,11 @@
     "jei.RecipeLayoutMixin"
   ],
   "client": [
-    "ClientAdvancementsAccessor"
+    "ClientAdvancementsAccessor",
+    "emi.RecipeScreenMixin",
+    "emi.ItemEmiStackMixin",
+    "emi.StackBatcherMixin",
+    "emi.SlotWidgetMixin"
   ],
   "injectors": {
     "defaultRequire": 1

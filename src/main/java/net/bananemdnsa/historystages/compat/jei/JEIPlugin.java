@@ -16,7 +16,7 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.compat.ScrollVariants;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
@@ -24,11 +24,8 @@ import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import org.slf4j.Logger;
 
@@ -58,12 +55,8 @@ public class JEIPlugin implements IModPlugin {
     public void registerItemSubtypes(ISubtypeRegistration registration) {
         // Tell JEI that scrolls with different StageResearch values are different items
         IIngredientSubtypeInterpreter<ItemStack> interpreter = (stack, context) -> {
-            CustomData data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
-            CompoundTag tag = data.copyTag();
-            if (tag.contains("StageResearch")) {
-                return tag.getString("StageResearch");
-            }
-            return IIngredientSubtypeInterpreter.NONE;
+            String stage = ScrollVariants.readStageResearch(stack);
+            return stage != null ? stage : IIngredientSubtypeInterpreter.NONE;
         };
         registration.registerSubtypeInterpreter(ModItems.RESEARCH_SCROLL.get(), interpreter);
         registration.registerSubtypeInterpreter(ModItems.CREATIVE_SCROLL.get(), interpreter);
@@ -72,25 +65,7 @@ public class JEIPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         // Add one scroll variant per stage so they appear in JEI
-        List<ItemStack> scrolls = new ArrayList<>();
-
-        for (var stageEntry : StageManager.getStages().entrySet()) {
-            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            CompoundTag nbt = new CompoundTag();
-            nbt.putString("StageResearch", stageEntry.getKey());
-            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
-            scrolls.add(scroll);
-        }
-
-        for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            CompoundTag nbt = new CompoundTag();
-            nbt.putString("StageResearch", stageEntry.getKey());
-            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
-            scrolls.add(scroll);
-        }
+        List<ItemStack> scrolls = ScrollVariants.buildAllStageScrolls();
 
         if (!scrolls.isEmpty()) {
             jeiRuntime.getIngredientManager().addIngredientsAtRuntime(VanillaTypes.ITEM_STACK, scrolls);
