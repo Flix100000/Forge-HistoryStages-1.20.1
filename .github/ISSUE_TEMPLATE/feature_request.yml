@@ -1,0 +1,83 @@
+name: Feature Request / Idea
+description: Suggest a new feature or improvement for History Stages
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you submit
+        > Please take a moment to check the following before opening a feature request:
+        - Search [existing issues](https://github.com/Flix100000/History-Stages/issues) to see if this has already been suggested.
+        - Check the [Q&A Discussions](https://github.com/Flix100000/History-Stages/discussions/new?category=q-a) if you are unsure whether something is already possible.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm all of the following before submitting.
+      options:
+        - label: I have searched existing issues and this feature has not been requested before.
+          required: true
+        - label: This is a feature request, not a bug report or support question.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: What should History Stages do that it currently does not?
+      placeholder: "It would be useful if the Research Pedestal could output a redstone signal when a stage is unlocked."
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use Case
+      description: How would you use this feature in a modpack? Why is it valuable?
+      placeholder: "This would allow automating stage-dependent logic using redstone or modded automation (e.g. Create)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you found a workaround, or is there currently no way to achieve this?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      description: Which area of the mod does this feature affect?
+      options:
+        - Research Pedestal / Scrolls
+        - Stage Configuration (JSON)
+        - In-Game Editors (Stage / Config)
+        - Recipe Locking
+        - Commands
+        - JEI / EMI Integration
+        - FTBQuests Integration
+        - Loot / Mob Drop Locking
+        - Dimension Locking
+        - Entity Locking
+        - Toast Notifications / UI
+        - Lock Icon Overlay
+        - Debug Logging
+        - KubeJS / CraftTweaker API
+        - Configuration (config files)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: If applicable, show how this feature could look in practice (e.g. JSON config, command syntax).
+      render: json
+    validations:
+      required: false

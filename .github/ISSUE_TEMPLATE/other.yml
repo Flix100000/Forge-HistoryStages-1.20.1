@@ -1,12 +1,48 @@
 name: Other
-description: Anything that doesn't fit the other categories
+description: Anything that does not fit the other categories
 title: "[Other] "
 labels: ["other"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before you submit
+        > Please make sure your issue does not fit one of the existing templates:
+        - **Bug or crash?** → Use the [Bug Report](https://github.com/Flix100000/History-Stages/issues/new?template=bug_report.yml) template.
+        - **Mod incompatibility?** → Use the [Compatibility Issue](https://github.com/Flix100000/History-Stages/issues/new?template=compatibility_issue.yml) template.
+        - **Feature idea?** → Use the [Feature Request](https://github.com/Flix100000/History-Stages/issues/new?template=feature_request.yml) template.
+        - **General question?** → Use [Q&A Discussions](https://github.com/Flix100000/History-Stages/discussions/new?category=q-a).
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Pre-flight Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: My issue does not fit any of the existing templates listed above.
+          required: true
+
+  - type: input
+    id: hs-version
+    attributes:
+      label: History Stages Version
+      placeholder: "e.g. 3.0.0"
+    validations:
+      required: false
+
   - type: textarea
     id: description
     attributes:
       label: Description
-      description: What's on your mind?
+      description: Describe your issue or topic as clearly as possible.
+      placeholder: "I noticed that ..."
     validations:
       required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any logs, screenshots, configs, or other information that might be helpful.
+    validations:
+      required: false
