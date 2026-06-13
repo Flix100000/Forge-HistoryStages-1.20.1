@@ -21,7 +21,8 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
         }
         out.beginArray();
         for (ItemEntry entry : entries) {
-            if (!entry.hasNbt() && !entry.hasLockActions()) {
+            boolean hasOverride = entry.hasNameTextOverride() || entry.hasTooltipTextOverride();
+            if (!entry.hasNbt() && !entry.hasLockActions() && !hasOverride) {
                 out.value(entry.getId());
             } else {
                 out.beginObject();
@@ -45,6 +46,12 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
                         }
                         out.endArray();
                     }
+                }
+                if (entry.hasNameTextOverride()) {
+                    out.name("name_text").value(entry.getNameTextOverride());
+                }
+                if (entry.hasTooltipTextOverride()) {
+                    out.name("tooltip_text").value(entry.getTooltipTextOverride());
                 }
                 out.endObject();
             }
@@ -85,7 +92,9 @@ public class ItemEntryListAdapter extends TypeAdapter<List<ItemEntry>> {
                         lockActions.add(el.getAsString());
                     }
                 }
-                entries.add(new ItemEntry(id, nbt, lockActions));
+                String nameText = obj.has("name_text") ? obj.get("name_text").getAsString() : null;
+                String tooltipText = obj.has("tooltip_text") ? obj.get("tooltip_text").getAsString() : null;
+                entries.add(new ItemEntry(id, nbt, lockActions, nameText, tooltipText));
             }
         }
         in.endArray();

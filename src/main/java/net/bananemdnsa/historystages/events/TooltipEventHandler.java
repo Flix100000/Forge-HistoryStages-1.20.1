@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.research.ResearchBooster;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
+import net.bananemdnsa.historystages.client.display.HiddenDisplayResolver;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
@@ -113,6 +114,14 @@ public class TooltipEventHandler {
             return;
         }
         // --- ENDE RESEARCH BOOK LOGIK ---
+
+        // --- HIDDEN DISPLAY: strip/replace the item's own tooltip lines ---
+        HiddenDisplayResolver.Resolved hidden = HiddenDisplayResolver.resolve(stack);
+        if (hidden.changesTooltip()) {
+            applyTooltipEffect(event.getToolTip(), hidden);
+            // Lock hints are the mod's own lines below; suppress them when configured.
+            if (!hidden.showLockHints()) return;
+        }
 
         // --- AB HIER: NORMALER LOCKED ITEM CHECK ---
         ResourceLocation itemLocation = BuiltInRegistries.ITEM.getKey(stack.getItem());
@@ -229,6 +238,26 @@ public class TooltipEventHandler {
             } else {
                 event.getToolTip().add(Component.literal("This item is individually locked!")
                         .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
+            }
+        }
+    }
+
+    /**
+     * Strips the item's own tooltip lines (everything below the name) and, for REPLACE,
+     * substitutes the configured text. When the name itself is hidden, drops the now-empty
+     * name line too so there is no blank gap.
+     */
+    private static void applyTooltipEffect(List<Component> tooltip, HiddenDisplayResolver.Resolved hidden) {
+        if (tooltip.isEmpty()) return;
+        // Always keep the name line (index 0) so the tooltip never becomes an empty list,
+        // which would crash the vanilla tooltip renderer.
+        while (tooltip.size() > 1) {
+            tooltip.remove(tooltip.size() - 1);
+        }
+        if (hidden.tooltipMode() == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE
+                && !hidden.tooltipText().isEmpty()) {
+            for (String line : hidden.tooltipText().split("\n", -1)) {
+                tooltip.add(Component.literal(line).withStyle(ChatFormatting.GRAY));
             }
         }
     }

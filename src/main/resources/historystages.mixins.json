@@ -12,6 +12,7 @@
   ],
   "client": [
     "ClientAdvancementsAccessor",
+    "ItemStackMixin",
     "toast.ToastComponentMixin",
     "toast.ToastComponentAccessor",
     "toast.ToastInstanceMixin",

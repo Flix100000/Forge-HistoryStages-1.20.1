@@ -74,9 +74,17 @@ public class StageDetailScreen extends Screen {
     private AutoTrigger editAutoTrigger;
     private net.bananemdnsa.historystages.data.temporary.TemporaryConfig editTemporary;
     private String editIcon;
+    private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
     private final Map<Integer, List<String>> editItemLockActions;
+    // Per-entry REPLACE text overrides (entry index → text); absent = follow stage default.
+    private final Map<Integer, String> editItemNameText = new HashMap<>();
+    private final Map<Integer, String> editItemTooltipText = new HashMap<>();
+    private final Map<Integer, String> editTagNameText = new HashMap<>();
+    private final Map<Integer, String> editTagTooltipText = new HashMap<>();
+    private final Map<Integer, String> editModNameText = new HashMap<>();
+    private final Map<Integer, String> editModTooltipText = new HashMap<>();
     private final List<String> editTags;
     private final Map<Integer, List<String>> editTagLockActions;
     private final List<String> editMods;
@@ -163,6 +171,20 @@ public class StageDetailScreen extends Screen {
     private int lockActionsPopupIdx = -1;   // entry index
     private List<String> lockActionsPopupCurrent = new ArrayList<>(); // working copy
     private int cachedLockPopupX, cachedLockPopupY, cachedLockPopupW, cachedLockPopupH;
+
+    // Text-override popup state (per-item REPLACE name/tooltip overrides)
+    private boolean overridePopupVisible = false;
+    private int overridePopupTab = 0;
+    private int overridePopupIdx = -1;
+    private boolean overrideShowName = false;
+    private boolean overrideShowTooltip = false;
+    private String overrideNameDefault = "";
+    private String overrideTooltipDefault = "";
+    private EditBox overrideNameField;
+    private EditBox overrideTooltipField;
+    private net.bananemdnsa.historystages.client.editor.widget.StyledButton overrideResetBtn;
+    private net.bananemdnsa.historystages.client.editor.widget.StyledButton overrideDoneBtn;
+    private int cachedOverrideX, cachedOverrideY, cachedOverrideW, cachedOverrideH;
 
     // All recognized lock actions in display order
     private static final String[] LOCK_ACTION_KEYS = {"equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"};
@@ -282,6 +304,7 @@ public class StageDetailScreen extends Screen {
         this.editMode = e.getMode();
         this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
         this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
+        this.editHiddenDisplay = e.getHiddenDisplay().copy();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
         this.editItemLockActions = new HashMap<>();
@@ -294,6 +317,12 @@ public class StageDetailScreen extends Screen {
             if (ie.hasLockActions()) {
                 editItemLockActions.put(idx, new ArrayList<>(ie.getLockActions()));
             }
+            if (ie.hasNameTextOverride()) {
+                editItemNameText.put(idx, ie.getNameTextOverride());
+            }
+            if (ie.hasTooltipTextOverride()) {
+                editItemTooltipText.put(idx, ie.getTooltipTextOverride());
+            }
         }
         this.editTags = new ArrayList<>(e.getTags());
         this.editTagLockActions = new HashMap<>();
@@ -303,6 +332,8 @@ public class StageDetailScreen extends Screen {
             if (te.hasLockActions()) {
                 editTagLockActions.put(idx, new ArrayList<>(te.getLockActions()));
             }
+            if (te.hasNameTextOverride()) editTagNameText.put(idx, te.getNameTextOverride());
+            if (te.hasTooltipTextOverride()) editTagTooltipText.put(idx, te.getTooltipTextOverride());
         }
         this.editMods = new ArrayList<>(e.getMods());
         this.editModLockActions = new HashMap<>();
@@ -312,6 +343,8 @@ public class StageDetailScreen extends Screen {
             if (me.hasLockActions()) {
                 editModLockActions.put(idx, new ArrayList<>(me.getLockActions()));
             }
+            if (me.hasNameTextOverride()) editModNameText.put(idx, me.getNameTextOverride());
+            if (me.hasTooltipTextOverride()) editModTooltipText.put(idx, me.getTooltipTextOverride());
         }
         this.editModExceptions = new ArrayList<>(e.getAllModExceptionIds());
         this.editModExceptionNbt = new HashMap<>();
@@ -438,6 +471,31 @@ public class StageDetailScreen extends Screen {
             categoryDropdownVisible = !val.isEmpty();
         });
         this.addRenderableWidget(categorySearchBox);
+
+        // --- Text-override popup widgets (children; rendered manually on top of the popup) ---
+        overrideNameField = new EditBox(this.font, 0, 0, 10, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.text_override.name"));
+        overrideNameField.setMaxLength(128);
+        overrideNameField.visible = false;
+        this.addWidget(overrideNameField);
+
+        overrideTooltipField = new EditBox(this.font, 0, 0, 10, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.text_override.tooltip"));
+        overrideTooltipField.setMaxLength(256);
+        overrideTooltipField.visible = false;
+        this.addWidget(overrideTooltipField);
+
+        overrideResetBtn = net.bananemdnsa.historystages.client.editor.widget.StyledButton.of(
+                Component.translatable("editor.historystages.text_override.reset"),
+                btn -> resetOverride(), 0, 0, 10, 18);
+        overrideResetBtn.visible = false;
+        this.addWidget(overrideResetBtn);
+
+        overrideDoneBtn = net.bananemdnsa.historystages.client.editor.widget.StyledButton.of(
+                Component.translatable("editor.historystages.done"),
+                btn -> applyOverrideAndClose(), 0, 0, 10, 18);
+        overrideDoneBtn.visible = false;
+        this.addWidget(overrideDoneBtn);
 
         itemSearch = new SearchableItemList(itemId -> {
             if (!getActiveList().contains(itemId)) {
@@ -1024,6 +1082,22 @@ public class StageDetailScreen extends Screen {
                     badgeW += lBadgeW;
                 }
 
+                // Text-override badge for items/tags/mods with a custom REPLACE name/tooltip
+                if (activeTab == 0 || activeTab == 1 || activeTab == 2) {
+                    if (overrideNameMap(activeTab).containsKey(i)) {
+                        String b = "[" + Component.translatable("editor.historystages.badge.name_override").getString() + "]";
+                        int bw = this.font.width(b) + 4;
+                        guiGraphics.drawString(this.font, b, contentRight - badgeW - bw, cardY + 7, 0xBBBBBB, false);
+                        badgeW += bw;
+                    }
+                    if (overrideTooltipMap(activeTab).containsKey(i)) {
+                        String b = "[" + Component.translatable("editor.historystages.badge.tooltip_override").getString() + "]";
+                        int bw = this.font.width(b) + 4;
+                        guiGraphics.drawString(this.font, b, contentRight - badgeW - bw, cardY + 7, 0xBBBBBB, false);
+                        badgeW += bw;
+                    }
+                }
+
                 // Spawn-sources badge for spawnlock entries with a non-default source filter
                 if (activeTab == 7) {
                     List<String> srcFilter = editSpawnlockSources.get(list.get(i));
@@ -1226,6 +1300,7 @@ public class StageDetailScreen extends Screen {
         if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
         if (lockActionsPopupVisible) renderLockActionsPopup(guiGraphics, mouseX, mouseY);
         if (spawnSourcesPopupVisible) renderSpawnSourcesPopup(guiGraphics, mouseX, mouseY);
+        if (overridePopupVisible) renderOverridePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Tooltip rendering
@@ -2259,6 +2334,17 @@ public class StageDetailScreen extends Screen {
         map.putAll(shifted);
     }
 
+    private static void shiftStringMap(Map<Integer, String> map, int removedIdx) {
+        map.remove(removedIdx);
+        Map<Integer, String> shifted = new HashMap<>();
+        for (var e : map.entrySet()) {
+            int key = e.getKey();
+            shifted.put(key > removedIdx ? key - 1 : key, e.getValue());
+        }
+        map.clear();
+        map.putAll(shifted);
+    }
+
     // =============================================
 
     private void drawSmallText(GuiGraphics guiGraphics, String text, int x, int y, int color) {
@@ -2275,6 +2361,7 @@ public class StageDetailScreen extends Screen {
         if (modStructurePopup.isVisible()) { return modStructurePopup.mouseClicked(mouseX, mouseY); }
         if (lockActionsPopupVisible) { return handleLockActionsPopupClick(mouseX, mouseY, button); }
         if (spawnSourcesPopupVisible) { return handleSpawnSourcesPopupClick(mouseX, mouseY); }
+        if (overridePopupVisible) { return handleOverridePopupClick(mouseX, mouseY, button); }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
@@ -2423,6 +2510,10 @@ public class StageDetailScreen extends Screen {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.lock_actions").getString(),
                                 () -> openLockActionsPopup(tabIdx, entryIdx));
                     }
+                    if ((tabIdx == 0 || tabIdx == 1 || tabIdx == 2) && hasReplaceAxis()) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.text_override").getString(),
+                                () -> openOverridePopup(tabIdx, entryIdx));
+                    }
                     if (tabIdx == 7) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.spawn_sources").getString(),
                                 () -> openSpawnSourcesPopup(entryValue));
@@ -2471,14 +2562,20 @@ public class StageDetailScreen extends Screen {
                             editItemNbt.clear();
                             editItemNbt.putAll(shifted);
                             shiftLockActionsMap(editItemLockActions, entryIdx);
+                            shiftStringMap(editItemNameText, entryIdx);
+                            shiftStringMap(editItemTooltipText, entryIdx);
                         }
-                        // When removing a tag, shift lockActions indices
+                        // When removing a tag, shift lockActions + override indices
                         if (tabIdx == 1) {
                             shiftLockActionsMap(editTagLockActions, entryIdx);
+                            shiftStringMap(editTagNameText, entryIdx);
+                            shiftStringMap(editTagTooltipText, entryIdx);
                         }
-                        // When removing a mod, shift lockActions indices
+                        // When removing a mod, shift lockActions + override indices
                         if (tabIdx == 2) {
                             shiftLockActionsMap(editModLockActions, entryIdx);
+                            shiftStringMap(editModNameText, entryIdx);
+                            shiftStringMap(editModTooltipText, entryIdx);
                         }
                         // When removing a spawnlock entry, drop its sources entry (keyed by entity ID)
                         if (tabIdx == 7 && removedValue != null) {
@@ -2795,6 +2892,13 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (overridePopupVisible) {
+            if (keyCode == 256) { applyOverrideAndClose(); return true; }
+            if (keyCode == 257 || keyCode == 335) { applyOverrideAndClose(); return true; } // Enter
+            if (overrideNameField.isFocused() && overrideNameField.keyPressed(keyCode, scanCode, modifiers)) return true;
+            if (overrideTooltipField.isFocused() && overrideTooltipField.keyPressed(keyCode, scanCode, modifiers)) return true;
+            return true;
+        }
         if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode)) return true;
         if (modStructurePopup.isVisible() && modStructurePopup.keyPressed(keyCode)) return true;
         if (recipePopupVisible && keyCode == 256) {
@@ -2833,6 +2937,11 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean charTyped(char c, int modifiers) {
+        if (overridePopupVisible) {
+            if (overrideNameField.isFocused() && overrideNameField.charTyped(c, modifiers)) return true;
+            if (overrideTooltipField.isFocused() && overrideTooltipField.charTyped(c, modifiers)) return true;
+            return true;
+        }
         if (itemSearch.isVisible() && itemSearch.charTyped(c)) return true;
         if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c)) return true;
         if (modSearch.isVisible() && modSearch.charTyped(c)) return true;
@@ -2858,8 +2967,9 @@ public class StageDetailScreen extends Screen {
     private void openStageSettings() {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
-                editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary, isNewStage,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary) -> {
+                editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary,
+                editHiddenDisplay.copy(), isNewStage,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -2868,9 +2978,165 @@ public class StageDetailScreen extends Screen {
                     editMode = newStageMode;
                     editAutoTrigger = newAutoTrigger;
                     editTemporary = newTemporary;
+                    editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
                     hasChanges = true;
                 },
                 this::buildEntrySnapshot));
+    }
+
+    /** True when the stage's hidden-display config has at least one axis set to REPLACE. */
+    private boolean hasReplaceAxis() {
+        return editHiddenDisplay.getNameMode() == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE
+                || editHiddenDisplay.getTooltipMode() == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE;
+    }
+
+    private Map<Integer, String> overrideNameMap(int tab) {
+        return tab == 1 ? editTagNameText : tab == 2 ? editModNameText : editItemNameText;
+    }
+
+    private Map<Integer, String> overrideTooltipMap(int tab) {
+        return tab == 1 ? editTagTooltipText : tab == 2 ? editModTooltipText : editItemTooltipText;
+    }
+
+    private void openOverridePopup(int tab, int entryIdx) {
+        overrideShowName = editHiddenDisplay.getNameMode()
+                == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE;
+        overrideShowTooltip = editHiddenDisplay.getTooltipMode()
+                == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE;
+        if (!overrideShowName && !overrideShowTooltip) return;
+
+        overridePopupTab = tab;
+        overridePopupIdx = entryIdx;
+        overrideNameDefault = editHiddenDisplay.getNameText();
+        overrideTooltipDefault = editHiddenDisplay.getTooltipText();
+
+        int rows = (overrideShowName ? 1 : 0) + (overrideShowTooltip ? 1 : 0);
+        int w = Math.min(300, this.width - 60);
+        int h = 30 + rows * 44 + 34;
+        int x = (this.width - w) / 2;
+        int y = (this.height - h) / 2;
+        cachedOverrideX = x; cachedOverrideY = y; cachedOverrideW = w; cachedOverrideH = h;
+
+        int fieldX = x + 12;
+        int fieldW = w - 24;
+        int cy = y + 30;
+
+        overrideNameField.visible = overrideShowName;
+        if (overrideShowName) {
+            overrideNameField.setPosition(fieldX, cy + 12);
+            overrideNameField.setWidth(fieldW);
+            String cur = overrideNameMap(tab).get(entryIdx);
+            overrideNameField.setValue(cur != null ? cur : "");
+            overrideNameField.setCursorPosition(0);
+            overrideNameField.setHighlightPos(0);
+            overrideNameField.setHint(Component.literal(overrideNameDefault.isEmpty() ? "—" : overrideNameDefault));
+            cy += 44;
+        }
+        overrideTooltipField.visible = overrideShowTooltip;
+        if (overrideShowTooltip) {
+            overrideTooltipField.setPosition(fieldX, cy + 12);
+            overrideTooltipField.setWidth(fieldW);
+            String cur = overrideTooltipMap(tab).get(entryIdx);
+            overrideTooltipField.setValue(cur != null ? cur : "");
+            overrideTooltipField.setCursorPosition(0);
+            overrideTooltipField.setHighlightPos(0);
+            overrideTooltipField.setHint(Component.literal(overrideTooltipDefault.isEmpty() ? "—" : overrideTooltipDefault));
+        }
+
+        overrideResetBtn.setPosition(x + 12, y + h - 26);
+        overrideResetBtn.setWidth(70);
+        overrideResetBtn.visible = true;
+        overrideDoneBtn.setPosition(x + w - 72, y + h - 26);
+        overrideDoneBtn.setWidth(60);
+        overrideDoneBtn.visible = true;
+
+        overridePopupVisible = true;
+        this.setFocused(overrideShowName ? overrideNameField : overrideTooltipField);
+        if (overrideShowName) overrideNameField.setFocused(true);
+        else overrideTooltipField.setFocused(true);
+    }
+
+    private void applyOverrideAndClose() {
+        if (overrideShowName) putOrRemove(overrideNameMap(overridePopupTab), overridePopupIdx, overrideNameField.getValue());
+        if (overrideShowTooltip) putOrRemove(overrideTooltipMap(overridePopupTab), overridePopupIdx, overrideTooltipField.getValue());
+        hasChanges = true;
+        closeOverridePopup();
+    }
+
+    private void resetOverride() {
+        overrideNameMap(overridePopupTab).remove(overridePopupIdx);
+        overrideTooltipMap(overridePopupTab).remove(overridePopupIdx);
+        hasChanges = true;
+        closeOverridePopup();
+    }
+
+    private void closeOverridePopup() {
+        overridePopupVisible = false;
+        overridePopupIdx = -1;
+        overrideNameField.visible = false;
+        overrideNameField.setFocused(false);
+        overrideTooltipField.visible = false;
+        overrideTooltipField.setFocused(false);
+        overrideResetBtn.visible = false;
+        overrideDoneBtn.visible = false;
+        this.setFocused(null);
+    }
+
+    private boolean handleOverridePopupClick(double mouseX, double mouseY, int button) {
+        boolean inside = mouseX >= cachedOverrideX && mouseX <= cachedOverrideX + cachedOverrideW
+                && mouseY >= cachedOverrideY && mouseY <= cachedOverrideY + cachedOverrideH;
+        if (!inside) {
+            applyOverrideAndClose();
+            return true;
+        }
+        if (overrideResetBtn.mouseClicked(mouseX, mouseY, button)) return true;
+        if (overrideDoneBtn.mouseClicked(mouseX, mouseY, button)) return true;
+        if (overrideShowName && overrideNameField.mouseClicked(mouseX, mouseY, button)) {
+            overrideNameField.setFocused(true);
+            overrideTooltipField.setFocused(false);
+            return true;
+        }
+        if (overrideShowTooltip && overrideTooltipField.mouseClicked(mouseX, mouseY, button)) {
+            overrideTooltipField.setFocused(true);
+            overrideNameField.setFocused(false);
+            return true;
+        }
+        return true; // consume any click inside the popup
+    }
+
+    private void renderOverridePopup(GuiGraphics g, int mouseX, int mouseY) {
+        g.fill(0, 0, this.width, this.height, 0x80000000);
+        int x = cachedOverrideX, y = cachedOverrideY, w = cachedOverrideW, h = cachedOverrideH;
+        // Card chrome (matches renderCard style)
+        g.fill(x, y, x + w, y + h, 0xFF555555);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFF1A1A1A);
+        g.fill(x + 1, y + 1, x + w - 1, y + 20, 0xFF2D2D2D);
+        g.fill(x + 1, y + 20, x + w - 1, y + 21, 0xFF555555);
+        g.drawString(this.font, Component.translatable("editor.historystages.text_override.title").getString(),
+                x + 8, y + 7, 0xFFCC00, false);
+
+        int cy = y + 30;
+        if (overrideShowName) {
+            g.drawString(this.font, Component.translatable("editor.historystages.text_override.name").getString(),
+                    x + 12, cy, 0xAAAAAA, false);
+            overrideNameField.render(g, mouseX, mouseY, 0f);
+            cy += 44;
+        }
+        if (overrideShowTooltip) {
+            g.drawString(this.font, Component.translatable("editor.historystages.text_override.tooltip").getString(),
+                    x + 12, cy, 0xAAAAAA, false);
+            overrideTooltipField.render(g, mouseX, mouseY, 0f);
+        }
+        overrideResetBtn.render(g, mouseX, mouseY, 0f);
+        overrideDoneBtn.render(g, mouseX, mouseY, 0f);
+    }
+
+    private static void putOrRemove(Map<Integer, String> map, int idx, String value) {
+        if (value != null && !value.isEmpty()) {
+            map.put(idx, value);
+        } else {
+            map.remove(idx);
+        }
     }
 
     /**
@@ -2891,19 +3157,24 @@ public class StageDetailScreen extends Screen {
         for (int idx = 0; idx < editItems.size(); idx++) {
             com.google.gson.JsonObject nbt = editItemNbt.get(idx);
             List<String> lockActions = editItemLockActions.get(idx);
-            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editItems.get(idx), nbt, lockActions));
+            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(
+                    editItems.get(idx), nbt, lockActions,
+                    editItemNameText.get(idx), editItemTooltipText.get(idx)));
         }
         newEntry.setItemEntries(itemEntries);
+        newEntry.setHiddenDisplay(editHiddenDisplay);
         List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagEntries = new ArrayList<>();
         for (int idx = 0; idx < editTags.size(); idx++) {
             tagEntries.add(new net.bananemdnsa.historystages.data.lock.NamedLockEntry(
-                    editTags.get(idx), editTagLockActions.get(idx)));
+                    editTags.get(idx), editTagLockActions.get(idx),
+                    editTagNameText.get(idx), editTagTooltipText.get(idx)));
         }
         newEntry.setTagEntries(tagEntries);
         List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modEntries = new ArrayList<>();
         for (int idx = 0; idx < editMods.size(); idx++) {
             modEntries.add(new net.bananemdnsa.historystages.data.lock.NamedLockEntry(
-                    editMods.get(idx), editModLockActions.get(idx)));
+                    editMods.get(idx), editModLockActions.get(idx),
+                    editModNameText.get(idx), editModTooltipText.get(idx)));
         }
         newEntry.setModEntries(modEntries);
         List<net.bananemdnsa.historystages.data.ItemEntry> modExceptionEntries = new ArrayList<>();

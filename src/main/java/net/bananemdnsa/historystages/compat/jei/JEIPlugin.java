@@ -43,6 +43,8 @@ public class JEIPlugin implements IModPlugin {
     // --- Issue #64: hide-locked state ---
     private static volatile LockedJeiRefresher REFRESHER;
     private static volatile IJeiRuntime RUNTIME;
+    /** Item IDs whose hidden-display name was active last pass — used to detect name changes. */
+    private static volatile Set<String> prevNameAffectedIds = Set.of();
     /** Tracks which recipes WE hid last pass, so we can unhide them on next refresh. */
     private static final Map<RecipeType<?>, List<Object>> currentlyHiddenRecipes = new HashMap<>();
 
@@ -80,6 +82,9 @@ public class JEIPlugin implements IModPlugin {
             boolean hideRecipes = Config.CLIENT.hideLockedRecipesInJei.get();
             REFRESHER.applyInitial(hideItems, () -> computeLockedItems(jeiRuntime.getIngredientManager()));
             applyRecipeHiding(hideRecipes, jeiRuntime);
+            // Seed the name-affected baseline without churn (items were already added with the
+            // replaced name in effect).
+            prevNameAffectedIds = computeNameAffectedIds(jeiRuntime.getIngredientManager());
             LOGGER.info("[HistoryStages/JEI] Initial hide pass complete (items={}, recipes={}).", hideItems, hideRecipes);
         } catch (Exception e) {
             LOGGER.warn("[HistoryStages/JEI] Initial hide pass failed", e);
@@ -101,8 +106,53 @@ public class JEIPlugin implements IModPlugin {
             boolean hideRecipes = Config.CLIENT.hideLockedRecipesInJei.get();
             r.applyDiff(hideItems, () -> computeLockedItems(runtime.getIngredientManager()));
             applyRecipeHiding(hideRecipes, runtime);
+            // Re-read items whose hidden-display name just changed (e.g. a stage unlocked),
+            // so JEI's cached names + search index reflect the new name.
+            refreshNameChangedItems(runtime);
         } catch (Exception e) {
             LOGGER.warn("[HistoryStages/JEI] applyDiff failed", e);
+        }
+    }
+
+    /** Item IDs of currently-visible ingredients whose hidden-display name is active. */
+    private static Set<String> computeNameAffectedIds(IIngredientManager mgr) {
+        Set<String> ids = new HashSet<>();
+        for (ItemStack stack : mgr.getAllItemStacks()) {
+            if (stack.isEmpty()) continue;
+            if (net.bananemdnsa.historystages.client.display.HiddenDisplayResolver.resolve(stack).changesName()) {
+                ResourceLocation rl = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                if (rl != null) ids.add(rl.toString());
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Forces JEI to re-read the names/search index of items whose hidden-display name changed
+     * since the last pass (entered or left the name-affected set). Only touches currently-visible
+     * ingredients — hidden items are managed by {@link #tryApplyDiff}'s hide diff.
+     */
+    private static void refreshNameChangedItems(IJeiRuntime runtime) {
+        IIngredientManager mgr = runtime.getIngredientManager();
+        Set<String> nowIds = computeNameAffectedIds(mgr);
+
+        Set<String> changed = new HashSet<>();
+        for (String id : nowIds) if (!prevNameAffectedIds.contains(id)) changed.add(id);
+        for (String id : prevNameAffectedIds) if (!nowIds.contains(id)) changed.add(id);
+        prevNameAffectedIds = nowIds;
+        if (changed.isEmpty()) return;
+
+        Set<ItemStack> refresh = new HashSet<>();
+        for (ItemStack stack : mgr.getAllItemStacks()) {
+            ResourceLocation rl = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            if (rl != null && changed.contains(rl.toString())) refresh.add(stack);
+        }
+        if (refresh.isEmpty()) return;
+        try {
+            mgr.removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK, refresh);
+            mgr.addIngredientsAtRuntime(VanillaTypes.ITEM_STACK, refresh);
+        } catch (Exception e) {
+            LOGGER.warn("[HistoryStages/JEI] name refresh failed", e);
         }
     }
 

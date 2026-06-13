@@ -29,30 +29,37 @@ public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>>
         }
         out.beginArray();
         for (NamedLockEntry entry : entries) {
-            if (!entry.hasLockActions()) {
-                // null = all actions locked → plain string, no field needed
-                out.value(entry.getId());
-            } else {
-                // Compute unlock_actions = all known actions minus the locked ones
+            boolean hasOverride = entry.hasNameTextOverride() || entry.hasTooltipTextOverride();
+            // Compute unlock_actions = all known actions minus the locked ones
+            List<String> unlocked = new ArrayList<>();
+            if (entry.hasLockActions()) {
                 List<String> locked = entry.getLockActions();
-                List<String> unlocked = new ArrayList<>();
                 for (String action : NamedLockEntry.ALL_ACTIONS) {
                     if (!locked.contains(action)) unlocked.add(action);
                 }
-                if (unlocked.isEmpty()) {
-                    // All actions are locked — same as null, write as plain string
-                    out.value(entry.getId());
-                } else {
-                    out.beginObject();
-                    out.name("id").value(entry.getId());
+            }
+            boolean needsObject = !unlocked.isEmpty() || hasOverride;
+            if (!needsObject) {
+                // null/all-locked and no overrides → plain string
+                out.value(entry.getId());
+            } else {
+                out.beginObject();
+                out.name("id").value(entry.getId());
+                if (!unlocked.isEmpty()) {
                     out.name("unlock_actions");
                     out.beginArray();
                     for (String action : unlocked) {
                         out.value(action);
                     }
                     out.endArray();
-                    out.endObject();
                 }
+                if (entry.hasNameTextOverride()) {
+                    out.name("name_text").value(entry.getNameTextOverride());
+                }
+                if (entry.hasTooltipTextOverride()) {
+                    out.name("tooltip_text").value(entry.getTooltipTextOverride());
+                }
+                out.endObject();
             }
         }
         out.endArray();
@@ -90,7 +97,9 @@ public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>>
                         lockActions.add(el.getAsString());
                     }
                 }
-                entries.add(new NamedLockEntry(id, lockActions));
+                String nameText = obj.has("name_text") ? obj.get("name_text").getAsString() : null;
+                String tooltipText = obj.has("tooltip_text") ? obj.get("tooltip_text").getAsString() : null;
+                entries.add(new NamedLockEntry(id, lockActions, nameText, tooltipText));
             }
         }
         in.endArray();

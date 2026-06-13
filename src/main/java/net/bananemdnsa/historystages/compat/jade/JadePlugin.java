@@ -6,6 +6,8 @@ import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.TieredPedestal;
 import net.bananemdnsa.historystages.research.TierMatcher;
+import net.bananemdnsa.historystages.client.display.HiddenDisplayResolver;
+import net.bananemdnsa.historystages.data.display.DisplayMode;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
@@ -97,8 +99,6 @@ public class JadePlugin implements IWailaPlugin {
 
         @Override
         public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
-            if (!Config.CLIENT.jadeShowInfo.get()) return;
-
             Block block = accessor.getBlock();
             ResourceLocation blockLocation = BuiltInRegistries.BLOCK.getKey(block);
             if (blockLocation == null) return;
@@ -106,6 +106,20 @@ public class JadePlugin implements IWailaPlugin {
             // Check via the block's item form
             ItemStack blockItem = new ItemStack(block.asItem());
             if (blockItem.isEmpty()) return;
+
+            // Hidden-display: override the Jade HUD title for name-locked blocks. Applies even
+            // when the lock-info lines are disabled — this is the spoiler protection.
+            HiddenDisplayResolver.Resolved hidden = HiddenDisplayResolver.resolve(blockItem);
+            if (hidden.changesName()) {
+                Component replacement = hidden.nameMode() == DisplayMode.REPLACE
+                        ? Component.literal(hidden.nameText())
+                        : Component.empty();
+                tooltip.replace(JadeIds.CORE_OBJECT_NAME, replacement);
+            }
+
+            if (!Config.CLIENT.jadeShowInfo.get()) return;
+            // Couple the lock-info lines to show_lock_hints when the tooltip is hidden/replaced.
+            boolean suppressHints = hidden.changesTooltip() && !hidden.showLockHints();
 
             ResourceLocation itemLocation = BuiltInRegistries.ITEM.getKey(blockItem.getItem());
             if (itemLocation == null) return;
@@ -133,12 +147,12 @@ public class JadePlugin implements IWailaPlugin {
                 }
             }
 
-            if (isCurrentlyLocked) {
+            if (isCurrentlyLocked && !suppressHints) {
                 appendStageTooltip(tooltip, totalRequiredStages, false);
             }
 
             // Individual stages — only shown when not in Phase 1 of a dual-phase lock
-            if (!StageLockHelper.isDualPhaseGloballyLockedClient(blockItem)) {
+            if (!suppressHints && !StageLockHelper.isDualPhaseGloballyLockedClient(blockItem)) {
                 List<StageEntry> individualRequiredStages = new ArrayList<>();
                 boolean isIndividuallyLocked = false;
 
