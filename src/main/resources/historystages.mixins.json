@@ -12,6 +12,10 @@
   ],
   "client": [
     "ClientAdvancementsAccessor",
+    "toast.ToastComponentMixin",
+    "toast.ToastComponentAccessor",
+    "toast.ToastInstanceMixin",
+    "toast.ToastInstanceAccessor",
     "emi.RecipeScreenMixin",
     "emi.ItemEmiStackMixin",
     "emi.StackBatcherMixin",

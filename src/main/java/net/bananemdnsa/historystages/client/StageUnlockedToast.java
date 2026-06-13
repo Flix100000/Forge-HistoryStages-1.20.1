@@ -7,7 +7,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-public class StageUnlockedToast implements Toast {
+import net.bananemdnsa.historystages.client.toast.DismissibleToast;
+
+public class StageUnlockedToast implements Toast, DismissibleToast {
 
     private static final ResourceLocation BACKGROUND_SPRITE = ResourceLocation.withDefaultNamespace("toast/advancement");
     private static final int DISPLAY_TIME = 5000;
@@ -15,6 +17,7 @@ public class StageUnlockedToast implements Toast {
     private final Component title;
     private final Component stageName;
     private final ItemStack icon;
+    private boolean dismissed = false;
 
     public StageUnlockedToast(String stageName, ItemStack icon) {
         this.title = Component.translatable("toast.historystages.stage_unlocked");
@@ -23,7 +26,16 @@ public class StageUnlockedToast implements Toast {
     }
 
     @Override
+    public void dismiss() {
+        this.dismissed = true;
+    }
+
+    @Override
     public Visibility render(GuiGraphics guiGraphics, ToastComponent toastComponent, long timeSinceLastVisible) {
+        if (dismissed) {
+            return Visibility.HIDE;
+        }
+
         // Draw the vanilla toast background using 1.21 sprite system
         guiGraphics.blitSprite(BACKGROUND_SPRITE, 0, 0, this.width(), this.height());
 
