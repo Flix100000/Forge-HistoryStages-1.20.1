@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.events.lock;
 
+import java.util.Set;
+
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.util.DebugLogger;
@@ -12,6 +14,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.util.TriState;
@@ -24,6 +27,14 @@ public class ItemUseLockHandler {
 
     private static final String FEEDBACK_CATEGORY = "item";
     private static boolean suppressEquipmentCheck = false;
+
+    /**
+     * Namespaces of blocks whose interaction consumes the held item instead of just "using" it
+     * (e.g. Create: Copycats+ applies the held material onto the block). For such blocks
+     * setUseItem(FALSE) is not enough — the block interaction must be disabled as well.
+     * Add further mods here.
+     */
+    private static final Set<String> ITEM_CONSUMING_BLOCK_NAMESPACES = Set.of("copycats");
 
     /**
      * Prevents using locked items (eating, drinking, bows, shields, etc.)
@@ -63,6 +74,23 @@ public class ItemUseLockHandler {
         if (isActionLocked(heldItem, event.getEntity(), "place")
                 || isActionLocked(heldItem, event.getEntity(), "use")) {
             event.setUseItem(TriState.FALSE);
+
+            // Copycat-like blocks consume the held item through the block interaction
+            // (Block#useItemOn), not through Item#useOn. Block that path too, otherwise the
+            // locked item's material is applied anyway (Issue #81).
+            Block target = event.getLevel().getBlockState(event.getPos()).getBlock();
+            ResourceLocation blockRL = BuiltInRegistries.BLOCK.getKey(target);
+            if (blockRL != null && ITEM_CONSUMING_BLOCK_NAMESPACES.contains(blockRL.getNamespace())) {
+                event.setUseBlock(TriState.FALSE);
+                if (!event.getEntity().level().isClientSide()) {
+                    ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
+                    DebugLogger.runtimeThrottled("Item Use Lock",
+                            "blockuse_" + event.getEntity().getUUID() + "_" + itemRL,
+                            "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL
+                                    + "' on '" + blockRL + "' blocked [action: place/use on item-consuming block]");
+                    showMessage(event.getEntity());
+                }
+            }
         }
     }
 
