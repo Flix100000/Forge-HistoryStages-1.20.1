@@ -1,7 +1,7 @@
 name: Contribution Offer
 description: Offer to contribute code, translations, art, or other help
 title: "[Contribution] "
-labels: ["contribution"]
+labels: ["contribution offer"]
 body:
   - type: markdown
     attributes:
