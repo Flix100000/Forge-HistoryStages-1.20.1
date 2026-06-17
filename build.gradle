@@ -55,6 +55,13 @@ repositories {
         name = "Sinytra"
         url "https://maven.su5ed.dev/releases"
     }
+    maven {
+        name = "Modrinth"
+        url "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
 }
 
 base {
@@ -179,6 +186,9 @@ dependencies {
 
     // Accessories
     compileOnly "io.wispforest:accessories-neoforge:1.1.0-beta.53+1.21.1"
+
+    // Spell Engine API (optional integration — adapter only loads when the mod is present at runtime)
+    compileOnly "maven.modrinth:spell-engine:1.9.9+1.21.1-neoforge"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
