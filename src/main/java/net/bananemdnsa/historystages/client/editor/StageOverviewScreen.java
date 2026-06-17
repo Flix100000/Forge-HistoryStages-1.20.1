@@ -104,6 +104,11 @@ public class StageOverviewScreen extends Screen {
                 btn -> this.minecraft.setScreen(new ConfigEditorScreen(this)),
                 this.width - 30, 5, 20, 20));
 
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.depgraph.button"),
+                btn -> this.minecraft.setScreen(new DependencyGraphScreen(this)),
+                this.width - 110, 5, 75, 20));
+
         contextMenu = new ContextMenu();
         applyFilter();
     }
