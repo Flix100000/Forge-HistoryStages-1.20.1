@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -63,6 +64,11 @@ public class ItemUseLockHandler {
      * but still allows block interaction (opening chests, crafting tables).
      * Also prevents consumables (food, potions) from being used while looking at a block.
      * Cancelled on BOTH sides to prevent ghost blocks and item consumption.
+     *
+     * The item's right-click-on-block behaviour maps to two distinct lock actions:
+     * placing a block (BlockItem) is gated by "place", while using an item's function on a
+     * block (hoe tilling, flint & steel, eating while looking at a block) is gated by "use".
+     * They must stay independent — locking only "use" must not block placement (Issue #85).
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -71,8 +77,9 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isActionLocked(heldItem, event.getEntity(), "place")
-                || isActionLocked(heldItem, event.getEntity(), "use")) {
+        // BlockItem#useOn places a block -> "place"; any other item's useOn is a use -> "use".
+        String action = heldItem.getItem() instanceof BlockItem ? "place" : "use";
+        if (isActionLocked(heldItem, event.getEntity(), action)) {
             event.setUseItem(TriState.FALSE);
 
             // Copycat-like blocks consume the held item through the block interaction
@@ -87,7 +94,7 @@ public class ItemUseLockHandler {
                     DebugLogger.runtimeThrottled("Item Use Lock",
                             "blockuse_" + event.getEntity().getUUID() + "_" + itemRL,
                             "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL
-                                    + "' on '" + blockRL + "' blocked [action: place/use on item-consuming block]");
+                                    + "' on '" + blockRL + "' blocked [action: " + action + " on item-consuming block]");
                     showMessage(event.getEntity());
                 }
             }
