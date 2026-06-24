@@ -19,15 +19,20 @@ public class EntitySpawnLockEntry {
 
     private final String id;
     private final List<String> lockSources; // null = all sources locked, empty = treated as all locked
+    private final List<String> unlockDimensions; // null/empty = all dimensions locked; otherwise the dims that are NOT locked
 
     public EntitySpawnLockEntry(String id) {
-        this.id = id;
-        this.lockSources = null;
+        this(id, null, null);
     }
 
     public EntitySpawnLockEntry(String id, List<String> lockSources) {
+        this(id, lockSources, null);
+    }
+
+    public EntitySpawnLockEntry(String id, List<String> lockSources, List<String> unlockDimensions) {
         this.id = id;
         this.lockSources = (lockSources != null && !lockSources.isEmpty()) ? new ArrayList<>(lockSources) : null;
+        this.unlockDimensions = (unlockDimensions != null && !unlockDimensions.isEmpty()) ? new ArrayList<>(unlockDimensions) : null;
     }
 
     public String getId() { return id; }
@@ -42,7 +47,20 @@ public class EntitySpawnLockEntry {
         return lockSources == null || lockSources.contains(source);
     }
 
+    /** Returns null if all dimensions are locked, otherwise the explicit list of unlocked (allowed) dimensions. */
+    public List<String> getUnlockDimensions() { return unlockDimensions; }
+
+    public boolean hasUnlockDimensions() { return unlockDimensions != null && !unlockDimensions.isEmpty(); }
+
+    /** True if the given dimension is blocked by this entry. Anything not explicitly unlocked is blocked. */
+    public boolean blocksDimension(String dimension) {
+        return unlockDimensions == null || unlockDimensions.isEmpty() || !unlockDimensions.contains(dimension);
+    }
+
     public EntitySpawnLockEntry copy() {
-        return new EntitySpawnLockEntry(id, lockSources != null ? new ArrayList<>(lockSources) : null);
+        return new EntitySpawnLockEntry(
+                id,
+                lockSources != null ? new ArrayList<>(lockSources) : null,
+                unlockDimensions != null ? new ArrayList<>(unlockDimensions) : null);
     }
 }
