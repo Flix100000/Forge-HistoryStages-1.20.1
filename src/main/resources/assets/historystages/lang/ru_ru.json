@@ -436,7 +436,7 @@
   "editor.historystages.auto_trigger.type.dimension": "Измерение",
   "editor.historystages.auto_trigger.type.item": "Предмет",
   "editor.historystages.auto_trigger.type.entity": "Сущность",
-  "editor.historystages.auto_trigger.type.block_place": "Блок установлен",
+  "editor.historystages.auto_trigger.type.block_place": "Блок поставлен",
   "editor.historystages.auto_trigger.type.block_break": "Блок разрушен",
   "editor.historystages.auto_trigger.type.advancement": "Достижение",
   "editor.historystages.auto_trigger.type.playtime": "Игровое время",
