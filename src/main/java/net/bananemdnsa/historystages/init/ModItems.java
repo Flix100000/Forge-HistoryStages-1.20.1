@@ -46,7 +46,7 @@ public class ModItems {
                             stage = StageManager.getIndividualStages().get(stageId);
                         }
                         if (stage != null) {
-                            return Component.literal(stage.getDisplayName() + " Research Scroll")
+                            return Component.translatable("tooltip.historystages.research_scroll.named", stage.getDisplayName())
                                     .withStyle(ChatFormatting.AQUA);
                         }
                     }
@@ -60,10 +60,10 @@ public class ModItems {
                     if (tag.contains("StageResearch")) {
                         String stageId = tag.getString("StageResearch");
                         if (StageManager.isIndividualStage(stageId)) {
-                            tooltip.add(Component.literal("Individual")
+                            tooltip.add(Component.translatable("tooltip.historystages.scroll.individual")
                                     .withStyle(ChatFormatting.LIGHT_PURPLE));
                             if (tag.contains("OwnerName")) {
-                                tooltip.add(Component.literal("Owner: " + tag.getString("OwnerName"))
+                                tooltip.add(Component.translatable("tooltip.historystages.scroll.owner", tag.getString("OwnerName"))
                                         .withStyle(ChatFormatting.GRAY));
                             }
                         }
@@ -106,7 +106,7 @@ public class ModItems {
                             entry = StageManager.getIndividualStages().get(stageId);
                         if (entry != null && entry.hasDependencies()) {
                             tooltip.add(Component.empty());
-                            tooltip.add(Component.literal("Dependencies:")
+                            tooltip.add(Component.translatable("tooltip.historystages.scroll.dependencies")
                                     .withStyle(ChatFormatting.GOLD));
 
                             DependencyResult result = ClientDependencyCache.get(stageId);
@@ -133,7 +133,7 @@ public class ModItems {
                                     String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
                                     var se = StageManager.getStages().get(sid);
                                     String name = se != null ? se.getDisplayName() : sid;
-                                    tooltip.add(Component.literal("  " + icon + " Stage: " + name)
+                                    tooltip.add(Component.translatable("tooltip.historystages.dep.stage", icon, name)
                                             .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN : ChatFormatting.GRAY));
                                 }
                                 // Show individual stages
@@ -142,7 +142,8 @@ public class ModItems {
                                     String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
                                     var se = StageManager.getIndividualStages().get(dep.getStageId());
                                     String name = se != null ? se.getDisplayName() : dep.getStageId();
-                                    tooltip.add(Component.literal("  " + icon + " " + name + (dep.isAllEver() ? " (all)" : " (online)"))
+                                    tooltip.add(Component.literal("  " + icon + " " + name)
+                                            .append(Component.translatable(dep.isAllEver() ? "tooltip.historystages.dep.all" : "tooltip.historystages.dep.online"))
                                             .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN : ChatFormatting.GRAY));
                                 }
                                 // Show XP level
@@ -150,12 +151,12 @@ public class ModItems {
                                 if (xp != null && xp.getLevel() > 0) {
                                     DependencyResult.EntryResult er = findResult(result, "xp_level", "xp");
                                     String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
-                                    tooltip.add(Component.literal("  " + icon + " Level " + xp.getLevel())
+                                    tooltip.add(Component.translatable("tooltip.historystages.dep.level", icon, xp.getLevel())
                                             .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN : ChatFormatting.GRAY));
                                 }
 
                                 if (entry.getDependencies().indexOf(group) < entry.getDependencies().size() - 1) {
-                                    tooltip.add(Component.literal("  --- " + logic + " ---")
+                                    tooltip.add(Component.translatable("tooltip.historystages.dep.separator", logic)
                                             .withStyle(ChatFormatting.DARK_GRAY));
                                 }
                             }

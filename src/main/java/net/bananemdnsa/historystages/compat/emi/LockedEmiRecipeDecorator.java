@@ -45,9 +45,9 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
     /** The tooltip shown when hovering a locked recipe. Shared with the RecipeScreen mixin. */
     public static java.util.List<Component> lockedTooltipLines() {
         return java.util.List.of(
-                Component.literal("\u00A7c\u00A7lStage Locked"),
-                Component.literal("\u00A77This recipe requires a stage that"),
-                Component.literal("\u00A77has not been unlocked yet.")
+                Component.translatable("tooltip.historystages.emi.stage_locked"),
+                Component.translatable("tooltip.historystages.emi.line1"),
+                Component.translatable("tooltip.historystages.emi.line2")
         );
     }
 
