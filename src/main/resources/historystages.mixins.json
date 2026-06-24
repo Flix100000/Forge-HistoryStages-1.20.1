@@ -5,12 +5,15 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "historystages.refmap.json",
   "mixins": [
+    "AttributeLockMixin",
     "RecipeManagerMixin",
     "ContainerClickMixin",
     "EnchantmentMenuMixin",
     "jei.RecipeLayoutMixin"
   ],
   "client": [
+    "bettercombat.AttackStartLockMixin",
+    "bettercombat.WeaponRegistryMixin",
     "ClientAdvancementsAccessor",
     "ItemStackMixin",
     "toast.ToastComponentMixin",
