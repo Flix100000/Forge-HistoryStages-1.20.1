@@ -90,7 +90,7 @@ public class TooltipEventHandler {
 
                 int percent = (int) Math.min(100, ((double) progress / maxProgress * 100));
 
-                event.getToolTip().add(Component.literal("Progress: ")
+                event.getToolTip().add(Component.translatable("tooltip.historystages.scroll.progress")
                         .withStyle(ChatFormatting.GRAY)
                         .append(Component.literal(percent + "%").withStyle(ChatFormatting.GREEN)));
 
@@ -107,7 +107,7 @@ public class TooltipEventHandler {
                     timeDisplay = remainingSeconds + "s";
                 }
 
-                event.getToolTip().add(Component.literal("Remaining Time: ")
+                event.getToolTip().add(Component.translatable("tooltip.historystages.scroll.remaining_time")
                         .withStyle(ChatFormatting.GRAY)
                         .append(Component.literal(timeDisplay).withStyle(ChatFormatting.YELLOW)));
             }
@@ -161,7 +161,7 @@ public class TooltipEventHandler {
 
         if (isCurrentlyLocked) {
             if (Config.CLIENT.showStageName.get()) {
-                event.getToolTip().add(Component.literal("Required Progress:").withStyle(ChatFormatting.DARK_RED));
+                event.getToolTip().add(Component.translatable("tooltip.historystages.required_progress").withStyle(ChatFormatting.DARK_RED));
 
                 for (StageEntry stage : totalRequiredStages) {
                     String stageID = StageManager.getStages().entrySet().stream()
@@ -173,18 +173,18 @@ public class TooltipEventHandler {
 
                     if (totalRequiredStages.size() > 1 && showAll) {
                         ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
-                        String statusText = unlocked ? " (Unlocked)" : " (Locked)";
+                        String statusKey = unlocked ? "tooltip.historystages.status.unlocked" : "tooltip.historystages.status.locked";
 
                         event.getToolTip().add(Component.literal(" • ")
                                 .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GOLD))
-                                .append(Component.literal(statusText).withStyle(statusColor)));
+                                .append(Component.translatable(statusKey).withStyle(statusColor)));
                     } else if (!unlocked) {
                         event.getToolTip().add(Component.literal(" • ")
                                 .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GOLD)));
                     }
                 }
             } else {
-                event.getToolTip().add(Component.literal("This item is currently locked!")
+                event.getToolTip().add(Component.translatable("tooltip.historystages.item_locked")
                         .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
             }
         }
@@ -213,7 +213,7 @@ public class TooltipEventHandler {
 
         if (isIndividuallyLocked && Config.CLIENT.showIndividualTooltips.get()) {
             if (Config.CLIENT.showStageName.get()) {
-                event.getToolTip().add(Component.literal("Required Individual Progress:").withStyle(ChatFormatting.DARK_RED));
+                event.getToolTip().add(Component.translatable("tooltip.historystages.required_individual_progress").withStyle(ChatFormatting.DARK_RED));
 
                 for (StageEntry stage : individualRequiredStages) {
                     String stageID = StageManager.getIndividualStages().entrySet().stream()
@@ -225,18 +225,18 @@ public class TooltipEventHandler {
 
                     if (individualRequiredStages.size() > 1 && showAll) {
                         ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
-                        String statusText = unlocked ? " (Unlocked)" : " (Locked)";
+                        String statusKey = unlocked ? "tooltip.historystages.status.unlocked" : "tooltip.historystages.status.locked";
 
                         event.getToolTip().add(Component.literal(" • ")
                                 .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GRAY))
-                                .append(Component.literal(statusText).withStyle(statusColor)));
+                                .append(Component.translatable(statusKey).withStyle(statusColor)));
                     } else if (!unlocked) {
                         event.getToolTip().add(Component.literal(" • ")
                                 .append(MutableComponent.create(new SearchHiddenContents(stage.getDisplayName())).withStyle(ChatFormatting.GRAY)));
                     }
                 }
             } else {
-                event.getToolTip().add(Component.literal("This item is individually locked!")
+                event.getToolTip().add(Component.translatable("tooltip.historystages.item_individually_locked")
                         .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
             }
         }

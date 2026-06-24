@@ -892,11 +892,13 @@ public class StageManager {
      * A stage blocks the source if its spawnlock contains an entry for the entity that
      * either has no source filter (= block all) or explicitly lists this source.
      */
-    public static List<String> getAllStagesForSpawnLockedEntity(String entityId, String source) {
+    public static List<String> getAllStagesForSpawnLockedEntity(String entityId, String source, String dimension) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
-                if (spEntry.getId().equals(entityId) && spEntry.blocksSource(source)) {
+                if (spEntry.getId().equals(entityId)
+                        && spEntry.blocksSource(source)
+                        && spEntry.blocksDimension(dimension)) {
                     allFoundStages.add(entry.getKey());
                     break;
                 }
@@ -905,12 +907,12 @@ public class StageManager {
         return allFoundStages;
     }
 
-    /** Returns stages that have an entry for this entity (any source). Used by EntityJoinLevel fallback. */
-    public static List<String> getAllStagesWithSpawnlockEntry(String entityId) {
+    /** Returns stages that have an entry for this entity blocking the given dimension (any source). Used by EntityJoinLevel fallback. */
+    public static List<String> getAllStagesWithSpawnlockEntry(String entityId, String dimension) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
-                if (spEntry.getId().equals(entityId)) {
+                if (spEntry.getId().equals(entityId) && spEntry.blocksDimension(dimension)) {
                     allFoundStages.add(entry.getKey());
                     break;
                 }

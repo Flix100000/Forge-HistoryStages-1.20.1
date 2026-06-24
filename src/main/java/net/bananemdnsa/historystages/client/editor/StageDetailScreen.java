@@ -5,6 +5,8 @@ import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntitySelectionPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModStructureSelectionPopup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.SpawnSourcesPopup;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
@@ -98,6 +100,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
+    private final Map<String, List<String>> editSpawnlockDimensions;
     private final List<String> editModLinked;
     private List<DependencyGroup> editDependencies;
 
@@ -124,6 +127,8 @@ public class StageDetailScreen extends Screen {
     private ContextMenu contextMenu;
     private ModEntitySelectionPopup modEntityPopup;
     private ModStructureSelectionPopup modStructurePopup;
+    private DimensionFilterPopup dimFilterPopup;
+    private SpawnSourcesPopup spawnSourcesPopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
     // When non-null, the entity/structure popups are in "edit mode" for this mod:
@@ -191,10 +196,6 @@ public class StageDetailScreen extends Screen {
 
     // Spawn sources popup state (per-entity source filter for spawnlock entries)
     private static final String[] SPAWN_SOURCE_KEYS = {"natural", "spawner", "structure", "breeding", "summon", "spawn_egg"};
-    private boolean spawnSourcesPopupVisible = false;
-    private String spawnSourcesPopupEntityId = null;
-    private List<String> spawnSourcesPopupCurrent = new ArrayList<>();
-    private int cachedSpawnPopupX, cachedSpawnPopupY, cachedSpawnPopupW, cachedSpawnPopupH;
 
     // Grouped layout for the popup. First element is the group key (resolved via lang).
     private static final String[][] LOCK_ACTION_GROUPS = {
@@ -363,10 +364,14 @@ public class StageDetailScreen extends Screen {
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
+        this.editSpawnlockDimensions = new HashMap<>();
         for (net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry se : e.getEntities().getSpawnlock()) {
             this.editSpawnlock.add(se.getId());
             if (se.hasLockSources()) {
                 this.editSpawnlockSources.put(se.getId(), new ArrayList<>(se.getLockSources()));
+            }
+            if (se.hasUnlockDimensions()) {
+                this.editSpawnlockDimensions.put(se.getId(), new ArrayList<>(se.getUnlockDimensions()));
             }
         }
         this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
@@ -552,6 +557,7 @@ public class StageDetailScreen extends Screen {
                         .removeIf(id -> {
                             if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                 editSpawnlockSources.remove(id);
+                                editSpawnlockDimensions.remove(id);
                                 return true;
                             }
                             return false;
@@ -591,6 +597,24 @@ public class StageDetailScreen extends Screen {
                 editingModId = null;
         });
 
+        dimFilterPopup = new DimensionFilterPopup((entityId, allowed) -> {
+            if (allowed.isEmpty()) {
+                editSpawnlockDimensions.remove(entityId);
+            } else {
+                editSpawnlockDimensions.put(entityId, allowed);
+            }
+            hasChanges = true;
+        });
+
+        spawnSourcesPopup = new SpawnSourcesPopup((entityId, blocked) -> {
+            if (blocked.isEmpty()) {
+                editSpawnlockSources.remove(entityId);
+            } else {
+                editSpawnlockSources.put(entityId, blocked);
+            }
+            hasChanges = true;
+        });
+
         modSearch = new SearchableModList(modId -> {
             if (!editMods.contains(modId))
                 editMods.add(modId);
@@ -614,6 +638,7 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         }, () -> getActiveList());
+        entitySearch.setMultiSelect(true);
 
         tagSearch = new SearchableTagList(tagId -> {
             if (!editTags.contains(tagId))
@@ -655,7 +680,8 @@ public class StageDetailScreen extends Screen {
                 || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
-                || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
+                || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopup.isVisible()
+                || dimFilterPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
     }
@@ -1111,6 +1137,19 @@ public class StageDetailScreen extends Screen {
                     }
                 }
 
+                // Dimension badge for spawnlock entries restricted to specific dimensions
+                if (activeTab == 7) {
+                    List<String> dimFilter = editSpawnlockDimensions.get(list.get(i));
+                    if (dimFilter != null && !dimFilter.isEmpty()) {
+                        String label = Component.translatable("editor.historystages.badge.dimensions").getString();
+                        String dimBadge = "[" + label + ": " + dimFilter.size() + "]";
+                        int dBadgeW = this.font.width(dimBadge) + 4;
+                        guiGraphics.drawString(this.font, dimBadge, contentRight - badgeW - dBadgeW, cardY + 7,
+                                0xCCAA66, false);
+                        badgeW += dBadgeW;
+                    }
+                }
+
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
                         || (activeTab == 8 && editStructureModLinked.contains(list.get(i)))) {
@@ -1299,7 +1338,8 @@ public class StageDetailScreen extends Screen {
         modStructurePopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
         if (lockActionsPopupVisible) renderLockActionsPopup(guiGraphics, mouseX, mouseY);
-        if (spawnSourcesPopupVisible) renderSpawnSourcesPopup(guiGraphics, mouseX, mouseY);
+        spawnSourcesPopup.render(guiGraphics, this.font, mouseX, mouseY);
+        dimFilterPopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (overridePopupVisible) renderOverridePopup(guiGraphics, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
@@ -2101,227 +2141,6 @@ public class StageDetailScreen extends Screen {
 
     // ===== Spawn sources popup =====
 
-    private void openSpawnSourcesPopup(String entityId) {
-        spawnSourcesPopupEntityId = entityId;
-        List<String> existing = editSpawnlockSources.get(entityId);
-        if (existing != null && !existing.isEmpty()) {
-            spawnSourcesPopupCurrent = new ArrayList<>(existing);
-        } else {
-            // Default = all sources blocked (matches "no entry in map" behaviour)
-            spawnSourcesPopupCurrent = new ArrayList<>(java.util.Arrays.asList(SPAWN_SOURCE_KEYS));
-        }
-        spawnSourcesPopupVisible = true;
-    }
-
-    private void saveSpawnSourcesPopup() {
-        if (spawnSourcesPopupEntityId == null) {
-            spawnSourcesPopupVisible = false;
-            return;
-        }
-        boolean allBlocked = spawnSourcesPopupCurrent.size() == SPAWN_SOURCE_KEYS.length;
-        if (allBlocked) {
-            editSpawnlockSources.remove(spawnSourcesPopupEntityId);
-        } else {
-            editSpawnlockSources.put(spawnSourcesPopupEntityId, new ArrayList<>(spawnSourcesPopupCurrent));
-        }
-        hasChanges = true;
-        spawnSourcesPopupVisible = false;
-    }
-
-    private static final int SP_PAD       = 8;
-    private static final int SP_WIDTH     = 300;
-    private static final int SP_COLS      = 2;
-    private static final int SP_HEADER_H  = 18;
-    private static final int SP_HINT_H    = 10;
-    private static final int SP_TOGGLE_H  = 14;
-    private static final int SP_TOGGLE_GAP = 2;
-    private static final int SP_DESC_H    = 11;
-    private static final int SP_FOOTER_H  = 20;
-
-    private boolean handleSpawnSourcesPopupClick(double mouseX, double mouseY) {
-        int popupW = cachedSpawnPopupW, popupH = cachedSpawnPopupH;
-        int popupX = cachedSpawnPopupX, popupY = cachedSpawnPopupY;
-        if (popupW == 0) return true;
-
-        int btnH = 14;
-        int btnY = popupY + popupH - btnH - 6;
-
-        int doneW = 48;
-        int doneX = popupX + popupW - doneW - SP_PAD;
-        if (mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH) {
-            Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            saveSpawnSourcesPopup();
-            return true;
-        }
-
-        int qBtnW = 34;
-        int allX = popupX + SP_PAD;
-        if (mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
-            Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            spawnSourcesPopupCurrent = new ArrayList<>(java.util.Arrays.asList(SPAWN_SOURCE_KEYS));
-            return true;
-        }
-        int noneX = allX + qBtnW + 3;
-        if (mouseX >= noneX && mouseX < noneX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
-            Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            spawnSourcesPopupCurrent.clear();
-            return true;
-        }
-
-        int curY = popupY + SP_HEADER_H + SP_HINT_H + 3;
-        int toggleW = (popupW - 2 * SP_PAD - (SP_COLS - 1) * 3) / SP_COLS;
-        for (int j = 0; j < SPAWN_SOURCE_KEYS.length; j++) {
-            String src = SPAWN_SOURCE_KEYS[j];
-            int col = j % SP_COLS;
-            int row = j / SP_COLS;
-            int tx = popupX + SP_PAD + col * (toggleW + 3);
-            int ty = curY + row * (SP_TOGGLE_H + SP_TOGGLE_GAP);
-            if (mouseX >= tx && mouseX < tx + toggleW && mouseY >= ty && mouseY < ty + SP_TOGGLE_H) {
-                Minecraft.getInstance().getSoundManager()
-                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                if (spawnSourcesPopupCurrent.contains(src)) spawnSourcesPopupCurrent.remove(src);
-                else spawnSourcesPopupCurrent.add(src);
-                return true;
-            }
-        }
-
-        if (mouseX < popupX || mouseX > popupX + popupW || mouseY < popupY || mouseY > popupY + popupH) {
-            spawnSourcesPopupVisible = false;
-        }
-        return true;
-    }
-
-    private void renderSpawnSourcesPopup(GuiGraphics g, int mouseX, int mouseY) {
-        int rows = (SPAWN_SOURCE_KEYS.length + SP_COLS - 1) / SP_COLS;
-        int contentH = rows * SP_TOGGLE_H + (rows - 1) * SP_TOGGLE_GAP;
-
-        int popupW = SP_WIDTH;
-        int descMaxWidth = popupW - 2 * SP_PAD - 4;
-
-        // Reserve enough vertical space for the longest possible description (any source).
-        int maxDescLines = 1;
-        for (String src : SPAWN_SOURCE_KEYS) {
-            Component sample = Component.translatable("editor.historystages.spawn_sources.source." + src)
-                    .append(Component.literal(" — "))
-                    .append(Component.translatable("editor.historystages.spawn_sources.desc." + src));
-            int lines = this.font.split(sample, descMaxWidth).size();
-            if (lines > maxDescLines) maxDescLines = lines;
-        }
-        int descBlockH = maxDescLines * (this.font.lineHeight + 1) + 4;
-
-        int popupH = SP_HEADER_H + SP_HINT_H + 3 + contentH + descBlockH + SP_FOOTER_H;
-        int popupX = this.width / 2 - popupW / 2;
-        int popupY = this.height / 2 - popupH / 2;
-
-        cachedSpawnPopupX = popupX;
-        cachedSpawnPopupY = popupY;
-        cachedSpawnPopupW = popupW;
-        cachedSpawnPopupH = popupH;
-
-        g.fill(0, 0, this.width, this.height, 0x88000000);
-        g.fill(popupX + 3, popupY + 3, popupX + popupW + 3, popupY + popupH + 3, 0x50000000);
-        g.fill(popupX - 1, popupY - 1, popupX + popupW + 1, popupY + popupH + 1, 0xFF333333);
-        g.fill(popupX, popupY, popupX + popupW, popupY + popupH, 0xFF1A1A1A);
-
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.spawn_sources.title"),
-                popupX + popupW / 2, popupY + 5, 0xFFFFFFFF);
-        int accentW = 40;
-        int accentX = popupX + (popupW - accentW) / 2;
-        g.fill(accentX, popupY + 15, accentX + accentW, popupY + 16, 0xFFFFCC00);
-
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.spawn_sources.hint"),
-                popupX + popupW / 2, popupY + SP_HEADER_H, 0x888888);
-
-        int curY = popupY + SP_HEADER_H + SP_HINT_H + 3;
-        int toggleW = (popupW - 2 * SP_PAD - (SP_COLS - 1) * 3) / SP_COLS;
-        String hoveredSource = null;
-
-        for (int j = 0; j < SPAWN_SOURCE_KEYS.length; j++) {
-            String src = SPAWN_SOURCE_KEYS[j];
-            int col = j % SP_COLS;
-            int row = j / SP_COLS;
-            int tx = popupX + SP_PAD + col * (toggleW + 3);
-            int ty = curY + row * (SP_TOGGLE_H + SP_TOGGLE_GAP);
-
-            boolean blocked = spawnSourcesPopupCurrent.contains(src);
-            boolean hovered = mouseX >= tx && mouseX < tx + toggleW && mouseY >= ty && mouseY < ty + SP_TOGGLE_H;
-            if (hovered) hoveredSource = src;
-
-            int bg = blocked
-                    ? (hovered ? 0x40FFCC00 : 0x25FFCC00)
-                    : (hovered ? 0x25FFFFFF : 0x10FFFFFF);
-            g.fill(tx, ty, tx + toggleW, ty + SP_TOGGLE_H, bg);
-
-            int accent = blocked
-                    ? (hovered ? 0xFFFFCC00 : 0xB0FFCC00)
-                    : (hovered ? 0x40FFFFFF : 0x20FFFFFF);
-            g.fill(tx, ty + SP_TOGGLE_H - 1, tx + toggleW, ty + SP_TOGGLE_H, accent);
-
-            int textColor = blocked ? 0xFFFFFF : 0x999999;
-            int dotColor  = blocked ? 0xFFFFCC00 : 0xFF555555;
-            g.fill(tx + 4, ty + 6, tx + 7, ty + 9, dotColor);
-            g.drawString(this.font,
-                    Component.translatable("editor.historystages.spawn_sources.source." + src),
-                    tx + 10, ty + 3, textColor, false);
-        }
-
-        int descY = popupY + popupH - SP_FOOTER_H - descBlockH + 1;
-        g.fill(popupX + SP_PAD, descY - 1, popupX + popupW - SP_PAD, descY, 0xFF2E2E2E);
-        Component descText;
-        int descColor;
-        if (hoveredSource != null) {
-            descText = Component.translatable("editor.historystages.spawn_sources.source." + hoveredSource)
-                    .append(Component.literal(" — "))
-                    .append(Component.translatable("editor.historystages.spawn_sources.desc." + hoveredSource));
-            descColor = 0xCCCCCC;
-        } else {
-            descText = Component.translatable("editor.historystages.spawn_sources.status",
-                    spawnSourcesPopupCurrent.size(), SPAWN_SOURCE_KEYS.length);
-            descColor = 0x888888;
-        }
-        java.util.List<net.minecraft.util.FormattedCharSequence> descLines = this.font.split(descText, descMaxWidth);
-        int lineY = descY + 2;
-        for (net.minecraft.util.FormattedCharSequence line : descLines) {
-            int lineW = this.font.width(line);
-            g.drawString(this.font, line, popupX + (popupW - lineW) / 2, lineY, descColor, false);
-            lineY += this.font.lineHeight + 1;
-        }
-
-        int btnH = 14;
-        int btnY = popupY + popupH - btnH - 6;
-        int qBtnW = 34;
-
-        int allX = popupX + SP_PAD;
-        boolean allHov = mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH;
-        g.fill(allX, btnY, allX + qBtnW, btnY + btnH, allHov ? 0x25FFFFFF : 0x10FFFFFF);
-        g.fill(allX, btnY + btnH - 1, allX + qBtnW, btnY + btnH, allHov ? 0x80FFFFFF : 0x40FFFFFF);
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.lock_actions.btn_all"),
-                allX + qBtnW / 2, btnY + 3, allHov ? 0xFFFFFF : 0xCCCCCC);
-
-        int noneX = allX + qBtnW + 3;
-        boolean noneHov = mouseX >= noneX && mouseX < noneX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH;
-        g.fill(noneX, btnY, noneX + qBtnW, btnY + btnH, noneHov ? 0x25FFFFFF : 0x10FFFFFF);
-        g.fill(noneX, btnY + btnH - 1, noneX + qBtnW, btnY + btnH, noneHov ? 0x80FFFFFF : 0x40FFFFFF);
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.lock_actions.btn_none"),
-                noneX + qBtnW / 2, btnY + 3, noneHov ? 0xFFFFFF : 0xCCCCCC);
-
-        int doneW = 48;
-        int doneX = popupX + popupW - doneW - SP_PAD;
-        boolean doneHov = mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH;
-        g.fill(doneX, btnY, doneX + doneW, btnY + btnH, doneHov ? 0x50FFCC00 : 0x25FFCC00);
-        g.fill(doneX, btnY + btnH - 1, doneX + doneW, btnY + btnH, doneHov ? 0xFFFFCC00 : 0x80FFCC00);
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.lock_actions.btn_done"),
-                doneX + doneW / 2, btnY + 3, doneHov ? 0xFFFFFF : 0xEEEEEE);
-    }
-
     /** Removes the entry at removedIdx and shifts all higher indices down by 1. */
     private static void shiftLockActionsMap(Map<Integer, List<String>> map, int removedIdx) {
         map.remove(removedIdx);
@@ -2360,7 +2179,8 @@ public class StageDetailScreen extends Screen {
         if (modEntityPopup.isVisible()) { return modEntityPopup.mouseClicked(mouseX, mouseY); }
         if (modStructurePopup.isVisible()) { return modStructurePopup.mouseClicked(mouseX, mouseY); }
         if (lockActionsPopupVisible) { return handleLockActionsPopupClick(mouseX, mouseY, button); }
-        if (spawnSourcesPopupVisible) { return handleSpawnSourcesPopupClick(mouseX, mouseY); }
+        if (spawnSourcesPopup.isVisible()) { return spawnSourcesPopup.mouseClicked(mouseX, mouseY); }
+        if (dimFilterPopup.isVisible()) { return dimFilterPopup.mouseClicked(mouseX, mouseY); }
         if (overridePopupVisible) { return handleOverridePopupClick(mouseX, mouseY, button); }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
@@ -2516,7 +2336,10 @@ public class StageDetailScreen extends Screen {
                     }
                     if (tabIdx == 7) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.spawn_sources").getString(),
-                                () -> openSpawnSourcesPopup(entryValue));
+                                () -> spawnSourcesPopup.show(entryValue, editSpawnlockSources.get(entryValue)));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.dimension_filter").getString(),
+                                () -> dimFilterPopup.show(entryValue, editSpawnlockDimensions.get(entryValue),
+                                        this.width / 2, this.height / 2));
                     }
                     if (tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
@@ -2577,9 +2400,10 @@ public class StageDetailScreen extends Screen {
                             shiftStringMap(editModNameText, entryIdx);
                             shiftStringMap(editModTooltipText, entryIdx);
                         }
-                        // When removing a spawnlock entry, drop its sources entry (keyed by entity ID)
+                        // When removing a spawnlock entry, drop its sources + dimensions entry (keyed by entity ID)
                         if (tabIdx == 7 && removedValue != null) {
                             editSpawnlockSources.remove(removedValue);
+                            editSpawnlockDimensions.remove(removedValue);
                         }
                         // When removing a mod exception, shift NBT indices
                         if (tabIdx == 3) {
@@ -2598,6 +2422,7 @@ public class StageDetailScreen extends Screen {
                             editSpawnlock.removeIf(id -> {
                                 if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                     editSpawnlockSources.remove(id);
+                                    editSpawnlockDimensions.remove(id);
                                     return true;
                                 }
                                 return false;
@@ -2719,7 +2544,8 @@ public class StageDetailScreen extends Screen {
             dimensionSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 6 || tabIdx == 7) {
             entitySearch = new SearchableEntityList(entityId -> { getListForSection(tabIdx).set(entryIdx, entityId); hasChanges = true;
-                entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); }); });
+                entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); });
+                entitySearch.setMultiSelect(true); });
             entitySearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 8) {
             structureSearch = new SearchableStructureList(structId -> { getListForSection(tabIdx).set(entryIdx, structId); hasChanges = true;
@@ -2852,6 +2678,9 @@ public class StageDetailScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         double delta = scrollY;
+        if (dimFilterPopup.isVisible()) {
+            return dimFilterPopup.mouseScrolled(mouseX, mouseY, scrollY);
+        }
         // Scroll inside category search dropdown
         if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
             int total = categoryDropdownSuggestions.size();
@@ -2901,6 +2730,8 @@ public class StageDetailScreen extends Screen {
         }
         if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode)) return true;
         if (modStructurePopup.isVisible() && modStructurePopup.keyPressed(keyCode)) return true;
+        if (dimFilterPopup.isVisible() && dimFilterPopup.keyPressed(keyCode)) return true;
+        if (spawnSourcesPopup.isVisible() && spawnSourcesPopup.keyPressed(keyCode)) return true;
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
             return true;
@@ -3193,7 +3024,7 @@ public class StageDetailScreen extends Screen {
         List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
         for (String entityId : editSpawnlock) {
             spawnlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry(
-                    entityId, editSpawnlockSources.get(entityId)));
+                    entityId, editSpawnlockSources.get(entityId), editSpawnlockDimensions.get(entityId)));
         }
         locks.setSpawnlock(spawnlockEntries);
         locks.setModLinked(editModLinked);

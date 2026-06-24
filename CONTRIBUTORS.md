@@ -19,7 +19,7 @@ When someone contributes, add them here in the format:
 
 ## Translations
 
-_No translation contributors yet._
+- **kuki2008** ([@kuki2008](https://github.com/kuki2008)) — Russian
 
 <!--
 - **Name** ([@github-handle](https://github.com/github-handle)) — Language

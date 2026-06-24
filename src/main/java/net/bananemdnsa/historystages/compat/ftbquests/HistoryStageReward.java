@@ -156,7 +156,7 @@ public class HistoryStageReward extends Reward {
             if (Config.COMMON.individualBroadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
-                                .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
+                                .append(Component.translatable("message.historystages.stage_forgotten", displayName).withStyle(ChatFormatting.WHITE))
                 );
             }
             if (Config.COMMON.individualUseSounds.get()) {
@@ -219,7 +219,7 @@ public class HistoryStageReward extends Reward {
             }
             if (Config.COMMON.useActionbar.get()) {
                 player.displayClientMessage(
-                        Component.literal("\u00a76New Era: " + stageName + " \u00a7aUnlocked!"), true
+                        Component.translatable("message.historystages.new_era_unlocked", stageName), true
                 );
             }
             if (Config.COMMON.useSounds.get()) {
@@ -234,8 +234,8 @@ public class HistoryStageReward extends Reward {
 
     private void broadcastLockEffects(ServerPlayer source, String stageName) {
         Component chatMsg = Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
-                .append(Component.literal("The knowledge of " + stageName + " has been forgotten...").withStyle(ChatFormatting.WHITE));
-        Component actionMsg = Component.literal("\u00a7cStage Locked: " + stageName);
+                .append(Component.translatable("message.historystages.stage_forgotten", stageName).withStyle(ChatFormatting.WHITE));
+        Component actionMsg = Component.translatable("message.historystages.stage_locked_action", stageName);
 
         source.server.getPlayerList().getPlayers().forEach(player -> {
             if (Config.COMMON.broadcastChat.get()) {

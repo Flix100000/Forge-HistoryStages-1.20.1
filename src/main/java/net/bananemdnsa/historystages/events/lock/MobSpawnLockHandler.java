@@ -27,7 +27,8 @@ public class MobSpawnLockHandler {
         if (entityType == null) return;
 
         String source = mapSpawnSource(event.getSpawnType());
-        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), source);
+        String dimension = event.getLevel().getLevel().dimension().location().toString();
+        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), source, dimension);
         if (requiredStageIds.isEmpty()) return;
 
         for (String stageId : requiredStageIds) {
@@ -50,7 +51,8 @@ public class MobSpawnLockHandler {
         ResourceLocation entityType = BuiltInRegistries.ENTITY_TYPE.getKey(event.getChild().getType());
         if (entityType == null) return;
 
-        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), "breeding");
+        String dimension = event.getParentA().level().dimension().location().toString();
+        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), "breeding", dimension);
         if (requiredStageIds.isEmpty()) return;
 
         for (String stageId : requiredStageIds) {
@@ -74,8 +76,9 @@ public class MobSpawnLockHandler {
         ResourceLocation entityType = BuiltInRegistries.ENTITY_TYPE.getKey(event.getEntity().getType());
         if (entityType == null) return;
 
-        // For non-mob entities we treat any matching entry as a full block.
-        List<String> requiredStageIds = StageManager.getAllStagesWithSpawnlockEntry(entityType.toString());
+        // For non-mob entities we treat any matching entry as a full block (subject to dimension filter).
+        String dimension = event.getLevel().dimension().location().toString();
+        List<String> requiredStageIds = StageManager.getAllStagesWithSpawnlockEntry(entityType.toString(), dimension);
         if (requiredStageIds.isEmpty()) return;
 
         for (String stageId : requiredStageIds) {
