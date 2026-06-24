@@ -110,6 +110,9 @@ public class HistoryStages {
             }
         }
 
+        // Optional per-mod lock adapters (custom actions that bypass vanilla interaction events).
+        net.bananemdnsa.historystages.compat.LockInterceptors.init();
+
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new net.bananemdnsa.historystages.events.AutoTriggerEventBridge());
     }

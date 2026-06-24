@@ -16,6 +16,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.bus.api.ICancellableEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.util.TriState;
@@ -55,6 +56,35 @@ public class ItemUseLockHandler {
                 DebugLogger.runtimeThrottled("Item Use Lock", "use_" + event.getEntity().getUUID() + "_" + itemRL,
                         "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL + "' blocked [action: use]");
                 showMessage(event.getEntity());
+            }
+        }
+    }
+
+    /**
+     * Prevents interacting with entities (right-click) using a locked item — e.g. applying
+     * an item to a mob. Custom mod casts that travel as their own packets are NOT covered here
+     * (no vanilla event fires); see the Spell Engine compat adapter.
+     */
+    @SubscribeEvent
+    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        handleEntityUse(event.getEntity(), event.getItemStack(), event);
+    }
+
+    @SubscribeEvent
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        handleEntityUse(event.getEntity(), event.getItemStack(), event);
+    }
+
+    private static void handleEntityUse(Player player, ItemStack heldItem, ICancellableEvent event) {
+        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
+        if (heldItem.isEmpty()) return;
+        if (isActionLocked(heldItem, player, "use")) {
+            event.setCanceled(true);
+            if (!player.level().isClientSide()) {
+                ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
+                DebugLogger.runtimeThrottled("Item Use Lock", "entityuse_" + player.getUUID() + "_" + itemRL,
+                        "<" + player.getName().getString() + "> Use on entity with '" + itemRL + "' blocked [action: use]");
+                showMessage(player);
             }
         }
     }
