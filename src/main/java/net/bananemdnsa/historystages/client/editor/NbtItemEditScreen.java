@@ -1086,7 +1086,7 @@ public class NbtItemEditScreen extends Screen {
             JsonObject components = new JsonObject();
             for (ComponentEntry ce : componentEntries) {
                 if (ce.id == null || ce.id.isEmpty()) continue;
-                JsonObject parsed = parseComponentValueOrNull(ce.valueJson);
+                com.google.gson.JsonElement parsed = parseComponentValueOrNull(ce.valueJson);
                 if (parsed != null) components.add(ce.id, parsed);
             }
             if (components.size() > 0) nbt.add("components", components);
@@ -1094,13 +1094,20 @@ public class NbtItemEditScreen extends Screen {
         return nbt;
     }
 
-    private static JsonObject parseComponentValueOrNull(String raw) {
+    /**
+     * Parses a component value into any JSON type (object, array, string,
+     * number, boolean). Mod-defined components don't always serialize to an
+     * object — e.g. {@code irons_jewelry:stored_pattern} is a bare string — so
+     * we accept whatever valid JSON the user provided. Returns null only for
+     * empty/invalid/null input.
+     */
+    private static com.google.gson.JsonElement parseComponentValueOrNull(String raw) {
         if (raw == null) return null;
         String trimmed = raw.trim();
         if (trimmed.isEmpty()) return null;
         try {
-            var parsed = com.google.gson.JsonParser.parseString(trimmed);
-            return parsed.isJsonObject() ? parsed.getAsJsonObject() : null;
+            com.google.gson.JsonElement parsed = com.google.gson.JsonParser.parseString(trimmed);
+            return parsed.isJsonNull() ? null : parsed;
         } catch (Exception e) {
             return null;
         }
@@ -1556,12 +1563,14 @@ public class NbtItemEditScreen extends Screen {
                 return;
             }
             try {
-                var parsed = com.google.gson.JsonParser.parseString(trimmed);
-                if (!parsed.isJsonObject()) {
+                com.google.gson.JsonElement parsed = com.google.gson.JsonParser.parseString(trimmed);
+                if (parsed.isJsonNull()) {
                     valid = false;
                     validationMessage = Component.translatable("editor.historystages.nbt.json.not_object").getString();
                     return;
                 }
+                // Any JSON type is allowed: objects, arrays, strings (e.g.
+                // irons_jewelry:stored_pattern), numbers and booleans.
                 valid = true;
                 validationMessage = Component.translatable("editor.historystages.nbt.json.valid").getString();
             } catch (Exception e) {

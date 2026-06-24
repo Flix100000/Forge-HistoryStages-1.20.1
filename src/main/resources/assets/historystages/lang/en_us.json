@@ -572,7 +572,7 @@
   "editor.historystages.nbt.component.heading": "Component Value",
   "editor.historystages.nbt.json_label": "JSON",
   "editor.historystages.nbt.json.empty": "Value cannot be empty (use {} for no constraints).",
-  "editor.historystages.nbt.json.not_object": "Value must be a JSON object ({ ... }).",
+  "editor.historystages.nbt.json.not_object": "Value cannot be null.",
   "editor.historystages.nbt.json.valid": "Valid JSON.",
   "editor.historystages.nbt.json.invalid": "Invalid JSON: %s",
   "editor.historystages.nbt.warn.unknown_enchantment": "Unknown enchantment: %s",

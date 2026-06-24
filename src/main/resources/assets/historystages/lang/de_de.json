@@ -572,7 +572,7 @@
   "editor.historystages.nbt.component.heading": "Komponenten-Wert",
   "editor.historystages.nbt.json_label": "JSON",
   "editor.historystages.nbt.json.empty": "Wert darf nicht leer sein (nutze {} für keine Einschränkungen).",
-  "editor.historystages.nbt.json.not_object": "Wert muss ein JSON-Objekt sein ({ ... }).",
+  "editor.historystages.nbt.json.not_object": "Wert darf nicht null sein.",
   "editor.historystages.nbt.json.valid": "Gültiges JSON.",
   "editor.historystages.nbt.json.invalid": "Ungültiges JSON: %s",
   "editor.historystages.nbt.warn.unknown_enchantment": "Unbekannte Verzauberung: %s",
