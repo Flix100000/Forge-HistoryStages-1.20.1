@@ -614,6 +614,7 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         }, () -> getActiveList());
+        entitySearch.setMultiSelect(true);
 
         tagSearch = new SearchableTagList(tagId -> {
             if (!editTags.contains(tagId))
@@ -2719,7 +2720,8 @@ public class StageDetailScreen extends Screen {
             dimensionSearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 6 || tabIdx == 7) {
             entitySearch = new SearchableEntityList(entityId -> { getListForSection(tabIdx).set(entryIdx, entityId); hasChanges = true;
-                entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); }); });
+                entitySearch = new SearchableEntityList(id -> { getActiveList().add(id); hasChanges = true; updateMaxScroll(); });
+                entitySearch.setMultiSelect(true); });
             entitySearch.show(this.width / 2, this.height / 2, cw);
         } else if (tabIdx == 8) {
             structureSearch = new SearchableStructureList(structId -> { getListForSection(tabIdx).set(entryIdx, structId); hasChanges = true;
