@@ -1,7 +1,6 @@
 package net.bananemdnsa.historystages.compat.ftbquests;
 
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
-import dev.ftb.mods.ftblibrary.config.NameMap;
 import dev.ftb.mods.ftblibrary.icon.Icon;
 import dev.ftb.mods.ftblibrary.icon.ItemIcon;
 import dev.ftb.mods.ftbquests.quest.Quest;
@@ -22,12 +21,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 public class HistoryStageTask extends AbstractBooleanTask {
     private String stage = "";
@@ -78,34 +72,15 @@ public class HistoryStageTask extends AbstractBooleanTask {
     @Override
     public void fillConfigGroup(ConfigGroup config) {
         super.fillConfigGroup(config);
-        config.addEnum("stage", stage, v -> stage = v, buildStageNameMap(individual, stage), "")
+        config.add("stage", new StagePickerConfig(),
+                        StagePickerConfig.toPrefixed(stage, individual),
+                        v -> {
+                            this.stage = StagePickerConfig.stripPrefix(v);
+                            this.individual = StagePickerConfig.isIndividual(v);
+                        }, "")
                 .setNameKey("ftbquests.task.historystages.history_stage.stage");
-        config.addBool("individual", individual, v -> individual = v, false)
-                .setNameKey("ftbquests.task.historystages.history_stage.individual");
         config.addBool("negate", negate, v -> negate = v, false)
                 .setNameKey("ftbquests.task.historystages.history_stage.negate");
-    }
-
-    static NameMap<String> buildStageNameMap(boolean individual, String currentValue) {
-        Map<String, StageEntry> source = individual
-                ? StageManager.getIndividualStages()
-                : StageManager.getStages();
-
-        Set<String> ids = new LinkedHashSet<>();
-        ids.add("");
-        if (currentValue != null && !currentValue.isEmpty()) ids.add(currentValue);
-        ids.addAll(source.keySet());
-
-        List<String> list = new ArrayList<>(ids);
-
-        return NameMap.of("", list)
-                .id(Function.identity())
-                .name(id -> {
-                    if (id.isEmpty()) return Component.literal("(none)");
-                    StageEntry entry = source.get(id);
-                    return Component.literal(entry != null ? entry.getDisplayName() : id);
-                })
-                .create();
     }
 
     @Override
