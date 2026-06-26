@@ -860,7 +860,8 @@ public class StageManager {
                 Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
                 if (item != null) {
                     for (NamedLockEntry tagEntry : tags) {
-                        if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return stageName;
+                        // NBT tags need a stack to evaluate; this stackless path skips them.
+                        if (!tagEntry.hasNbt() && item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return stageName;
                     }
                 }
             }
@@ -977,7 +978,7 @@ public class StageManager {
             // Check Tags
             if (!match && item != null) {
                 for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
+                    if (tagEntryMatches(stack, item, tagEntry)) {
                         match = true;
                         break;
                     }
@@ -993,6 +994,18 @@ public class StageManager {
 
     private static boolean isModException(String itemId, ItemStack stack, StageEntry data) {
         return data.isModExcepted(itemId, stack);
+    }
+
+    /**
+     * Returns true when {@code item} is in the tag entry's tag AND, if the entry carries an
+     * NBT criterion, the stack matches it. When the entry has NBT but no stack is available,
+     * this returns false (cannot confirm) — mirroring how NBT item entries behave stacklessly.
+     */
+    public static boolean tagEntryMatches(ItemStack stack, Item item, NamedLockEntry tagEntry) {
+        if (item == null) return false;
+        if (!item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return false;
+        if (!tagEntry.hasNbt()) return true;
+        return stack != null && NbtMatcher.matches(stack, tagEntry.getNbt());
     }
 
     /**
@@ -1022,7 +1035,7 @@ public class StageManager {
 
         if (item != null) {
             for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
+                if (tagEntryMatches(stack, item, tagEntry)) {
                     return isActionInList(tagEntry.getLockActions(), action);
                 }
             }
@@ -1422,7 +1435,7 @@ public class StageManager {
             StageEntry gEntry = entry.getValue();
             for (String item : gEntry.getAllItemIds())
                 globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId);
-            for (String tag : gEntry.getTags())
+            for (String tag : gEntry.getNbtFreeTags())
                 globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId);
             for (String mod : gEntry.getMods())
                 globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId);
@@ -1445,7 +1458,7 @@ public class StageManager {
             for (ItemEntry itemEntry : iEntry.getItemEntries()) {
                 registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItemMap, itemEntry.getId(), "item", iStageId);
             }
-            for (String tag : iEntry.getTags()) {
+            for (String tag : iEntry.getNbtFreeTags()) {
                 registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTagMap, tag, "tag", iStageId);
             }
             for (String mod : iEntry.getMods()) {
@@ -1550,7 +1563,7 @@ public class StageManager {
             }
             if (!match && item != null) {
                 for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) {
+                    if (tagEntryMatches(stack, item, tagEntry)) {
                         match = true;
                         break;
                     }

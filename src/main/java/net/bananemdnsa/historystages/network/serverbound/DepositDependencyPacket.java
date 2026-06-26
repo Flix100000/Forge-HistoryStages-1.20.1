@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.minecraft.core.BlockPos;
@@ -80,14 +81,15 @@ public record DepositDependencyPacket(BlockPos pos, int groupIndex, String depos
                 ResourceLocation rl = ResourceLocation.tryParse(packet.data);
                 if (rl == null) return;
 
-                int required = 0;
+                DependencyItem matched = null;
                 for (DependencyItem item : group.getItems()) {
                     if (item.getId().equals(packet.data)) {
-                        required = item.getCount();
+                        matched = item;
                         break;
                     }
                 }
-                if (required == 0) return;
+                if (matched == null) return;
+                int required = matched.getCount();
 
                 String key = "Group_" + packet.groupIndex + "_Item_" + packet.data;
                 int current = deposited.getInt(key);
@@ -98,7 +100,8 @@ public record DepositDependencyPacket(BlockPos pos, int groupIndex, String depos
                 for (int i = 0; i < player.getInventory().getContainerSize() && consumed < needed; i++) {
                     ItemStack invStack = player.getInventory().getItem(i);
                     if (!invStack.isEmpty()
-                            && rl.equals(BuiltInRegistries.ITEM.getKey(invStack.getItem()))) {
+                            && rl.equals(BuiltInRegistries.ITEM.getKey(invStack.getItem()))
+                            && (!matched.hasNbt() || NbtMatcher.matches(invStack, matched.getNbt()))) {
                         int toRemove = Math.min(needed - consumed, invStack.getCount());
                         invStack.shrink(toRemove);
                         consumed += toRemove;

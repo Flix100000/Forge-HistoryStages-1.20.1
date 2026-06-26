@@ -77,13 +77,15 @@ public class HistoryStageReward extends Reward {
     @Override
     public void fillConfigGroup(ConfigGroup config) {
         super.fillConfigGroup(config);
-        config.addEnum("stage", stage, v -> stage = v,
-                        HistoryStageTask.buildStageNameMap(individual, stage), "")
+        config.add("stage", new StagePickerConfig(),
+                        StagePickerConfig.toPrefixed(stage, individual),
+                        v -> {
+                            this.stage = StagePickerConfig.stripPrefix(v);
+                            this.individual = StagePickerConfig.isIndividual(v);
+                        }, "")
                 .setNameKey("ftbquests.reward.historystages.history_stage.stage");
         config.addBool("remove", remove, v -> remove = v, false)
                 .setNameKey("ftbquests.reward.historystages.history_stage.remove");
-        config.addBool("individual", individual, v -> individual = v, false)
-                .setNameKey("ftbquests.reward.historystages.history_stage.individual");
     }
 
     @Override

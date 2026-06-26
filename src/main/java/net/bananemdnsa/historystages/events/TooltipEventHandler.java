@@ -141,7 +141,8 @@ public class TooltipEventHandler {
                     stage.getItems().contains(itemID) ||
                     matchesNbtItem(stage, itemID, stack) ||
                     stack.getItem().builtInRegistryHolder().tags()
-                            .anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                            .anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                    matchesNbtTag(stage, stack);
 
             if (isListed) {
                 totalRequiredStages.add(stage);
@@ -201,7 +202,8 @@ public class TooltipEventHandler {
                     stage.getItems().contains(itemID) ||
                     matchesNbtItem(stage, itemID, stack) ||
                     stack.getItem().builtInRegistryHolder().tags()
-                            .anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                            .anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                    matchesNbtTag(stage, stack);
 
             if (isListed) {
                 individualRequiredStages.add(stage);
@@ -267,6 +269,14 @@ public class TooltipEventHandler {
             if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
                 if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean matchesNbtTag(StageEntry stage, ItemStack stack) {
+        net.minecraft.world.item.Item item = stack.getItem();
+        for (net.bananemdnsa.historystages.data.lock.NamedLockEntry tagEntry : stage.getTagEntries()) {
+            if (tagEntry.hasNbt() && net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
         }
         return false;
     }
