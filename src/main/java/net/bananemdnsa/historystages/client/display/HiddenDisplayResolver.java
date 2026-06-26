@@ -124,7 +124,7 @@ public final class HiddenDisplayResolver {
     private static NamedLockEntry matchedTag(StageEntry stage, ItemStack stack) {
         Item item = stack.getItem();
         for (NamedLockEntry tagEntry : stage.getTagEntries()) {
-            if (item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return tagEntry;
+            if (net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return tagEntry;
         }
         return null;
     }

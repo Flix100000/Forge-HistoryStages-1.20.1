@@ -38,13 +38,17 @@ public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>>
                     if (!locked.contains(action)) unlocked.add(action);
                 }
             }
-            boolean needsObject = !unlocked.isEmpty() || hasOverride;
+            boolean needsObject = !unlocked.isEmpty() || hasOverride || entry.hasNbt();
             if (!needsObject) {
                 // null/all-locked and no overrides → plain string
                 out.value(entry.getId());
             } else {
                 out.beginObject();
                 out.name("id").value(entry.getId());
+                if (entry.hasNbt()) {
+                    out.name("nbt");
+                    com.google.gson.internal.Streams.write(entry.getNbt(), out);
+                }
                 if (!unlocked.isEmpty()) {
                     out.name("unlock_actions");
                     out.beginArray();
@@ -99,7 +103,9 @@ public class NamedLockEntryListAdapter extends TypeAdapter<List<NamedLockEntry>>
                 }
                 String nameText = obj.has("name_text") ? obj.get("name_text").getAsString() : null;
                 String tooltipText = obj.has("tooltip_text") ? obj.get("tooltip_text").getAsString() : null;
-                entries.add(new NamedLockEntry(id, lockActions, nameText, tooltipText));
+                com.google.gson.JsonObject nbt = obj.has("nbt") && obj.get("nbt").isJsonObject()
+                        ? obj.getAsJsonObject("nbt") : null;
+                entries.add(new NamedLockEntry(id, lockActions, nameText, tooltipText, nbt));
             }
         }
         in.endArray();
