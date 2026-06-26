@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.block.ResearchPedestalBlock;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
@@ -338,7 +339,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             var group = entry.getDependencies().get(i);
             for (var reqItem : group.getItems()) {
                 ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
-                if (reqRl != null && reqRl.equals(depositRl)) {
+                if (reqRl != null && reqRl.equals(depositRl)
+                        && (!reqItem.hasNbt() || NbtMatcher.matches(depositStack, reqItem.getNbt()))) {
                     String key = "Group_" + i + "_Item_" + reqRl;
                     int current = deposited.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);
