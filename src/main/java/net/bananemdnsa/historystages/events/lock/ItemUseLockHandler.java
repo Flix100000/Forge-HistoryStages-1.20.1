@@ -107,27 +107,32 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        // BlockItem#useOn places a block -> "place"; any other item's useOn is a use -> "use".
-        String action = heldItem.getItem() instanceof BlockItem ? "place" : "use";
-        if (isActionLocked(heldItem, event.getEntity(), action)) {
-            event.setUseItem(TriState.FALSE);
-
-            // Copycat-like blocks consume the held item through the block interaction
-            // (Block#useItemOn), not through Item#useOn. Block that path too, otherwise the
-            // locked item's material is applied anyway (Issue #81).
-            Block target = event.getLevel().getBlockState(event.getPos()).getBlock();
-            ResourceLocation blockRL = BuiltInRegistries.BLOCK.getKey(target);
-            if (blockRL != null && ITEM_CONSUMING_BLOCK_NAMESPACES.contains(blockRL.getNamespace())) {
+        // Copycat-like blocks consume the held item through the block interaction
+        // (Block#useItemOn), applying it as material — no block from the held item ever
+        // appears in the world. That is a "use" of the item, not a placement, so it must be
+        // gated by "use" regardless of whether the held item is a BlockItem (Issue #81).
+        Block target = event.getLevel().getBlockState(event.getPos()).getBlock();
+        ResourceLocation blockRL = BuiltInRegistries.BLOCK.getKey(target);
+        if (blockRL != null && ITEM_CONSUMING_BLOCK_NAMESPACES.contains(blockRL.getNamespace())) {
+            if (isActionLocked(heldItem, event.getEntity(), "use")) {
+                event.setUseItem(TriState.FALSE);
                 event.setUseBlock(TriState.FALSE);
                 if (!event.getEntity().level().isClientSide()) {
                     ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(heldItem.getItem());
                     DebugLogger.runtimeThrottled("Item Use Lock",
                             "blockuse_" + event.getEntity().getUUID() + "_" + itemRL,
                             "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL
-                                    + "' on '" + blockRL + "' blocked [action: " + action + " on item-consuming block]");
+                                    + "' on '" + blockRL + "' blocked [action: use on item-consuming block]");
                     showMessage(event.getEntity());
                 }
             }
+            return;
+        }
+
+        // BlockItem#useOn places a block -> "place"; any other item's useOn is a use -> "use".
+        String action = heldItem.getItem() instanceof BlockItem ? "place" : "use";
+        if (isActionLocked(heldItem, event.getEntity(), action)) {
+            event.setUseItem(TriState.FALSE);
         }
     }
 
