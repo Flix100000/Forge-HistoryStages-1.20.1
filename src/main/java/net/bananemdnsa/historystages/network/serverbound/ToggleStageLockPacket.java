@@ -56,6 +56,11 @@ public record ToggleStageLockPacket(String stageId, boolean unlock) implements C
             data.setDirty();
             StageData.SERVER_CACHE.clear();
             StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+            // Structure-lock caches are keyed off lockedStructureIds — force every
+            // tracked player to recompute on the next tick so the force-field /
+            // screen overlay appear (or disappear) immediately when a stage's lock
+            // state changes, instead of lingering until the next chunk scan.
+            net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
             PacketHandler.reloadRecipesOnly(player.server);
 

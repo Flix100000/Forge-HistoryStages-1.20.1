@@ -402,6 +402,24 @@ public class StructureLockHandler {
     }
 
     /**
+     * Force every tracked player's state to recompute on the next server tick.
+     *
+     * Called from packet handlers whose payload changes which structures are
+     * locked (toggle, save, delete). Without this the border + screen overlay
+     * can stay missing (or stuck) for up to {@code checkInterval} ticks after a
+     * lock change because the cached {@code cachedLockedNearby}/{@code lastBorderHash}
+     * pair is still on the pre-change snapshot. Resetting {@code lastBorderHash} to a
+     * sentinel also guarantees the next {@link #syncBordersIfChanged} call actually
+     * sends, even when the new border set happens to hash to the same value.
+     */
+    public static void invalidateAll() {
+        for (PlayerState s : STATE.values()) {
+            s.checkCooldown = 0;
+            s.lastBorderHash = Integer.MIN_VALUE;
+        }
+    }
+
+    /**
      * Blanket-cancels every right-click interaction while the player is inside a locked
      * structure (blocks, item self-use, entity interactions). Gated by
      * {@code structureBlockRightClick}.

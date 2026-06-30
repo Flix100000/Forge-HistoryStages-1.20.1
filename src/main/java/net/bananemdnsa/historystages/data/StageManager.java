@@ -1673,6 +1673,9 @@ public class StageManager {
         for (StageEntry entry : STAGES.values()) {
             if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
         }
+        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
+            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
         return false;
     }
 
