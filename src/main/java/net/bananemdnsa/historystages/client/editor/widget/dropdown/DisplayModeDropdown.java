@@ -31,19 +31,32 @@ public class DisplayModeDropdown {
     private int buttonX, buttonY, buttonW;
     private boolean expanded = false;
 
-    public DisplayModeDropdown(DisplayMode[] options, DisplayMode initial, int buttonWidth, Consumer<DisplayMode> onChange) {
+    public DisplayModeDropdown(DisplayMode[] options, DisplayMode initial, int minWidth, Consumer<DisplayMode> onChange) {
         this.options = options;
         this.current = initial != null ? initial : options[0];
-        this.buttonW = buttonWidth;
+        this.buttonW = computeWidth(options, minWidth);
         this.onChange = onChange;
+    }
+
+    /** Widest label across all options (+padding), so the box is never narrower than its content. */
+    private static int computeWidth(DisplayMode[] options, int minWidth) {
+        Font font = Minecraft.getInstance().font;
+        int w = minWidth;
+        for (DisplayMode m : options) {
+            int rowW = font.width(label(m)) + 16;
+            if (rowW > w) w = rowW;
+        }
+        return w;
     }
 
     public DisplayMode getValue() { return current; }
     public boolean isExpanded() { return expanded; }
     public void close() { expanded = false; }
 
+    /** Width the widget actually renders at (>= the minWidth passed to the constructor). */
+    public int getWidth() { return buttonW; }
+
     public void setPosition(int x, int y) { this.buttonX = x; this.buttonY = y; }
-    public void setWidth(int w) { this.buttonW = w; }
 
     public boolean isMouseOver(double mx, double my) {
         if (mx >= buttonX && mx < buttonX + buttonW && my >= buttonY && my < buttonY + BUTTON_HEIGHT) return true;
@@ -100,7 +113,10 @@ public class DisplayModeDropdown {
         int ph = options.length * ROW_HEIGHT + POPUP_PAD * 2;
         int px = buttonX;
         int py = buttonY + BUTTON_HEIGHT + 2;
+        int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        if (px + pw > screenW - 4) px = screenW - pw - 4;
+        if (px < 4) px = 4;
         if (py + ph > screenH - 4) py = buttonY - ph - 2;
         if (py < 4) py = 4;
         return new int[] { px, py, pw, ph };
