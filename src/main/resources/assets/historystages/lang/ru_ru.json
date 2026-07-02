@@ -1,8 +1,8 @@
 {
   "block.historystages.research_pedestal": "Пьедестал исследований",
-  "block.historystages.research_pedestal_tier_2": "Пьедестал исследований второго уровня",
-  "block.historystages.research_pedestal_tier_3": "Пьедестал исследований третьего уровня",
-  "block.historystages.research_pedestal_tier_4": "Пьедестал исследований четвёртого уровня",
+  "block.historystages.research_pedestal_tier_2": "Пьедестал исследований ур. 2",
+  "block.historystages.research_pedestal_tier_3": "Пьедестал исследований ур. 3",
+  "block.historystages.research_pedestal_tier_4": "Пьедестал исследований ур. 4",
   "item.historystages.research_scroll": "Свиток Исследования",
   "item.historystages.creative_scroll": "Свиток Всезнания (Креатив)",
   "tooltip.historystages.creative_scroll.info1": "Используй этот свиток на пьедестале исследований",
