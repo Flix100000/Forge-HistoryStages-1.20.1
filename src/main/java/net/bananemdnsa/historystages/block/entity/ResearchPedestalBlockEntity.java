@@ -859,7 +859,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         for (int i = 0; i < entry.getDependencies().size(); i++) {
             net.bananemdnsa.historystages.data.DependencyGroup group = entry.getDependencies().get(i);
             for (net.bananemdnsa.historystages.data.dependency.DependencyItem item : group.getItems()) {
-                if (item.getId().equals(itemId)) {
+                if (item.getId().equals(itemId)
+                        && (!item.hasNbt() || NbtMatcher.matches(depositStack, item.getNbt()))) {
                     String key = "Group_" + i + "_Item_" + item.getId();
                     int count = depositedData.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(item.getCount(), costReduction);
