@@ -1,17 +1,29 @@
 package net.bananemdnsa.historystages.block;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import org.jetbrains.annotations.Nullable;
 
 public class ResearchPedestalTier2Block extends ResearchPedestalBlock {
-    private static final VoxelShape SHAPE = makeShape();
+    public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+    private static final VoxelShape[] SHAPES = MultiBlockResearchPedestalBlock.precomputeFacingShapes(makeShape());
 
     public ResearchPedestalTier2Block(Properties props) {
         super(props);
+        this.registerDefaultState(this.stateDefinition.any()
+                .setValue(WORKING, false)
+                .setValue(LIT, false)
+                .setValue(FACING, Direction.NORTH));
     }
 
     @Override
@@ -20,8 +32,20 @@ public class ResearchPedestalTier2Block extends ResearchPedestalBlock {
     }
 
     @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        super.createBlockStateDefinition(builder);
+        builder.add(FACING);
+    }
+
+    @Nullable
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext ctx) {
+        return this.defaultBlockState().setValue(FACING, ctx.getHorizontalDirection());
+    }
+
+    @Override
     public VoxelShape getShape(BlockState state, BlockGetter world, BlockPos pos, CollisionContext context) {
-        return SHAPE;
+        return SHAPES[state.getValue(FACING).get2DDataValue()];
     }
 
     private static VoxelShape makeShape() {
