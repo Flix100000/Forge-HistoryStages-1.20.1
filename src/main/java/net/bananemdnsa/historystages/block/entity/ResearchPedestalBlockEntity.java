@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -142,7 +143,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             net.bananemdnsa.historystages.data.DependencyGroup group = entry.getDependencies().get(i);
             for (net.bananemdnsa.historystages.data.dependency.DependencyItem reqItem : group.getItems()) {
                 ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
-                if (reqRl != null && reqRl.equals(depositRl)) {
+                if (reqRl != null && reqRl.equals(depositRl)
+                        && (!reqItem.hasNbt() || NbtMatcher.matches(depositStack, reqItem.getNbt()))) {
                     String key = "Group_" + i + "_Item_" + reqRl.toString();
                     int current = deposited.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);

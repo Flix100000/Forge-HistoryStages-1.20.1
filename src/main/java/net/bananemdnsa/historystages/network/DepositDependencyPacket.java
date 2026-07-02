@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.minecraft.core.BlockPos;
@@ -77,17 +78,18 @@ public class DepositDependencyPacket {
                 if (rl == null)
                     return;
 
-                // Find required count by comparing ResourceLocations
-                int required = 0;
+                // Find the matching dependency item by comparing ResourceLocations
+                DependencyItem matched = null;
                 for (DependencyItem item : group.getItems()) {
                     ResourceLocation requiredRl = ResourceLocation.tryParse(item.getId());
                     if (requiredRl != null && requiredRl.equals(rl)) {
-                        required = item.getCount();
+                        matched = item;
                         break;
                     }
                 }
-                if (required == 0)
+                if (matched == null)
                     return;
+                int required = matched.getCount();
 
                 String key = "Group_" + groupIndex + "_Item_" + rl.toString();
                 int current = deposited.getInt(key);
@@ -101,7 +103,8 @@ public class DepositDependencyPacket {
                     ItemStack invStack = player.getInventory().getItem(i);
                     if (!invStack.isEmpty()) {
                         ResourceLocation invRl = ForgeRegistries.ITEMS.getKey(invStack.getItem());
-                        if (rl.equals(invRl)) {
+                        if (rl.equals(invRl)
+                                && (!matched.hasNbt() || NbtMatcher.matches(invStack, matched.getNbt()))) {
                             int toRemove = Math.min(needed - consumed, invStack.getCount());
                             invStack.shrink(toRemove);
                             consumed += toRemove;
