@@ -222,6 +222,20 @@ public class MultiBlockResearchPedestalBlock extends BaseEntityBlock implements 
                 (l, p, s, e) -> ResearchPedestalBlockEntity.tick(l, p, s, e));
     }
 
+    @Override
+    public boolean hasAnalogOutputSignal(BlockState state) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+        BlockPos footPos = state.getValue(PART) == Part.HEAD
+                ? pos.relative(state.getValue(FACING).getOpposite())
+                : pos;
+        BlockEntity be = level.getBlockEntity(footPos);
+        return be instanceof ResearchPedestalBlockEntity rpbe ? rpbe.getComparatorOutput() : 0;
+    }
+
     private static Direction getPartnerDirection(BlockState state) {
         Direction facing = state.getValue(FACING);
         return state.getValue(PART) == Part.FOOT ? facing : facing.getOpposite();
