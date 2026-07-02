@@ -11,7 +11,11 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+
+import java.util.Set;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.eventbus.api.Event;
@@ -24,6 +28,12 @@ public class ItemUseLockHandler {
 
     private static final String FEEDBACK_CATEGORY = "item";
     private static boolean suppressEquipmentCheck = false;
+
+    /**
+     * Namespaces of blocks whose interaction consumes the held item instead of just "using" it
+     * (e.g. Create: Copycats+ applies the held material onto the block). Add further mods here.
+     */
+    private static final Set<String> ITEM_CONSUMING_BLOCK_NAMESPACES = Set.of("copycats");
 
     /**
      * Prevents using locked items (eating, drinking, bows, shields, etc.)
@@ -60,8 +70,30 @@ public class ItemUseLockHandler {
         ItemStack heldItem = event.getItemStack();
         if (heldItem.isEmpty()) return;
 
-        if (isActionLocked(heldItem, event.getEntity(), "place")
-                || isActionLocked(heldItem, event.getEntity(), "use")) {
+        // Copycat-like blocks consume the held item as material through the block interaction
+        // (Block#useItemOn) — no block from the held item is placed. That is a "use", not a
+        // placement, and must be gated by "use" regardless of BlockItem-ness (Issue #81).
+        Block target = event.getLevel().getBlockState(event.getPos()).getBlock();
+        ResourceLocation blockRL = ForgeRegistries.BLOCKS.getKey(target);
+        if (blockRL != null && ITEM_CONSUMING_BLOCK_NAMESPACES.contains(blockRL.getNamespace())) {
+            if (isActionLocked(heldItem, event.getEntity(), "use")) {
+                event.setUseItem(Event.Result.DENY);
+                event.setUseBlock(Event.Result.DENY);
+                if (!event.getEntity().level().isClientSide()) {
+                    ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
+                    DebugLogger.runtimeThrottled("Item Use Lock",
+                            "blockuse_" + event.getEntity().getUUID() + "_" + itemRL,
+                            "<" + event.getEntity().getName().getString() + "> Use of '" + itemRL
+                                    + "' on '" + blockRL + "' blocked [action: use on item-consuming block]");
+                    showMessage(event.getEntity());
+                }
+            }
+            return;
+        }
+
+        // BlockItem#useOn places a block -> "place"; any other item's useOn is a use -> "use".
+        String action = heldItem.getItem() instanceof BlockItem ? "place" : "use";
+        if (isActionLocked(heldItem, event.getEntity(), action)) {
             event.setUseItem(Event.Result.DENY);
         }
     }
