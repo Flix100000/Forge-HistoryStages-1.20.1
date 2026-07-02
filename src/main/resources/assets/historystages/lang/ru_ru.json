@@ -42,8 +42,8 @@
   "editor.historystages.toast.individual_stage_deleted.title": "Индивидуальная стадия удалена",
   "editor.historystages.toast.stage_delete_failed.title": "Ошибка удаления",
   "editor.historystages.toast.stage_delete_failed.message": "Не удалось удалить '%s'.",
-  "editor.historystages.toast.config_saved.title": "Конфигурация сохранена",
-  "editor.historystages.toast.config_saved.message": "Общая конфигурация сохранена",
+  "editor.historystages.toast.config_saved.title": "Настройки сохранены",
+  "editor.historystages.toast.config_saved.message": "Общие настройки сохранена",
   "editor.historystages.toast.copied.title": "Скопировано",
   "editor.historystages.toast.copied.message": "%s",
   "editor.historystages.toast.stage_locked_editor.title": "Стадия заблокирована",
@@ -65,7 +65,7 @@
   "editor.historystages.locked": "Заблокировано",
   "editor.historystages.unlocked": "Разблокировано",
   "editor.historystages.detail_title": "Редактировать стадию",
-  "editor.historystages.config_title": "Конфигурация",
+  "editor.historystages.config_title": "Настройки",
   "editor.historystages.unsaved_warning_title": "Имеются несохранённые изменения",
   "editor.historystages.unsaved_warning": "Имеются несохранённые изменения. Сбросить их?",
   "editor.historystages.save_success": "Стадия успешно сохранена!",
@@ -201,7 +201,7 @@
   "editor.historystages.display_name_empty": "Название стадии не может быть пустым!",
 
   "editor.historystages.reset": "Сброс",
-  "editor.historystages.reset_warning_title": "Сбросить конфигурацию",
+  "editor.historystages.reset_warning_title": "Сбросить настройки",
   "editor.historystages.reset_warning": "Ты уверен, что хочешь сбросить ВСЕ настройки до значений по умолчанию?",
 
   "config.jade.plugin_historystages.locked_block": "Информация о заблокированных блоках",
