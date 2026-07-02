@@ -14,6 +14,8 @@ import net.minecraft.stats.Stats;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.nbt.CompoundTag;
 
@@ -153,6 +155,16 @@ public class DependencyChecker {
                     current, stat.getMinValue()));
         }
 
+        // Scoreboard
+        for (ScoreboardDep sb : group.getScoreboard()) {
+            int current = getScoreboardValue(level, player, sb);
+            boolean met = sb.compare(current);
+            String holderSuffix = sb.isPlayerSelf() ? "" : " [" + sb.getScoreHolder() + "]";
+            String desc = sb.getObjective() + " " + sb.getOp() + " " + sb.getValue() + holderSuffix;
+            entries.add(new DependencyResult.EntryResult("scoreboard", sb.getObjective(),
+                    desc, met, current, sb.getValue()));
+        }
+
         // Determine group fulfillment based on logic (Default to AND)
         boolean fulfilled;
 
@@ -256,6 +268,19 @@ public class DependencyChecker {
         } catch (Exception e) {
             return 0;
         }
+    }
+
+    private static int getScoreboardValue(Level level, ServerPlayer player, ScoreboardDep dep) {
+        if (level == null || dep.getObjective() == null || dep.getObjective().isEmpty()) return 0;
+        Scoreboard scoreboard = level.getScoreboard();
+        Objective objective = scoreboard.getObjective(dep.getObjective());
+        if (objective == null) return 0;
+        String holderName = dep.isPlayerSelf()
+                ? (player != null ? player.getScoreboardName() : null)
+                : dep.getScoreHolder();
+        if (holderName == null) return 0;
+        if (!scoreboard.hasPlayerScore(holderName, objective)) return 0;
+        return scoreboard.getOrCreatePlayerScore(holderName, objective).getScore();
     }
 
     private static String getItemDisplayName(String itemId) {
