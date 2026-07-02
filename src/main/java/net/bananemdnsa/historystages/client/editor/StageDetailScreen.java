@@ -83,6 +83,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
+    private final Map<String, List<String>> editSpawnlockDimensions;
     private final List<String> editModLinked;
     private List<DependencyGroup> editDependencies;
 
@@ -108,6 +109,7 @@ public class StageDetailScreen extends Screen {
     private ContextMenu contextMenu;
     private ModEntitySelectionPopup modEntityPopup;
     private ModStructureSelectionPopup modStructurePopup;
+    private net.bananemdnsa.historystages.client.editor.widget.DimensionFilterPopup dimFilterPopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
     // When non-null, the entity/structure popups are in "edit mode" for this mod:
@@ -322,10 +324,14 @@ public class StageDetailScreen extends Screen {
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
+        this.editSpawnlockDimensions = new HashMap<>();
         for (net.bananemdnsa.historystages.data.EntitySpawnLockEntry se : e.getEntities().getSpawnlock()) {
             this.editSpawnlock.add(se.getId());
             if (se.hasLockSources()) {
                 this.editSpawnlockSources.put(se.getId(), new ArrayList<>(se.getLockSources()));
+            }
+            if (se.hasUnlockDimensions()) {
+                this.editSpawnlockDimensions.put(se.getId(), new ArrayList<>(se.getUnlockDimensions()));
             }
         }
         this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
@@ -476,6 +482,15 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         });
 
+        dimFilterPopup = new net.bananemdnsa.historystages.client.editor.widget.DimensionFilterPopup((entityId, allowed) -> {
+            if (allowed.isEmpty()) {
+                editSpawnlockDimensions.remove(entityId);
+            } else {
+                editSpawnlockDimensions.put(entityId, allowed);
+            }
+            hasChanges = true;
+        });
+
         modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
             // In edit mode, drop the previous mod-linked entity locks for this mod first
             // so unchecked rows are actually removed.
@@ -485,6 +500,7 @@ public class StageDetailScreen extends Screen {
                         .removeIf(id -> {
                             if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                 editSpawnlockSources.remove(id);
+                                editSpawnlockDimensions.remove(id);
                                 return true;
                             }
                             return false;
@@ -589,6 +605,7 @@ public class StageDetailScreen extends Screen {
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
+                || dimFilterPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
     }
@@ -1117,6 +1134,19 @@ public class StageDetailScreen extends Screen {
                     }
                 }
 
+                // Dimension badge for spawnlock entries restricted to specific dimensions
+                if (activeTab == 7) {
+                    List<String> dimFilter = editSpawnlockDimensions.get(list.get(i));
+                    if (dimFilter != null && !dimFilter.isEmpty()) {
+                        String label = Component.translatable("editor.historystages.badge.dimensions").getString();
+                        String dimBadge = "[" + label + ": " + dimFilter.size() + "]";
+                        int dBadgeW = this.font.width(dimBadge) + 4;
+                        guiGraphics.drawString(this.font, dimBadge, contentRight - badgeW - dBadgeW, cardY + 7,
+                                0xCCAA66, false);
+                        badgeW += dBadgeW;
+                    }
+                }
+
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
                         || (activeTab == 8 && editStructureModLinked.contains(list.get(i)))) {
@@ -1312,6 +1342,7 @@ public class StageDetailScreen extends Screen {
             renderLockActionsPopup(guiGraphics, mouseX, mouseY);
         if (spawnSourcesPopupVisible)
             renderSpawnSourcesPopup(guiGraphics, mouseX, mouseY);
+        dimFilterPopup.render(guiGraphics, this.font, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Merge pending tooltips from widgets (set during their renderWidget pass)
@@ -2433,6 +2464,9 @@ public class StageDetailScreen extends Screen {
         if (spawnSourcesPopupVisible) {
             return handleSpawnSourcesPopupClick(mouseX, mouseY);
         }
+        if (dimFilterPopup.isVisible()) {
+            return dimFilterPopup.mouseClicked(mouseX, mouseY);
+        }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
@@ -2623,6 +2657,9 @@ public class StageDetailScreen extends Screen {
                     if (tabIdx == 7) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.spawn_sources").getString(),
                                 () -> openSpawnSourcesPopup(entryValue));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.dimension_filter").getString(),
+                                () -> dimFilterPopup.show(entryValue, editSpawnlockDimensions.get(entryValue),
+                                        this.width / 2, this.height / 2));
                     }
                     if (tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
@@ -2678,9 +2715,10 @@ public class StageDetailScreen extends Screen {
                         if (tabIdx == 2) {
                             shiftLockActionsMap(editModLockActions, entryIdx);
                         }
-                        // When removing a spawnlock entry, drop its sources entry (keyed by entity ID)
+                        // When removing a spawnlock entry, drop its sources + dimensions entry (keyed by entity ID)
                         if (tabIdx == 7 && removedValue != null) {
                             editSpawnlockSources.remove(removedValue);
+                            editSpawnlockDimensions.remove(removedValue);
                         }
                         // When removing a mod exception, shift NBT indices
                         if (tabIdx == 3) {
@@ -2700,6 +2738,7 @@ public class StageDetailScreen extends Screen {
                             editSpawnlock.removeIf(id -> {
                                 if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                     editSpawnlockSources.remove(id);
+                                    editSpawnlockDimensions.remove(id);
                                     return true;
                                 }
                                 return false;
@@ -3010,6 +3049,9 @@ public class StageDetailScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (dimFilterPopup.isVisible()) {
+            return dimFilterPopup.mouseScrolled(mouseX, mouseY, delta);
+        }
         // Scroll inside category search dropdown
         if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
             int total = categoryDropdownSuggestions.size();
@@ -3064,6 +3106,8 @@ public class StageDetailScreen extends Screen {
         if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode))
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.keyPressed(keyCode))
+            return true;
+        if (dimFilterPopup.isVisible() && dimFilterPopup.keyPressed(keyCode))
             return true;
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
@@ -3225,7 +3269,7 @@ public class StageDetailScreen extends Screen {
         List<net.bananemdnsa.historystages.data.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
         for (String entityId : editSpawnlock) {
             spawnlockEntries.add(new net.bananemdnsa.historystages.data.EntitySpawnLockEntry(
-                    entityId, editSpawnlockSources.get(entityId)));
+                    entityId, editSpawnlockSources.get(entityId), editSpawnlockDimensions.get(entityId)));
         }
         locks.setSpawnlock(spawnlockEntries);
         locks.setModLinked(editModLinked);

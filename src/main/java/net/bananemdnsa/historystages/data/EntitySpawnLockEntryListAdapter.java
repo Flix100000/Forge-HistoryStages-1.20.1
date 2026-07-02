@@ -29,28 +29,36 @@ public class EntitySpawnLockEntryListAdapter extends TypeAdapter<List<EntitySpaw
         }
         out.beginArray();
         for (EntitySpawnLockEntry entry : entries) {
-            if (!entry.hasLockSources()) {
-                out.value(entry.getId());
-            } else {
+            // Compute unlocked sources (complement of locked), if any source filter is set.
+            List<String> unlockedSources = new ArrayList<>();
+            if (entry.hasLockSources()) {
                 List<String> locked = entry.getLockSources();
-                List<String> unlocked = new ArrayList<>();
                 for (String src : EntitySpawnLockEntry.ALL_SOURCES) {
-                    if (!locked.contains(src)) unlocked.add(src);
-                }
-                if (unlocked.isEmpty()) {
-                    out.value(entry.getId());
-                } else {
-                    out.beginObject();
-                    out.name("id").value(entry.getId());
-                    out.name("unlock_sources");
-                    out.beginArray();
-                    for (String src : unlocked) {
-                        out.value(src);
-                    }
-                    out.endArray();
-                    out.endObject();
+                    if (!locked.contains(src)) unlockedSources.add(src);
                 }
             }
+            boolean hasSourceFilter = !unlockedSources.isEmpty();
+            boolean hasDimFilter = entry.hasUnlockDimensions();
+
+            if (!hasSourceFilter && !hasDimFilter) {
+                out.value(entry.getId());
+                continue;
+            }
+            out.beginObject();
+            out.name("id").value(entry.getId());
+            if (hasSourceFilter) {
+                out.name("unlock_sources");
+                out.beginArray();
+                for (String src : unlockedSources) out.value(src);
+                out.endArray();
+            }
+            if (hasDimFilter) {
+                out.name("unlock_dimensions");
+                out.beginArray();
+                for (String dim : entry.getUnlockDimensions()) out.value(dim);
+                out.endArray();
+            }
+            out.endObject();
         }
         out.endArray();
     }
@@ -85,7 +93,14 @@ public class EntitySpawnLockEntryListAdapter extends TypeAdapter<List<EntitySpaw
                         lockSources.add(el.getAsString());
                     }
                 }
-                entries.add(new EntitySpawnLockEntry(id, lockSources));
+                List<String> unlockDimensions = null;
+                if (obj.has("unlock_dimensions") && obj.get("unlock_dimensions").isJsonArray()) {
+                    unlockDimensions = new ArrayList<>();
+                    for (JsonElement el : obj.getAsJsonArray("unlock_dimensions")) {
+                        unlockDimensions.add(el.getAsString());
+                    }
+                }
+                entries.add(new EntitySpawnLockEntry(id, lockSources, unlockDimensions));
             }
         }
         in.endArray();
