@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.commands;
 import com.google.gson.JsonElement;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.serialization.DataResult;
+import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
@@ -27,6 +28,7 @@ import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.ChatFormatting;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -236,7 +238,15 @@ public final class ClientDebugCommand {
             return;
         }
 
-        DataResult<JsonElement> result = type.codec().encodeStart(JsonOps.INSTANCE, typed.value());
+        // Registry-backed components (e.g. Iron's Jewelry's stored_pattern) only
+        // encode through a RegistryOps that knows about that registry; plain
+        // JsonOps makes their codec fail. Mirror what the matcher/editor use so
+        // the copied value is the same one the editor will accept.
+        var level = Minecraft.getInstance().level;
+        DynamicOps<JsonElement> ops = level != null
+                ? RegistryOps.create(JsonOps.INSTANCE, level.registryAccess())
+                : JsonOps.INSTANCE;
+        DataResult<JsonElement> result = type.codec().encodeStart(ops, typed.value());
         var maybe = result.result();
         if (maybe.isEmpty()) {
             String err = result.error().map(e -> e.message()).orElse("unknown error");

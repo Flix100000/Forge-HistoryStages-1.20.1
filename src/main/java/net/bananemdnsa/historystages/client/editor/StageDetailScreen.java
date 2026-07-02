@@ -1938,7 +1938,7 @@ public class StageDetailScreen extends Screen {
         int btnY = popupY + popupH - btnH - 6;
 
         // Done button (right, gold)
-        int doneW = 48;
+        int doneW = computeLockDoneBtnWidth();
         int doneX = popupX + popupW - doneW - LP_PAD;
         if (mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH) {
             Minecraft.getInstance().getSoundManager()
@@ -1948,7 +1948,7 @@ public class StageDetailScreen extends Screen {
         }
 
         // All button (left)
-        int qBtnW = 34;
+        int qBtnW = computeLockQuickBtnWidth();
         int allX = popupX + LP_PAD;
         if (mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
             Minecraft.getInstance().getSoundManager()
@@ -2010,7 +2010,7 @@ public class StageDetailScreen extends Screen {
         }
         contentH -= LP_GROUP_GAP; // no gap after last group
 
-        int popupW = LP_WIDTH;
+        int popupW = computeLockPopupWidth();
         int popupH = LP_HEADER_H + LP_HINT_H + 3 + contentH + LP_DESC_H + LP_FOOTER_H;
         int popupX = this.width / 2 - popupW / 2;
         int popupY = this.height / 2 - popupH / 2;
@@ -2115,7 +2115,7 @@ public class StageDetailScreen extends Screen {
         // Footer buttons
         int btnH = 14;
         int btnY = popupY + popupH - btnH - 6;
-        int qBtnW = 34;
+        int qBtnW = computeLockQuickBtnWidth();
 
         // All
         int allX = popupX + LP_PAD;
@@ -2136,7 +2136,7 @@ public class StageDetailScreen extends Screen {
                 noneX + qBtnW / 2, btnY + 3, noneHov ? 0xFFFFFF : 0xCCCCCC);
 
         // Done (gold accent)
-        int doneW = 48;
+        int doneW = computeLockDoneBtnWidth();
         int doneX = popupX + popupW - doneW - LP_PAD;
         boolean doneHov = mouseX >= doneX && mouseX < doneX + doneW && mouseY >= btnY && mouseY < btnY + btnH;
         g.fill(doneX, btnY, doneX + doneW, btnY + btnH, doneHov ? 0x50FFCC00 : 0x25FFCC00);
@@ -2144,6 +2144,52 @@ public class StageDetailScreen extends Screen {
         g.drawCenteredString(this.font,
                 Component.translatable("editor.historystages.lock_actions.btn_done"),
                 doneX + doneW / 2, btnY + 3, doneHov ? 0xFFFFFF : 0xEEEEEE);
+    }
+
+    /**
+     * Popup width grown to fit every piece of text it holds — title, hint, toggle labels, the
+     * widest hover-description/status line, and the footer button row — instead of shrinking text
+     * into a fixed {@link #LP_WIDTH}.
+     */
+    private int computeLockPopupWidth() {
+        int maxToggleW = 0;
+        int maxLineW = 0;
+        for (String action : LOCK_ACTION_KEYS) {
+            Component name = Component.translatable("editor.historystages.lock_actions.action." + action);
+            Component desc = Component.translatable("editor.historystages.lock_actions.desc." + action);
+            maxToggleW = Math.max(maxToggleW, this.font.width(name));
+            Component combined = name.copy().append(Component.literal(" — ")).append(desc);
+            maxLineW = Math.max(maxLineW, this.font.width(combined));
+        }
+        Component status = Component.translatable("editor.historystages.lock_actions.status",
+                LOCK_ACTION_KEYS.length, LOCK_ACTION_KEYS.length);
+        maxLineW = Math.max(maxLineW, this.font.width(status));
+        // Centered header lines must fit too.
+        maxLineW = Math.max(maxLineW, this.font.width(Component.translatable("editor.historystages.lock_actions.title")));
+        maxLineW = Math.max(maxLineW, this.font.width(Component.translatable("editor.historystages.lock_actions.hint")));
+
+        int neededToggleW = maxToggleW + 14; // dot + gap (10px) + right margin (4px)
+        int neededFromGrid = 2 * LP_PAD + LP_COLS * neededToggleW + (LP_COLS - 1) * 3;
+        int neededFromLine = maxLineW + 2 * LP_PAD;
+        // Footer: [All][None] on the left, [Done] on the right, with a small gap between the groups.
+        int neededFromFooter = 2 * LP_PAD + 2 * computeLockQuickBtnWidth() + 3 + 8 + computeLockDoneBtnWidth();
+        int needed = Math.max(LP_WIDTH, Math.max(Math.max(neededFromGrid, neededFromLine), neededFromFooter));
+        // Never wider than the screen: on a very small GUI the box would otherwise spill off both
+        // edges (it is screen-centered). Degrades to slight internal overflow, not an off-screen box.
+        return Math.min(needed, this.width - 8);
+    }
+
+    /** Width for the "All"/"None" footer buttons, grown to fit whichever label is wider. */
+    private int computeLockQuickBtnWidth() {
+        int w = this.font.width(Component.translatable("editor.historystages.lock_actions.btn_all"));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.lock_actions.btn_none")));
+        return Math.max(34, w + 10);
+    }
+
+    /** Width for the "Done" footer button, grown to fit its label. */
+    private int computeLockDoneBtnWidth() {
+        int w = this.font.width(Component.translatable("editor.historystages.lock_actions.btn_done"));
+        return Math.max(48, w + 10);
     }
 
     // ===== Spawn sources popup =====

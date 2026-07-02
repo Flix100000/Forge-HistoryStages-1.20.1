@@ -4,20 +4,28 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.mojang.serialization.DynamicOps;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import net.bananemdnsa.historystages.client.ClientRegistryAccessHelper;
 import net.bananemdnsa.historystages.util.DebugLogger;
 import net.minecraft.core.Holder;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.component.TypedDataComponent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.*;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 /**
  * Matches ItemStack NBT data against JSON-defined NBT criteria.
@@ -95,7 +103,7 @@ public class NbtMatcher {
         if (value == null) return null;
         if (type.codec() == null) return null; // transient component, no codec
         TypedDataComponent<T> typed = new TypedDataComponent<>(type, value);
-        return typed.encodeValue(NbtOps.INSTANCE)
+        return typed.encodeValue(matchOps())
                 .resultOrPartial(err -> DebugLogger.runtimeThrottled(
                         "NBT Matching",
                         "encode_" + BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type),
@@ -103,6 +111,33 @@ public class NbtMatcher {
                                 + BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type)
                                 + " for matching: " + err))
                 .orElse(null);
+    }
+
+    /**
+     * Data components backed by a registry reference (e.g. a mod's
+     * {@code RegistryFixedCodec<Holder<T>>}, such as Iron's Jewelry's
+     * {@code stored_pattern}) can only encode through a {@link RegistryOps}
+     * that knows about that registry — plain {@link NbtOps#INSTANCE} makes
+     * their codec fail silently. Wrap with whatever registry access is
+     * available; components that don't need it are unaffected.
+     */
+    private static DynamicOps<Tag> matchOps() {
+        HolderLookup.Provider registries = currentRegistries();
+        return registries != null ? RegistryOps.create(NbtOps.INSTANCE, registries) : NbtOps.INSTANCE;
+    }
+
+    /**
+     * Resolves whichever registry set is authoritative for the world that's
+     * actually running. A server (dedicated or the integrated one backing a
+     * singleplayer world) is checked first and is safe to read from any
+     * thread; only a client with no local server (i.e. connected to a remote
+     * server) falls back to the client's synced level registries.
+     */
+    private static HolderLookup.Provider currentRegistries() {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server != null) return server.registryAccess();
+        if (FMLEnvironment.dist == Dist.CLIENT) return ClientRegistryAccessHelper.get();
+        return null;
     }
 
     private static ListTag toLegacyEnchantmentList(ItemEnchantments enchantments) {

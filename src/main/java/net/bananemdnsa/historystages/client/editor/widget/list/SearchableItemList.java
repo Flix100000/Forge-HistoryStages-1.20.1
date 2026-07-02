@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -20,6 +21,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
@@ -1211,9 +1213,21 @@ public class SearchableItemList {
         return arr;
     }
 
+    /**
+     * Registry-backed components (e.g. a mod's {@code RegistryFixedCodec<Holder<T>>},
+     * such as Iron's Jewelry's {@code stored_pattern}) only encode through a
+     * {@link RegistryOps} that knows about that registry — plain
+     * {@link JsonOps#INSTANCE} makes their codec fail silently, dropping the
+     * component from the captured criteria.
+     */
     @SuppressWarnings("unchecked")
     private static <T> JsonElement encodeComponent(DataComponentType<T> type, Object value) {
-        return type.codec().encodeStart(JsonOps.INSTANCE, (T) value).result().orElse(null);
+        var level = Minecraft.getInstance().level;
+        JsonOps ops = JsonOps.INSTANCE;
+        DynamicOps<JsonElement> registryOps = level != null
+                ? RegistryOps.create(ops, level.registryAccess())
+                : ops;
+        return type.codec().encodeStart(registryOps, (T) value).result().orElse(null);
     }
 
     private boolean isAddButtonAt(double mouseX, double mouseY) {
