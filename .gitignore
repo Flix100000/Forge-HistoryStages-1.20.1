@@ -20,14 +20,17 @@ build
 # other
 eclipse
 run
+runs
+run-data
+
+repo
 
 # Files from Forge MDK
 forge*changelog.txt
 
-# Claude Code
-.claude/worktrees/
-CLAUDE.md
-
-# VSCode
+# claude / editor
+.claude/
 .vscode/
-.claude/settings.local.json
+CLAUDE.md
+docs/superpowers/
+.superpowers/
