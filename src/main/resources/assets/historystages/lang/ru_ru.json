@@ -43,7 +43,7 @@
   "editor.historystages.toast.stage_delete_failed.title": "Ошибка удаления",
   "editor.historystages.toast.stage_delete_failed.message": "Не удалось удалить '%s'.",
   "editor.historystages.toast.config_saved.title": "Настройки сохранены",
-  "editor.historystages.toast.config_saved.message": "Общие настройки сохранена",
+  "editor.historystages.toast.config_saved.message": "Общие настройки сохранены",
   "editor.historystages.toast.copied.title": "Скопировано",
   "editor.historystages.toast.copied.message": "%s",
   "editor.historystages.toast.stage_locked_editor.title": "Стадия заблокирована",
