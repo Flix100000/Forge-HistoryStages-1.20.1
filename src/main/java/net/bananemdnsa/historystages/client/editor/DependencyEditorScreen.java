@@ -218,6 +218,7 @@ public class DependencyEditorScreen extends Screen {
         }, () -> hasGroup()
                 ? currentGroup().getEntityKills().stream().map(EntityKillDep::getEntityId).toList()
                 : java.util.Collections.emptyList());
+        entitySearch.setMultiSelect(true);
         globalStageSearch = new SearchableStageList(id -> {
             if (hasGroup()) {
                 currentGroup().getStages().add(id);

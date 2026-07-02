@@ -24,14 +24,21 @@ import org.joml.Quaternionf;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Searchable list of all registered LivingEntity types with 3D preview.
  * Supports toggling to an inventory view for selecting entities via spawn eggs.
+ * <p>
+ * When multi-select is enabled (see {@link #setMultiSelect}) the Registry and
+ * Inventory tabs toggle selections instead of adding immediately, a "Selected"
+ * tab lists every chosen entity for review/deselection, and {@link #onSelect}
+ * fires once per entity on confirm. Mirrors {@link SearchableItemList}.
  */
 public class SearchableEntityList {
     private static final int SLOT_SIZE = 18;
@@ -42,9 +49,23 @@ public class SearchableEntityList {
     private static final int TAB_HEIGHT = 14;
     private static final int TAB_PAD = 4;
     private static final int PREVIEW_SIZE = 80;
+    private static final int ADD_BTN_H = 20;
+
+    private static final int TAB_REGISTRY = 0;
+    private static final int TAB_INVENTORY = 1;
+    private static final int TAB_SELECTED = 2;
 
     private final List<EntityEntry> allEntities = new ArrayList<>();
     private final List<EntityEntry> filteredEntities = new ArrayList<>();
+    /**
+     * Snapshot of selected entities taken when the Selected tab is entered.
+     * Stays stable while on the tab — toggling deselect/reselect modifies the
+     * underlying sets but leaves the snapshot intact, so the list doesn't shift
+     * under the cursor and the user can undo a misclick. Cleared on tab exit.
+     */
+    private final List<SelectedRef> selectedSnapshot = new ArrayList<>();
+    /** Filtered view of {@link #selectedSnapshot} for the current search filter. */
+    private final List<SelectedRef> selectedView = new ArrayList<>();
     private final Consumer<String> onSelect;
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
@@ -58,8 +79,10 @@ public class SearchableEntityList {
     private int maxScrollRow = 0;
     private boolean draggingScrollbar = false;
 
-    private boolean inventoryMode = false;
-    private int selectedInventorySlot = -1;
+    private int currentTab = TAB_REGISTRY;
+    private boolean multiSelect = false;
+    private final Set<String> selectedRegistryIds = new LinkedHashSet<>();
+    private final Set<Integer> selectedInventorySlots = new LinkedHashSet<>();
 
     // Tab indicator animation
     private float tabIndicatorX = 0;
@@ -87,6 +110,12 @@ public class SearchableEntityList {
         }
         allEntities.sort((a, b) -> a.displayName.compareToIgnoreCase(b.displayName));
         filteredEntities.addAll(allEntities);
+    }
+
+    /** Enables multi-select: toggle entries across tabs, review them on the
+     *  "Selected" tab, and emit one {@link #onSelect} per entity on confirm. */
+    public void setMultiSelect(boolean multi) {
+        this.multiSelect = multi;
     }
 
     @SuppressWarnings("unchecked")
@@ -150,30 +179,73 @@ public class SearchableEntityList {
         this.visible = true;
         this.scrollRow = 0;
         searchBar.setFocused(true);
-        this.inventoryMode = false;
-        this.selectedInventorySlot = -1;
+        this.currentTab = TAB_REGISTRY;
+        this.selectedRegistryIds.clear();
+        this.selectedInventorySlots.clear();
+        this.selectedSnapshot.clear();
+        this.selectedView.clear();
         this.tabIndicatorInit = false;
+        searchBar.setPlaceholder("Search entities...");
         searchBar.setText("");
         recalcPanelSize();
     }
 
+    private boolean isInventoryTab() {
+        return currentTab == TAB_INVENTORY;
+    }
+
+    private boolean isSelectedTab() {
+        return currentTab == TAB_SELECTED;
+    }
+
+    private int totalSelectionCount() {
+        return selectedRegistryIds.size() + selectedInventorySlots.size();
+    }
+
+    private boolean showSelectedTab() {
+        return multiSelect && (totalSelectionCount() > 0 || !selectedSnapshot.isEmpty());
+    }
+
+    private boolean isStillSelected(SelectedRef ref) {
+        return ref.fromInventory
+                ? selectedInventorySlots.contains(ref.inventorySlot)
+                : selectedRegistryIds.contains(ref.id);
+    }
+
+    private int calcMinTabWidth() {
+        Font font = Minecraft.getInstance().font;
+        int total = PADDING * 2;
+        List<String> labels = tabLabels();
+        for (int i = 0; i < labels.size(); i++) {
+            total += font.width(labels.get(i)) + TAB_PAD * 2;
+            if (i < labels.size() - 1)
+                total += 2;
+        }
+        return total + PADDING;
+    }
+
     private void recalcPanelSize() {
-        if (inventoryMode) {
+        if (isInventoryTab()) {
             int gridW = SLOT_SIZE * 9;
             int invPanelW = PADDING + gridW + PADDING + 8;
             int topAreaH = 4 * SLOT_SIZE + 4;
-            int addButtonH = 20;
             int invPanelH = PADDING + TAB_HEIGHT + 4
                     + topAreaH + 4
                     + 3 * SLOT_SIZE + 6
                     + SLOT_SIZE + 6
-                    + addButtonH + PADDING;
+                    + ADD_BTN_H + PADDING;
             panelW = invPanelW + 4 + PREVIEW_SIZE + PADDING;
             panelH = invPanelH;
         } else {
             panelW = PANEL_WIDTH;
             panelH = TAB_HEIGHT + 4 + SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
+            if (multiSelect)
+                panelH += ADD_BTN_H + PADDING;
         }
+
+        int minW = calcMinTabWidth();
+        if (panelW < minW)
+            panelW = minW;
 
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
@@ -209,14 +281,11 @@ public class SearchableEntityList {
         this.scrollRow = 0;
         filteredEntities.clear();
         for (EntityEntry entry : allEntities) {
-            if (!matchesDropdownFilters(entry.id))
-                continue;
-            if (filter.isEmpty()
-                    || entry.id.contains(filter)
-                    || entry.searchName.contains(filter)) {
+            if (matchesFilter(entry, filter))
                 filteredEntities.add(entry);
-            }
         }
+        if (isSelectedTab())
+            applySelectedFilter();
         updateMaxScroll();
     }
 
@@ -224,12 +293,75 @@ public class SearchableEntityList {
         return SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier);
     }
 
+    private boolean matchesFilter(EntityEntry entry, String filter) {
+        if (!matchesDropdownFilters(entry.id))
+            return false;
+        return filter.isEmpty() || entry.id.contains(filter) || entry.searchName.contains(filter);
+    }
+
+    /** Captures the current selection sets as the frozen Selected-tab snapshot. */
+    private void rebuildSelectedSnapshot() {
+        selectedSnapshot.clear();
+        for (String id : selectedRegistryIds) {
+            String displayName = displayNameForId(id);
+            selectedSnapshot.add(new SelectedRef(id, displayName, displayName.toLowerCase(), false, -1));
+        }
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null) {
+            for (Integer slot : selectedInventorySlots) {
+                ItemStack stack = player.getInventory().getItem(slot);
+                String id = getEntityIdFromSpawnEgg(stack);
+                if (id == null)
+                    continue;
+                String displayName = displayNameForId(id);
+                selectedSnapshot.add(new SelectedRef(id, displayName, displayName.toLowerCase(), true, slot));
+            }
+        }
+        applySelectedFilter();
+    }
+
+    private String displayNameForId(String id) {
+        for (EntityEntry entry : allEntities) {
+            if (entry.id.equals(id))
+                return entry.displayName;
+        }
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        EntityType<?> type = rl != null ? ForgeRegistries.ENTITY_TYPES.getValue(rl) : null;
+        return type != null ? type.getDescription().getString() : id;
+    }
+
+    /** Filters the snapshot by the current search filter into the rendered view. */
+    private void applySelectedFilter() {
+        selectedView.clear();
+        String f = searchBar.getText();
+        for (SelectedRef ref : selectedSnapshot) {
+            if (f.isEmpty() || ref.id.contains(f) || ref.searchName.contains(f))
+                selectedView.add(ref);
+        }
+    }
+
     private void updateMaxScroll() {
-        if (inventoryMode) {
+        if (isInventoryTab()) {
             maxScrollRow = 0;
+        } else if (isSelectedTab()) {
+            maxScrollRow = Math.max(0, selectedView.size() - VISIBLE_ROWS);
         } else {
             maxScrollRow = Math.max(0, filteredEntities.size() - VISIBLE_ROWS);
         }
+    }
+
+    private List<String> tabLabels() {
+        List<String> labels = new ArrayList<>(3);
+        labels.add("Registry");
+        labels.add("Inventory");
+        if (showSelectedTab()) {
+            labels.add("Selected (" + totalSelectionCount() + ")");
+        }
+        return labels;
+    }
+
+    private String addButtonLabel() {
+        return multiSelect ? "Add Entities (" + totalSelectionCount() + ")" : "Add Entity";
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -240,8 +372,10 @@ public class SearchableEntityList {
 
         renderTabs(guiGraphics, font, mouseX, mouseY);
 
-        if (inventoryMode) {
+        if (isInventoryTab()) {
             renderInventoryMode(guiGraphics, font, mouseX, mouseY);
+        } else if (isSelectedTab()) {
+            renderSelectedMode(guiGraphics, font, mouseX, mouseY);
         } else {
             renderRegistryMode(guiGraphics, font, mouseX, mouseY);
         }
@@ -249,18 +383,19 @@ public class SearchableEntityList {
 
     private void renderTabs(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
         int tabY = panelY + PADDING;
-        String[] labels = { "Registry", "Inventory" };
-        int[] tabXs = new int[2];
-        int[] tabWs = new int[2];
+        List<String> labels = tabLabels();
+        int n = labels.size();
+        int[] tabXs = new int[n];
+        int[] tabWs = new int[n];
 
         int x = panelX + PADDING;
-        for (int i = 0; i < 2; i++) {
-            tabWs[i] = font.width(labels[i]) + TAB_PAD * 2;
+        for (int i = 0; i < n; i++) {
+            tabWs[i] = font.width(labels.get(i)) + TAB_PAD * 2;
             tabXs[i] = x;
             x += tabWs[i] + 2;
         }
 
-        int activeIdx = inventoryMode ? 1 : 0;
+        int activeIdx = Math.min(currentTab, n - 1);
         if (!tabIndicatorInit) {
             tabIndicatorX = tabXs[activeIdx];
             tabIndicatorW = tabWs[activeIdx];
@@ -276,7 +411,7 @@ public class SearchableEntityList {
         if (Math.abs(tabIndicatorW - targetW) < 0.5f)
             tabIndicatorW = targetW;
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < n; i++) {
             boolean active = (i == activeIdx);
             boolean hovered = mouseX >= tabXs[i] && mouseX < tabXs[i] + tabWs[i]
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
@@ -285,7 +420,7 @@ public class SearchableEntityList {
             guiGraphics.fill(tabXs[i], tabY, tabXs[i] + tabWs[i], tabY + TAB_HEIGHT, bg);
 
             int textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
-            guiGraphics.drawString(font, labels[i], tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
+            guiGraphics.drawString(font, labels.get(i), tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
         }
 
         guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2,
@@ -314,45 +449,152 @@ public class SearchableEntityList {
 
             boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
-                    rowHovered ? 0xFF353535 : 0xFF252525);
 
             if (index < filteredEntities.size()) {
                 EntityEntry entry = filteredEntities.get(index);
-
-                LivingEntity living = getOrCreateEntity(entry.id);
-                if (living != null) {
-                    try {
-                        float angle = (System.currentTimeMillis() % 3600) / 10.0f;
-                        guiGraphics.enableScissor(listX, rowY, listX + 18, rowY + ROW_HEIGHT);
-                        int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
-                        renderSpinningEntity(guiGraphics, listX + 9, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
-                        guiGraphics.disableScissor();
-                    } catch (Exception ignored) {
-                    }
-                }
-
-                String text = entry.displayName + " §7(" + entry.id + ")";
-                if (font.width(text) > listW - 22) {
-                    text = font.plainSubstrByWidth(text, listW - 28) + "...";
-                }
-                guiGraphics.drawString(font, text, listX + 20, rowY + 6, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+                boolean selected = multiSelect && selectedRegistryIds.contains(entry.id);
+                renderEntityRow(guiGraphics, font, listX, rowY, listW, entry.id, entry.displayName,
+                        rowHovered, selected ? RowState.SELECTED : RowState.NORMAL);
+            } else {
+                guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
+                        rowHovered ? 0xFF353535 : 0xFF252525);
             }
         }
 
         if (maxScrollRow > 0) {
-            int scrollBarX = listX + listW + 2;
-            int scrollBarTop = listY;
-            int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
-            int scrollBarHeight = scrollBarBottom - scrollBarTop;
-
-            guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-
-            int thumbHeight = Math.max(10,
-                    (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
-            int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
-            guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+            renderScrollbar(guiGraphics, listX, listW, listY);
         }
+
+        if (multiSelect) {
+            renderAddButton(guiGraphics, font, mouseX, mouseY);
+        }
+    }
+
+    private void renderSelectedMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
+        int topOffset = PADDING + TAB_HEIGHT + 4;
+        int searchX = panelX + PADDING;
+        int searchY = panelY + topOffset;
+        searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
+        searchBar.render(guiGraphics, font, mouseX, mouseY);
+
+        int listX = panelX + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
+        int listW = panelW - PADDING * 2 - 8;
+
+        boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
+
+        for (int i = 0; i < VISIBLE_ROWS; i++) {
+            int index = scrollRow + i;
+            int rowY = listY + i * ROW_HEIGHT;
+
+            boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
+                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+
+            if (index < selectedView.size()) {
+                SelectedRef ref = selectedView.get(index);
+                RowState state = isStillSelected(ref) ? RowState.SELECTED : RowState.DESELECTED;
+                renderEntityRow(guiGraphics, font, listX, rowY, listW, ref.id, ref.displayName, rowHovered, state);
+            } else {
+                guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
+                        rowHovered ? 0xFF353535 : 0xFF252525);
+            }
+        }
+
+        if (maxScrollRow > 0) {
+            renderScrollbar(guiGraphics, listX, listW, listY);
+        }
+
+        renderAddButton(guiGraphics, font, mouseX, mouseY);
+    }
+
+    private enum RowState { NORMAL, SELECTED, DESELECTED }
+
+    private void renderEntityRow(GuiGraphics guiGraphics, Font font, int listX, int rowY, int listW,
+            String id, String displayName, boolean rowHovered, RowState state) {
+        int bg;
+        switch (state) {
+            case SELECTED -> bg = rowHovered ? 0xFF553A10 : 0xFF2A2510;
+            case DESELECTED -> bg = rowHovered ? 0xFF3A1A1A : 0xFF1A0D0D;
+            default -> bg = rowHovered ? 0xFF353535 : 0xFF252525;
+        }
+        guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT, bg);
+        if (state == RowState.SELECTED) {
+            guiGraphics.fill(listX, rowY, listX + 2, rowY + ROW_HEIGHT, 0xFFFFCC00);
+        } else if (state == RowState.DESELECTED) {
+            guiGraphics.fill(listX, rowY, listX + 2, rowY + ROW_HEIGHT, 0xFFCC4444);
+        }
+
+        LivingEntity living = getOrCreateEntity(id);
+        if (living != null) {
+            try {
+                float angle = (System.currentTimeMillis() % 3600) / 10.0f;
+                guiGraphics.enableScissor(listX, rowY, listX + 18, rowY + ROW_HEIGHT);
+                int entityScale = (int) Math.max(3, 9.0f / Math.max(living.getBbWidth(), living.getBbHeight()));
+                renderSpinningEntity(guiGraphics, listX + 9, rowY + ROW_HEIGHT - 2, entityScale, angle, living);
+                guiGraphics.disableScissor();
+            } catch (Exception ignored) {
+            }
+        }
+
+        String text = displayName + " §7(" + id + ")";
+        if (font.width(text) > listW - 22) {
+            text = font.plainSubstrByWidth(text, listW - 28) + "...";
+        }
+        int textColor = state == RowState.DESELECTED
+                ? (rowHovered ? 0xFFCC8888 : 0xFF885555)
+                : (rowHovered ? 0xFFFFFF : 0xBBBBBB);
+        guiGraphics.drawString(font, text, listX + 20, rowY + 6, textColor, false);
+    }
+
+    private void renderScrollbar(GuiGraphics guiGraphics, int listX, int listW, int listY) {
+        int scrollBarX = listX + listW + 2;
+        int scrollBarTop = listY;
+        int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
+        int scrollBarHeight = scrollBarBottom - scrollBarTop;
+
+        guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
+
+        int thumbHeight = Math.max(10,
+                (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
+        int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
+        guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+    }
+
+    private void renderAddButton(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
+        int addBtnW = panelW - PADDING * 2;
+        int addBtnX = panelX + PADDING;
+        int addBtnY = panelY + panelH - PADDING - ADD_BTN_H;
+
+        boolean canAdd = canConfirm();
+        boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
+                && mouseY >= addBtnY && mouseY < addBtnY + ADD_BTN_H;
+        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
+                : Math.max(0.0f, addHoverProgress - 0.08f);
+
+        if (canAdd) {
+            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, ADD_BTN_H, addButtonLabel(),
+                    addHoverProgress);
+        } else {
+            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + ADD_BTN_H, 0x20FFFFFF);
+            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 1, 0x10FFFFFF);
+            String addText = "Select an Entity";
+            guiGraphics.drawString(font, addText, addBtnX + (addBtnW - font.width(addText)) / 2,
+                    addBtnY + (ADD_BTN_H - 8) / 2, 0xFF666666, false);
+        }
+    }
+
+    private boolean canConfirm() {
+        if (multiSelect)
+            return totalSelectionCount() > 0;
+        // Single-select: only the Inventory tab routes through the Add button;
+        // the Registry tab adds immediately on click.
+        if (selectedInventorySlots.isEmpty())
+            return false;
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null)
+            return false;
+        int slot = selectedInventorySlots.iterator().next();
+        return getEntityIdFromSpawnEgg(player.getInventory().getItem(slot)) != null;
     }
 
     private void renderInventoryMode(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -414,9 +656,10 @@ public class SearchableEntityList {
                 0xFF333333);
         guiGraphics.fill(previewX, previewY + previewH - 1, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF333333);
 
+        int previewSlot = lastSelectedSlot();
         String selectedEntityId = null;
-        if (selectedInventorySlot >= 0) {
-            ItemStack selectedStack = player.getInventory().getItem(selectedInventorySlot);
+        if (previewSlot >= 0) {
+            ItemStack selectedStack = player.getInventory().getItem(previewSlot);
             selectedEntityId = getEntityIdFromSpawnEgg(selectedStack);
         }
 
@@ -464,28 +707,28 @@ public class SearchableEntityList {
         }
 
         int addBtnW = panelW - PADDING * 2;
-        int addBtnH = 20;
         int addBtnX = panelX + PADDING;
-        int addBtnY = panelY + panelH - PADDING - addBtnH;
+        int addBtnY = panelY + panelH - PADDING - ADD_BTN_H;
 
-        boolean canAdd = selectedEntityId != null;
+        boolean canAdd = canConfirm();
 
         boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
-                && mouseY >= addBtnY && mouseY < addBtnY + addBtnH;
+                && mouseY >= addBtnY && mouseY < addBtnY + ADD_BTN_H;
         addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
                 : Math.max(0.0f, addHoverProgress - 0.08f);
 
         if (canAdd) {
-            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, addBtnH, "Add Entity", addHoverProgress);
+            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, ADD_BTN_H, addButtonLabel(),
+                    addHoverProgress);
         } else {
-            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + addBtnH, 0x20FFFFFF);
+            guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + ADD_BTN_H, 0x20FFFFFF);
             guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 1, 0x10FFFFFF);
-            boolean hasNonEggSelection = selectedInventorySlot >= 0 && selectedEntityId == null
-                    && !player.getInventory().getItem(selectedInventorySlot).isEmpty();
+            boolean hasNonEggSelection = previewSlot >= 0 && selectedEntityId == null
+                    && !player.getInventory().getItem(previewSlot).isEmpty();
             String addText = hasNonEggSelection ? "Not a Spawn Egg!" : "Select a Spawn Egg";
             int textColor = hasNonEggSelection ? 0xFFFF6666 : 0xFF666666;
             guiGraphics.drawString(font, addText, addBtnX + (addBtnW - font.width(addText)) / 2,
-                    addBtnY + (addBtnH - 8) / 2, textColor, false);
+                    addBtnY + (ADD_BTN_H - 8) / 2, textColor, false);
         }
 
         guiGraphics.pose().pushPose();
@@ -508,11 +751,20 @@ public class SearchableEntityList {
         guiGraphics.pose().popPose();
     }
 
+    /** Most recently selected inventory slot (insertion order), or -1. */
+    private int lastSelectedSlot() {
+        int last = -1;
+        for (Integer slot : selectedInventorySlots) {
+            last = slot;
+        }
+        return last;
+    }
+
     private void renderInventorySlot(GuiGraphics guiGraphics, Font font, int x, int y,
             ItemStack stack, int slotIndex, int mouseX, int mouseY, String placeholder) {
         boolean isEmpty = stack.isEmpty();
         boolean isSpawnEgg = !isEmpty && stack.getItem() instanceof SpawnEggItem;
-        boolean isSelected = selectedInventorySlot == slotIndex;
+        boolean isSelected = selectedInventorySlots.contains(slotIndex);
         boolean isHovered = !isEmpty && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
 
         int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
@@ -701,10 +953,10 @@ public class SearchableEntityList {
     private int getTabAt(double mouseX, double mouseY) {
         Font font = Minecraft.getInstance().font;
         int tabY = panelY + PADDING;
-        String[] labels = { "Registry", "Inventory" };
+        List<String> labels = tabLabels();
         int x = panelX + PADDING;
-        for (int i = 0; i < 2; i++) {
-            int w = font.width(labels[i]) + TAB_PAD * 2;
+        for (int i = 0; i < labels.size(); i++) {
+            int w = font.width(labels.get(i)) + TAB_PAD * 2;
             if (mouseX >= x && mouseX < x + w && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
                 return i;
             }
@@ -717,7 +969,7 @@ public class SearchableEntityList {
         if (!visible)
             return false;
 
-        if (!inventoryMode && searchBar.mouseClicked(mouseX, mouseY))
+        if (!isInventoryTab() && searchBar.mouseClicked(mouseX, mouseY))
             return true;
 
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
@@ -726,31 +978,105 @@ public class SearchableEntityList {
         }
 
         int clickedTab = getTabAt(mouseX, mouseY);
-        if (clickedTab == 0 && inventoryMode) {
-            inventoryMode = false;
-            selectedInventorySlot = -1;
-            searchBar.setFocused(true);
-            Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            recalcPanelSize();
-            return true;
-        }
-        if (clickedTab == 1 && !inventoryMode) {
-            inventoryMode = true;
-            selectedInventorySlot = -1;
-            searchBar.setFocused(false);
-            searchBar.filters().close();
-            Minecraft.getInstance().getSoundManager()
-                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            recalcPanelSize();
-            return true;
+        if (clickedTab >= 0 && clickedTab != currentTab) {
+            int maxTab = showSelectedTab() ? TAB_SELECTED : TAB_INVENTORY;
+            if (clickedTab <= maxTab) {
+                switchTab(clickedTab);
+                return true;
+            }
         }
 
-        if (inventoryMode) {
-            return handleInventoryClick(mouseX, mouseY);
-        } else {
-            return handleRegistryClick(mouseX, mouseY);
+        if (isSelectedTab()) {
+            return handleSelectedClick(mouseX, mouseY);
         }
+        if (isInventoryTab()) {
+            return handleInventoryClick(mouseX, mouseY);
+        }
+        return handleRegistryClick(mouseX, mouseY);
+    }
+
+    private void switchTab(int newTab) {
+        int oldTab = currentTab;
+        currentTab = newTab;
+        searchBar.filters().close();
+        searchBar.setFocused(currentTab != TAB_INVENTORY);
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        scrollRow = 0;
+        if (oldTab == TAB_SELECTED && newTab != TAB_SELECTED) {
+            selectedSnapshot.clear();
+            selectedView.clear();
+        }
+        if (newTab == TAB_SELECTED) {
+            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+        } else {
+            searchBar.setPlaceholder("Search entities...");
+        }
+        searchBar.setText("");
+        if (currentTab == TAB_SELECTED) {
+            rebuildSelectedSnapshot();
+        }
+        updateMaxScroll();
+        recalcPanelSize();
+    }
+
+    private boolean isAddButtonAt(double mouseX, double mouseY) {
+        int addBtnW = panelW - PADDING * 2;
+        int addBtnX = panelX + PADDING;
+        int addBtnY = panelY + panelH - PADDING - ADD_BTN_H;
+        return mouseX >= addBtnX && mouseX < addBtnX + addBtnW && mouseY >= addBtnY && mouseY < addBtnY + ADD_BTN_H;
+    }
+
+    private void toggleRegistrySelection(String id) {
+        if (selectedRegistryIds.contains(id)) {
+            selectedRegistryIds.remove(id);
+        } else {
+            selectedRegistryIds.add(id);
+        }
+    }
+
+    private void toggleInventorySelection(int slot) {
+        if (selectedInventorySlots.contains(slot)) {
+            selectedInventorySlots.remove(slot);
+        } else {
+            if (!multiSelect) {
+                selectedInventorySlots.clear();
+            }
+            selectedInventorySlots.add(slot);
+        }
+    }
+
+    private boolean confirmAndAdd() {
+        if (!canConfirm())
+            return false;
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+
+        LocalPlayer player = Minecraft.getInstance().player;
+
+        if (multiSelect) {
+            // Dedupe so an entity selected via both a registry row and an
+            // inventory spawn egg only fires onSelect once.
+            Set<String> emitted = new LinkedHashSet<>();
+            for (String id : selectedRegistryIds) {
+                if (emitted.add(id))
+                    onSelect.accept(id);
+            }
+            if (player != null) {
+                for (Integer slot : selectedInventorySlots) {
+                    String id = getEntityIdFromSpawnEgg(player.getInventory().getItem(slot));
+                    if (id != null && emitted.add(id))
+                        onSelect.accept(id);
+                }
+            }
+        } else if (player != null && !selectedInventorySlots.isEmpty()) {
+            int slot = selectedInventorySlots.iterator().next();
+            String id = getEntityIdFromSpawnEgg(player.getInventory().getItem(slot));
+            if (id != null)
+                onSelect.accept(id);
+        }
+        hide();
+        return true;
     }
 
     private boolean handleInventoryClick(double mouseX, double mouseY) {
@@ -758,23 +1084,8 @@ public class SearchableEntityList {
         if (player == null)
             return true;
 
-        int addBtnW = panelW - PADDING * 2;
-        int addBtnH = 20;
-        int addBtnX = panelX + PADDING;
-        int addBtnY = panelY + panelH - PADDING - addBtnH;
-
-        if (mouseX >= addBtnX && mouseX < addBtnX + addBtnW && mouseY >= addBtnY && mouseY < addBtnY + addBtnH) {
-            if (selectedInventorySlot >= 0) {
-                ItemStack stack = player.getInventory().getItem(selectedInventorySlot);
-                String entityId = getEntityIdFromSpawnEgg(stack);
-                if (entityId != null) {
-                    Minecraft.getInstance().getSoundManager()
-                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    onSelect.accept(entityId);
-                    hide();
-                    return true;
-                }
-            }
+        if (isAddButtonAt(mouseX, mouseY)) {
+            confirmAndAdd();
             return true;
         }
 
@@ -784,7 +1095,7 @@ public class SearchableEntityList {
             if (!stack.isEmpty()) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                selectedInventorySlot = (selectedInventorySlot == clickedSlot) ? -1 : clickedSlot;
+                toggleInventorySelection(clickedSlot);
             }
             return true;
         }
@@ -793,13 +1104,20 @@ public class SearchableEntityList {
     }
 
     private boolean handleRegistryClick(double mouseX, double mouseY) {
+        if (multiSelect && isAddButtonAt(mouseX, mouseY)) {
+            confirmAndAdd();
+            return true;
+        }
+
         int topOffset = PADDING + TAB_HEIGHT + 4;
 
+        int searchY = panelY + topOffset;
+        int listX = panelX + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
+        int listW = panelW - PADDING * 2 - 8;
+
         if (maxScrollRow > 0) {
-            int searchY = panelY + topOffset;
-            int listY = searchY + SearchBar.HEIGHT + PADDING;
-            int listW = panelW - PADDING * 2 - 8;
-            int scrollBarX = panelX + PADDING + listW + 2;
+            int scrollBarX = listX + listW + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
                     && mouseY >= listY && mouseY < listY + VISIBLE_ROWS * ROW_HEIGHT) {
                 draggingScrollbar = true;
@@ -808,11 +1126,6 @@ public class SearchableEntityList {
             }
         }
 
-        int searchY = panelY + topOffset;
-        int listX = panelX + PADDING;
-        int listY = searchY + SearchBar.HEIGHT + PADDING;
-        int listW = panelW - PADDING * 2 - 8;
-
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
@@ -820,8 +1133,12 @@ public class SearchableEntityList {
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                onSelect.accept(filteredEntities.get(index).id);
-                hide();
+                if (multiSelect) {
+                    toggleRegistrySelection(filteredEntities.get(index).id);
+                } else {
+                    onSelect.accept(filteredEntities.get(index).id);
+                    hide();
+                }
                 return true;
             }
         }
@@ -830,8 +1147,67 @@ public class SearchableEntityList {
         return true;
     }
 
+    private boolean handleSelectedClick(double mouseX, double mouseY) {
+        if (isAddButtonAt(mouseX, mouseY)) {
+            confirmAndAdd();
+            return true;
+        }
+
+        int topOffset = PADDING + TAB_HEIGHT + 4;
+        int searchY = panelY + topOffset;
+        int listX = panelX + PADDING;
+        int listY = searchY + SearchBar.HEIGHT + PADDING;
+        int listW = panelW - PADDING * 2 - 8;
+
+        if (maxScrollRow > 0) {
+            int scrollBarX = listX + listW + 2;
+            if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
+                    && mouseY >= listY && mouseY < listY + VISIBLE_ROWS * ROW_HEIGHT) {
+                draggingScrollbar = true;
+                updateScrollFromMouse(mouseY, listY);
+                return true;
+            }
+        }
+
+        for (int i = 0; i < VISIBLE_ROWS; i++) {
+            int index = scrollRow + i;
+            int rowY = listY + i * ROW_HEIGHT;
+            if (index < selectedView.size() && mouseX >= listX && mouseX < listX + listW
+                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
+                Minecraft.getInstance().getSoundManager()
+                        .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                toggleSnapshotEntry(selectedView.get(index));
+                return true;
+            }
+        }
+
+        searchBar.setFocused(true);
+        return true;
+    }
+
+    /**
+     * Toggles whether the snapshot entry is in the active selection sets, but
+     * leaves it in the snapshot/view so the list doesn't shift under the
+     * cursor. Snapshot is purged on tab exit.
+     */
+    private void toggleSnapshotEntry(SelectedRef ref) {
+        if (ref.fromInventory) {
+            if (selectedInventorySlots.contains(ref.inventorySlot)) {
+                selectedInventorySlots.remove(ref.inventorySlot);
+            } else {
+                selectedInventorySlots.add(ref.inventorySlot);
+            }
+        } else {
+            if (selectedRegistryIds.contains(ref.id)) {
+                selectedRegistryIds.remove(ref.id);
+            } else {
+                selectedRegistryIds.add(ref.id);
+            }
+        }
+    }
+
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar || inventoryMode)
+        if (!visible || !draggingScrollbar || isInventoryTab())
             return false;
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
@@ -862,7 +1238,7 @@ public class SearchableEntityList {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible || inventoryMode)
+        if (!visible || isInventoryTab())
             return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
@@ -875,43 +1251,34 @@ public class SearchableEntityList {
         if (!visible)
             return false;
 
-        if (inventoryMode) {
-            if (keyCode == 256) {
-                hide();
+        if (keyCode == 256) { // ESC
+            if (!isInventoryTab() && searchBar.keyPressed(keyCode))
                 return true;
-            }
-            if (keyCode == 257 && selectedInventorySlot >= 0) { // Enter
-                LocalPlayer player = Minecraft.getInstance().player;
-                if (player != null) {
-                    ItemStack stack = player.getInventory().getItem(selectedInventorySlot);
-                    String entityId = getEntityIdFromSpawnEgg(stack);
-                    if (entityId != null) {
-                        Minecraft.getInstance().getSoundManager()
-                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                        onSelect.accept(entityId);
-                        hide();
-                        return true;
-                    }
-                }
-            }
-            return true;
-        }
-
-        if (searchBar.keyPressed(keyCode))
-            return true;
-        if (keyCode == 256) {
             hide();
             return true;
         }
-        return false;
+
+        if (keyCode == 257 && canConfirm()) { // Enter
+            confirmAndAdd();
+            return true;
+        }
+
+        if (isInventoryTab())
+            return true;
+
+        return searchBar.keyPressed(keyCode);
     }
 
     public boolean charTyped(char c) {
-        if (!visible || inventoryMode)
+        if (!visible || isInventoryTab())
             return false;
         return searchBar.charTyped(c);
     }
 
     private record EntityEntry(String id, String displayName, String searchName) {
+    }
+
+    private record SelectedRef(String id, String displayName, String searchName, boolean fromInventory,
+            int inventorySlot) {
     }
 }
