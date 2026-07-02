@@ -332,6 +332,9 @@ public class ConfigEditorScreen extends Screen {
         research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
                 Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
                 "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
+        research.add(new ConfigEntry("lockScrollWhileResearching", ConfigType.BOOLEAN,
+                Config.COMMON.lockScrollWhileResearching.get().toString(), false, "false",
+                "Lock the scroll in the pedestal once research has started? Prevents players and hoppers from removing it."));
         commonSections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");

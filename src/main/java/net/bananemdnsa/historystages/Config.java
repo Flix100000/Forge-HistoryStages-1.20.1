@@ -219,6 +219,7 @@ public class Config {
         // Forschungsstation
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
         public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
+        public final ForgeConfigSpec.BooleanValue lockScrollWhileResearching;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
 
         // Loot-Ersetzungen
@@ -360,6 +361,10 @@ public class Config {
             showDependencyScreenInPedestal = builder
                     .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
                     .define("showDependencyScreenInPedestal", true);
+
+            lockScrollWhileResearching = builder
+                    .comment("Lock the scroll in the pedestal once research has started? Prevents players (and hoppers) from removing the scroll until research completes or the pedestal is broken. [Default: false]")
+                    .define("lockScrollWhileResearching", false);
 
             researchBoosters = builder
                     .comment(

@@ -98,7 +98,18 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             // All items are potentially valid for deposit (checked during processing)
             return true;
         }
+
+        @Override
+        public @NotNull ItemStack extractItem(int slot, int amount, boolean simulate) {
+            if (slot == 0 && isScrollLocked()) return ItemStack.EMPTY;
+            return super.extractItem(slot, amount, simulate);
+        }
     };
+
+    /** True when the scroll cannot be removed: lock-config on AND research has begun. */
+    public boolean isScrollLocked() {
+        return Config.COMMON.lockScrollWhileResearching.get() && this.progress > 0;
+    }
 
     private void tryProcessDeposit(ItemStack depositStack) {
         ItemStack scroll = getScrollStack();

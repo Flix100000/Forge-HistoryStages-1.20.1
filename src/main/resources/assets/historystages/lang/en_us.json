@@ -175,6 +175,7 @@
   "editor.historystages.config.showDependenciesOnScroll": "Show Dependencies on Scroll",
   "editor.historystages.config.hideFulfilledDependencies": "Hide Fulfilled Dependencies",
   "editor.historystages.config.showDependencyScreenInPedestal": "Dependency Screen in Pedestal",
+  "editor.historystages.config.lockScrollWhileResearching": "Lock Scroll While Researching",
 
   "editor.historystages.config.jei_hiding": "JEI Hiding",
   "editor.historystages.config.hideLockedItemsInJei": "Hide Locked Items in JEI",

@@ -89,6 +89,7 @@ public class SaveConfigPacket {
                     try { Config.COMMON.researchTimeInSeconds.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
                 }
                 case "showDependencyScreenInPedestal" -> Config.COMMON.showDependencyScreenInPedestal.set(Boolean.parseBoolean(value));
+                case "lockScrollWhileResearching" -> Config.COMMON.lockScrollWhileResearching.set(Boolean.parseBoolean(value));
                 case "researchBoosters" -> {
                     List<String> boosterList = Arrays.stream(value.split(";"))
                             .map(String::trim)
