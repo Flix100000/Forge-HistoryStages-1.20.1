@@ -69,8 +69,6 @@ public class DependencyEditorScreen extends Screen {
             "editor.historystages.dep.tooltip.scoreboard"
     };
 
-    private int scoreboardTabIndex() { return isIndividual ? 7 : 3; }
-
     // Layout
     private static final int LEFT_PANEL_W = 130;
     private static final int CARD_HEIGHT = 22;
@@ -1638,11 +1636,11 @@ public class DependencyEditorScreen extends Screen {
                 }
             }
 
-            int btnW = 70, btnH = 18, btnGap = 10;
+            int btnW = 60, btnH = 18, btnGap = 10;
             int totalBtnW = btnW * 2 + btnGap;
             int cancelX = dx + SB_DLG_W / 2 - totalBtnW / 2;
             int okX = cancelX + btnW + btnGap;
-            int btnY = dy + SB_DLG_H - btnH - 10;
+            int btnY = dy + SB_DLG_H - btnH - 7;
             if (mxi >= cancelX && mxi < cancelX + btnW && myi >= btnY && myi < btnY + btnH) {
                 closeScoreboardDialog();
                 return true;
