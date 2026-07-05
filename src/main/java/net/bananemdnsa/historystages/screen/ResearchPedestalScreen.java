@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.network.CheckDependencyPacket;
@@ -144,6 +145,17 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
 
             int finishDelay = this.menu.data.get(2);
 
+            // EXTERNAL/AUTO stages can be inserted but never researched here.
+            // Show a clear message instead of progress UI.
+            StageMode mode = null;
+            if (!isCreative) {
+                StageEntry modeEntry = isIndividual
+                        ? StageManager.getIndividualStages().get(stageId)
+                        : StageManager.getStages().get(stageId);
+                if (modeEntry != null) mode = modeEntry.getMode();
+            }
+            boolean notResearchable = mode != null && mode != StageMode.DEFAULT;
+
             // Line 2: Stage name with status prefix
             if (alreadyUnlocked && finishDelay == 0) {
                 guiGraphics.drawString(this.font, "Research: " + stageName, 8, 18, COLOR_SECONDARY, false);
@@ -152,6 +164,13 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 // Center relative to the main 176px panel
                 guiGraphics.drawString(this.font, alreadyLearnedText, (176 / 2) - (textWidth / 2), 55,
                         COLOR_ERROR, false);
+            } else if (notResearchable) {
+                guiGraphics.drawString(this.font, "Stage: " + stageName, 8, 18, COLOR_SECONDARY, false);
+                Component notResearchableText =
+                        Component.translatable("screen.historystages.not_researchable");
+                int textWidth = this.font.width(notResearchableText);
+                guiGraphics.drawString(this.font, notResearchableText,
+                        (176 / 2) - (textWidth / 2), 55, COLOR_ERROR, false);
             } else {
                 String prefix;
                 int nameColor;

@@ -10,6 +10,7 @@
     "EnchantmentMenuMixin"
   ],
   "client": [
+    "ClientAdvancementsAccessor",
     "jei.RecipeLayoutMixin"
   ],
   "injectors": {

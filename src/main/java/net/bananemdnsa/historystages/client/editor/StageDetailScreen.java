@@ -66,6 +66,8 @@ public class StageDetailScreen extends Screen {
     private int editResearchTime;
     private int editMinPedestalTier;
     private net.bananemdnsa.historystages.research.TierMode editPedestalTierMode;
+    private net.bananemdnsa.historystages.data.StageMode editMode;
+    private net.bananemdnsa.historystages.data.auto.AutoTrigger editAutoTrigger;
     private String editIcon; // null = use default
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
@@ -276,6 +278,8 @@ public class StageDetailScreen extends Screen {
                 : e.getResearchTime();
         this.editMinPedestalTier = e.getMinPedestalTier();
         this.editPedestalTierMode = e.getPedestalTierMode();
+        this.editMode = e.getMode();
+        this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
         this.editIcon = e.getIcon();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
@@ -3204,38 +3208,33 @@ public class StageDetailScreen extends Screen {
     private void openStageSettings() {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
-                editMinPedestalTier, editPedestalTierMode, isNewStage,
-                (newId, newName, newTime, newTier, newMode) -> {
+                editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, isNewStage,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
                     editMinPedestalTier = newTier;
-                    editPedestalTierMode = newMode;
+                    editPedestalTierMode = newTierMode;
+                    editMode = newStageMode;
+                    editAutoTrigger = newAutoTrigger;
                     hasChanges = true;
-                }));
+                },
+                this::buildEntrySnapshot));
     }
 
-    private void saveStage() {
-        String id = editStageId.trim();
-        if (id.isEmpty()) {
-            saveError = Component.translatable("editor.historystages.id_empty").getString();
-            return;
-        }
-        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
-            saveError = Component.translatable("editor.historystages.id_invalid").getString();
-            return;
-        }
-        if (editDisplayName.trim().isEmpty()) {
-            saveError = Component.translatable("editor.historystages.display_name_empty").getString();
-            return;
-        }
-        saveError = "";
-
+    /**
+     * Builds a {@link StageEntry} snapshot from the current edit fields. Used both by
+     * {@link #saveStage()} (when persisting) and by the auto-trigger editor (to drive
+     * the "Hide stage-locked" filter against the live, unsaved lock data).
+     */
+    private StageEntry buildEntrySnapshot() {
         StageEntry newEntry = new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
         newEntry.setMinPedestalTier(editMinPedestalTier);
         newEntry.setPedestalTierMode(editPedestalTierMode);
+        newEntry.setMode(editMode);
+        newEntry.setAutoTrigger(editAutoTrigger);
         newEntry.setIcon(editIcon);
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {
@@ -3277,7 +3276,26 @@ public class StageDetailScreen extends Screen {
         locks.setModLinked(editModLinked);
         newEntry.setEntities(locks);
         newEntry.setDependencies(editDependencies);
-        PacketHandler.sendToServer(new SaveStagePacket(id, newEntry, isIndividual));
+        return newEntry;
+    }
+
+    private void saveStage() {
+        String id = editStageId.trim();
+        if (id.isEmpty()) {
+            saveError = Component.translatable("editor.historystages.id_empty").getString();
+            return;
+        }
+        if (!id.matches("[a-zA-Z0-9_\\-]+")) {
+            saveError = Component.translatable("editor.historystages.id_invalid").getString();
+            return;
+        }
+        if (editDisplayName.trim().isEmpty()) {
+            saveError = Component.translatable("editor.historystages.display_name_empty").getString();
+            return;
+        }
+        saveError = "";
+
+        PacketHandler.sendToServer(new SaveStagePacket(id, buildEntrySnapshot(), isIndividual));
         hasChanges = false;
     }
 

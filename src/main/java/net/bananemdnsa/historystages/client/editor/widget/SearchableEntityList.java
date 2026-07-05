@@ -70,6 +70,9 @@ public class SearchableEntityList {
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
 
+    /** Optional "is locked by stage" predicate enabled via {@link #setLockedFilter}. */
+    private java.util.function.Predicate<String> lockedFilterFn = null;
+
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
 
     private int panelX, panelY, panelW, panelH;
@@ -290,7 +293,17 @@ public class SearchableEntityList {
     }
 
     private boolean matchesDropdownFilters(String id) {
-        return SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier);
+        if (!SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier)) return false;
+        if (lockedFilterFn != null && searchBar.filters().isActive("hide_locked")
+                && id != null && lockedFilterFn.test(id)) return false;
+        return true;
+    }
+
+    /** See {@link SearchableItemList#setLockedFilter}. */
+    public void setLockedFilter(String label, java.util.function.Predicate<String> isLocked) {
+        this.lockedFilterFn = isLocked;
+        searchBar.filters().addOption("hide_locked", label, null, true);
+        applyFilter(searchBar.getText() == null ? "" : searchBar.getText());
     }
 
     private boolean matchesFilter(EntityEntry entry, String filter) {

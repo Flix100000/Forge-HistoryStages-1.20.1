@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.screen.ResearchPedestalMenu;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
@@ -59,6 +60,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (slot == 0) {
                 ItemStack stack = getStackInSlot(0);
                 if (!stack.isEmpty()) {
+                    // EXTERNAL- and AUTO-mode scrolls are allowed in the slot but
+                    // research is paused in tick() and the GUI shows a "not researchable"
+                    // message instead of progress.
                     loadProgressFromItem(stack);
                     // Set owner UUID for individual stages ONLY if not already set
                     if (isCurrentScrollIndividual()) {
@@ -450,6 +454,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
                 if (!isCreative) {
                     StageEntry stageEntry = stageEntryForTier;
+
+                    // Only DEFAULT-mode stages can be researched at the Pedestal.
+                    // EXTERNAL and AUTO scrolls are allowed in the slot but research
+                    // is paused here so progress never accumulates; the GUI shows a
+                    // "not researchable" message instead of the normal progress UI.
+                    if (stageEntry != null && stageEntry.getMode() != StageMode.DEFAULT) {
+                        stageEntry = null;
+                    }
 
                     if (stageEntry != null) {
                         if (stageEntry.hasDependencies()) {

@@ -97,6 +97,7 @@ public class HistoryStages {
         }
 
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(new net.bananemdnsa.historystages.events.AutoTriggerEventBridge());
     }
 
     private void onConfigLoad(net.minecraftforge.fml.event.config.ModConfigEvent.Loading event) {
@@ -128,18 +129,23 @@ public class HistoryStages {
             event.accept(ModItems.RESEARCH_PEDESTAL_ITEM);
         }
 
-        // Generate a research scroll for every stage (global + individual)
+        // Generate a research scroll for every stage (global + individual).
+        // AUTO-mode stages have no scroll (they're unlocked via auto_trigger events).
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
-            for (String stageId : StageManager.getStages().keySet()) {
+            for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
+                    : StageManager.getStages().entrySet()) {
+                if (stageEntry.getValue().getMode() == net.bananemdnsa.historystages.data.StageMode.AUTO) continue;
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                 CompoundTag nbt = book.getOrCreateTag();
-                nbt.putString("StageResearch", stageId);
+                nbt.putString("StageResearch", stageEntry.getKey());
                 event.accept(book);
             }
-            for (String stageId : StageManager.getIndividualStages().keySet()) {
+            for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
+                    : StageManager.getIndividualStages().entrySet()) {
+                if (stageEntry.getValue().getMode() == net.bananemdnsa.historystages.data.StageMode.AUTO) continue;
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                 CompoundTag nbt = book.getOrCreateTag();
-                nbt.putString("StageResearch", stageId);
+                nbt.putString("StageResearch", stageEntry.getKey());
                 event.accept(book);
             }
         }
@@ -263,6 +269,8 @@ public class HistoryStages {
             IndividualStageData individualData = IndividualStageData.get(sl);
             individualData.refreshCache();
 
+            net.bananemdnsa.historystages.data.auto.AutoTriggerManager.pruneOrphans(sl);
+
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {
                 serverInitialized = true;
@@ -297,6 +305,8 @@ public class HistoryStages {
         if (event.phase != TickEvent.Phase.END)
             return;
         tickCounter++;
+
+        net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
 
         if (tickCounter % FLUSH_INTERVAL == 0) {
             DebugLogger.flushRuntimeBuffer();

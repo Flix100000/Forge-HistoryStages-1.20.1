@@ -51,7 +51,12 @@ public class FilterDropdown {
 
     /** Register a filter toggle. {@code groupId} = null for independent, non-null for mutex group. */
     public FilterDropdown addOption(String id, String label, String groupId) {
-        options.add(new Option(id, label, groupId, false));
+        return addOption(id, label, groupId, false);
+    }
+
+    /** Register a filter toggle with an explicit initial-active state. */
+    public FilterDropdown addOption(String id, String label, String groupId, boolean initialActive) {
+        options.add(new Option(id, label, groupId, initialActive));
         return this;
     }
 

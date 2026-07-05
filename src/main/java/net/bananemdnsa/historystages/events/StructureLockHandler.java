@@ -56,7 +56,7 @@ public class StructureLockHandler {
 
     private static final Map<UUID, PlayerState> STATE = new HashMap<>();
     /** Radius (in chunks) to scan around the player when looking for structure starts. */
-    private static final int CHUNK_SCAN_RADIUS = 8;
+    public static final int CHUNK_SCAN_RADIUS = 8;
 
     private static class PlayerState {
         long lastChunkKey = Long.MIN_VALUE;

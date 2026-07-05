@@ -17,6 +17,7 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -66,15 +67,17 @@ public class JEIPlugin implements IModPlugin {
         // Add one scroll variant per stage so they appear in JEI
         List<ItemStack> scrolls = new ArrayList<>();
 
-        for (String stageId : StageManager.getStages().keySet()) {
+        for (var stageEntry : StageManager.getStages().entrySet()) {
+            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            scroll.getOrCreateTag().putString("StageResearch", stageId);
+            scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
             scrolls.add(scroll);
         }
 
-        for (String stageId : StageManager.getIndividualStages().keySet()) {
+        for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
+            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            scroll.getOrCreateTag().putString("StageResearch", stageId);
+            scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
             scrolls.add(scroll);
         }
 

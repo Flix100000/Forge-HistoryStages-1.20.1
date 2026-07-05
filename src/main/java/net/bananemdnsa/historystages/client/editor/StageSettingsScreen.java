@@ -3,19 +3,28 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.research.TierMode;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
+
+import java.util.function.Supplier;
 
 public class StageSettingsScreen extends Screen {
 
     @FunctionalInterface
     public interface SaveCallback {
         void onSave(String stageId, String displayName, int researchTime,
-                    int minPedestalTier, TierMode pedestalTierMode);
+                    int minPedestalTier, TierMode pedestalTierMode,
+                    StageMode mode, AutoTrigger autoTrigger);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -24,6 +33,8 @@ public class StageSettingsScreen extends Screen {
     private final Screen parent;
     private final boolean isNewStage;
     private final SaveCallback onSave;
+    /** Live snapshot of the parent stage's lock data, forwarded to the trigger editor. */
+    private final Supplier<StageEntry> lockSnapshot;
 
     private String saveError = "";
 
@@ -32,12 +43,15 @@ public class StageSettingsScreen extends Screen {
     private int editResearchTime;
     private int editMinTier;
     private TierMode editTierMode;
+    private StageMode editMode;
+    private AutoTrigger editAutoTrigger;
 
     private final String origStageId;
     private final String origDisplayName;
     private final String origResearchTime;
     private final int origMinTier;
     private final TierMode origTierMode;
+    private final StageMode origMode;
 
     private boolean hasChanges = false;
 
@@ -46,26 +60,49 @@ public class StageSettingsScreen extends Screen {
     private EditBox researchTimeField;
     private PedestalTierDropdown tierDropdown;
     private Button tierModeButton;
+    private Button autoTriggerButton;
+
+    // Mode dropdown state (inline, no widget class needed)
+    private boolean modeDropdownOpen = false;
+    private int modeDropdownX, modeDropdownY, modeDropdownW;
+
+    // Card geometry — recomputed in render()
+    private int cardX, cardY, cardW;
+    private int fieldX, fieldWidth;
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
+                               StageMode mode, AutoTrigger autoTrigger,
                                boolean isNewStage, SaveCallback onSave) {
+        this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
+                mode, autoTrigger, isNewStage, onSave, null);
+    }
+
+    public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
+                               int minPedestalTier, TierMode pedestalTierMode,
+                               StageMode mode, AutoTrigger autoTrigger,
+                               boolean isNewStage, SaveCallback onSave,
+                               Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
         this.parent = parent;
         this.isNewStage = isNewStage;
         this.onSave = onSave;
+        this.lockSnapshot = lockSnapshot;
 
         this.editStageId = stageId;
         this.editDisplayName = displayName;
         this.editResearchTime = researchTime;
         this.editMinTier = minPedestalTier;
         this.editTierMode = pedestalTierMode != null ? pedestalTierMode : TierMode.MIN;
+        this.editMode = mode != null ? mode : StageMode.DEFAULT;
+        this.editAutoTrigger = autoTrigger;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
         this.origResearchTime = String.valueOf(researchTime);
         this.origMinTier = minPedestalTier;
         this.origTierMode = this.editTierMode;
+        this.origMode = this.editMode;
     }
 
     @Override
@@ -73,14 +110,16 @@ public class StageSettingsScreen extends Screen {
         int labelX = 30;
         String labelId = Component.translatable("editor.historystages.field.stage_id").getString();
         String labelName = Component.translatable("editor.historystages.field.display_name").getString();
-        String labelTime = Component.translatable("editor.historystages.field.research_time").getString();
-        String labelTier = Component.translatable("editor.historystages.field.min_pedestal_tier").getString();
-        String labelMode = Component.translatable("editor.historystages.field.pedestal_tier_mode").getString();
-        int maxLabelW = Math.max(Math.max(this.font.width(labelId),
-                Math.max(this.font.width(labelName), this.font.width(labelTime))),
-                Math.max(this.font.width(labelTier), this.font.width(labelMode)));
-        int fieldX = labelX + maxLabelW + 10;
-        int fieldWidth = Math.min(200, this.width - fieldX - 40);
+        String labelStageMode = Component.translatable("editor.historystages.mode.label").getString();
+        int maxLabelW = Math.max(Math.max(this.font.width(labelId), this.font.width(labelName)),
+                this.font.width(labelStageMode));
+        fieldX = labelX + maxLabelW + 10;
+        fieldWidth = Math.min(220, this.width - fieldX - 40);
+
+        // Cached card geometry (used by render + mouseClicked)
+        cardX = labelX;
+        cardW = this.width - cardX - 30;
+        cardY = 96;
 
         stageIdField = new EditBox(this.font, fieldX, 22, fieldWidth, FIELD_HEIGHT,
                 Component.translatable("editor.historystages.field.stage_id"));
@@ -105,7 +144,18 @@ public class StageSettingsScreen extends Screen {
         });
         this.addRenderableWidget(displayNameField);
 
-        researchTimeField = new EditBox(this.font, fieldX, 66, 80, FIELD_HEIGHT,
+        // Mode dropdown is rendered inline in render() / handled in mouseClicked() (not a Button widget)
+        modeDropdownX = fieldX;
+        modeDropdownY = 66;
+        modeDropdownW = fieldWidth;
+
+        // --- Card-internal widgets ---
+        // Positions inside the card body (cardY + 28 = body start)
+        int bodyY = cardY + 28;
+        int cardFieldX = cardX + 12 + labelInsetW();
+
+        // Research time (DEFAULT card)
+        researchTimeField = new EditBox(this.font, cardFieldX, bodyY, 80, FIELD_HEIGHT,
                 Component.translatable("editor.historystages.field.research_time"));
         researchTimeField.setMaxLength(5);
         researchTimeField.setValue(String.valueOf(editResearchTime));
@@ -120,14 +170,14 @@ public class StageSettingsScreen extends Screen {
         });
         this.addRenderableWidget(researchTimeField);
 
-        // Min pedestal tier dropdown (row at y=88)
+        // Min pedestal tier dropdown (DEFAULT card)
         tierDropdown = new PedestalTierDropdown(editMinTier, 160, picked -> {
             editMinTier = picked;
             if (picked != origMinTier) hasChanges = true;
         });
-        tierDropdown.setPosition(fieldX, 88);
+        tierDropdown.setPosition(cardFieldX, bodyY + 22);
 
-        // Tier mode toggle (row at y=110)
+        // Tier mode toggle (DEFAULT card)
         tierModeButton = StyledButton.of(
                 Component.translatable(tierModeLabelKey(editTierMode)),
                 btn -> {
@@ -135,8 +185,28 @@ public class StageSettingsScreen extends Screen {
                     btn.setMessage(Component.translatable(tierModeLabelKey(editTierMode)));
                     if (editTierMode != origTierMode) hasChanges = true;
                 },
-                fieldX, 110, 160, FIELD_HEIGHT);
+                cardFieldX, bodyY + 44, 160, FIELD_HEIGHT);
         this.addRenderableWidget(tierModeButton);
+
+        // Auto-trigger configure button (AUTO card)
+        autoTriggerButton = StyledButton.of(
+                buildAutoTriggerLabel(),
+                btn -> {
+                    if (editAutoTrigger == null) {
+                        editAutoTrigger = new AutoTrigger();
+                        hasChanges = true;
+                    }
+                    this.minecraft.setScreen(new AutoTriggerEditorScreen(this, editAutoTrigger,
+                            updated -> {
+                                editAutoTrigger = updated;
+                                hasChanges = true;
+                                if (autoTriggerButton != null) {
+                                    autoTriggerButton.setMessage(buildAutoTriggerLabel());
+                                }
+                            }, lockSnapshot));
+                },
+                cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
+        this.addRenderableWidget(autoTriggerButton);
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
@@ -145,6 +215,35 @@ public class StageSettingsScreen extends Screen {
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
                 btn -> save(), this.width - 60, this.height - 25, 50, 18));
+
+        rebuildModeSubsections();
+    }
+
+    /** Width reserved for inline labels inside the card body (research time / tier / tier mode). */
+    private int labelInsetW() {
+        int w = 0;
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.research_time").getString()));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.min_pedestal_tier").getString()));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.pedestal_tier_mode").getString()));
+        return w + 6;
+    }
+
+    private Component buildAutoTriggerLabel() {
+        int count = editAutoTrigger == null ? 0 : editAutoTrigger.getTriggers().size();
+        return Component.translatable("editor.historystages.auto_trigger.configure", count);
+    }
+
+    private void rebuildModeSubsections() {
+        boolean isDefault = editMode == StageMode.DEFAULT;
+        boolean isAuto = editMode == StageMode.AUTO;
+
+        researchTimeField.visible = isDefault;
+        researchTimeField.active = isDefault;
+        tierModeButton.visible = isDefault;
+        tierModeButton.active = isDefault;
+        // tierDropdown is not a registered widget — visibility handled in render()/mouseClicked()
+        autoTriggerButton.visible = isAuto;
+        autoTriggerButton.active = isAuto;
     }
 
     private void save() {
@@ -162,7 +261,8 @@ public class StageSettingsScreen extends Screen {
             return;
         }
         saveError = "";
-        onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode);
+        onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
+                editMode, editAutoTrigger);
         hasChanges = false;
         this.minecraft.setScreen(parent);
     }
@@ -171,6 +271,30 @@ public class StageSettingsScreen extends Screen {
         return mode == TierMode.EXACT
                 ? "editor.historystages.tier_mode.exact"
                 : "editor.historystages.tier_mode.min";
+    }
+
+    private static String modeLabelKey(StageMode m) {
+        return switch (m) {
+            case DEFAULT -> "editor.historystages.mode.default";
+            case AUTO -> "editor.historystages.mode.auto";
+            case EXTERNAL -> "editor.historystages.mode.external";
+        };
+    }
+
+    private static String modeDescKey(StageMode m) {
+        return switch (m) {
+            case DEFAULT -> "editor.historystages.mode.default.desc";
+            case AUTO -> "editor.historystages.mode.auto.desc";
+            case EXTERNAL -> "editor.historystages.mode.external.desc";
+        };
+    }
+
+    private static String modeCardKey(StageMode m) {
+        return switch (m) {
+            case DEFAULT -> "editor.historystages.mode.card.default";
+            case AUTO -> "editor.historystages.mode.card.auto";
+            case EXTERNAL -> "editor.historystages.mode.card.external";
+        };
     }
 
     private void confirmDiscard() {
@@ -200,6 +324,7 @@ public class StageSettingsScreen extends Screen {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (keyCode == 256) { // ESC
+            if (modeDropdownOpen) { modeDropdownOpen = false; return true; }
             confirmDiscard();
             return true;
         }
@@ -208,12 +333,12 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics);
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
         guiGraphics.drawCenteredString(this.font,
                 Component.translatable("editor.historystages.stage_settings.title"),
                 this.width / 2, 8, 0xFFFFFF);
+        guiGraphics.fill(10, 18, this.width - 10, 19, 0xFF555555);
 
         int labelX = 30;
         guiGraphics.drawString(this.font,
@@ -223,17 +348,42 @@ public class StageSettingsScreen extends Screen {
                 Component.translatable("editor.historystages.field.display_name").getString(),
                 labelX, 49, 0xAAAAAA, false);
         guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.research_time").getString(),
+                Component.translatable("editor.historystages.mode.label").getString(),
                 labelX, 71, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
-                labelX, 93, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
-                labelX, 115, 0xAAAAAA, false);
 
-        // Tier dropdown: render the button inline, popup over everything.
-        tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+        // --- Mode card chrome (drawn BEFORE widgets so they sit on top) ---
+        int cardH = computeCardHeight();
+        renderCard(guiGraphics, cardX, cardY, cardW, cardH, modeCardKey(editMode));
+
+        // Now the widgets (EditBoxes + StyledButtons) render over the card
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+        int bodyY = cardY + 28;
+
+        if (editMode == StageMode.DEFAULT) {
+            // Render labels for in-card widgets
+            int cardLabelX = cardX + 12;
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.research_time").getString(),
+                    cardLabelX, bodyY + 5, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.min_pedestal_tier").getString(),
+                    cardLabelX, bodyY + 27, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
+                    cardLabelX, bodyY + 49, 0xAAAAAA, false);
+            // Tier dropdown button
+            tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+        } else if (editMode == StageMode.AUTO) {
+            int count = editAutoTrigger == null ? 0 : editAutoTrigger.getTriggers().size();
+            if (count == 0) {
+                String warn = Component.translatable("editor.historystages.auto_trigger.no_triggers_warn").getString();
+                guiGraphics.drawString(this.font, warn, cardX + 12, bodyY + FIELD_HEIGHT + 8, 0xFFAA55, false);
+            }
+        } else if (editMode == StageMode.EXTERNAL) {
+            String help = Component.translatable("editor.historystages.mode.external.help").getString();
+            guiGraphics.drawString(this.font, help, cardX + 12, bodyY + 6, 0xAAAAAA, false);
+        }
 
         // Unsaved changes animation (left of Save button)
         if (hasChanges) {
@@ -252,13 +402,127 @@ public class StageSettingsScreen extends Screen {
             guiGraphics.drawCenteredString(this.font, saveError, this.width / 2, this.height - 38, 0xFF5555);
         }
 
-        // Popup always last so it overlays everything.
-        tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        // Mode dropdown BUTTON (always visible, drawn over everything)
+        renderModeDropdownButton(guiGraphics, mouseX, mouseY);
+
+        // Popups (must be last so they overlay everything)
+        if (editMode == StageMode.DEFAULT) {
+            tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        }
+        if (modeDropdownOpen) {
+            renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
+        }
+    }
+
+    private int computeCardHeight() {
+        return switch (editMode) {
+            case DEFAULT -> 28 + 66 + 8;   // header + 3 rows
+            case AUTO    -> 28 + FIELD_HEIGHT + 24; // header + button + warn area
+            case EXTERNAL -> 28 + 20;
+        };
+    }
+
+    private void renderCard(GuiGraphics g, int x, int y, int w, int h, String headerKey) {
+        // Outer border
+        g.fill(x, y, x + w, y + h, 0xFF555555);
+        // Inner background
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0xFF1A1A1A);
+        // Header band
+        g.fill(x + 1, y + 1, x + w - 1, y + 20, 0xFF2D2D2D);
+        g.fill(x + 1, y + 20, x + w - 1, y + 21, 0xFF555555);
+        // Header text
+        g.drawString(this.font, Component.translatable(headerKey).getString(),
+                x + 8, y + 7, 0xFFCC00, false);
+    }
+
+    private void renderModeDropdownButton(GuiGraphics g, int mouseX, int mouseY) {
+        boolean hovered = mouseX >= modeDropdownX && mouseX <= modeDropdownX + modeDropdownW
+                && mouseY >= modeDropdownY && mouseY < modeDropdownY + FIELD_HEIGHT;
+
+        int bg = hovered ? 0x40FFFFFF : 0x25FFFFFF;
+        g.fill(modeDropdownX, modeDropdownY, modeDropdownX + modeDropdownW, modeDropdownY + FIELD_HEIGHT, bg);
+        g.fill(modeDropdownX, modeDropdownY + FIELD_HEIGHT - 1,
+                modeDropdownX + modeDropdownW, modeDropdownY + FIELD_HEIGHT,
+                hovered ? 0xFFFFCC00 : 0x60FFCC00);
+
+        String label = Component.translatable(modeLabelKey(editMode)).getString();
+        g.drawString(this.font, label, modeDropdownX + 6, modeDropdownY + 5, 0xFFFFFF, false);
+
+        String arrow = modeDropdownOpen ? "▲" : "▼";
+        g.drawString(this.font, arrow,
+                modeDropdownX + modeDropdownW - 10, modeDropdownY + 5, 0x999999, false);
+    }
+
+    private void renderModeDropdownPopup(GuiGraphics g, int mouseX, int mouseY) {
+        StageMode[] modes = StageMode.values();
+        int rowH = 22;
+        int popupH = modes.length * rowH;
+        int px = modeDropdownX;
+        int py = modeDropdownY + FIELD_HEIGHT + 1;
+        int pw = modeDropdownW;
+
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 300);
+
+        // Frame
+        g.fill(px - 1, py - 1, px + pw + 1, py + popupH + 1, 0xFF555555);
+        g.fill(px, py, px + pw, py + popupH, 0xFF1A1A1A);
+
+        for (int i = 0; i < modes.length; i++) {
+            StageMode m = modes[i];
+            int rowY = py + i * rowH;
+            boolean hov = mouseX >= px && mouseX <= px + pw
+                    && mouseY >= rowY && mouseY < rowY + rowH;
+            if (hov) g.fill(px, rowY, px + pw, rowY + rowH, 0x30FFCC00);
+            if (m == editMode) g.fill(px, rowY, px + 2, rowY + rowH, 0xFFFFCC00);
+
+            String name = Component.translatable(modeLabelKey(m)).getString();
+            String desc = Component.translatable(modeDescKey(m)).getString();
+            int nameColor = hov ? 0xFFFFFF : (m == editMode ? 0xFFCC00 : 0xDDDDDD);
+            g.drawString(this.font, name, px + 8, rowY + 3, nameColor, false);
+            g.drawString(this.font, desc, px + 8, rowY + 13, 0x888888, false);
+        }
+
+        g.pose().popPose();
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (tierDropdown != null && tierDropdown.mouseClicked(mouseX, mouseY)) {
+        if (button == 0 && modeDropdownOpen) {
+            StageMode[] modes = StageMode.values();
+            int rowH = 22;
+            int px = modeDropdownX;
+            int py = modeDropdownY + FIELD_HEIGHT + 1;
+            int pw = modeDropdownW;
+            for (int i = 0; i < modes.length; i++) {
+                int rowY = py + i * rowH;
+                if (mouseX >= px && mouseX <= px + pw && mouseY >= rowY && mouseY < rowY + rowH) {
+                    StageMode picked = modes[i];
+                    modeDropdownOpen = false;
+                    if (picked != editMode) {
+                        editMode = picked;
+                        if (editMode != origMode) hasChanges = true;
+                        rebuildModeSubsections();
+                    }
+                    Minecraft.getInstance().getSoundManager().play(
+                            SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    return true;
+                }
+            }
+            modeDropdownOpen = false;
+            return true;
+        }
+
+        if (button == 0 && mouseX >= modeDropdownX && mouseX <= modeDropdownX + modeDropdownW
+                && mouseY >= modeDropdownY && mouseY < modeDropdownY + FIELD_HEIGHT) {
+            modeDropdownOpen = !modeDropdownOpen;
+            Minecraft.getInstance().getSoundManager().play(
+                    SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            return true;
+        }
+
+        if (editMode == StageMode.DEFAULT && tierDropdown != null
+                && tierDropdown.mouseClicked(mouseX, mouseY)) {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);

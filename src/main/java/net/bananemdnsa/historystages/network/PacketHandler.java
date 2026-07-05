@@ -107,6 +107,11 @@ public class PacketHandler {
                 INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
         }
 
+        // Send an unlock toast to a specific player (e.g. individual-stage unlock)
+        public static void sendToastToPlayer(StageUnlockedToastPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
+        }
+
         // Send stage definitions to a specific player (e.g. on login)
         public static void sendDefinitionsToPlayer(SyncStageDefinitionsPacket packet, ServerPlayer player) {
                 INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
