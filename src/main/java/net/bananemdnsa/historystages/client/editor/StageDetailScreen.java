@@ -68,6 +68,7 @@ public class StageDetailScreen extends Screen {
     private net.bananemdnsa.historystages.research.TierMode editPedestalTierMode;
     private net.bananemdnsa.historystages.data.StageMode editMode;
     private net.bananemdnsa.historystages.data.auto.AutoTrigger editAutoTrigger;
+    private net.bananemdnsa.historystages.data.temporary.TemporaryConfig editTemporary;
     private String editIcon; // null = use default
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
@@ -280,6 +281,7 @@ public class StageDetailScreen extends Screen {
         this.editPedestalTierMode = e.getPedestalTierMode();
         this.editMode = e.getMode();
         this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
+        this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
         this.editIcon = e.getIcon();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
@@ -3208,8 +3210,8 @@ public class StageDetailScreen extends Screen {
     private void openStageSettings() {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
-                editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, isNewStage,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger) -> {
+                editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary, isNewStage,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -3217,6 +3219,7 @@ public class StageDetailScreen extends Screen {
                     editPedestalTierMode = newTierMode;
                     editMode = newStageMode;
                     editAutoTrigger = newAutoTrigger;
+                    editTemporary = newTemporary;
                     hasChanges = true;
                 },
                 this::buildEntrySnapshot));
@@ -3235,6 +3238,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setPedestalTierMode(editPedestalTierMode);
         newEntry.setMode(editMode);
         newEntry.setAutoTrigger(editAutoTrigger);
+        newEntry.setTemporary(editTemporary);
         newEntry.setIcon(editIcon);
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {

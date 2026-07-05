@@ -130,11 +130,11 @@ public class HistoryStages {
         }
 
         // Generate a research scroll for every stage (global + individual).
-        // AUTO-mode stages have no scroll (they're unlocked via auto_trigger events).
+        // AUTO/TEMPORARY stages have no scroll (they're unlocked via auto_trigger events).
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
                     : StageManager.getStages().entrySet()) {
-                if (stageEntry.getValue().getMode() == net.bananemdnsa.historystages.data.StageMode.AUTO) continue;
+                if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                 CompoundTag nbt = book.getOrCreateTag();
                 nbt.putString("StageResearch", stageEntry.getKey());
@@ -142,7 +142,7 @@ public class HistoryStages {
             }
             for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
                     : StageManager.getIndividualStages().entrySet()) {
-                if (stageEntry.getValue().getMode() == net.bananemdnsa.historystages.data.StageMode.AUTO) continue;
+                if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                 ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                 CompoundTag nbt = book.getOrCreateTag();
                 nbt.putString("StageResearch", stageEntry.getKey());
@@ -271,6 +271,11 @@ public class HistoryStages {
 
             net.bananemdnsa.historystages.data.auto.AutoTriggerManager.pruneOrphans(sl);
 
+            // Drop temporary-stage state for stages that no longer exist.
+            java.util.Set<String> keep = new java.util.HashSet<>(StageManager.getStages().keySet());
+            keep.addAll(StageManager.getIndividualStages().keySet());
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(sl).pruneOrphans(keep);
+
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {
                 serverInitialized = true;
@@ -308,6 +313,13 @@ public class HistoryStages {
 
         net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
 
+        // Advance temporary-mode re-lock timers / cooldowns.
+        var tempServer = event.getServer();
+        if (tempServer != null && tempServer.overworld() != null && tickCounter % 20 == 0) {
+            net.bananemdnsa.historystages.util.TemporaryStageData.get(tempServer.overworld())
+                    .tick(tempServer, tickCounter, HistoryStages::resolveTemporaryConfig);
+        }
+
         if (tickCounter % FLUSH_INTERVAL == 0) {
             DebugLogger.flushRuntimeBuffer();
         }
@@ -320,6 +332,15 @@ public class HistoryStages {
                 dropPickupLockedInventoryItems(player);
             }
         }
+    }
+
+    /** Resolves a stage id to its temporary config, checking global then individual stages. */
+    private static net.bananemdnsa.historystages.data.temporary.TemporaryConfig resolveTemporaryConfig(String stageId) {
+        var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
+        if (entry == null) {
+            entry = net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stageId);
+        }
+        return entry != null ? entry.getTemporary() : null;
     }
 
     /**

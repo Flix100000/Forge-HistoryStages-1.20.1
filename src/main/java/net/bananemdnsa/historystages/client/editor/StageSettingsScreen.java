@@ -1,11 +1,13 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
+import net.bananemdnsa.historystages.client.editor.widget.DurationUnitDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
 import net.bananemdnsa.historystages.research.TierMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -24,7 +26,7 @@ public class StageSettingsScreen extends Screen {
     public interface SaveCallback {
         void onSave(String stageId, String displayName, int researchTime,
                     int minPedestalTier, TierMode pedestalTierMode,
-                    StageMode mode, AutoTrigger autoTrigger);
+                    StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -45,6 +47,7 @@ public class StageSettingsScreen extends Screen {
     private TierMode editTierMode;
     private StageMode editMode;
     private AutoTrigger editAutoTrigger;
+    private TemporaryConfig editTemporary;
 
     private final String origStageId;
     private final String origDisplayName;
@@ -62,6 +65,13 @@ public class StageSettingsScreen extends Screen {
     private Button tierModeButton;
     private Button autoTriggerButton;
 
+    // TEMPORARY-mode widgets
+    private EditBox durationField;
+    private DurationUnitDropdown durationUnitDropdown;
+    private EditBox maxTriggersField;
+    private EditBox cooldownField;
+    private DurationUnitDropdown cooldownUnitDropdown;
+
     // Mode dropdown state (inline, no widget class needed)
     private boolean modeDropdownOpen = false;
     private int modeDropdownX, modeDropdownY, modeDropdownW;
@@ -72,15 +82,15 @@ public class StageSettingsScreen extends Screen {
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
-                               StageMode mode, AutoTrigger autoTrigger,
+                               StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                boolean isNewStage, SaveCallback onSave) {
         this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
-                mode, autoTrigger, isNewStage, onSave, null);
+                mode, autoTrigger, temporary, isNewStage, onSave, null);
     }
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
-                               StageMode mode, AutoTrigger autoTrigger,
+                               StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                boolean isNewStage, SaveCallback onSave,
                                Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
@@ -96,6 +106,7 @@ public class StageSettingsScreen extends Screen {
         this.editTierMode = pedestalTierMode != null ? pedestalTierMode : TierMode.MIN;
         this.editMode = mode != null ? mode : StageMode.DEFAULT;
         this.editAutoTrigger = autoTrigger;
+        this.editTemporary = temporary;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
@@ -208,6 +219,58 @@ public class StageSettingsScreen extends Screen {
                 cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
         this.addRenderableWidget(autoTriggerButton);
 
+        // --- TEMPORARY card widgets ---
+        TemporaryConfig tShown = editTemporary != null ? editTemporary : new TemporaryConfig();
+        int tempFieldX = cardX + 12 + tempLabelInsetW();
+        int durRowY = bodyY + 22;
+
+        durationField = new EditBox(this.font, tempFieldX, durRowY, 48, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.temporary.duration"));
+        durationField.setMaxLength(6);
+        durationField.setValue(String.valueOf(tShown.getDuration()));
+        durationField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+        durationField.setResponder(val -> {
+            ensureTemporary().setDuration(val.isEmpty() ? 0 : safeParse(val));
+            hasChanges = true;
+        });
+        this.addRenderableWidget(durationField);
+
+        durationUnitDropdown = new DurationUnitDropdown(tShown.getDurationUnit(), 80, picked -> {
+            ensureTemporary().setDurationUnit(picked);
+            hasChanges = true;
+        });
+        durationUnitDropdown.setPosition(tempFieldX + 52, durRowY);
+
+        maxTriggersField = new EditBox(this.font, tempFieldX, bodyY + 44, 48, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.temporary.max_triggers"));
+        maxTriggersField.setMaxLength(6);
+        maxTriggersField.setValue(String.valueOf(tShown.getMaxTriggers()));
+        maxTriggersField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+        maxTriggersField.setResponder(val -> {
+            ensureTemporary().setMaxTriggers(val.isEmpty() ? 1 : safeParse(val));
+            hasChanges = true;
+            rebuildModeSubsections();
+        });
+        this.addRenderableWidget(maxTriggersField);
+
+        int cdRowY = bodyY + 66;
+        cooldownField = new EditBox(this.font, tempFieldX, cdRowY, 48, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.temporary.cooldown"));
+        cooldownField.setMaxLength(6);
+        cooldownField.setValue(String.valueOf(tShown.getCooldown()));
+        cooldownField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+        cooldownField.setResponder(val -> {
+            ensureTemporary().setCooldown(val.isEmpty() ? 0 : safeParse(val));
+            hasChanges = true;
+        });
+        this.addRenderableWidget(cooldownField);
+
+        cooldownUnitDropdown = new DurationUnitDropdown(tShown.getCooldownUnit(), 80, picked -> {
+            ensureTemporary().setCooldownUnit(picked);
+            hasChanges = true;
+        });
+        cooldownUnitDropdown.setPosition(tempFieldX + 52, cdRowY);
+
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
                 btn -> confirmDiscard(), 10, this.height - 25, 50, 18));
@@ -233,17 +296,52 @@ public class StageSettingsScreen extends Screen {
         return Component.translatable("editor.historystages.auto_trigger.configure", count);
     }
 
+    /** Lazily creates the temporary config so field edits have somewhere to write. */
+    private TemporaryConfig ensureTemporary() {
+        if (editTemporary == null) editTemporary = new TemporaryConfig();
+        return editTemporary;
+    }
+
+    private static int safeParse(String val) {
+        try { return Integer.parseInt(val); } catch (NumberFormatException e) { return 0; }
+    }
+
+    /** Width reserved for inline labels inside the TEMPORARY card body. */
+    private int tempLabelInsetW() {
+        int w = 0;
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.temporary.duration").getString()));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.temporary.max_triggers").getString()));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.temporary.cooldown").getString()));
+        return w + 6;
+    }
+
     private void rebuildModeSubsections() {
         boolean isDefault = editMode == StageMode.DEFAULT;
         boolean isAuto = editMode == StageMode.AUTO;
+        boolean isTemporary = editMode == StageMode.TEMPORARY;
+        // Cooldown only matters when the stage can be unlocked more than once.
+        boolean reTrig = isTemporary && editTemporary != null && editTemporary.allowsMultiple();
 
         researchTimeField.visible = isDefault;
         researchTimeField.active = isDefault;
         tierModeButton.visible = isDefault;
         tierModeButton.active = isDefault;
         // tierDropdown is not a registered widget — visibility handled in render()/mouseClicked()
-        autoTriggerButton.visible = isAuto;
-        autoTriggerButton.active = isAuto;
+        // AUTO and TEMPORARY both configure discovery triggers via the same editor.
+        autoTriggerButton.visible = isAuto || isTemporary;
+        autoTriggerButton.active = isAuto || isTemporary;
+
+        durationField.visible = isTemporary;
+        durationField.active = isTemporary;
+        maxTriggersField.visible = isTemporary;
+        maxTriggersField.active = isTemporary;
+        cooldownField.visible = reTrig;
+        cooldownField.active = reTrig;
+        // Unit dropdowns aren't registered widgets — render/click is gated on mode
+        // in render()/mouseClicked(). Collapse them when hidden so a stale popup
+        // doesn't linger after switching modes.
+        if (!isTemporary) durationUnitDropdown.close();
+        if (!reTrig) cooldownUnitDropdown.close();
     }
 
     private void save() {
@@ -262,7 +360,7 @@ public class StageSettingsScreen extends Screen {
         }
         saveError = "";
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
-                editMode, editAutoTrigger);
+                editMode, editAutoTrigger, editTemporary);
         hasChanges = false;
         this.minecraft.setScreen(parent);
     }
@@ -278,6 +376,7 @@ public class StageSettingsScreen extends Screen {
             case DEFAULT -> "editor.historystages.mode.default";
             case AUTO -> "editor.historystages.mode.auto";
             case EXTERNAL -> "editor.historystages.mode.external";
+            case TEMPORARY -> "editor.historystages.mode.temporary";
         };
     }
 
@@ -286,6 +385,7 @@ public class StageSettingsScreen extends Screen {
             case DEFAULT -> "editor.historystages.mode.default.desc";
             case AUTO -> "editor.historystages.mode.auto.desc";
             case EXTERNAL -> "editor.historystages.mode.external.desc";
+            case TEMPORARY -> "editor.historystages.mode.temporary.desc";
         };
     }
 
@@ -294,6 +394,7 @@ public class StageSettingsScreen extends Screen {
             case DEFAULT -> "editor.historystages.mode.card.default";
             case AUTO -> "editor.historystages.mode.card.auto";
             case EXTERNAL -> "editor.historystages.mode.card.external";
+            case TEMPORARY -> "editor.historystages.mode.card.temporary";
         };
     }
 
@@ -320,7 +421,8 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()) {
+        if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()
+                || durationField.isFocused() || maxTriggersField.isFocused() || cooldownField.isFocused()) {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (keyCode == 256) { // ESC
@@ -383,6 +485,26 @@ public class StageSettingsScreen extends Screen {
         } else if (editMode == StageMode.EXTERNAL) {
             String help = Component.translatable("editor.historystages.mode.external.help").getString();
             guiGraphics.drawString(this.font, help, cardX + 12, bodyY + 6, 0xAAAAAA, false);
+        } else if (editMode == StageMode.TEMPORARY) {
+            int cardLabelX = cardX + 12;
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.temporary.duration").getString(),
+                    cardLabelX, bodyY + 22 + 5, 0xAAAAAA, false);
+            durationUnitDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+            // Max-unlocks row + inline hint to the right of the field.
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.temporary.max_triggers").getString(),
+                    cardLabelX, bodyY + 44 + 5, 0xAAAAAA, false);
+            String maxHint = editTemporary != null && editTemporary.isUnlimited()
+                    ? Component.translatable("editor.historystages.temporary.max_triggers.unlimited").getString()
+                    : Component.translatable("editor.historystages.temporary.max_triggers.hint").getString();
+            drawSmallText(guiGraphics, maxHint, maxTriggersField.getX() + 52, bodyY + 44 + 6, 0x888888);
+            if (editTemporary != null && editTemporary.allowsMultiple()) {
+                guiGraphics.drawString(this.font,
+                        Component.translatable("editor.historystages.temporary.cooldown").getString(),
+                        cardLabelX, bodyY + 66 + 5, 0xAAAAAA, false);
+                cooldownUnitDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+            }
         }
 
         // Unsaved changes animation (left of Save button)
@@ -409,6 +531,12 @@ public class StageSettingsScreen extends Screen {
         if (editMode == StageMode.DEFAULT) {
             tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         }
+        if (editMode == StageMode.TEMPORARY) {
+            durationUnitDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            if (editTemporary != null && editTemporary.allowsMultiple()) {
+                cooldownUnitDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            }
+        }
         if (modeDropdownOpen) {
             renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
         }
@@ -419,6 +547,8 @@ public class StageSettingsScreen extends Screen {
             case DEFAULT -> 28 + 66 + 8;   // header + 3 rows
             case AUTO    -> 28 + FIELD_HEIGHT + 24; // header + button + warn area
             case EXTERNAL -> 28 + 20;
+            // header + auto-trigger button + duration row + re-trigger row (+ cooldown row when re-triggerable)
+            case TEMPORARY -> 28 + (editTemporary != null && editTemporary.allowsMultiple() ? 88 : 66) + 8;
         };
     }
 
@@ -502,6 +632,9 @@ public class StageSettingsScreen extends Screen {
                     if (picked != editMode) {
                         editMode = picked;
                         if (editMode != origMode) hasChanges = true;
+                        // Materialize a default config so saving TEMPORARY without
+                        // touching the fields still writes sensible values.
+                        if (editMode == StageMode.TEMPORARY) ensureTemporary();
                         rebuildModeSubsections();
                     }
                     Minecraft.getInstance().getSoundManager().play(
@@ -524,6 +657,13 @@ public class StageSettingsScreen extends Screen {
         if (editMode == StageMode.DEFAULT && tierDropdown != null
                 && tierDropdown.mouseClicked(mouseX, mouseY)) {
             return true;
+        }
+        if (editMode == StageMode.TEMPORARY) {
+            if (durationUnitDropdown.mouseClicked(mouseX, mouseY)) return true;
+            if (editTemporary != null && editTemporary.allowsMultiple()
+                    && cooldownUnitDropdown.mouseClicked(mouseX, mouseY)) {
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }

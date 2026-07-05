@@ -33,7 +33,7 @@ public class ModCreativeTabs {
 
                         // 2. Global stage scrolls (skip AUTO-mode: those have no scroll)
                         for (var stageEntry : StageManager.getStages().entrySet()) {
-                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = scroll.getOrCreateTag();
                             nbt.putString("StageResearch", stageEntry.getKey());
@@ -42,7 +42,7 @@ public class ModCreativeTabs {
 
                         // 3. Individual stage scrolls (skip AUTO-mode)
                         for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-                            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+                            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
                             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
                             CompoundTag nbt = scroll.getOrCreateTag();
                             nbt.putString("StageResearch", stageEntry.getKey());

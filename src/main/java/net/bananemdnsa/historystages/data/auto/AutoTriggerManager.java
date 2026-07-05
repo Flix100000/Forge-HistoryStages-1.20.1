@@ -49,7 +49,7 @@ public final class AutoTriggerManager {
     private static void addFrom(Map<String, StageEntry> stages, boolean isIndividual) {
         for (var entry : stages.entrySet()) {
             StageEntry se = entry.getValue();
-            if (se.getMode() != StageMode.AUTO) continue;
+            if (!se.getMode().usesAutoTrigger()) continue; // AUTO or TEMPORARY
             AutoTrigger at = se.getAutoTrigger();
             if (at == null || at.isEmpty()) continue;
             for (TriggerCondition t : at.getTriggers()) {
@@ -106,6 +106,12 @@ public final class AutoTriggerManager {
 
         if (isUnlocked(stageId, it.isIndividual(), player, level)) return;
 
+        // TEMPORARY stages re-lock on their own. Skip while the stage is spent
+        // (non-re-triggerable, already used) or in cooldown — no progress is
+        // recorded so triggers fired during that window are simply discarded.
+        boolean temporary = stage.getMode() == StageMode.TEMPORARY;
+        if (temporary && !isTemporaryEligible(stageId, it.isIndividual(), player, level, stage.getTemporary())) return;
+
         // Dedupe by signature BEFORE running dependency checks — polled triggers
         // (biome/structure) fire every second and we don't want to re-evaluate
         // dependencies for a signature that's already been recorded.
@@ -123,6 +129,33 @@ public final class AutoTriggerManager {
         if (isModeSatisfied(cfg, set)) {
             unlockStage(stageId, it.isIndividual(), player, level);
             clearProgress(stageId, it.isIndividual(), player, level);
+            if (temporary) {
+                startTemporaryTimer(stageId, it.isIndividual(), player, level, stage.getTemporary());
+            }
+        }
+    }
+
+    private static boolean isTemporaryEligible(String stageId, boolean isIndividual,
+                                               ServerPlayer player, ServerLevel level,
+                                               net.bananemdnsa.historystages.data.temporary.TemporaryConfig cfg) {
+        int maxTriggers = cfg != null ? cfg.getMaxTriggers() : 1;
+        var data = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        return isIndividual
+                ? data.isIndividualEligible(player.getUUID(), stageId, maxTriggers)
+                : data.isGlobalEligible(stageId, maxTriggers);
+    }
+
+    private static void startTemporaryTimer(String stageId, boolean isIndividual, ServerPlayer player,
+                                            ServerLevel level,
+                                            net.bananemdnsa.historystages.data.temporary.TemporaryConfig cfg) {
+        if (cfg == null) {
+            cfg = new net.bananemdnsa.historystages.data.temporary.TemporaryConfig();
+        }
+        var data = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        if (isIndividual) {
+            data.startIndividualTimer(player.getUUID(), stageId, cfg.durationTicks());
+        } else {
+            data.startGlobalTimer(stageId, cfg.durationTicks());
         }
     }
 

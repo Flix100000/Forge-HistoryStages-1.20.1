@@ -69,6 +69,12 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, ToggleStructureVizPacket.class,
                                 ToggleStructureVizPacket::encode,
                                 ToggleStructureVizPacket::decode, ToggleStructureVizPacket::handle);
+                INSTANCE.registerMessage(id++, RequestTemporaryCountsPacket.class,
+                                RequestTemporaryCountsPacket::encode,
+                                RequestTemporaryCountsPacket::decode, RequestTemporaryCountsPacket::handle);
+                INSTANCE.registerMessage(id++, SyncTemporaryCountsPacket.class,
+                                SyncTemporaryCountsPacket::encode,
+                                SyncTemporaryCountsPacket::decode, SyncTemporaryCountsPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.

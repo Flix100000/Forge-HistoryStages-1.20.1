@@ -68,14 +68,14 @@ public class JEIPlugin implements IModPlugin {
         List<ItemStack> scrolls = new ArrayList<>();
 
         for (var stageEntry : StageManager.getStages().entrySet()) {
-            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
             scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
             scrolls.add(scroll);
         }
 
         for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-            if (stageEntry.getValue().getMode() == StageMode.AUTO) continue;
+            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
             ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
             scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
             scrolls.add(scroll);
