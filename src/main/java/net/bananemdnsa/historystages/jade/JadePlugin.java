@@ -290,18 +290,18 @@ public class JadePlugin implements IWailaPlugin {
 
                 if (totalRequiredStages.size() > 1 && showAll) {
                     ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
-                    String statusText = unlocked ? " (Unlocked)" : " (Locked)";
+                    String statusKey = unlocked ? "tooltip.historystages.status.unlocked" : "tooltip.historystages.status.locked";
 
                     tooltip.add(Component.literal(" • ")
                             .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD))
-                            .append(Component.literal(statusText).withStyle(statusColor)));
+                            .append(Component.translatable(statusKey).withStyle(statusColor)));
                 } else if (!unlocked) {
                     tooltip.add(Component.literal(" • ")
                             .append(Component.literal(stage.getDisplayName()).withStyle(ChatFormatting.GOLD)));
                 }
             }
         } else {
-            tooltip.add(Component.literal("This contains locked items!")
+            tooltip.add(Component.translatable("tooltip.historystages.contains_locked_items")
                     .withStyle(ChatFormatting.RED, ChatFormatting.ITALIC));
         }
     }

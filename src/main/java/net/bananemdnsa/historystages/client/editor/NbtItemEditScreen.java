@@ -59,7 +59,7 @@ public class NbtItemEditScreen extends Screen {
     private static List<String> potionIds = null;
 
     public NbtItemEditScreen(Screen parent, String itemId, JsonObject currentNbt, Consumer<JsonObject> onSave) {
-        super(Component.literal("NBT Editor"));
+        super(Component.translatable("editor.historystages.nbt.title"));
         this.parent = parent;
         this.itemId = itemId;
         this.currentNbt = currentNbt;
@@ -81,12 +81,12 @@ public class NbtItemEditScreen extends Screen {
                 PADDING, this.height - 30, 60, 20));
 
         this.addRenderableWidget(StyledButton.of(
-                Component.literal("Save NBT"),
+                Component.translatable("editor.historystages.nbt.save"),
                 btn -> saveAndClose(),
                 this.width / 2 - 50, this.height - 30, 100, 20));
 
         this.addRenderableWidget(StyledButton.of(
-                Component.literal("Clear All"),
+                Component.translatable("editor.historystages.nbt.clear_all"),
                 btn -> {
                     for (NbtProperty p : properties) {
                         p.enabled = false;
@@ -114,28 +114,28 @@ public class NbtItemEditScreen extends Screen {
         properties.clear();
 
         // Enchantments
-        properties.add(new NbtProperty("Enchantments", NbtType.ENCHANTMENT_LIST, "Enchantments on the item"));
+        properties.add(new NbtProperty("Enchantments", NbtType.ENCHANTMENT_LIST, Component.translatable("editor.historystages.nbt.desc.enchantments").getString()));
 
         // StoredEnchantments (enchanted books)
-        properties.add(new NbtProperty("StoredEnchantments", NbtType.ENCHANTMENT_LIST, "Stored enchantments (books)"));
+        properties.add(new NbtProperty("StoredEnchantments", NbtType.ENCHANTMENT_LIST, Component.translatable("editor.historystages.nbt.desc.stored_enchantments").getString()));
 
         // CustomModelData
-        properties.add(new NbtProperty("CustomModelData", NbtType.INTEGER, "Custom model data (resource packs)"));
+        properties.add(new NbtProperty("CustomModelData", NbtType.INTEGER, Component.translatable("editor.historystages.nbt.desc.custom_model_data").getString()));
 
         // display compound
-        NbtProperty display = new NbtProperty("display", NbtType.COMPOUND, "Display properties");
-        display.children.add(new NbtProperty("Name", NbtType.STRING, "Custom item name (JSON text)"));
-        display.children.add(new NbtProperty("Lore", NbtType.STRING_LIST, "Custom lore lines (JSON text)"));
+        NbtProperty display = new NbtProperty("display", NbtType.COMPOUND, Component.translatable("editor.historystages.nbt.desc.display").getString());
+        display.children.add(new NbtProperty("Name", NbtType.STRING, Component.translatable("editor.historystages.nbt.desc.name").getString()));
+        display.children.add(new NbtProperty("Lore", NbtType.STRING_LIST, Component.translatable("editor.historystages.nbt.desc.lore").getString()));
         properties.add(display);
 
         // Potion
-        properties.add(new NbtProperty("Potion", NbtType.STRING, "Potion type ID"));
+        properties.add(new NbtProperty("Potion", NbtType.STRING, Component.translatable("editor.historystages.nbt.desc.potion").getString()));
 
         // Unbreakable
-        properties.add(new NbtProperty("Unbreakable", NbtType.BOOLEAN, "Item cannot break"));
+        properties.add(new NbtProperty("Unbreakable", NbtType.BOOLEAN, Component.translatable("editor.historystages.nbt.desc.unbreakable").getString()));
 
         // RepairCost
-        properties.add(new NbtProperty("RepairCost", NbtType.INTEGER, "Anvil repair cost"));
+        properties.add(new NbtProperty("RepairCost", NbtType.INTEGER, Component.translatable("editor.historystages.nbt.desc.repair_cost").getString()));
     }
 
     private void loadCurrentValues() {
@@ -164,7 +164,7 @@ public class NbtItemEditScreen extends Screen {
         // Load unknown keys as custom NBT properties
         for (var entry : currentNbt.entrySet()) {
             if (!knownKeys.contains(entry.getKey())) {
-                NbtProperty custom = new NbtProperty(entry.getKey(), NbtType.STRING, "Custom NBT key");
+                NbtProperty custom = new NbtProperty(entry.getKey(), NbtType.STRING, Component.translatable("editor.historystages.nbt.desc.custom_key").getString());
                 custom.enabled = true;
                 if (entry.getValue().isJsonPrimitive()) {
                     custom.value = entry.getValue().getAsString();
@@ -279,7 +279,7 @@ public class NbtItemEditScreen extends Screen {
             g.drawString(this.font, item.getDescription(), PADDING + 22, 14, 0xFFFFFF);
         }
         g.drawString(this.font, itemId, PADDING + 22, 28, 0x888888);
-        g.drawString(this.font, "NBT Properties", PADDING, HEADER_HEIGHT - 16, 0xFFCC00);
+        g.drawString(this.font, Component.translatable("editor.historystages.nbt.header"), PADDING, HEADER_HEIGHT - 16, 0xFFCC00);
 
         // Separator
         g.fill(PADDING, HEADER_HEIGHT - 4, this.width - PADDING, HEADER_HEIGHT - 3, 0x40FFCC00);
@@ -307,7 +307,7 @@ public class NbtItemEditScreen extends Screen {
                     y += ROW_HEIGHT;
                 }
                 if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
-                    renderAddButton(g, contentLeft + INDENT, y, "+ Add Enchantment", mouseX, mouseY);
+                    renderAddButton(g, contentLeft + INDENT, y, Component.translatable("editor.historystages.nbt.add.enchantment").getString(), mouseX, mouseY);
                 }
                 y += ROW_HEIGHT;
             }
@@ -328,7 +328,7 @@ public class NbtItemEditScreen extends Screen {
                             y += ROW_HEIGHT;
                         }
                         if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
-                            renderAddButton(g, contentLeft + INDENT * 2, y, "+ Add Entry", mouseX, mouseY);
+                            renderAddButton(g, contentLeft + INDENT * 2, y, Component.translatable("editor.historystages.nbt.add.entry").getString(), mouseX, mouseY);
                         }
                         y += ROW_HEIGHT;
                     }
@@ -343,7 +343,7 @@ public class NbtItemEditScreen extends Screen {
                     y += ROW_HEIGHT;
                 }
                 if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
-                    renderAddButton(g, contentLeft + INDENT, y, "+ Add Entry", mouseX, mouseY);
+                    renderAddButton(g, contentLeft + INDENT, y, Component.translatable("editor.historystages.nbt.add.entry").getString(), mouseX, mouseY);
                 }
                 y += ROW_HEIGHT;
             }
@@ -351,7 +351,7 @@ public class NbtItemEditScreen extends Screen {
 
         // Custom NBT add row
         if (y + ROW_HEIGHT > listTop - ROW_HEIGHT && y < listBottom + ROW_HEIGHT) {
-            renderAddButton(g, contentLeft, y, "+ Custom NBT Key", mouseX, mouseY);
+            renderAddButton(g, contentLeft, y, Component.translatable("editor.historystages.nbt.add.custom_key").getString(), mouseX, mouseY);
         }
 
         g.disableScissor();
@@ -384,7 +384,7 @@ public class NbtItemEditScreen extends Screen {
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFF6600);
 
-            g.drawString(this.font, "Warnings (save anyway?)", dlgX + 10, dlgY + 8, 0xFFFF6600);
+            g.drawString(this.font, Component.translatable("editor.historystages.nbt.warnings_title"), dlgX + 10, dlgY + 8, 0xFFFF6600);
             int wy = dlgY + 24;
             for (String warning : validationWarnings) {
                 g.drawString(this.font, "- " + warning, dlgX + 10, wy, 0xFFAAAA);
@@ -399,9 +399,9 @@ public class NbtItemEditScreen extends Screen {
             boolean cancelHover = mouseX >= btnCancelX && mouseX < btnCancelX + 60 && mouseY >= btnY
                     && mouseY < btnY + 18;
             g.fill(btnSaveX, btnY, btnSaveX + 60, btnY + 18, saveHover ? 0x80FF6600 : 0x40FF6600);
-            g.drawString(this.font, "Save", btnSaveX + 18, btnY + 5, 0xFFFFFF);
+            g.drawString(this.font, Component.translatable("editor.historystages.save"), btnSaveX + 18, btnY + 5, 0xFFFFFF);
             g.fill(btnCancelX, btnY, btnCancelX + 60, btnY + 18, cancelHover ? 0x80FFFFFF : 0x40FFFFFF);
-            g.drawString(this.font, "Cancel", btnCancelX + 12, btnY + 5, 0xFFFFFF);
+            g.drawString(this.font, Component.translatable("editor.historystages.cancel"), btnCancelX + 12, btnY + 5, 0xFFFFFF);
 
             g.pose().popPose();
         }
@@ -442,7 +442,7 @@ public class NbtItemEditScreen extends Screen {
             g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + ROW_HEIGHT - 4, 0xFF0D0D0D);
             String displayVal = prop.value != null ? prop.value : "";
             if (displayVal.isEmpty()) {
-                g.drawString(this.font, "click to edit...", fieldX + 4, fieldY + 4, 0x555555);
+                g.drawString(this.font, Component.translatable("editor.historystages.nbt.click_to_edit"), fieldX + 4, fieldY + 4, 0x555555);
             } else {
                 g.drawString(this.font, displayVal, fieldX + 4, fieldY + 4, 0xCCCCCC);
             }
@@ -474,13 +474,14 @@ public class NbtItemEditScreen extends Screen {
         int idBorder = idHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
         g.fill(idX - 1, y + 1, idX + fieldW + 1, y + ROW_HEIGHT - 3, idBorder);
         g.fill(idX, y + 2, idX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
-        g.drawString(this.font, ench.id.isEmpty() ? "enchantment id..." : ench.id, idX + 4, y + 6,
+        g.drawString(this.font, ench.id.isEmpty() ? Component.translatable("editor.historystages.nbt.enchantment_id_hint").getString() : ench.id, idX + 4, y + 6,
                 ench.id.isEmpty() ? 0x555555 : 0xCCCCCC);
 
         // Level label + field
         int lvlLabelX = idX + fieldW + 8;
-        g.drawString(this.font, "lvl:", lvlLabelX, y + 6, 0x888888);
-        int lvlFieldX = lvlLabelX + this.font.width("lvl:") + 4;
+        String lvlLabel = Component.translatable("editor.historystages.nbt.lvl").getString();
+        g.drawString(this.font, lvlLabel, lvlLabelX, y + 6, 0x888888);
+        int lvlFieldX = lvlLabelX + this.font.width(lvlLabel) + 4;
         int lvlFieldW = 50;
         boolean lvlHovered = mx >= lvlFieldX && mx < lvlFieldX + lvlFieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4;
         int lvlBorder = lvlHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
@@ -508,7 +509,7 @@ public class NbtItemEditScreen extends Screen {
         int fieldBorder = fieldHovered ? 0xFF6A6A6A : 0xFF4A4A4A;
         g.fill(fieldX - 1, y + 1, fieldX + fieldW + 1, y + ROW_HEIGHT - 3, fieldBorder);
         g.fill(fieldX, y + 2, fieldX + fieldW, y + ROW_HEIGHT - 4, 0xFF0D0D0D);
-        g.drawString(this.font, val.isEmpty() ? "click to edit..." : val, fieldX + 4, y + 6,
+        g.drawString(this.font, val.isEmpty() ? Component.translatable("editor.historystages.nbt.click_to_edit").getString() : val, fieldX + 4, y + 6,
                 val.isEmpty() ? 0x555555 : 0xCCCCCC);
     }
 
@@ -583,7 +584,7 @@ public class NbtItemEditScreen extends Screen {
                         return true;
                     y += ROW_HEIGHT;
                 }
-                int addW = this.font.width("+ Add Enchantment") + 12;
+                int addW = this.font.width(Component.translatable("editor.historystages.nbt.add.enchantment").getString()) + 12;
                 if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y
                         && mouseY < y + ROW_HEIGHT) {
                     Minecraft.getInstance().getSoundManager()
@@ -608,7 +609,7 @@ public class NbtItemEditScreen extends Screen {
                                 return true;
                             y += ROW_HEIGHT;
                         }
-                        int addW = this.font.width("+ Add Entry") + 12;
+                        int addW = this.font.width(Component.translatable("editor.historystages.nbt.add.entry").getString()) + 12;
                         if (mouseX >= contentLeft + INDENT * 2 && mouseX < contentLeft + INDENT * 2 + addW
                                 && mouseY >= y && mouseY < y + ROW_HEIGHT) {
                             Minecraft.getInstance().getSoundManager()
@@ -628,7 +629,7 @@ public class NbtItemEditScreen extends Screen {
                         return true;
                     y += ROW_HEIGHT;
                 }
-                int addW = this.font.width("+ Add Entry") + 12;
+                int addW = this.font.width(Component.translatable("editor.historystages.nbt.add.entry").getString()) + 12;
                 if (mouseX >= contentLeft + INDENT && mouseX < contentLeft + INDENT + addW && mouseY >= y
                         && mouseY < y + ROW_HEIGHT) {
                     Minecraft.getInstance().getSoundManager()
@@ -642,7 +643,7 @@ public class NbtItemEditScreen extends Screen {
         }
 
         // Custom NBT add
-        int addW = this.font.width("+ Custom NBT Key") + 12;
+        int addW = this.font.width(Component.translatable("editor.historystages.nbt.add.custom_key").getString()) + 12;
         if (mouseX >= contentLeft && mouseX < contentLeft + addW && mouseY >= y && mouseY < y + ROW_HEIGHT) {
             Minecraft.getInstance().getSoundManager()
                     .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -709,16 +710,16 @@ public class NbtItemEditScreen extends Screen {
         int idX = x + 16;
         int fieldW = (right - idX - 80) / 2;
         if (mx >= idX && mx < idX + fieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4) {
-            openSuggestingInput("Enchantment ID", ench.id, getEnchantmentSuggestions(), val -> ench.id = val);
+            openSuggestingInput(Component.translatable("editor.historystages.nbt.input.enchantment_id").getString(), ench.id, getEnchantmentSuggestions(), val -> ench.id = val);
             return true;
         }
 
         // Level field click
         int lvlLabelX = idX + fieldW + 8;
-        int lvlFieldX = lvlLabelX + this.font.width("lvl:") + 4;
+        int lvlFieldX = lvlLabelX + this.font.width(Component.translatable("editor.historystages.nbt.lvl").getString()) + 4;
         int lvlFieldW = 50;
         if (mx >= lvlFieldX && mx < lvlFieldX + lvlFieldW && my >= y + 2 && my < y + ROW_HEIGHT - 4) {
-            openSuggestingInput("Level (or range, e.g. 1-4)", ench.level, Collections.emptyList(),
+            openSuggestingInput(Component.translatable("editor.historystages.nbt.input.level_range").getString(), ench.level, Collections.emptyList(),
                     val -> ench.level = val);
             return true;
         }
@@ -739,7 +740,7 @@ public class NbtItemEditScreen extends Screen {
 
         int fieldX = x + 16;
         if (mx >= fieldX && mx < right - 10 && my >= y + 2 && my < y + ROW_HEIGHT - 4) {
-            openSuggestingInput("Value", prop.stringListValues.get(idx), Collections.emptyList(),
+            openSuggestingInput(Component.translatable("editor.historystages.nbt.input.value").getString(), prop.stringListValues.get(idx), Collections.emptyList(),
                     val -> prop.stringListValues.set(idx, val));
             return true;
         }
@@ -755,7 +756,7 @@ public class NbtItemEditScreen extends Screen {
         String title = prop.key;
         List<String> suggestions = Collections.emptyList();
         if (prop.type == NbtType.INTEGER)
-            title += " (number or range, e.g. 42 or 1-4)";
+            title += Component.translatable("editor.historystages.nbt.input.number_range").getString();
         if ("Potion".equals(prop.key))
             suggestions = getPotionSuggestions();
         openSuggestingInput(title, prop.value != null ? prop.value : "", suggestions, val -> prop.value = val);
@@ -768,7 +769,7 @@ public class NbtItemEditScreen extends Screen {
 
     private void openCustomNbtDialog() {
         this.minecraft.setScreen(new CustomNbtInputScreen(this, (key, value) -> {
-            NbtProperty custom = new NbtProperty(key, NbtType.STRING, "Custom NBT key");
+            NbtProperty custom = new NbtProperty(key, NbtType.STRING, Component.translatable("editor.historystages.nbt.desc.custom_key").getString());
             custom.enabled = true;
             custom.value = value;
             properties.add(properties.size(), custom);
@@ -829,19 +830,19 @@ public class NbtItemEditScreen extends Screen {
                     ResourceLocation enchRL = ResourceLocation.tryParse(ench.id);
                     Enchantment enchObj = enchRL != null ? ForgeRegistries.ENCHANTMENTS.getValue(enchRL) : null;
                     if (enchObj == null) {
-                        warnings.add("Unknown enchantment: " + ench.id);
+                        warnings.add(Component.translatable("editor.historystages.nbt.warn.unknown_enchantment", ench.id).getString());
                     } else {
                         int maxLevel = enchObj.getMaxLevel();
                         if (ench.level.matches("\\d+")) {
                             int lvl = Integer.parseInt(ench.level);
                             if (lvl > maxLevel) {
-                                warnings.add(ench.id + " max level is " + maxLevel + ", got " + lvl);
+                                warnings.add(Component.translatable("editor.historystages.nbt.warn.max_level", ench.id, maxLevel, lvl).getString());
                             }
                         } else if (ench.level.matches("\\d+-\\d+")) {
                             String[] parts = ench.level.split("-");
                             int max = Integer.parseInt(parts[1]);
                             if (max > maxLevel) {
-                                warnings.add(ench.id + " max level is " + maxLevel + ", range goes to " + max);
+                                warnings.add(Component.translatable("editor.historystages.nbt.warn.max_level_range", ench.id, maxLevel, max).getString());
                             }
                         }
                     }
@@ -850,7 +851,7 @@ public class NbtItemEditScreen extends Screen {
             if ("Potion".equals(prop.key) && prop.value != null && !prop.value.isEmpty()) {
                 ResourceLocation potionRL = ResourceLocation.tryParse(prop.value);
                 if (potionRL == null || ForgeRegistries.POTIONS.getValue(potionRL) == null) {
-                    warnings.add("Unknown potion: " + prop.value);
+                    warnings.add(Component.translatable("editor.historystages.nbt.warn.unknown_potion", prop.value).getString());
                 }
             }
         }
@@ -1067,11 +1068,11 @@ public class NbtItemEditScreen extends Screen {
                     + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT
                     + 6;
             this.addRenderableWidget(StyledButton.of(
-                    Component.literal("OK"),
+                    Component.translatable("editor.historystages.nbt.ok"),
                     btn -> confirm(),
                     centerX - 105, btnY, 100, 20));
             this.addRenderableWidget(StyledButton.of(
-                    Component.literal("Cancel"),
+                    Component.translatable("editor.historystages.cancel"),
                     btn -> this.minecraft.setScreen(parent),
                     centerX + 5, btnY, 100, 20));
 
@@ -1248,7 +1249,7 @@ public class NbtItemEditScreen extends Screen {
         private EditBox valueField;
 
         CustomNbtInputScreen(Screen parent, java.util.function.BiConsumer<String, String> onDone) {
-            super(Component.literal("Custom NBT"));
+            super(Component.translatable("editor.historystages.nbt.custom.title"));
             this.parent = parent;
             this.onDone = onDone;
         }
@@ -1258,27 +1259,27 @@ public class NbtItemEditScreen extends Screen {
             int centerX = this.width / 2;
             int centerY = this.height / 2;
 
-            keyField = new EditBox(this.font, centerX - 120 + 4, centerY - 14 + 6, 240 - 4, 20, Component.literal("Key"));
+            keyField = new EditBox(this.font, centerX - 120 + 4, centerY - 14 + 6, 240 - 4, 20, Component.translatable("editor.historystages.nbt.custom.key_label"));
             keyField.setMaxLength(128);
-            keyField.setHint(Component.literal("e.g. CustomModelData"));
+            keyField.setHint(Component.translatable("editor.historystages.nbt.custom.key_hint"));
             keyField.setBordered(false);
             keyField.setTextColor(0xFFFFFF);
             this.addRenderableWidget(keyField);
             this.setFocused(keyField);
 
-            valueField = new EditBox(this.font, centerX - 120 + 4, centerY + 30 + 6, 240 - 4, 20, Component.literal("Value"));
+            valueField = new EditBox(this.font, centerX - 120 + 4, centerY + 30 + 6, 240 - 4, 20, Component.translatable("editor.historystages.nbt.custom.value_label"));
             valueField.setMaxLength(512);
-            valueField.setHint(Component.literal("value"));
+            valueField.setHint(Component.translatable("editor.historystages.nbt.custom.value_hint"));
             valueField.setBordered(false);
             valueField.setTextColor(0xFFFFFF);
             this.addRenderableWidget(valueField);
 
             this.addRenderableWidget(StyledButton.of(
-                    Component.literal("OK"),
+                    Component.translatable("editor.historystages.nbt.ok"),
                     btn -> confirm(),
                     centerX - 105, centerY + 60, 100, 20));
             this.addRenderableWidget(StyledButton.of(
-                    Component.literal("Cancel"),
+                    Component.translatable("editor.historystages.cancel"),
                     btn -> this.minecraft.setScreen(parent),
                     centerX + 5, centerY + 60, 100, 20));
         }
@@ -1296,17 +1297,17 @@ public class NbtItemEditScreen extends Screen {
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
             g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
 
-            g.drawCenteredString(this.font, "Custom NBT Key", centerX, dlgY + 10, 0xFFCC00);
+            g.drawCenteredString(this.font, Component.translatable("editor.historystages.nbt.custom.heading"), centerX, dlgY + 10, 0xFFCC00);
 
             // Key label + field
-            g.drawString(this.font, "Key", centerX - 120, centerY - 26, 0x999999);
+            g.drawString(this.font, Component.translatable("editor.historystages.nbt.custom.key_label"), centerX - 120, centerY - 26, 0x999999);
             int kx = centerX - 120, ky = centerY - 14, kw = 240, kh = 20;
             int kBorder = keyField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
             g.fill(kx - 1, ky - 1, kx + kw + 1, ky + kh + 1, kBorder);
             g.fill(kx, ky, kx + kw, ky + kh, 0xFF0D0D0D);
 
             // Value label + field
-            g.drawString(this.font, "Value", centerX - 120, centerY + 18, 0x999999);
+            g.drawString(this.font, Component.translatable("editor.historystages.nbt.custom.value_label"), centerX - 120, centerY + 18, 0x999999);
             int vx = centerX - 120, vy = centerY + 30, vw = 240, vh = 20;
             int vBorder = valueField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
             g.fill(vx - 1, vy - 1, vx + vw + 1, vy + vh + 1, vBorder);

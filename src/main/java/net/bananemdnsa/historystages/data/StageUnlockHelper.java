@@ -160,9 +160,9 @@ public final class StageUnlockHelper {
 
         Component chatMsg = Component.literal("[HistoryStages] ")
                 .withStyle(ChatFormatting.RED)
-                .append(Component.literal("The knowledge of " + displayName + " has been forgotten...")
+                .append(Component.translatable("message.historystages.stage_forgotten", displayName)
                         .withStyle(ChatFormatting.WHITE));
-        Component actionMsg = Component.literal("§cStage Locked: " + displayName);
+        Component actionMsg = Component.translatable("message.historystages.stage_locked_action", displayName);
 
         server.getPlayerList().getPlayers().forEach(player -> {
             if (Config.COMMON.broadcastChat.get()) {
@@ -181,11 +181,11 @@ public final class StageUnlockHelper {
         if (Config.COMMON.individualBroadcastChat.get()) {
             player.sendSystemMessage(Component.literal("[HistoryStages] ")
                     .withStyle(ChatFormatting.RED)
-                    .append(Component.literal("The knowledge of " + displayName + " has been forgotten...")
+                    .append(Component.translatable("message.historystages.stage_forgotten", displayName)
                             .withStyle(ChatFormatting.WHITE)));
         }
         if (Config.COMMON.individualUseActionbar.get()) {
-            player.displayClientMessage(Component.literal("§cStage Locked: " + displayName), true);
+            player.displayClientMessage(Component.translatable("message.historystages.stage_locked_action", displayName), true);
         }
         if (Config.COMMON.individualUseSounds.get()) {
             player.playNotifySound(SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
@@ -207,7 +207,7 @@ public final class StageUnlockHelper {
                 .withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(formattedMsg));
 
-        Component actionMsg = Component.literal("§6New Era: " + displayName + " §aUnlocked!");
+        Component actionMsg = Component.translatable("message.historystages.new_era_unlocked", displayName);
 
         server.getPlayerList().getPlayers().forEach(player -> {
             if (Config.COMMON.broadcastChat.get()) {
