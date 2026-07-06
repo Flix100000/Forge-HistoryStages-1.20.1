@@ -8,7 +8,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
-public class StageUnlockedToast implements Toast {
+import net.bananemdnsa.historystages.client.toast.DismissibleToast;
+
+public class StageUnlockedToast implements Toast, DismissibleToast {
 
     private static final ResourceLocation TEXTURE = new ResourceLocation("textures/gui/toasts.png");
 
@@ -17,6 +19,7 @@ public class StageUnlockedToast implements Toast {
     private final ItemStack icon;
     private long firstRender = -1;
     private static final long DISPLAY_TIME = 5000L;
+    private boolean dismissed = false;
 
     public StageUnlockedToast(String stageName) {
         this(stageName, new ItemStack(ModItems.RESEARCH_SCROLL.get()));
@@ -31,7 +34,16 @@ public class StageUnlockedToast implements Toast {
     }
 
     @Override
+    public void dismiss() {
+        this.dismissed = true;
+    }
+
+    @Override
     public Visibility render(GuiGraphics guiGraphics, ToastComponent toastComponent, long timeSinceLastVisible) {
+        if (this.dismissed) {
+            return Visibility.HIDE;
+        }
+
         if (this.firstRender == -1) {
             this.firstRender = timeSinceLastVisible;
         }

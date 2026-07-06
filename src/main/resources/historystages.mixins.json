@@ -11,6 +11,10 @@
   ],
   "client": [
     "ClientAdvancementsAccessor",
+    "toast.ToastComponentMixin",
+    "toast.ToastComponentAccessor",
+    "toast.ToastInstanceMixin",
+    "toast.ToastInstanceAccessor",
     "jei.RecipeLayoutMixin"
   ],
   "injectors": {
