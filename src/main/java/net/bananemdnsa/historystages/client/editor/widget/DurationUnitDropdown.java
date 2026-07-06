@@ -29,15 +29,29 @@ public class DurationUnitDropdown {
     private int buttonX, buttonY, buttonW;
     private boolean expanded = false;
 
-    public DurationUnitDropdown(DurationUnit initial, int buttonWidth, Consumer<DurationUnit> onChange) {
+    public DurationUnitDropdown(DurationUnit initial, int minWidth, Consumer<DurationUnit> onChange) {
         this.unit = initial != null ? initial : DurationUnit.HOURS;
-        this.buttonW = buttonWidth;
+        this.buttonW = computeWidth(minWidth);
         this.onChange = onChange;
+    }
+
+    /** Widest unit label (+padding), so the box is never narrower than its content. */
+    private static int computeWidth(int minWidth) {
+        Font font = Minecraft.getInstance().font;
+        int w = minWidth;
+        for (DurationUnit u : DurationUnit.values()) {
+            int rowW = font.width(label(u)) + 15;
+            if (rowW > w) w = rowW;
+        }
+        return w;
     }
 
     public DurationUnit getUnit() { return unit; }
 
     public void setUnit(DurationUnit unit) { this.unit = unit != null ? unit : DurationUnit.HOURS; }
+
+    /** Width the widget actually renders at (>= the minWidth passed to the constructor). */
+    public int getWidth() { return buttonW; }
 
     public boolean isExpanded() { return expanded; }
 
@@ -116,7 +130,10 @@ public class DurationUnitDropdown {
         int ph = DurationUnit.values().length * ROW_HEIGHT + POPUP_PAD * 2;
         int px = buttonX;
         int py = buttonY + BUTTON_HEIGHT + 2;
+        int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        if (px + pw > screenW - 4) px = screenW - pw - 4;
+        if (px < 4) px = 4;
         if (py + ph > screenH - 4) py = buttonY - ph - 2;
         if (py < 4) py = 4;
         return new int[] { px, py, pw, ph };

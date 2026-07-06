@@ -30,15 +30,29 @@ public class PedestalTierDropdown {
     private int buttonX, buttonY, buttonW;
     private boolean expanded = false;
 
-    public PedestalTierDropdown(int initialTier, int buttonWidth, IntConsumer onChange) {
+    public PedestalTierDropdown(int initialTier, int minWidth, IntConsumer onChange) {
         this.tier = clamp(initialTier);
-        this.buttonW = buttonWidth;
+        this.buttonW = computeWidth(minWidth);
         this.onChange = onChange;
+    }
+
+    /** Widest tier name (icon + text, +padding), so the box is never narrower than its content. */
+    private static int computeWidth(int minWidth) {
+        Font font = Minecraft.getInstance().font;
+        int w = minWidth;
+        for (int t = 1; t <= 4; t++) {
+            int rowW = 20 + font.width(tierName(t)) + 14;
+            if (rowW > w) w = rowW;
+        }
+        return w;
     }
 
     public int getTier() { return tier; }
 
     public void setTier(int tier) { this.tier = clamp(tier); }
+
+    /** Width the widget actually renders at (>= the minWidth passed to the constructor). */
+    public int getWidth() { return buttonW; }
 
     public boolean isExpanded() { return expanded; }
 
@@ -132,7 +146,10 @@ public class PedestalTierDropdown {
         int ph = 4 * ROW_HEIGHT + POPUP_PAD * 2;
         int px = buttonX;
         int py = buttonY + BUTTON_HEIGHT + 2;
+        int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
         int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+        if (px + pw > screenW - 4) px = screenW - pw - 4;
+        if (px < 4) px = 4;
         if (py + ph > screenH - 4) py = buttonY - ph - 2;
         if (py < 4) py = 4;
         return new int[] { px, py, pw, ph };

@@ -158,7 +158,7 @@ public class StageSettingsScreen extends Screen {
         // Mode dropdown is rendered inline in render() / handled in mouseClicked() (not a Button widget)
         modeDropdownX = fieldX;
         modeDropdownY = 66;
-        modeDropdownW = fieldWidth;
+        modeDropdownW = computeModeDropdownWidth();
 
         // --- Card-internal widgets ---
         // Positions inside the card body (cardY + 28 = body start)
@@ -369,6 +369,23 @@ public class StageSettingsScreen extends Screen {
         return mode == TierMode.EXACT
                 ? "editor.historystages.tier_mode.exact"
                 : "editor.historystages.tier_mode.min";
+    }
+
+    /**
+     * Width for the mode dropdown (button + popup), grown to fit the longest name/description
+     * across all modes instead of shrinking text. Floored at {@code fieldWidth} (so it lines up
+     * with the fields above it) and capped at the same screen-edge margin {@code fieldWidth} uses.
+     */
+    private int computeModeDropdownWidth() {
+        int w = fieldWidth;
+        for (StageMode m : StageMode.values()) {
+            int nameW = this.font.width(Component.translatable(modeLabelKey(m)).getString());
+            int descW = this.font.width(Component.translatable(modeDescKey(m)).getString());
+            w = Math.max(w, nameW + 20);
+            w = Math.max(w, Math.max(nameW, descW) + 16);
+        }
+        int cap = Math.max(fieldWidth, this.width - fieldX - 40);
+        return Math.min(w, cap);
     }
 
     private static String modeLabelKey(StageMode m) {
