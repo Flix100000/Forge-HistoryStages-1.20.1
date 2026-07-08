@@ -7,6 +7,7 @@ import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
+import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
 import net.bananemdnsa.historystages.research.TierMode;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,6 +62,9 @@ public class StageEntry {
 
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
+
+    @SerializedName("hidden_display")
+    private HiddenDisplayConfig hiddenDisplay;
 
     public StageEntry() {
         this.items = new ArrayList<>();
@@ -232,6 +236,15 @@ public class StageEntry {
         return dependencies != null ? dependencies : new ArrayList<>();
     }
 
+    /** Returns the hidden-display config, never null (a default all-OFF config when unset). */
+    public HiddenDisplayConfig getHiddenDisplay() {
+        return hiddenDisplay != null ? hiddenDisplay : new HiddenDisplayConfig();
+    }
+
+    public void setHiddenDisplay(HiddenDisplayConfig config) {
+        this.hiddenDisplay = (config != null && !config.isNoop()) ? config : null;
+    }
+
     public boolean hasDependencies() {
         if (dependencies == null || dependencies.isEmpty()) return false;
         return dependencies.stream().anyMatch(g -> !g.isEmpty());
@@ -375,6 +388,7 @@ public class StageEntry {
         copy.mode = this.mode;
         copy.autoTrigger = (this.autoTrigger != null) ? this.autoTrigger.copy() : null;
         copy.temporary = (this.temporary != null) ? this.temporary.copy() : null;
+        copy.hiddenDisplay = (this.hiddenDisplay != null) ? this.hiddenDisplay.copy() : null;
         return copy;
     }
 

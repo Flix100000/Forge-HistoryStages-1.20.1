@@ -16,7 +16,7 @@ import java.util.List;
  * In JSON the field is written as {@code unlock_actions} (the complement — actions that are
  * NOT locked). {@code null} / no field means all actions are locked.
  */
-public class NamedLockEntry {
+public class NamedLockEntry implements net.bananemdnsa.historystages.data.display.TextOverrideHolder {
 
     /** Canonical ordered list of all recognised lock actions. */
     public static final List<String> ALL_ACTIONS = List.of(
@@ -26,17 +26,27 @@ public class NamedLockEntry {
     private final String id;
     private final List<String> lockActions; // null = all actions locked, empty = none locked
 
+    // Per-entry REPLACE text overrides for the stage's hidden-display config.
+    // null = no override → fall back to the stage default text.
+    private final String nameTextOverride;
+    private final String tooltipTextOverride;
+
     // Lazily computed — only meaningful when this entry represents an item tag.
     private transient TagKey<Item> cachedTagKey;
 
     public NamedLockEntry(String id) {
-        this.id = id;
-        this.lockActions = null;
+        this(id, null, null, null);
     }
 
     public NamedLockEntry(String id, List<String> lockActions) {
+        this(id, lockActions, null, null);
+    }
+
+    public NamedLockEntry(String id, List<String> lockActions, String nameTextOverride, String tooltipTextOverride) {
         this.id = id;
         this.lockActions = (lockActions != null && !lockActions.isEmpty()) ? new ArrayList<>(lockActions) : null;
+        this.nameTextOverride = (nameTextOverride != null && !nameTextOverride.isEmpty()) ? nameTextOverride : null;
+        this.tooltipTextOverride = (tooltipTextOverride != null && !tooltipTextOverride.isEmpty()) ? tooltipTextOverride : null;
     }
 
     public String getId() { return id; }
@@ -45,6 +55,14 @@ public class NamedLockEntry {
     public List<String> getLockActions() { return lockActions; }
 
     public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+
+    @Override
+    public String getNameTextOverride() { return nameTextOverride; }
+    @Override
+    public String getTooltipTextOverride() { return tooltipTextOverride; }
+
+    public boolean hasNameTextOverride() { return nameTextOverride != null; }
+    public boolean hasTooltipTextOverride() { return tooltipTextOverride != null; }
 
     /** Returns a cached TagKey for this entry's ID. Only call when this entry represents an item tag. */
     public TagKey<Item> getItemTagKey() {
@@ -55,6 +73,7 @@ public class NamedLockEntry {
     }
 
     public NamedLockEntry copy() {
-        return new NamedLockEntry(id, lockActions != null ? new ArrayList<>(lockActions) : null);
+        return new NamedLockEntry(id, lockActions != null ? new ArrayList<>(lockActions) : null,
+                nameTextOverride, tooltipTextOverride);
     }
 }

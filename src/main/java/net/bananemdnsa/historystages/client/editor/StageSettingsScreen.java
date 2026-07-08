@@ -1,9 +1,12 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
+import net.bananemdnsa.historystages.client.editor.widget.DisplayModeDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.DurationUnitDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.data.display.DisplayMode;
+import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
@@ -26,7 +29,8 @@ public class StageSettingsScreen extends Screen {
     public interface SaveCallback {
         void onSave(String stageId, String displayName, int researchTime,
                     int minPedestalTier, TierMode pedestalTierMode,
-                    StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary);
+                    StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
+                    HiddenDisplayConfig hiddenDisplay);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -48,6 +52,26 @@ public class StageSettingsScreen extends Screen {
     private StageMode editMode;
     private AutoTrigger editAutoTrigger;
     private TemporaryConfig editTemporary;
+    private final HiddenDisplayConfig editHiddenDisplay;
+
+    // Display card state
+    private EditBox nameTextField;
+    private EditBox tooltipTextField;
+    private int displayCardX, displayCardY, displayCardW, displayCardH;
+    private DisplayModeDropdown nameModeDropdown;
+    private DisplayModeDropdown tooltipModeDropdown;
+    private int displayControlX;
+    private int displayNameRowY, displayTooltipRowY;
+    private int lockHintsRowY, lockHintsToggleX, lockHintsToggleW;
+    // Display-card vertical metrics.
+    private static final int DISP_BODY_TOP = 28;
+    private static final int DISP_ROW_GAP = 12;
+    private static final int DISP_TOGGLE_H = 14;
+    private static final int DISP_BOTTOM_PAD = 8;
+    private static final int DISP_DROPDOWN_W = 72;
+    // Name only supports OFF/REPLACE (the title is never blanked); tooltip adds HIDDEN.
+    private static final DisplayMode[] NAME_MODES = {DisplayMode.OFF, DisplayMode.REPLACE};
+    private static final DisplayMode[] TOOLTIP_MODES = {DisplayMode.OFF, DisplayMode.HIDDEN, DisplayMode.REPLACE};
 
     private final String origStageId;
     private final String origDisplayName;
@@ -83,14 +107,16 @@ public class StageSettingsScreen extends Screen {
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
+                               HiddenDisplayConfig hiddenDisplay,
                                boolean isNewStage, SaveCallback onSave) {
         this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
-                mode, autoTrigger, temporary, isNewStage, onSave, null);
+                mode, autoTrigger, temporary, hiddenDisplay, isNewStage, onSave, null);
     }
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
+                               HiddenDisplayConfig hiddenDisplay,
                                boolean isNewStage, SaveCallback onSave,
                                Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
@@ -107,6 +133,7 @@ public class StageSettingsScreen extends Screen {
         this.editMode = mode != null ? mode : StageMode.DEFAULT;
         this.editAutoTrigger = autoTrigger;
         this.editTemporary = temporary;
+        this.editHiddenDisplay = hiddenDisplay != null ? hiddenDisplay : new HiddenDisplayConfig();
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
@@ -271,6 +298,43 @@ public class StageSettingsScreen extends Screen {
         });
         cooldownUnitDropdown.setPosition(tempFieldX + 52, cdRowY);
 
+        // --- Display card text fields (positioned by layoutDisplayCard) ---
+        // Create with a sane width and reset the cursor to the start AFTER setValue, so the
+        // existing text is scrolled into view immediately (not only after clicking in).
+        nameTextField = new EditBox(this.font, 0, 0, 100, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.display.name_text"));
+        nameTextField.setMaxLength(128);
+        nameTextField.setValue(editHiddenDisplay.getNameText());
+        nameTextField.setCursorPosition(0);
+        nameTextField.setHighlightPos(0);
+        nameTextField.setResponder(v -> { editHiddenDisplay.setNameText(v); hasChanges = true; });
+        this.addRenderableWidget(nameTextField);
+
+        tooltipTextField = new EditBox(this.font, 0, 0, 100, FIELD_HEIGHT,
+                Component.translatable("editor.historystages.display.tooltip_text"));
+        tooltipTextField.setMaxLength(256);
+        tooltipTextField.setValue(editHiddenDisplay.getTooltipText());
+        tooltipTextField.setCursorPosition(0);
+        tooltipTextField.setHighlightPos(0);
+        tooltipTextField.setResponder(v -> { editHiddenDisplay.setTooltipText(v); hasChanges = true; });
+        this.addRenderableWidget(tooltipTextField);
+
+        // Name/Tooltip mode dropdowns (off/replace and off/hidden/replace)
+        DisplayMode initialName = editHiddenDisplay.getNameMode() == DisplayMode.HIDDEN
+                ? DisplayMode.REPLACE : editHiddenDisplay.getNameMode();
+        editHiddenDisplay.setNameMode(initialName); // name never supports HIDDEN
+        nameModeDropdown = new DisplayModeDropdown(NAME_MODES, initialName, DISP_DROPDOWN_W, mode -> {
+            editHiddenDisplay.setNameMode(mode);
+            tooltipModeDropdown.close();
+            onDisplayChanged();
+        });
+        tooltipModeDropdown = new DisplayModeDropdown(TOOLTIP_MODES, editHiddenDisplay.getTooltipMode(),
+                DISP_DROPDOWN_W, mode -> {
+                    editHiddenDisplay.setTooltipMode(mode);
+                    nameModeDropdown.close();
+                    onDisplayChanged();
+                });
+
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.back"),
                 btn -> confirmDiscard(), 10, this.height - 25, 50, 18));
@@ -342,6 +406,100 @@ public class StageSettingsScreen extends Screen {
         // doesn't linger after switching modes.
         if (!isTemporary) durationUnitDropdown.close();
         if (!reTrig) cooldownUnitDropdown.close();
+
+        layoutDisplayCard();
+    }
+
+    /** Computes the Display card geometry below the (variable-height) mode card. */
+    private void layoutDisplayCard() {
+        if (nameTextField == null || tooltipTextField == null) return;
+
+        displayCardX = cardX;
+        displayCardW = cardW;
+        displayCardY = cardY + computeCardHeight() + 6;
+
+        int labelW = Math.max(
+                this.font.width(Component.translatable("editor.historystages.display.name").getString()),
+                this.font.width(Component.translatable("editor.historystages.display.tooltip").getString()));
+        displayControlX = displayCardX + 12 + labelW + 8;
+
+        boolean nameReplace = editHiddenDisplay.getNameMode() == DisplayMode.REPLACE;
+        boolean tipReplace = editHiddenDisplay.getTooltipMode() == DisplayMode.REPLACE;
+
+        displayNameRowY = displayCardY + DISP_BODY_TOP;
+        displayTooltipRowY = displayNameRowY + 18 + DISP_ROW_GAP;
+        lockHintsRowY = displayTooltipRowY + 18 + DISP_ROW_GAP;
+        displayCardH = (lockHintsRowY + DISP_TOGGLE_H) - displayCardY + DISP_BOTTOM_PAD;
+
+        // Dropdowns on the left of each row; REPLACE input field to their right.
+        nameModeDropdown.setPosition(displayControlX, displayNameRowY);
+        tooltipModeDropdown.setPosition(displayControlX, displayTooltipRowY);
+
+        int fieldX = displayControlX + DISP_DROPDOWN_W + 8;
+        int fieldW = Math.max(30, (displayCardX + displayCardW - 12) - fieldX);
+        nameTextField.setPosition(fieldX, displayNameRowY);
+        nameTextField.setWidth(fieldW);
+        nameTextField.visible = nameReplace;
+        nameTextField.active = nameReplace;
+        tooltipTextField.setPosition(fieldX, displayTooltipRowY);
+        tooltipTextField.setWidth(fieldW);
+        tooltipTextField.visible = tipReplace;
+        tooltipTextField.active = tipReplace;
+
+        // Lock-hints toggle button geometry (label on the left, button to its right).
+        String label = Component.translatable("editor.historystages.display.show_lock_hints").getString();
+        String value = lockHintsValue();
+        lockHintsToggleX = displayCardX + 12 + this.font.width(label) + 8;
+        lockHintsToggleW = this.font.width(value) + 8;
+    }
+
+    private String lockHintsValue() {
+        return Component.translatable(editHiddenDisplay.isShowLockHints()
+                ? "editor.historystages.display.on"
+                : "editor.historystages.display.off").getString();
+    }
+
+    private void renderDisplayCardContent(GuiGraphics g, int mouseX, int mouseY) {
+        if (displayCardH <= 0) return;
+        int labelX = displayCardX + 12;
+
+        g.drawString(this.font, Component.translatable("editor.historystages.display.name").getString(),
+                labelX, displayNameRowY + 5, 0xAAAAAA, false);
+        g.drawString(this.font, Component.translatable("editor.historystages.display.tooltip").getString(),
+                labelX, displayTooltipRowY + 5, 0xAAAAAA, false);
+
+        nameModeDropdown.renderButton(g, this.font, mouseX, mouseY);
+        tooltipModeDropdown.renderButton(g, this.font, mouseX, mouseY);
+
+        // Show-lock-hints toggle button
+        g.drawString(this.font, Component.translatable("editor.historystages.display.show_lock_hints").getString(),
+                labelX, lockHintsRowY + 3, 0xAAAAAA, false);
+        boolean tHov = mouseX >= lockHintsToggleX && mouseX < lockHintsToggleX + lockHintsToggleW
+                && mouseY >= lockHintsRowY && mouseY < lockHintsRowY + DISP_TOGGLE_H;
+        g.fill(lockHintsToggleX, lockHintsRowY, lockHintsToggleX + lockHintsToggleW, lockHintsRowY + DISP_TOGGLE_H,
+                tHov ? 0xFF3D3520 : 0xFF2A2A2A);
+        g.drawString(this.font, lockHintsValue(), lockHintsToggleX + 4, lockHintsRowY + 3,
+                tHov ? 0xFFCC00 : 0xCCCCCC, false);
+    }
+
+    /** Returns true if a Display-card control consumed the click. */
+    private boolean handleDisplayCardClick(double mouseX, double mouseY) {
+        if (displayCardH <= 0) return false;
+
+        if (mouseX >= lockHintsToggleX && mouseX < lockHintsToggleX + lockHintsToggleW
+                && mouseY >= lockHintsRowY && mouseY < lockHintsRowY + DISP_TOGGLE_H) {
+            editHiddenDisplay.setShowLockHints(!editHiddenDisplay.isShowLockHints());
+            onDisplayChanged();
+            return true;
+        }
+        return false;
+    }
+
+    private void onDisplayChanged() {
+        hasChanges = true;
+        layoutDisplayCard();
+        Minecraft.getInstance().getSoundManager().play(
+                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
     private void save() {
@@ -360,7 +518,7 @@ public class StageSettingsScreen extends Screen {
         }
         saveError = "";
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
-                editMode, editAutoTrigger, editTemporary);
+                editMode, editAutoTrigger, editTemporary, editHiddenDisplay);
         hasChanges = false;
         this.minecraft.setScreen(parent);
     }
@@ -439,7 +597,9 @@ public class StageSettingsScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()
-                || durationField.isFocused() || maxTriggersField.isFocused() || cooldownField.isFocused()) {
+                || durationField.isFocused() || maxTriggersField.isFocused() || cooldownField.isFocused()
+                || (nameTextField != null && nameTextField.isFocused())
+                || (tooltipTextField != null && tooltipTextField.isFocused())) {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (keyCode == 256) { // ESC
@@ -470,12 +630,19 @@ public class StageSettingsScreen extends Screen {
                 Component.translatable("editor.historystages.mode.label").getString(),
                 labelX, 71, 0xAAAAAA, false);
 
+        // Keep the Display card laid out below the (variable-height) mode card.
+        layoutDisplayCard();
+
         // --- Mode card chrome (drawn BEFORE widgets so they sit on top) ---
         int cardH = computeCardHeight();
         renderCard(guiGraphics, cardX, cardY, cardW, cardH, modeCardKey(editMode));
+        renderCard(guiGraphics, displayCardX, displayCardY, displayCardW, displayCardH,
+                "editor.historystages.display.card");
 
         // Now the widgets (EditBoxes + StyledButtons) render over the card
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+        renderDisplayCardContent(guiGraphics, mouseX, mouseY);
 
         int bodyY = cardY + 28;
 
@@ -557,6 +724,8 @@ public class StageSettingsScreen extends Screen {
         if (modeDropdownOpen) {
             renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
         }
+        nameModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        tooltipModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
     }
 
     private int computeCardHeight() {
@@ -682,6 +851,9 @@ public class StageSettingsScreen extends Screen {
                 return true;
             }
         }
+        if (nameModeDropdown.mouseClicked(mouseX, mouseY)) return true;
+        if (tooltipModeDropdown.mouseClicked(mouseX, mouseY)) return true;
+        if (button == 0 && handleDisplayCardClick(mouseX, mouseY)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 

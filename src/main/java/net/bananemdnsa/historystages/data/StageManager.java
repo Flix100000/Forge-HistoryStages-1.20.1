@@ -77,10 +77,13 @@ public class StageManager {
             "display_name", "research_time", "icon", "items", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies",
             "min_pedestal_tier", "pedestal_tier_mode",
-            "mode", "auto_trigger", "temporary"
+            "mode", "auto_trigger", "temporary", "hidden_display"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "modLinked"
+    );
+    private static final Set<String> KNOWN_HIDDEN_DISPLAY_KEYS = Set.of(
+            "name_mode", "name_text", "tooltip_mode", "tooltip_text", "show_lock_hints"
     );
     private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
             "structures", "mod_linked"
@@ -266,8 +269,31 @@ public class StageManager {
                     }
                 }
             }
+            // Check hidden_display sub-keys
+            if (json.has("hidden_display") && json.get("hidden_display").isJsonObject()) {
+                JsonObject hd = json.getAsJsonObject("hidden_display");
+                for (String key : hd.keySet()) {
+                    if (!KNOWN_HIDDEN_DISPLAY_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown hidden_display key '" + key + "' in stage '" + stageId + "'. Typo?");
+                        DebugLogger.warn("Unknown Keys", "Unknown key 'hidden_display." + key + "' in stage '" + stageId + "'. Known hidden_display keys: " + KNOWN_HIDDEN_DISPLAY_KEYS + ".");
+                    }
+                }
+                // Name supports only off/replace; tooltip additionally supports hidden.
+                checkDisplayMode(stageId, hd, "name_mode", Set.of("off", "replace"));
+                checkDisplayMode(stageId, hd, "tooltip_mode", Set.of("off", "hidden", "replace"));
+            }
         } catch (Exception ignored) {
             // JSON parsing errors are handled in the main load loop
+        }
+    }
+
+    private static void checkDisplayMode(String stageId, JsonObject hd, String key, Set<String> allowed) {
+        if (!hd.has(key) || !hd.get(key).isJsonPrimitive()) return;
+        String val = hd.get(key).getAsString().trim().toLowerCase(java.util.Locale.ROOT);
+        if (!allowed.contains(val)) {
+            addMessage(MessageLevel.WARN, "Invalid hidden_display." + key + " '" + val + "' in stage '" + stageId + "'.");
+            DebugLogger.warn("Invalid Values", "Invalid value 'hidden_display." + key + "' = '" + val
+                    + "' in stage '" + stageId + "'. Allowed: " + allowed + ". Defaults to 'off'.");
         }
     }
 

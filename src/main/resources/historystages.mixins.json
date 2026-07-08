@@ -10,6 +10,7 @@
     "EnchantmentMenuMixin"
   ],
   "client": [
+    "ItemStackMixin",
     "ClientAdvancementsAccessor",
     "toast.ToastComponentMixin",
     "toast.ToastComponentAccessor",
