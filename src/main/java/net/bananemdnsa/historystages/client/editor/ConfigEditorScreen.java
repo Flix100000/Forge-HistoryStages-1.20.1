@@ -967,6 +967,13 @@ public class ConfigEditorScreen extends Screen {
                 net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
             } catch (Throwable ignored) {}
         }
+
+        // EMI: rebuild its index so booster/config changes show up immediately.
+        if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
+            try {
+                net.bananemdnsa.historystages.emi.EmiReloadBridge.reloadIfPresent();
+            } catch (Throwable ignored) {}
+        }
     }
 
     private void applyClientConfig(Map<String, String> values) {

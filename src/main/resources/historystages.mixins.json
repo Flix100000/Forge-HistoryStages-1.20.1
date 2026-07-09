@@ -16,7 +16,11 @@
     "toast.ToastComponentAccessor",
     "toast.ToastInstanceMixin",
     "toast.ToastInstanceAccessor",
-    "jei.RecipeLayoutMixin"
+    "jei.RecipeLayoutMixin",
+    "emi.RecipeScreenMixin",
+    "emi.ItemEmiStackMixin",
+    "emi.StackBatcherMixin",
+    "emi.SlotWidgetMixin"
   ],
   "injectors": {
     "defaultRequire": 1

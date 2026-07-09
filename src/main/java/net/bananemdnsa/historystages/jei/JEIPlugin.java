@@ -16,8 +16,8 @@ import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.util.ScrollVariants;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -58,10 +58,8 @@ public class JEIPlugin implements IModPlugin {
     public void registerItemSubtypes(ISubtypeRegistration registration) {
         // Tell JEI that scrolls with different StageResearch values are different items
         IIngredientSubtypeInterpreter<ItemStack> interpreter = (stack, context) -> {
-            if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                return stack.getTag().getString("StageResearch");
-            }
-            return IIngredientSubtypeInterpreter.NONE;
+            String stage = ScrollVariants.readStageResearch(stack);
+            return stage != null ? stage : IIngredientSubtypeInterpreter.NONE;
         };
         registration.registerSubtypeInterpreter(ModItems.RESEARCH_SCROLL.get(), interpreter);
         registration.registerSubtypeInterpreter(ModItems.CREATIVE_SCROLL.get(), interpreter);
@@ -70,21 +68,7 @@ public class JEIPlugin implements IModPlugin {
     @Override
     public void onRuntimeAvailable(IJeiRuntime jeiRuntime) {
         // Add one scroll variant per stage so they appear in JEI
-        List<ItemStack> scrolls = new ArrayList<>();
-
-        for (var stageEntry : StageManager.getStages().entrySet()) {
-            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
-            scrolls.add(scroll);
-        }
-
-        for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
-            if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            scroll.getOrCreateTag().putString("StageResearch", stageEntry.getKey());
-            scrolls.add(scroll);
-        }
+        List<ItemStack> scrolls = ScrollVariants.buildAllStageScrolls();
 
         if (!scrolls.isEmpty()) {
             jeiRuntime.getIngredientManager().addIngredientsAtRuntime(VanillaTypes.ITEM_STACK, scrolls);

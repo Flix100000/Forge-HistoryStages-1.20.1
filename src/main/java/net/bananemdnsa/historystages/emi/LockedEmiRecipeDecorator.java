@@ -11,7 +11,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.Recipe;
 
 /**
  * Draws a "locked" overlay on EMI recipes whose output items or recipe IDs are stage-locked.
@@ -26,43 +25,40 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         int width = widgets.getWidth();
         int height = widgets.getHeight();
 
-        // Semi-transparent dark overlay rendered above everything
+        // Semi-transparent dark overlay: z=200 sits above the recipe's item icons (~150) but below
+        // tooltips (~400), so the "Locked" tooltip renders on top of the overlay rather than under it.
         widgets.addDrawable(0, 0, width, height, (guiGraphics, mouseX, mouseY, delta) -> {
             guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0, 0, 400);
+            guiGraphics.pose().translate(0, 0, 200);
 
             guiGraphics.fill(0, 0, width, height, 0xBB000000);
 
             Font font = Minecraft.getInstance().font;
-            String text = "\u00A7c\u00A7l\u2716 Locked";
+            String text = "§c§l✖ Locked";
             int textWidth = font.width(text);
             guiGraphics.drawString(font, text, (width - textWidth) / 2, height / 2 - 4, 0xFFFFFF, true);
 
             guiGraphics.pose().popPose();
-        }).tooltipText(java.util.List.of(
+        }).tooltipText(lockedTooltipLines());
+    }
+
+    /** The tooltip shown when hovering a locked recipe. Shared with the RecipeScreen/SlotWidget mixins. */
+    public static java.util.List<Component> lockedTooltipLines() {
+        return java.util.List.of(
                 Component.translatable("tooltip.historystages.emi.stage_locked"),
                 Component.translatable("tooltip.historystages.emi.line1"),
                 Component.translatable("tooltip.historystages.emi.line2")
-        ));
+        );
     }
 
-    private boolean isRecipeLocked(EmiRecipe recipe) {
+    public static boolean isRecipeLocked(EmiRecipe recipe) {
         // 1. Check by recipe ID
         ResourceLocation recipeId = recipe.getId();
         if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {
             return true;
         }
 
-        // 2. Check via backing vanilla recipe
-        Recipe<?> backing = recipe.getBackingRecipe();
-        if (backing != null) {
-            ResourceLocation backingId = backing.getId();
-            if (backingId != null && StageManager.isRecipeIdLocked(backingId.toString(), true)) {
-                return true;
-            }
-        }
-
-        // 3. Check by output items
+        // 2. Check by output items
         for (EmiStack output : recipe.getOutputs()) {
             ItemStack stack = output.getItemStack();
             if (!stack.isEmpty() && StageLockHelper.isActionLockedForClient(stack, "recipe")) {
