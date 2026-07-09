@@ -158,6 +158,15 @@ public class StageEntry {
         return tags.stream().map(NamedLockEntry::getId).collect(Collectors.toCollection(ArrayList::new));
     }
 
+    /** Tag IDs WITHOUT an NBT criterion — for stackless matching paths where NBT can't be evaluated. */
+    public List<String> getNbtFreeTags() {
+        if (tags == null) return new ArrayList<>();
+        return tags.stream()
+                .filter(t -> !t.hasNbt())
+                .map(NamedLockEntry::getId)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
     /** Returns the full tag entries including lock_actions. */
     public List<NamedLockEntry> getTagEntries() {
         return tags != null ? tags : new ArrayList<>();

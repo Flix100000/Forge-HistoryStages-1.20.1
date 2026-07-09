@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 public class NbtItemEditScreen extends Screen {
     private final Screen parent;
     private final String itemId;
+    private final boolean tagMode;
     private final JsonObject currentNbt;
     private final Consumer<JsonObject> onSave;
 
@@ -59,9 +60,14 @@ public class NbtItemEditScreen extends Screen {
     private static List<String> potionIds = null;
 
     public NbtItemEditScreen(Screen parent, String itemId, JsonObject currentNbt, Consumer<JsonObject> onSave) {
+        this(parent, itemId, false, currentNbt, onSave);
+    }
+
+    public NbtItemEditScreen(Screen parent, String itemId, boolean tagMode, JsonObject currentNbt, Consumer<JsonObject> onSave) {
         super(Component.translatable("editor.historystages.nbt.title"));
         this.parent = parent;
         this.itemId = itemId;
+        this.tagMode = tagMode;
         this.currentNbt = currentNbt;
         this.onSave = onSave;
     }
@@ -271,14 +277,18 @@ public class NbtItemEditScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.fill(0, 0, this.width, this.height, 0xE0101010);
 
-        // Header: item display
-        Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
-        if (item != null) {
-            ItemStack stack = new ItemStack(item);
-            g.renderItem(stack, PADDING, 10);
-            g.drawString(this.font, item.getDescription(), PADDING + 22, 14, 0xFFFFFF);
+        // Header: item display (tag mode shows the tag id, no icon)
+        if (tagMode) {
+            g.drawString(this.font, "#" + itemId, PADDING, 14, 0xFFFFFF);
+        } else {
+            Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId));
+            if (item != null) {
+                ItemStack stack = new ItemStack(item);
+                g.renderItem(stack, PADDING, 10);
+                g.drawString(this.font, item.getDescription(), PADDING + 22, 14, 0xFFFFFF);
+            }
+            g.drawString(this.font, itemId, PADDING + 22, 28, 0x888888);
         }
-        g.drawString(this.font, itemId, PADDING + 22, 28, 0x888888);
         g.drawString(this.font, Component.translatable("editor.historystages.nbt.header"), PADDING, HEADER_HEIGHT - 16, 0xFFCC00);
 
         // Separator

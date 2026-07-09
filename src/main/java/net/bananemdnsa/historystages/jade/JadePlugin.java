@@ -140,7 +140,8 @@ public class JadePlugin implements IWailaPlugin {
                 boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
                         stage.getItems().contains(itemID) ||
                         matchesNbtItem(stage, itemID, blockItem) ||
-                        blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                        blockItem.getTags().anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                        matchesNbtTag(stage, blockItem);
 
                 if (isListed) {
                     totalRequiredStages.add(stage);
@@ -166,7 +167,8 @@ public class JadePlugin implements IWailaPlugin {
                     boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, blockItem)) ||
                             stage.getItems().contains(itemID) ||
                             matchesNbtItem(stage, itemID, blockItem) ||
-                            blockItem.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                            blockItem.getTags().anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                            matchesNbtTag(stage, blockItem);
 
                     if (isListed) {
                         individualRequiredStages.add(stage);
@@ -228,7 +230,8 @@ public class JadePlugin implements IWailaPlugin {
                     boolean isListed = (stage.getMods().contains(modID) && !stage.isModExcepted(itemID, stack)) ||
                             stage.getItems().contains(itemID) ||
                             matchesNbtItem(stage, itemID, stack) ||
-                            stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                            stack.getTags().anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                            matchesNbtTag(stage, stack);
 
                     if (isListed && !totalRequiredStages.contains(stage)) {
                         totalRequiredStages.add(stage);
@@ -263,7 +266,8 @@ public class JadePlugin implements IWailaPlugin {
                         boolean isListed = (stage.getMods().contains(indModID) && !stage.isModExcepted(indItemID, stack)) ||
                                 stage.getItems().contains(indItemID) ||
                                 matchesNbtItem(stage, indItemID, stack) ||
-                                stack.getTags().anyMatch(tag -> stage.getTags().contains(tag.location().toString()));
+                                stack.getTags().anyMatch(tag -> stage.getNbtFreeTags().contains(tag.location().toString())) ||
+                                matchesNbtTag(stage, stack);
 
                         if (isListed && !individualRequiredStages.contains(stage)) {
                             individualRequiredStages.add(stage);
@@ -328,6 +332,14 @@ public class JadePlugin implements IWailaPlugin {
             if (itemEntry.getId().equals(itemID) && itemEntry.hasNbt()) {
                 if (NbtMatcher.matches(stack, itemEntry.getNbt())) return true;
             }
+        }
+        return false;
+    }
+
+    private static boolean matchesNbtTag(StageEntry stage, ItemStack stack) {
+        net.minecraft.world.item.Item item = stack.getItem();
+        for (net.bananemdnsa.historystages.data.NamedLockEntry tagEntry : stage.getTagEntries()) {
+            if (tagEntry.hasNbt() && net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
         }
         return false;
     }

@@ -83,6 +83,7 @@ public class StageDetailScreen extends Screen {
     private final Map<Integer, String> editModTooltipText = new HashMap<>();
     private final List<String> editTags;
     private final Map<Integer, List<String>> editTagLockActions;
+    private final Map<Integer, com.google.gson.JsonObject> editTagNbt = new HashMap<>();
     private final List<String> editMods;
     private final Map<Integer, List<String>> editModLockActions;
     private final List<String> editModExceptions;
@@ -332,6 +333,9 @@ public class StageDetailScreen extends Screen {
             net.bananemdnsa.historystages.data.NamedLockEntry te = tagEntries.get(idx);
             if (te.hasLockActions()) {
                 editTagLockActions.put(idx, new ArrayList<>(te.getLockActions()));
+            }
+            if (te.hasNbt()) {
+                editTagNbt.put(idx, te.getNbt().deepCopy());
             }
             if (te.hasNameTextOverride()) editTagNameText.put(idx, te.getNameTextOverride());
             if (te.hasTooltipTextOverride()) editTagTooltipText.put(idx, te.getTooltipTextOverride());
@@ -1163,9 +1167,12 @@ public class StageDetailScreen extends Screen {
                     textOffsetX = 22;
                 }
 
-                // NBT badge for items tab and exceptions tab
+                // NBT badge for items tab, tags tab, and exceptions tab
                 int badgeW = 0;
-                if (isItemsTab && editItemNbt.containsKey(i) || isExceptionsTab && editModExceptionNbt.containsKey(i)) {
+                boolean isTagsTab = activeTab == 1;
+                if (isItemsTab && editItemNbt.containsKey(i)
+                        || isTagsTab && editTagNbt.containsKey(i)
+                        || isExceptionsTab && editModExceptionNbt.containsKey(i)) {
                     String badge = "\u00A76[NBT]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0xFFCC00, false);
@@ -2793,6 +2800,10 @@ public class StageDetailScreen extends Screen {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openNbtEditScreen(entryIdx, entryValue));
                     }
+                    if (tabIdx == 1) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
+                                () -> openTagNbtEditScreen(entryIdx, entryValue));
+                    }
                     if (tabIdx == 0 || tabIdx == 1 || tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.lock_actions").getString(),
                                 () -> openLockActionsPopup(tabIdx, entryIdx));
@@ -2856,8 +2867,16 @@ public class StageDetailScreen extends Screen {
                             shiftStringMap(editItemNameText, entryIdx);
                             shiftStringMap(editItemTooltipText, entryIdx);
                         }
-                        // When removing a tag, shift lockActions + override indices
+                        // When removing a tag, shift NBT, lockActions + override indices
                         if (tabIdx == 1) {
+                            editTagNbt.remove(entryIdx);
+                            Map<Integer, com.google.gson.JsonObject> shiftedTagNbt = new HashMap<>();
+                            for (var e : editTagNbt.entrySet()) {
+                                int key = e.getKey();
+                                shiftedTagNbt.put(key > entryIdx ? key - 1 : key, e.getValue());
+                            }
+                            editTagNbt.clear();
+                            editTagNbt.putAll(shiftedTagNbt);
                             shiftLockActionsMap(editTagLockActions, entryIdx);
                             shiftStringMap(editTagNameText, entryIdx);
                             shiftStringMap(editTagTooltipText, entryIdx);
@@ -3089,6 +3108,18 @@ public class StageDetailScreen extends Screen {
                 editItemNbt.put(entryIdx, nbt);
             } else {
                 editItemNbt.remove(entryIdx);
+            }
+            hasChanges = true;
+        }));
+    }
+
+    private void openTagNbtEditScreen(int entryIdx, String tagId) {
+        com.google.gson.JsonObject currentNbt = editTagNbt.get(entryIdx);
+        this.minecraft.setScreen(new NbtItemEditScreen(this, tagId, true, currentNbt, nbt -> {
+            if (nbt != null) {
+                editTagNbt.put(entryIdx, nbt);
+            } else {
+                editTagNbt.remove(entryIdx);
             }
             hasChanges = true;
         }));
@@ -3569,7 +3600,8 @@ public class StageDetailScreen extends Screen {
         for (int idx = 0; idx < editTags.size(); idx++) {
             tagEntries.add(new net.bananemdnsa.historystages.data.NamedLockEntry(
                     editTags.get(idx), editTagLockActions.get(idx),
-                    editTagNameText.get(idx), editTagTooltipText.get(idx)));
+                    editTagNameText.get(idx), editTagTooltipText.get(idx),
+                    editTagNbt.get(idx)));
         }
         newEntry.setTagEntries(tagEntries);
         List<net.bananemdnsa.historystages.data.NamedLockEntry> modEntries = new ArrayList<>();

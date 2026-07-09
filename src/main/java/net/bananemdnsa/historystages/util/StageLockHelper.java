@@ -501,13 +501,9 @@ public class StageLockHelper {
         if (entry.getMods().contains(modId) && !entry.isModExcepted(itemId, stack)) return true;
 
         net.minecraft.world.item.Item item = stack.getItem();
-        if (item != null && entry.getTags() != null) {
-            for (String tagId : entry.getTags()) {
-                var tagKey = net.minecraft.tags.TagKey.create(
-                        net.minecraft.core.registries.Registries.ITEM,
-                        new ResourceLocation(tagId)
-                );
-                if (item.builtInRegistryHolder().is(tagKey)) return true;
+        if (item != null) {
+            for (net.bananemdnsa.historystages.data.NamedLockEntry tagEntry : entry.getTagEntries()) {
+                if (net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
             }
         }
 
