@@ -75,3 +75,19 @@ mandatory=false
 versionRange="[5,)"
 ordering="AFTER"
 side="BOTH"
+
+# Optional: Spell Engine (make locked caster items inert against spell casting)
+[[dependencies.historystages]]
+modId="spell_engine"
+mandatory=false
+versionRange="[1.9,)"
+ordering="AFTER"
+side="BOTH"
+
+# Optional: Better Combat (suppress attack/upswing animation for locked weapons)
+[[dependencies.historystages]]
+modId="bettercombat"
+mandatory=false
+versionRange="[2.3,)"
+ordering="AFTER"
+side="BOTH"

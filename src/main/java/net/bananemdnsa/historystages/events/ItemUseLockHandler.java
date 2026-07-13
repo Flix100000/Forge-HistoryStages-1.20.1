@@ -144,6 +144,35 @@ public class ItemUseLockHandler {
     }
 
     /**
+     * Prevents interacting with entities (right-click) using a locked item — e.g. applying
+     * an item to a mob. Custom mod casts that travel as their own packets are NOT covered here
+     * (no vanilla event fires); see the Spell Engine compat adapter.
+     */
+    @SubscribeEvent
+    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        handleEntityUse(event.getEntity(), event.getItemStack(), event);
+    }
+
+    @SubscribeEvent
+    public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        handleEntityUse(event.getEntity(), event.getItemStack(), event);
+    }
+
+    private static void handleEntityUse(Player player, ItemStack heldItem, PlayerInteractEvent event) {
+        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
+        if (heldItem.isEmpty()) return;
+        if (isActionLocked(heldItem, player, "use")) {
+            event.setCanceled(true);
+            if (!player.level().isClientSide()) {
+                ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(heldItem.getItem());
+                DebugLogger.runtimeThrottled("Item Use Lock", "entityuse_" + player.getUUID() + "_" + itemRL,
+                        "<" + player.getName().getString() + "> Use on entity with '" + itemRL + "' blocked [action: use]");
+                showMessage(player);
+            }
+        }
+    }
+
+    /**
      * Prevents equipping locked items in armor or offhand slots.
      * If a locked item is equipped, it is removed and returned to the inventory (or dropped).
      * Server-side only — the server corrects the client state automatically.

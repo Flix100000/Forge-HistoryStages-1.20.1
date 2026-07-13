@@ -96,6 +96,13 @@ public class HistoryStages {
             }
         }
 
+        // Optional per-mod lock adapters (custom actions that bypass vanilla interaction events).
+        try {
+            net.bananemdnsa.historystages.spellengine.LockInterceptors.init();
+        } catch (Throwable t) {
+            LOGGER.error("[HistoryStages] Failed to init lock interceptors.", t);
+        }
+
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new net.bananemdnsa.historystages.events.AutoTriggerEventBridge());
     }
