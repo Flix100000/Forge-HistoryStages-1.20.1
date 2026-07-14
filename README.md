@@ -24,6 +24,10 @@ Stages can unlock **server-wide** (global), **per player** (individual), or use 
 
 Full documentation, configuration details, and usage examples are available on the [Wiki](https://github.com/Flix100000/History-Stages/wiki).
 
+## Community
+
+Questions, support, or just want to follow development? Join our [Discord server](https://discord.gg/BeZzxyZ9c4).
+
 ## Issues & Bug Reports
 
 Found a bug or have a feature request? Please open an issue on the [Issue Tracker](https://github.com/Flix100000/History-Stages/issues).
