@@ -13,8 +13,8 @@ import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
 import net.minecraft.nbt.CompoundTag;
@@ -80,7 +80,7 @@ public class HistoryStages {
 
         if (ModList.get().isLoaded("ftbquests")) {
             try {
-                net.bananemdnsa.historystages.ftbquests.FTBQuestsIntegration.init();
+                net.bananemdnsa.historystages.compat.ftbquests.FTBQuestsIntegration.init();
                 LOGGER.info("[HistoryStages] FTB Quests integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load FTB Quests integration.", e);
@@ -89,7 +89,7 @@ public class HistoryStages {
 
         if (ModList.get().isLoaded("curios")) {
             try {
-                MinecraftForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.CuriosEquipLockHandler.class);
+                MinecraftForge.EVENT_BUS.register(net.bananemdnsa.historystages.events.lock.CuriosEquipLockHandler.class);
                 LOGGER.info("[HistoryStages] Curios integration loaded.");
             } catch (Exception e) {
                 LOGGER.error("[HistoryStages] Failed to load Curios integration.", e);
@@ -281,7 +281,7 @@ public class HistoryStages {
             // Drop temporary-stage state for stages that no longer exist.
             java.util.Set<String> keep = new java.util.HashSet<>(StageManager.getStages().keySet());
             keep.addAll(StageManager.getIndividualStages().keySet());
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(sl).pruneOrphans(keep);
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(sl).pruneOrphans(keep);
 
             // Only run once per server session (onWorldLoad fires for each dimension)
             if (!serverInitialized) {
@@ -323,7 +323,7 @@ public class HistoryStages {
         // Advance temporary-mode re-lock timers / cooldowns.
         var tempServer = event.getServer();
         if (tempServer != null && tempServer.overworld() != null && tickCounter % 20 == 0) {
-            net.bananemdnsa.historystages.util.TemporaryStageData.get(tempServer.overworld())
+            net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(tempServer.overworld())
                     .tick(tempServer, tickCounter, HistoryStages::resolveTemporaryConfig);
         }
 
@@ -363,10 +363,10 @@ public class HistoryStages {
             ItemStack stack = inv.getItem(i);
             if (stack.isEmpty()) continue;
 
-            boolean locked = net.bananemdnsa.historystages.util.StageLockHelper
+            boolean locked = net.bananemdnsa.historystages.util.lock.StageLockHelper
                     .isActionLockedForServer(stack, "pickup")
                     || (Config.COMMON.individualLockItemPickup.get()
-                        && net.bananemdnsa.historystages.util.StageLockHelper
+                        && net.bananemdnsa.historystages.util.lock.StageLockHelper
                             .isActionLockedByIndividualStage(stack, player.getUUID(), "pickup"));
             if (!locked) continue;
 
@@ -398,7 +398,7 @@ public class HistoryStages {
 
         // Individual stages: prevent pickup of individually-locked items (respects lock_actions)
         if (Config.COMMON.individualLockItemPickup.get()
-                && net.bananemdnsa.historystages.util.StageLockHelper
+                && net.bananemdnsa.historystages.util.lock.StageLockHelper
                         .isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
             event.setCanceled(true);
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());
@@ -408,7 +408,7 @@ public class HistoryStages {
         }
 
         // Global stages: prevent pickup when "pickup" action is locked
-        if (net.bananemdnsa.historystages.util.StageLockHelper
+        if (net.bananemdnsa.historystages.util.lock.StageLockHelper
                 .isActionLockedForServer(stack, "pickup")) {
             event.setCanceled(true);
             ResourceLocation itemRL = ForgeRegistries.ITEMS.getKey(stack.getItem());

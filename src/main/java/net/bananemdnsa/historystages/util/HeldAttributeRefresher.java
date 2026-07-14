@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.util;
 import com.google.common.collect.Multimap;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.util.lock.LockGate;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeMap;

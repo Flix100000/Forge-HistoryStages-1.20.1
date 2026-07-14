@@ -11,10 +11,10 @@ import net.bananemdnsa.historystages.research.ResearchBooster;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.bananemdnsa.historystages.client.display.HiddenDisplayResolver;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
-import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
-import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.util.SearchHiddenContents;
-import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -274,7 +274,7 @@ public class TooltipEventHandler {
 
     private static boolean matchesNbtTag(StageEntry stage, ItemStack stack) {
         net.minecraft.world.item.Item item = stack.getItem();
-        for (net.bananemdnsa.historystages.data.NamedLockEntry tagEntry : stage.getTagEntries()) {
+        for (net.bananemdnsa.historystages.data.lock.NamedLockEntry tagEntry : stage.getTagEntries()) {
             if (tagEntry.hasNbt() && net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
         }
         return false;

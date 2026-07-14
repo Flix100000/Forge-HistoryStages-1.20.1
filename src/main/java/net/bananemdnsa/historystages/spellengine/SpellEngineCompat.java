@@ -8,9 +8,9 @@ import com.mojang.logging.LogUtils;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.util.LockFeedback;
-import net.bananemdnsa.historystages.util.LockGate;
-import net.bananemdnsa.historystages.util.LockMessages;
+import net.bananemdnsa.historystages.util.lock.LockFeedback;
+import net.bananemdnsa.historystages.util.lock.LockGate;
+import net.bananemdnsa.historystages.util.lock.LockMessages;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;

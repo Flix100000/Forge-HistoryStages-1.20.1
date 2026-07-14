@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.graph;
 
-import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;

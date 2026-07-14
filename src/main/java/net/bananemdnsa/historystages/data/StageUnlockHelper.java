@@ -6,8 +6,8 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.StageUnlockedToastPacket;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -144,7 +144,7 @@ public final class StageUnlockHelper {
                 player
         );
 
-        net.bananemdnsa.historystages.util.StageLockHelper.dropLockedItemsForPlayer(player, stageId);
+        net.bananemdnsa.historystages.util.lock.StageLockHelper.dropLockedItemsForPlayer(player, stageId);
 
         // Config-gated "locked" feedback to the affected player.
         notifyIndividualLock(player, displayName);

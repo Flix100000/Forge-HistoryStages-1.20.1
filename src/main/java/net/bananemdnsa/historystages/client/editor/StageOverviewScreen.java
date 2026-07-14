@@ -10,7 +10,7 @@ import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveStagePacket;
 import net.bananemdnsa.historystages.network.ToggleStageLockPacket;
-import net.bananemdnsa.historystages.util.ClientStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;

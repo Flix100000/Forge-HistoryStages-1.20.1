@@ -13,8 +13,8 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
-import net.bananemdnsa.historystages.client.editor.widget.SearchableItemList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchableTagList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
 
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -964,14 +964,14 @@ public class ConfigEditorScreen extends Screen {
         // JEI hiding (Issue #64): live-apply config changes if JEI is loaded.
         if (net.minecraftforge.fml.ModList.get().isLoaded("jei")) {
             try {
-                net.bananemdnsa.historystages.jei.JEIPlugin.tryApplyDiff();
+                net.bananemdnsa.historystages.compat.jei.JEIPlugin.tryApplyDiff();
             } catch (Throwable ignored) {}
         }
 
         // EMI: rebuild its index so booster/config changes show up immediately.
         if (net.minecraftforge.fml.ModList.get().isLoaded("emi")) {
             try {
-                net.bananemdnsa.historystages.emi.EmiReloadBridge.reloadIfPresent();
+                net.bananemdnsa.historystages.compat.emi.EmiReloadBridge.reloadIfPresent();
             } catch (Throwable ignored) {}
         }
     }
@@ -2070,7 +2070,7 @@ public class ConfigEditorScreen extends Screen {
 
         private EditBox speedField;
         private EditBox costField;
-        private net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown tierDropdown;
+        private net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown tierDropdown;
         private net.minecraft.client.gui.components.Button modeButton;
 
         // Working copies — only written back on Save.
@@ -2120,7 +2120,7 @@ public class ConfigEditorScreen extends Screen {
             });
             this.addRenderableWidget(costField);
 
-            tierDropdown = new net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown(
+            tierDropdown = new net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown(
                     editTier, 160, picked -> editTier = picked);
             tierDropdown.setPosition(fieldX, 88);
 

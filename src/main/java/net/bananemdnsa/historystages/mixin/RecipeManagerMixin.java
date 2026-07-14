@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.mixin;
 
 import net.bananemdnsa.historystages.events.RecipeHandler;
 import net.bananemdnsa.historystages.util.AllRecipesCache;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.profiling.ProfilerFiller;

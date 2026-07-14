@@ -1,9 +1,9 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
-import net.bananemdnsa.historystages.client.editor.widget.DisplayModeDropdown;
-import net.bananemdnsa.historystages.client.editor.widget.DurationUnitDropdown;
-import net.bananemdnsa.historystages.client.editor.widget.PedestalTierDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DurationUnitDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
 import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;

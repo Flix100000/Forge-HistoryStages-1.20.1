@@ -7,10 +7,10 @@ import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.util.AutoTriggerGlobalData;
-import net.bananemdnsa.historystages.util.AutoTriggerProgressData;
-import net.bananemdnsa.historystages.util.IndividualStageData;
-import net.bananemdnsa.historystages.util.StageData;
+import net.bananemdnsa.historystages.data.saveddata.AutoTriggerGlobalData;
+import net.bananemdnsa.historystages.data.saveddata.AutoTriggerProgressData;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
+import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -139,7 +139,7 @@ public final class AutoTriggerManager {
                                                ServerPlayer player, ServerLevel level,
                                                net.bananemdnsa.historystages.data.temporary.TemporaryConfig cfg) {
         int maxTriggers = cfg != null ? cfg.getMaxTriggers() : 1;
-        var data = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        var data = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(level);
         return isIndividual
                 ? data.isIndividualEligible(player.getUUID(), stageId, maxTriggers)
                 : data.isGlobalEligible(stageId, maxTriggers);
@@ -151,7 +151,7 @@ public final class AutoTriggerManager {
         if (cfg == null) {
             cfg = new net.bananemdnsa.historystages.data.temporary.TemporaryConfig();
         }
-        var data = net.bananemdnsa.historystages.util.TemporaryStageData.get(level);
+        var data = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(level);
         if (isIndividual) {
             data.startIndividualTimer(player.getUUID(), stageId, cfg.durationTicks());
         } else {

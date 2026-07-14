@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.mixin.bettercombat;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.util.LockGate;
+import net.bananemdnsa.historystages.util.lock.LockGate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.item.ItemStack;

@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.events;
 
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;

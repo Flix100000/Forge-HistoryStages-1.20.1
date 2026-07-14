@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.util.StageLockHelper;
+import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;

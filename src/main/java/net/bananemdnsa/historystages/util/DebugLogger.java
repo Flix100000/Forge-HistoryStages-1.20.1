@@ -2,9 +2,9 @@ package net.bananemdnsa.historystages.util;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.EntityLocks;
+import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.ItemEntry;
-import net.bananemdnsa.historystages.data.NamedLockEntry;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.minecraftforge.fml.ModList;
@@ -334,10 +334,10 @@ public class DebugLogger {
         }
     }
 
-    private static void printSpawnlockEntries(PrintWriter pw, List<net.bananemdnsa.historystages.data.EntitySpawnLockEntry> entries) {
+    private static void printSpawnlockEntries(PrintWriter pw, List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> entries) {
         if (entries == null || entries.isEmpty()) return;
         pw.println("  Entities (spawnlock) (" + entries.size() + "):");
-        for (net.bananemdnsa.historystages.data.EntitySpawnLockEntry entry : entries) {
+        for (net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry entry : entries) {
             StringBuilder sb = new StringBuilder("    - ").append(entry.getId());
             if (entry.hasLockSources()) sb.append(" [sources: ").append(String.join(", ", entry.getLockSources())).append("]");
             pw.println(sb.toString());

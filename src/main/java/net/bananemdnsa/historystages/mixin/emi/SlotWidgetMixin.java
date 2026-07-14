@@ -1,8 +1,8 @@
 package net.bananemdnsa.historystages.mixin.emi;
 
 import dev.emi.emi.api.recipe.EmiRecipe;
-import net.bananemdnsa.historystages.emi.EmiRecipeLookup;
-import net.bananemdnsa.historystages.emi.LockedEmiRecipeDecorator;
+import net.bananemdnsa.historystages.compat.emi.EmiRecipeLookup;
+import net.bananemdnsa.historystages.compat.emi.LockedEmiRecipeDecorator;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Pseudo;

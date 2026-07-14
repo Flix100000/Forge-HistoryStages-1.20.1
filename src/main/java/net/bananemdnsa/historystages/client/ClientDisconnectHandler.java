@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.util.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;

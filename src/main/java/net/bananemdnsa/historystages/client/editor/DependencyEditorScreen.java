@@ -1,11 +1,16 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
+
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.bananemdnsa.historystages.client.editor.widget.*;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.*;
+import net.bananemdnsa.historystages.client.editor.widget.list.*;
+import net.bananemdnsa.historystages.client.editor.widget.popup.*;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.*;

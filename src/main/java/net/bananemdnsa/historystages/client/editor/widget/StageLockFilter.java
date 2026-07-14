@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
 import net.bananemdnsa.historystages.data.ItemEntry;
-import net.bananemdnsa.historystages.data.NamedLockEntry;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;

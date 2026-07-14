@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data;
 
+import net.bananemdnsa.historystages.data.lock.EntityLocks;
+import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -1204,11 +1208,11 @@ public class StageManager {
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             if (entry.getValue().getRecipes().contains(recipeId)) {
                 if (isClientSide) {
-                    if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(entry.getKey())) {
+                    if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(entry.getKey())) {
                         return true;
                     }
                 } else {
-                    if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(entry.getKey())) {
+                    if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(entry.getKey())) {
                         return true;
                     }
                 }
@@ -1231,7 +1235,7 @@ public class StageManager {
         // NEUE LOGIK: Das Item ist GESPERRT, wenn mindestens EINE der benötigten Stages FEHLT
         // (Der Spieler muss also ALLE Stages besitzen, um es zu sehen)
         for (String stage : requiredStages) {
-            if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
+            if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) {
                 return true; // Eine Stage fehlt noch -> Item bleibt gesperrt
             }
         }
@@ -1253,11 +1257,11 @@ public class StageManager {
 
         for (String stage : requiredStages) {
             if (isClientSide) {
-                if (!net.bananemdnsa.historystages.util.ClientStageCache.isStageUnlocked(stage)) {
+                if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(stage)) {
                     return true;
                 }
             } else {
-                if (!net.bananemdnsa.historystages.util.StageData.SERVER_CACHE.contains(stage)) {
+                if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) {
                     return true;
                 }
             }
