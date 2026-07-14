@@ -100,6 +100,9 @@ dependencies {
     // EMI
     compileOnly fg.deobf("dev.emi:emi-forge:${emi_version}:api")
     //runtimeOnly fg.deobf("dev.emi:emi-forge:${emi_version}")
+
+    // Better Combat (optional integration — compile-only)
+    compileOnly fg.deobf("curse.maven:better-combat-by-daedelus-639842:7287334")
     
     //Jade
     implementation fg.deobf("curse.maven:jade-324717:6855440")
