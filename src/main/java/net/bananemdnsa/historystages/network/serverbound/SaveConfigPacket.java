@@ -107,12 +107,12 @@ public class SaveConfigPacket {
                             .collect(Collectors.toList());
                     Config.COMMON.replacementItems.set(itemList);
                 }
-                case "replacementTag" -> {
+                case "replacementTags" -> {
                     List<String> tagList = Arrays.stream(value.split(","))
                             .map(String::trim)
                             .filter(s -> !s.isEmpty())
                             .collect(Collectors.toList());
-                    Config.COMMON.replacementTag.set(tagList);
+                    Config.COMMON.replacementTags.set(tagList);
                 }
                 case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
                 case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));

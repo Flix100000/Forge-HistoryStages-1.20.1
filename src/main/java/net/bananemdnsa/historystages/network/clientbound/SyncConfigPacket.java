@@ -68,7 +68,7 @@ public class SyncConfigPacket {
         values.put("researchBoosters", Config.COMMON.researchBoosters.get().stream().map(Object::toString).collect(Collectors.joining(";")));
         values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
         values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
-        values.put("replacementTag", Config.COMMON.replacementTag.get().stream().map(Object::toString).collect(Collectors.joining(",")));
+        values.put("replacementTags", Config.COMMON.replacementTags.get().stream().map(Object::toString).collect(Collectors.joining(",")));
         values.put("individualLockItemPickup", Config.COMMON.individualLockItemPickup.get().toString());
         values.put("individualDropOnRevoke", Config.COMMON.individualDropOnRevoke.get().toString());
         values.put("individualLockBlockBreaking", Config.COMMON.individualLockBlockBreaking.get().toString());

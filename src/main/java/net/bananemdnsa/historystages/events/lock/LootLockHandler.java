@@ -73,7 +73,7 @@ public class LootLockHandler {
         }
 
         // 2. Priorität: Zufälliges Item aus den replacementTags
-        List<? extends String> tags = Config.COMMON.replacementTag.get();
+        List<? extends String> tags = Config.COMMON.replacementTags.get();
         if (tags != null && !tags.isEmpty()) {
             try {
                 String tagStr = tags.get(RANDOM.nextInt(tags.size()));

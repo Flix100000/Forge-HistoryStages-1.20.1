@@ -25,13 +25,13 @@ public class FTBQuestsIntegration {
                 new ResourceLocation(HistoryStages.MOD_ID, "history_stage"),
                 HistoryStageTask::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
-        ).setDisplayName(Component.translatable("ftbquests.historystages.task.history_stage"));
+        ).setDisplayName(Component.translatable("ftbquests.task.historystages.history_stage"));
 
         HISTORY_STAGE_REWARD = RewardTypes.register(
                 new ResourceLocation(HistoryStages.MOD_ID, "history_stage"),
                 HistoryStageReward::new,
                 () -> ItemIcon.getItemIcon(new ItemStack(ModItems.RESEARCH_SCROLL.get()))
-        ).setDisplayName(Component.translatable("ftbquests.historystages.reward.history_stage"));
+        ).setDisplayName(Component.translatable("ftbquests.reward.historystages.history_stage"));
 
         MinecraftForge.EVENT_BUS.addListener((StageEvent.Unlocked event) ->
                 HistoryStageTask.onGlobalStageChanged(event.getStageId(), true)

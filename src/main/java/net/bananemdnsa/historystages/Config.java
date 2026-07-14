@@ -225,7 +225,7 @@ public class Config {
         // Loot-Ersetzungen
         public final ForgeConfigSpec.BooleanValue useReplacements;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementItems;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementTag;
+        public final ForgeConfigSpec.ConfigValue<List<? extends String>> replacementTags;
 
         // Individual Stages - Gameplay
         public final ForgeConfigSpec.BooleanValue individualLockItemPickup;
@@ -393,7 +393,7 @@ public class Config {
                     .comment("{ReplacementPriority:1} A list of Item IDs to pick from if 'useReplacements' is true. [Default: cobblestone, dirt]")
                     .defineList("replacementItems", List.of("minecraft:cobblestone", "minecraft:dirt"), o -> o instanceof String);
 
-            replacementTag = builder
+            replacementTags = builder
                     .comment("{ReplacementPriority:2} A list of tags (e.g. 'forge:dusts') to pick a random replacement from. [Default: empty]")
                     .defineList("replacementTags", List.of(), o -> o instanceof String);
             builder.pop(); // Schließt "loot_replacements"

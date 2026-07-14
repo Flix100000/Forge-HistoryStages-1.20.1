@@ -345,8 +345,8 @@ public class ConfigEditorScreen extends Screen {
                 String.join(",", Config.COMMON.replacementItems.get()), false,
                 "minecraft:cobblestone,minecraft:dirt",
                 "List of item IDs to pick from as replacement (Priority 1). Click to manage."));
-        lootReplace.add(new ConfigEntry("replacementTag", ConfigType.TAG_LIST,
-                String.join(",", Config.COMMON.replacementTag.get()), false, "",
+        lootReplace.add(new ConfigEntry("replacementTags", ConfigType.TAG_LIST,
+                String.join(",", Config.COMMON.replacementTags.get()), false, "",
                 "List of tags to pick a random replacement from (Priority 2). Click to manage."));
         commonSections.add(lootReplace);
 

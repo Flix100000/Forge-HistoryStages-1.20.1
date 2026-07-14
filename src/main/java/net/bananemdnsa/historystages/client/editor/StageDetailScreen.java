@@ -706,7 +706,7 @@ public class StageDetailScreen extends Screen {
 
         IconPickerButton(int x, int y) {
             super(x, y, FIELD_HEIGHT, FIELD_HEIGHT,
-                    Component.translatable("editor.historystages.icon.title"));
+                    Component.translatable("editor.historystages.field.icon"));
         }
 
         @Override

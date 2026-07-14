@@ -85,9 +85,9 @@ public class HistoryStageReward extends Reward {
                             this.stage = StagePickerConfig.stripPrefix(v);
                             this.individual = StagePickerConfig.isIndividual(v);
                         }, "")
-                .setNameKey("ftbquests.historystages.config.stage");
+                .setNameKey("ftbquests.reward.historystages.history_stage.stage");
         config.addBool("remove", remove, v -> remove = v, false)
-                .setNameKey("ftbquests.historystages.config.remove");
+                .setNameKey("ftbquests.reward.historystages.history_stage.remove");
     }
 
     @Override
@@ -261,9 +261,9 @@ public class HistoryStageReward extends Reward {
     public MutableComponent getAltTitle() {
         String displayName = resolveDisplayName();
         if (remove) {
-            return Component.translatable("ftbquests.historystages.reward.title.lock", displayName);
+            return Component.translatable("ftbquests.reward.historystages.history_stage.title.lock", displayName);
         }
-        return Component.translatable("ftbquests.historystages.reward.title.unlock", displayName);
+        return Component.translatable("ftbquests.reward.historystages.history_stage.title.unlock", displayName);
     }
 
     @Override

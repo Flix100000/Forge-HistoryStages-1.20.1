@@ -76,16 +76,16 @@ public class HistoryStageTask extends AbstractBooleanTask {
                             this.stage = StagePickerConfig.stripPrefix(v);
                             this.individual = StagePickerConfig.isIndividual(v);
                         }, "")
-                .setNameKey("ftbquests.historystages.config.stage");
+                .setNameKey("ftbquests.task.historystages.history_stage.stage");
         config.addBool("negate", negate, v -> negate = v, false)
-                .setNameKey("ftbquests.historystages.config.negate");
+                .setNameKey("ftbquests.task.historystages.history_stage.negate");
     }
 
     @Override
     public MutableComponent getAltTitle() {
         String key = negate
-                ? "ftbquests.historystages.task.title.negated"
-                : "ftbquests.historystages.task.title";
+                ? "ftbquests.task.historystages.history_stage.title.negated"
+                : "ftbquests.task.historystages.history_stage.title";
         return Component.translatable(key, resolveDisplayName());
     }
 
