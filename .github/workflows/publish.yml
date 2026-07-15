@@ -60,3 +60,16 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: build/libs/!(*-sources).jar
+
+  # Announce on Discord only after the build + publish succeeded
+  notify:
+    needs: publish
+    uses: ./.github/workflows/discord-notify.yml
+    with:
+      release_name: ${{ github.event.release.name || github.event.release.tag_name }}
+      release_body: ${{ github.event.release.body }}
+      release_url: ${{ github.event.release.html_url }}
+      published_at: ${{ github.event.release.published_at }}
+      ref: ${{ github.event.release.target_commitish }}
+    secrets:
+      webhook: ${{ secrets.DISCORD_WEBHOOK }}

@@ -1,0 +1,110 @@
+name: Discord Notify
+
+# Reusable workflow: builds and sends the rich release embed to Discord.
+# Called by publish.yml (automatic, gated on a successful publish) and by
+# discord-release.yml (manual test / re-post of an existing release).
+on:
+  workflow_call:
+    inputs:
+      release_name:
+        required: true
+        type: string
+      release_body:
+        required: true
+        type: string
+      release_url:
+        required: true
+        type: string
+      published_at:
+        required: true
+        type: string
+      ref:
+        description: 'Branch/ref used to derive loader + MC version and the icon URL'
+        required: true
+        type: string
+    secrets:
+      webhook:
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      # Derive loader + Minecraft version from the ref
+      # (e.g. neoforge-1.21.X -> loader "NeoForge", mc "1.21").
+      - name: Determine loader and Minecraft version
+        id: mcver
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          MC=$(echo "$REF" | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)
+          case "$REF" in
+            neoforge*) LOADER="NeoForge" ;;
+            forge*)    LOADER="Forge" ;;
+            fabric*)   LOADER="Fabric" ;;
+            *)         LOADER="" ;;
+          esac
+          FOOTER=$(echo "History Stages • $LOADER $MC" | sed 's/  */ /g;s/ *$//')
+          {
+            echo "loader=${LOADER:-—}"
+            echo "mc=${MC:-—}"
+            echo "footer=$FOOTER"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post release to Discord
+        env:
+          WEBHOOK: ${{ secrets.webhook }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          RELEASE_BODY: ${{ inputs.release_body }}
+          RELEASE_URL: ${{ inputs.release_url }}
+          PUBLISHED_AT: ${{ inputs.published_at }}
+          ICON_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ inputs.ref }}/src/main/resources/assets/historystages/icon.png
+          LOADER: ${{ steps.mcver.outputs.loader }}
+          MC: ${{ steps.mcver.outputs.mc }}
+          FOOTER: ${{ steps.mcver.outputs.footer }}
+        run: |
+          set -euo pipefail
+
+          RELEASE_NAME="${RELEASE_NAME:-New release}"
+          RELEASE_BODY="${RELEASE_BODY:-No changelog provided.}"
+          # Discord embed description caps at 4096 characters
+          RELEASE_BODY=$(printf '%s' "$RELEASE_BODY" | head -c 4000)
+
+          MODRINTH_URL="https://modrinth.com/mod/history-stages"
+          CURSEFORGE_URL="https://www.curseforge.com/minecraft/mc-mods/history-stages"
+          DOWNLOADS="[Modrinth]($MODRINTH_URL) • [CurseForge]($CURSEFORGE_URL) • [GitHub]($RELEASE_URL)"
+
+          payload=$(jq -n \
+            --arg content $'@everyone\n🚀 **A new version is available!**' \
+            --arg title "🚀 $RELEASE_NAME" \
+            --arg url "$RELEASE_URL" \
+            --arg desc "$RELEASE_BODY" \
+            --arg loader "$LOADER" \
+            --arg mc "$MC" \
+            --arg downloads "$DOWNLOADS" \
+            --arg icon "$ICON_URL" \
+            --arg footer "$FOOTER" \
+            --arg ts "$PUBLISHED_AT" \
+            '{
+              username: "History Stages",
+              avatar_url: $icon,
+              content: $content,
+              allowed_mentions: { parse: ["everyone"] },
+              embeds: [{
+                author: { name: "History Stages", icon_url: $icon },
+                title: $title,
+                url: $url,
+                description: $desc,
+                color: 5793266,
+                thumbnail: { url: $icon },
+                fields: [
+                  { name: "🧩 Loader", value: $loader, inline: true },
+                  { name: "🎯 Minecraft", value: $mc, inline: true },
+                  { name: "📥 Download", value: $downloads, inline: false }
+                ],
+                footer: { text: $footer, icon_url: $icon },
+                timestamp: $ts
+              }]
+            }')
+
+          curl -sSf -H "Content-Type: application/json" -d "$payload" "$WEBHOOK"
