@@ -307,7 +307,7 @@ public class StageDetailScreen extends Screen {
         this.editMode = e.getMode();
         this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
         this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
-        this.editIcon = e.getIcon();
+        this.editIcon = e.getIcon().isEmpty() ? null : e.getIcon(); // keep null = "use default" for the editor
         this.editHiddenDisplay = e.getHiddenDisplay().copy();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();

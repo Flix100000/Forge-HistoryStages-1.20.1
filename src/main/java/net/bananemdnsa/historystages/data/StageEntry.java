@@ -133,9 +133,9 @@ public class StageEntry {
         this.temporary = temporary;
     }
 
-    /** Returns the custom icon item id, or null if not set (use default). */
+    /** Returns the custom icon item id, or "" if not set (use default). Never null (matches neoforge). */
     public String getIcon() {
-        return (icon != null && !icon.isEmpty()) ? icon : null;
+        return icon != null ? icon : "";
     }
 
     /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
