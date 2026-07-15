@@ -44,9 +44,14 @@ jobs:
         uses: SethCohen/github-releases-to-discord@v1.20.0
         with:
           webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
+          # Bot display name in Discord.
+          username: 'History Stages'
           color: '5793266'
           # Notification text above the embed, pings everyone in the channel.
-          content: '@everyone 🎉 A new update is available!'
+          content: |-
+            @everyone
+            🚀 **New release available**
+            Here's what's changed 👇
           # Footer shows loader + MC version, timestamp = release date.
           footer_title: ${{ steps.mcver.outputs.footer }}
           footer_timestamp: true
