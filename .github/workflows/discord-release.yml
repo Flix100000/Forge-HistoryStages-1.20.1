@@ -1,0 +1,30 @@
+name: Discord Release Notification
+
+on:
+  release:
+    types: [published]
+  # Manueller Trigger zum Testen der Webhook-Verdrahtung ohne echtes Release
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: 'Titel der Test-Nachricht'
+        required: false
+        default: 'Test Release'
+      release_body:
+        description: 'Inhalt der Test-Nachricht'
+        required: false
+        default: 'Testnachricht zur Prüfung des Discord-Webhooks.'
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post release to Discord
+        uses: SethCohen/github-releases-to-discord@v1.20.0
+        with:
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK }}
+          # Bei workflow_dispatch werden diese Inputs genutzt,
+          # bei einem echten Release liest die Action github.event.release automatisch.
+          release_name: ${{ github.event.inputs.release_name }}
+          release_body: ${{ github.event.inputs.release_body }}
