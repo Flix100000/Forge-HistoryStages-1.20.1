@@ -1,4 +1,6 @@
 package net.bananemdnsa.historystages.client.editor;
+import net.bananemdnsa.historystages.client.editor.dialog.CountInputScreen;
+import net.bananemdnsa.historystages.client.editor.dialog.ScoreboardDepScreen;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 
 import com.google.gson.JsonObject;
@@ -113,23 +115,6 @@ public class DependencyEditorScreen extends Screen {
 
     // Context menu
     private ContextMenu contextMenu;
-
-    // Count/value input dialog (custom text input, no EditBox)
-    private String countDialogType = null;
-    private String pendingId = null;
-    private int editingEntryIndex = -1;
-    private String countInputText = "";
-    private boolean countCursorBlink = true;
-
-    // Scoreboard dialog state (multi-field)
-    private boolean scoreboardDialogOpen = false;
-    private int scoreboardEditIndex = -1; // -1 = add new
-    private String sbObjective = "";
-    private String sbHolder = "";
-    private int sbOpIndex = 0; // index into ScoreboardDep.OPERATORS
-    private String sbValueText = "0";
-    private int sbActiveField = 0; // 0=objective, 1=holder, 2=op, 3=value
-    private boolean sbOpDropdownOpen = false;
 
     // Tab layout arrays
     private int[] tabX;
@@ -353,18 +338,12 @@ public class DependencyEditorScreen extends Screen {
                 || (globalStageSearch != null && globalStageSearch.isVisible())
                 || (individualStageSearch != null && individualStageSearch.isVisible())
                 || (advancementSearch != null && advancementSearch.isVisible())
-                || (statSearch != null && statSearch.isVisible())
-                || countDialogType != null
-                || scoreboardDialogOpen;
+                || (statSearch != null && statSearch.isVisible());
     }
 
     // --- Count dialog ---
 
     private void openCountDialog(String type, String id, int editIndex) {
-        this.countDialogType = type;
-        this.pendingId = id;
-        this.editingEntryIndex = editIndex;
-
         // Pre-fill with existing value if editing
         String defaultVal = "1";
         if (editIndex >= 0 && hasGroup()) {
@@ -390,35 +369,48 @@ public class DependencyEditorScreen extends Screen {
         }
         if (type.equals("xp_level") && editIndex < 0)
             defaultVal = "30";
-        this.countInputText = defaultVal;
+
+        Component title = switch (type) {
+            case "item_count" -> Component.translatable("editor.historystages.dep.dialog.item_count");
+            case "kill_count" -> Component.translatable("editor.historystages.dep.dialog.kill_count");
+            case "stat_value" -> Component.translatable("editor.historystages.dep.dialog.min_value");
+            case "xp_level" -> Component.translatable("editor.historystages.dep.dialog.xp_level");
+            default -> Component.translatable("editor.historystages.dep.dialog.value");
+        };
+        int initial;
+        try {
+            initial = Integer.parseInt(defaultVal);
+        } catch (NumberFormatException e) {
+            initial = 1;
+        }
+        // Counts of things must be at least 1 — zero items or zero kills is not a dependency.
+        // Thresholds may legitimately be 0, and hand-written packs contain such values; a
+        // minimum of 1 there would trap the user in a dialog they cannot confirm.
+        int min = switch (type) {
+            case "stat_value", "xp_level" -> 0;
+            default -> 1;
+        };
+        this.minecraft.setScreen(new CountInputScreen(this, title, id, initial, min, 999999,
+                num -> applyCountDialog(type, id, editIndex, num)));
     }
 
-    private void confirmCountDialog() {
-        if (countDialogType == null)
-            return;
-        int num;
-        try {
-            num = Integer.parseInt(countInputText.trim());
-        } catch (NumberFormatException e) {
-            num = 1;
-        }
-        num = Math.max(1, num);
-
+    /** Applies a confirmed count. The value arrives already parsed and range-checked. */
+    private void applyCountDialog(String type, String id, int editIndex, int num) {
         if (hasGroup()) {
             DependencyGroup group = currentGroup();
-            if (editingEntryIndex >= 0) {
-                switch (countDialogType) {
+            if (editIndex >= 0) {
+                switch (type) {
                     case "item_count" -> {
-                        if (editingEntryIndex < group.getItems().size())
-                            group.getItems().get(editingEntryIndex).setCount(num);
+                        if (editIndex < group.getItems().size())
+                            group.getItems().get(editIndex).setCount(num);
                     }
                     case "kill_count" -> {
-                        if (editingEntryIndex < group.getEntityKills().size())
-                            group.getEntityKills().get(editingEntryIndex).setCount(num);
+                        if (editIndex < group.getEntityKills().size())
+                            group.getEntityKills().get(editIndex).setCount(num);
                     }
                     case "stat_value" -> {
-                        if (editingEntryIndex < group.getStats().size())
-                            group.getStats().get(editingEntryIndex).setMinValue(num);
+                        if (editIndex < group.getStats().size())
+                            group.getStats().get(editIndex).setMinValue(num);
                     }
                     case "xp_level" -> {
                         boolean consume = group.getXpLevel() != null && group.getXpLevel().isConsume();
@@ -426,10 +418,10 @@ public class DependencyEditorScreen extends Screen {
                     }
                 }
             } else {
-                switch (countDialogType) {
-                    case "item_count" -> group.getItems().add(new DependencyItem(pendingId, num));
-                    case "kill_count" -> group.getEntityKills().add(new EntityKillDep(pendingId, num));
-                    case "stat_value" -> group.getStats().add(new StatDep(pendingId, Math.max(0, num)));
+                switch (type) {
+                    case "item_count" -> group.getItems().add(new DependencyItem(id, num));
+                    case "kill_count" -> group.getEntityKills().add(new EntityKillDep(id, num));
+                    case "stat_value" -> group.getStats().add(new StatDep(id, num));
                     case "xp_level" -> {
                         boolean consume = group.getXpLevel() != null && group.getXpLevel().isConsume();
                         group.setXpLevel(new XpLevelDep(num, consume));
@@ -438,14 +430,6 @@ public class DependencyEditorScreen extends Screen {
             }
             hasChanges = true;
         }
-        closeCountDialog();
-    }
-
-    private void closeCountDialog() {
-        countDialogType = null;
-        pendingId = null;
-        editingEntryIndex = -1;
-        countInputText = "";
     }
 
     private void drawSmallText(GuiGraphics g, String text, int x, int y, int color) {
@@ -512,12 +496,6 @@ public class DependencyEditorScreen extends Screen {
         // Overlays (z-ordered on top)
         g.pose().pushPose();
         g.pose().translate(0, 0, 200);
-
-        if (countDialogType != null)
-            renderCountDialog(g, mouseX, mouseY);
-
-        if (scoreboardDialogOpen)
-            renderScoreboardDialog(g, mouseX, mouseY);
 
         if (itemSearch != null)
             itemSearch.render(g, this.font, mouseX, mouseY);
@@ -1194,345 +1172,44 @@ public class DependencyEditorScreen extends Screen {
     // --- Scoreboard dialog ---
 
     private void openScoreboardDialog(int editIndex) {
-        scoreboardDialogOpen = true;
-        scoreboardEditIndex = editIndex;
-        sbActiveField = 0;
-        if (editIndex >= 0 && hasGroup() && editIndex < currentGroup().getScoreboard().size()) {
+        String objective = "";
+        String holder = "";
+        int opIndex = 0;
+        int value = 0;
+        boolean editing = editIndex >= 0 && hasGroup()
+                && editIndex < currentGroup().getScoreboard().size();
+        if (editing) {
             ScoreboardDep sb = currentGroup().getScoreboard().get(editIndex);
-            sbObjective = sb.getObjective() != null ? sb.getObjective() : "";
-            sbHolder = sb.getScoreHolder() != null ? sb.getScoreHolder() : "";
-            sbValueText = String.valueOf(sb.getValue());
-            sbOpIndex = 0;
+            objective = sb.getObjective() != null ? sb.getObjective() : "";
+            holder = sb.getScoreHolder() != null ? sb.getScoreHolder() : "";
+            value = sb.getValue();
             for (int i = 0; i < ScoreboardDep.OPERATORS.length; i++) {
-                if (ScoreboardDep.OPERATORS[i].equals(sb.getOp())) { sbOpIndex = i; break; }
+                if (ScoreboardDep.OPERATORS[i].equals(sb.getOp())) { opIndex = i; break; }
             }
-        } else {
-            sbObjective = "";
-            sbHolder = "";
-            sbOpIndex = 0;
-            sbValueText = "0";
         }
+        Component title = Component.translatable(editIndex >= 0
+                ? "editor.historystages.dep.dialog.scoreboard_edit"
+                : "editor.historystages.dep.dialog.scoreboard_add");
+        this.minecraft.setScreen(new ScoreboardDepScreen(this, title, objective, holder, opIndex,
+                value, ScoreboardDep.OPERATORS,
+                (obj, hold, op, val) -> applyScoreboardDialog(editIndex, obj, hold, op, val)));
     }
 
-    private void closeScoreboardDialog() {
-        scoreboardDialogOpen = false;
-        scoreboardEditIndex = -1;
-        sbObjective = "";
-        sbHolder = "";
-        sbOpIndex = 0;
-        sbValueText = "0";
-        sbActiveField = 0;
-        sbOpDropdownOpen = false;
-    }
-
-    // Layout constants for scoreboard dialog. Kept compact so the dialog still fits
-    // on a small screen (worst case ~280x210 stage editor) and is clamped within the
-    // window in sbDlgX()/sbDlgY().
-    private static final int SB_DLG_W = 240;
-    private static final int SB_DLG_H = 184;
-    private static final int SB_FIELD_H = 16;
-    private static final int SB_ROW_H = 28; // label + field + gap
-    private static final int SB_FIRST_ROW_Y_OFFSET = 24;
-    private static final int SB_LABEL_GAP = 11;
-    private static final int SB_PAD = 10;
-
-    private int sbDlgX() {
-        int desired = this.width / 2 - SB_DLG_W / 2;
-        // Clamp so dialog stays within window; left edge wins on tiny screens
-        return Math.max(2, Math.min(desired, this.width - SB_DLG_W - 2));
-    }
-
-    private int sbDlgY() {
-        int desired = this.height / 2 - SB_DLG_H / 2;
-        return Math.max(2, Math.min(desired, this.height - SB_DLG_H - 2));
-    }
-
-    private int sbFieldX() { return sbDlgX() + SB_PAD; }
-    private int sbFieldW() { return SB_DLG_W - SB_PAD * 2; }
-    private int sbFieldY(int field) { return sbDlgY() + SB_FIRST_ROW_Y_OFFSET + SB_ROW_H * field + SB_LABEL_GAP; }
-
-    private void confirmScoreboardDialog() {
-        if (!hasGroup()) { closeScoreboardDialog(); return; }
-        String obj = sbObjective.trim();
-        if (obj.isEmpty()) { closeScoreboardDialog(); return; }
-        int val;
-        try { val = Integer.parseInt(sbValueText.trim()); } catch (NumberFormatException e) { val = 0; }
-        String holder = sbHolder.trim();
-        String op = ScoreboardDep.OPERATORS[sbOpIndex];
+    /** Applies a confirmed scoreboard dependency. The value arrives already parsed and range-checked. */
+    private void applyScoreboardDialog(int editIndex, String obj, String hold, int opIndex, int val) {
+        if (!hasGroup()) return;
+        String op = ScoreboardDep.OPERATORS[opIndex];
         DependencyGroup group = currentGroup();
-        if (scoreboardEditIndex >= 0 && scoreboardEditIndex < group.getScoreboard().size()) {
-            ScoreboardDep sb = group.getScoreboard().get(scoreboardEditIndex);
+        if (editIndex >= 0 && editIndex < group.getScoreboard().size()) {
+            ScoreboardDep sb = group.getScoreboard().get(editIndex);
             sb.setObjective(obj);
-            sb.setScoreHolder(holder.isEmpty() ? null : holder);
+            sb.setScoreHolder(hold.isEmpty() ? null : hold);
             sb.setOp(op);
             sb.setValue(val);
         } else {
-            group.getScoreboard().add(new ScoreboardDep(obj, holder.isEmpty() ? null : holder, op, val));
+            group.getScoreboard().add(new ScoreboardDep(obj, hold.isEmpty() ? null : hold, op, val));
         }
         hasChanges = true;
-        closeScoreboardDialog();
-    }
-
-    private void renderScoreboardDialog(GuiGraphics g, int mx, int my) {
-        g.fill(0, 0, this.width, this.height, 0xA0000000);
-        int dx = sbDlgX(), dy = sbDlgY();
-
-        // Frame chrome — matches SearchPanelChrome.renderFrame style used by other panels
-        g.fill(dx - 2, dy - 2, dx + SB_DLG_W + 2, dy + SB_DLG_H + 2, 0xFF3D3D3D);
-        g.fill(dx, dy, dx + SB_DLG_W, dy + SB_DLG_H, 0xFF1A1A1A);
-        // Gold top accent — consistent with ContextMenu/count dialog identity
-        g.fill(dx, dy, dx + SB_DLG_W, dy + 2, 0xFFFFCC00);
-
-        String title = scoreboardEditIndex >= 0
-                ? t("editor.historystages.dep.dialog.scoreboard_edit")
-                : t("editor.historystages.dep.dialog.scoreboard_add");
-        g.drawCenteredString(this.font, title, dx + SB_DLG_W / 2, dy + 8, 0xFFCC00);
-
-        int fieldX = sbFieldX(), fieldW = sbFieldW();
-
-        renderTextField(g, t("editor.historystages.dep.dialog.objective"), sbObjective,
-                fieldX, sbFieldY(0), fieldW, SB_FIELD_H, sbActiveField == 0);
-        renderTextField(g, t("editor.historystages.dep.dialog.score_holder"), sbHolder,
-                fieldX, sbFieldY(1), fieldW, SB_FIELD_H, sbActiveField == 1);
-        renderOperatorField(g, mx, my, fieldX, sbFieldY(2), fieldW, SB_FIELD_H);
-        renderTextField(g, t("editor.historystages.dep.dialog.value"), sbValueText,
-                fieldX, sbFieldY(3), fieldW, SB_FIELD_H, sbActiveField == 3);
-
-        // StyledButton-sized buttons (matches save/back buttons in the main screen)
-        int btnW = 60, btnH = 18, btnGap = 10;
-        int totalBtnW = btnW * 2 + btnGap;
-        int cancelX = dx + SB_DLG_W / 2 - totalBtnW / 2;
-        int okX = cancelX + btnW + btnGap;
-        int btnY = dy + SB_DLG_H - btnH - 7;
-
-        // Hint sits just above the buttons
-        String hint = t("editor.historystages.dep.dialog.tab_next_field");
-        drawSmallText(g, hint, dx + SB_DLG_W / 2 - (int) (this.font.width(hint) * SMALL_SCALE / 2),
-                btnY - 9, 0x666666);
-
-        boolean cancelH = mx >= cancelX && mx < cancelX + btnW && my >= btnY && my < btnY + btnH;
-        boolean okH = mx >= okX && mx < okX + btnW && my >= btnY && my < btnY + btnH;
-
-        renderStyledButton(g, cancelX, btnY, btnW, btnH, cancelH, t("editor.historystages.cancel"), -3000);
-        renderStyledButton(g, okX, btnY, btnW, btnH, okH, t("editor.historystages.confirm"), -3001);
-
-        // Dropdown overlay drawn last so it sits above other fields/buttons
-        if (sbOpDropdownOpen) {
-            renderOperatorDropdown(g, mx, my, fieldX, sbFieldY(2), fieldW, SB_FIELD_H);
-        }
-    }
-
-    /**
-     * Inline-rendered button matching {@link StyledButton}'s look exactly. We can't use
-     * StyledButton directly here because the dialog is rendered inline (not its own
-     * Screen), so its widgets can't be registered with addRenderableWidget. Hover state
-     * is animated via {@link #cardHoverProgress} so it follows the same easing as the
-     * other cards/buttons in this screen.
-     */
-    private void renderStyledButton(GuiGraphics g, int x, int y, int w, int h, boolean hovered, String label,
-            int progressKey) {
-        float hp = updateCardHover(progressKey, hovered);
-
-        // Animated background — lerp from white-tint to gold-tint
-        int bgAlpha = (int) (0x30 + hp * 0x20);
-        int bgR = 0xFF;
-        int bgG = (int) (0xFF - hp * 0x33);
-        int bgB = (int) (0xFF - hp * 0xFF);
-        g.fill(x, y, x + w, y + h, (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB);
-
-        // Animated bottom accent line
-        int accentAlpha = (int) (0x60 + hp * 0x9F);
-        g.fill(x, y + h - 2, x + w, y + h, (accentAlpha << 24) | 0xFFCC00);
-
-        // Subtle top/side borders
-        g.fill(x, y, x + w, y + 1, 0x20FFFFFF);
-        g.fill(x, y, x + 1, y + h, 0x15FFFFFF);
-        g.fill(x + w - 1, y, x + w, y + h, 0x15FFFFFF);
-
-        // Text — smooth color transition
-        int textGray = (int) (0xCC + hp * 0x33);
-        int textColor = (0xFF << 24) | (textGray << 16) | (textGray << 8) | textGray;
-        g.drawCenteredString(this.font, label, x + w / 2, y + (h - 8) / 2, textColor);
-    }
-
-    private void renderTextField(GuiGraphics g, String label, String value, int fieldX, int fieldY, int fieldW,
-            int fieldH, boolean active) {
-        // Label above the field (small, grey — matches other section labels)
-        g.drawString(this.font, label, fieldX, fieldY - SB_LABEL_GAP, 0xCCCCCC, false);
-
-        // 2px frame border + inner fill, same scheme as PedestalTierDropdown buttons
-        int border = active ? 0xFFFFCC00 : 0xFF4A4A4A;
-        g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, border);
-        g.fill(fieldX + 1, fieldY + 1, fieldX + fieldW - 1, fieldY + fieldH - 1, 0xFF0D0D0D);
-
-        int textPadX = 6;
-        int maxTextW = fieldW - textPadX * 2 - 2;
-        String displayValue = value != null ? value : "";
-        // Truncate from the left if too wide (show end of input so cursor stays visible)
-        while (this.font.width(displayValue) > maxTextW && displayValue.length() > 1) {
-            displayValue = displayValue.substring(1);
-        }
-        int textY = fieldY + (fieldH - 8) / 2;
-        g.drawString(this.font, displayValue, fieldX + textPadX, textY, 0xFFEEEEEE, false);
-        if (active && (System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = fieldX + textPadX + this.font.width(displayValue) + 1;
-            if (cursorX < fieldX + fieldW - 3)
-                g.fill(cursorX, textY - 1, cursorX + 1, textY + 9, 0xFFFFCC00);
-        }
-    }
-
-    // Match PedestalTierDropdown's look: 2px frame border, dark fill, pixel-art caret,
-    // popup with grey frame and gold-text selection row.
-    private void renderOperatorField(GuiGraphics g, int mx, int my, int fieldX, int fieldY, int fieldW, int fieldH) {
-        g.drawString(this.font, t("editor.historystages.dep.dialog.operator"), fieldX, fieldY - SB_LABEL_GAP,
-                0xCCCCCC, false);
-        boolean hover = mx >= fieldX && mx < fieldX + fieldW && my >= fieldY && my < fieldY + fieldH;
-        int border = sbOpDropdownOpen ? 0xFFFFCC00 : (hover ? 0xFF888888 : 0xFF4A4A4A);
-        int bg = hover ? 0xFF252525 : 0xFF0D0D0D;
-        g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, border);
-        g.fill(fieldX + 1, fieldY + 1, fieldX + fieldW - 1, fieldY + fieldH - 1, bg);
-
-        String opText = ScoreboardDep.OPERATORS[sbOpIndex];
-        int textY = fieldY + (fieldH - 8) / 2;
-        g.drawString(this.font, opText, fieldX + 6, textY, 0xFFEEEEEE, false);
-
-        // Pixel-art caret on the right (matches PedestalTierDropdown)
-        int cx = fieldX + fieldW - 9;
-        int cy = fieldY + fieldH / 2 - 1;
-        int caret = hover || sbOpDropdownOpen ? 0xFFDDDDDD : 0xFF999999;
-        if (sbOpDropdownOpen) {
-            // Up-caret when open
-            g.fill(cx + 2, cy, cx + 3, cy + 1, caret);
-            g.fill(cx + 1, cy + 1, cx + 4, cy + 2, caret);
-            g.fill(cx, cy + 2, cx + 5, cy + 3, caret);
-        } else {
-            // Down-caret when closed
-            g.fill(cx, cy, cx + 5, cy + 1, caret);
-            g.fill(cx + 1, cy + 1, cx + 4, cy + 2, caret);
-            g.fill(cx + 2, cy + 2, cx + 3, cy + 3, caret);
-        }
-    }
-
-    private static final int SB_DROPDOWN_ITEM_H = 14;
-    private static final int SB_DROPDOWN_PAD = 2;
-
-    /**
-     * Computes the popup rectangle for the operator dropdown, flipping above the
-     * field if it would overflow the screen.
-     *
-     * @return [x, y, w, h]
-     */
-    private int[] operatorDropdownGeometry(int fieldX, int fieldY, int fieldW, int fieldH) {
-        int h = SB_DROPDOWN_ITEM_H * ScoreboardDep.OPERATORS.length + SB_DROPDOWN_PAD * 2;
-        int y = fieldY + fieldH + 2;
-        if (y + h > this.height - 2) {
-            // Flip above the field
-            y = fieldY - h - 2;
-        }
-        if (y < 2) y = 2;
-        return new int[] { fieldX, y, fieldW, h };
-    }
-
-    private void renderOperatorDropdown(GuiGraphics g, int mx, int my, int fieldX, int fieldY, int fieldW, int fieldH) {
-        int[] geom = operatorDropdownGeometry(fieldX, fieldY, fieldW, fieldH);
-        int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
-        String[] ops = ScoreboardDep.OPERATORS;
-
-        // High z so the popup (and its text) overlays the dialog buttons whose text
-        // was queued earlier in the render pass.
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 400);
-
-        // Frame matches PedestalTierDropdown popup style
-        g.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + ph, 0xFF1A1A1A);
-
-        for (int i = 0; i < ops.length; i++) {
-            int iy = py + SB_DROPDOWN_PAD + i * SB_DROPDOWN_ITEM_H;
-            boolean hover = mx >= px && mx < px + pw && my >= iy && my < iy + SB_DROPDOWN_ITEM_H;
-            boolean selected = i == sbOpIndex;
-            if (hover) {
-                g.fill(px + 1, iy, px + pw - 1, iy + SB_DROPDOWN_ITEM_H, 0x25FFFFFF);
-            }
-            int textColor = selected ? 0xFFFFCC00 : 0xFFEEEEEE;
-            g.drawString(this.font, ops[i], px + 6, iy + (SB_DROPDOWN_ITEM_H - 8) / 2, textColor, false);
-        }
-        g.pose().popPose();
-    }
-
-    // --- Count dialog ---
-
-    private void renderCountDialog(GuiGraphics g, int mx, int my) {
-        g.fill(0, 0, this.width, this.height, 0xA0000000);
-        int dw = 220, dh = 100;
-        int dx = this.width / 2 - dw / 2, dy = this.height / 2 - dh / 2;
-
-        // Dialog frame
-        g.fill(dx - 1, dy - 1, dx + dw + 1, dy + dh + 1, 0xFF3D3D3D);
-        g.fill(dx, dy, dx + dw, dy + dh, 0xFF1A1A1A);
-        g.fill(dx, dy, dx + dw, dy + 2, 0xFFFFCC00);
-
-        // Title
-        String title = switch (countDialogType) {
-            case "item_count" -> t("editor.historystages.dep.dialog.item_count");
-            case "kill_count" -> t("editor.historystages.dep.dialog.kill_count");
-            case "stat_value" -> t("editor.historystages.dep.dialog.min_value");
-            case "xp_level" -> t("editor.historystages.dep.dialog.xp_level");
-            default -> t("editor.historystages.dep.dialog.value");
-        };
-        g.drawCenteredString(this.font, title, dx + dw / 2, dy + 8, 0xFFCC00);
-
-        // Subtitle (item/entity/stat ID)
-        String subtitle = pendingId != null ? pendingId : "";
-        if (this.font.width(subtitle) > dw - 10)
-            subtitle = this.font.plainSubstrByWidth(subtitle, dw - 16) + "...";
-        if (!subtitle.isEmpty())
-            drawSmallText(g, subtitle, dx + dw / 2 - (int) (this.font.width(subtitle) * SMALL_SCALE / 2), dy + 22,
-                    0x888888);
-
-        // Input field background
-        int fieldX = dx + 20, fieldY = dy + 36, fieldW = dw - 40, fieldH = 20;
-        g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + fieldH + 1, 0xFF4A4A4A);
-        g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, 0xFF0D0D0D);
-
-        // Input text + cursor
-        String displayText = countInputText;
-        int textW = this.font.width(displayText);
-        int textX = fieldX + fieldW / 2 - textW / 2;
-        g.drawString(this.font, displayText, textX, fieldY + 6, 0xFFFFFF, false);
-
-        // Blinking cursor
-        if ((System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = textX + textW + 1;
-            g.fill(cursorX, fieldY + 4, cursorX + 1, fieldY + fieldH - 4, 0xFFFFCC00);
-        }
-
-        // Hint
-        String hint = t("editor.historystages.dep.enter_number");
-        drawSmallText(g, hint, dx + dw / 2 - (int) (this.font.width(hint) * SMALL_SCALE / 2), fieldY + fieldH + 3,
-                0x555555);
-
-        // Buttons: Cancel + OK
-        int btnW = 60, btnH = 18, btnGap = 10;
-        int totalBtnW = btnW * 2 + btnGap;
-        int cancelX = dx + dw / 2 - totalBtnW / 2;
-        int okX = cancelX + btnW + btnGap;
-        int btnY = dy + dh - btnH - 8;
-
-        boolean cancelH = mx >= cancelX && mx < cancelX + btnW && my >= btnY && my < btnY + btnH;
-        boolean okH = mx >= okX && mx < okX + btnW && my >= btnY && my < btnY + btnH;
-
-        // Cancel button
-        g.fill(cancelX, btnY, cancelX + btnW, btnY + btnH, cancelH ? 0xFF3A2A2A : 0xFF2A2A2A);
-        g.fill(cancelX, btnY + btnH - 2, cancelX + btnW, btnY + btnH, cancelH ? 0xAAFF5555 : 0x60FF5555);
-        g.drawCenteredString(this.font, t("editor.historystages.cancel"), cancelX + btnW / 2, btnY + 5,
-                cancelH ? 0xFFFFFF : 0xAAAAAA);
-
-        // OK button
-        g.fill(okX, btnY, okX + btnW, btnY + btnH, okH ? 0xFF2A3A20 : 0xFF2A2A2A);
-        g.fill(okX, btnY + btnH - 2, okX + btnW, btnY + btnH, okH ? 0xAAFFCC00 : 0x60FFCC00);
-        g.drawCenteredString(this.font, t("editor.historystages.confirm"), okX + btnW / 2, btnY + 5,
-                okH ? 0xFFFFFF : 0xAAAAAA);
     }
 
     // --- Tooltip ---
@@ -1610,76 +1287,6 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseClicked(mouseX, mouseY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseClicked(mouseX, mouseY);
-
-        // Scoreboard dialog
-        if (scoreboardDialogOpen) {
-            int dx = sbDlgX(), dy = sbDlgY();
-            int fieldX = sbFieldX(), fieldW = sbFieldW();
-            int mxi = (int) mouseX, myi = (int) mouseY;
-
-            // Dropdown — handle first so clicks inside the list select an option
-            if (sbOpDropdownOpen) {
-                int[] geom = operatorDropdownGeometry(fieldX, sbFieldY(2), fieldW, SB_FIELD_H);
-                int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
-                if (mxi >= px && mxi < px + pw && myi >= py && myi < py + ph) {
-                    int idx = (myi - py - SB_DROPDOWN_PAD) / SB_DROPDOWN_ITEM_H;
-                    if (idx >= 0 && idx < ScoreboardDep.OPERATORS.length) {
-                        sbOpIndex = idx;
-                    }
-                    sbOpDropdownOpen = false;
-                    return true;
-                }
-                // Click outside list closes the dropdown without selecting
-                sbOpDropdownOpen = false;
-                // Fall through so the click can still hit another control
-            }
-
-            // Field selection by click
-            for (int i = 0; i < 4; i++) {
-                int fy = sbFieldY(i);
-                if (mxi >= fieldX && mxi < fieldX + fieldW && myi >= fy && myi < fy + SB_FIELD_H) {
-                    if (i == 2) {
-                        sbOpDropdownOpen = !sbOpDropdownOpen;
-                    }
-                    sbActiveField = i;
-                    return true;
-                }
-            }
-
-            int btnW = 70, btnH = 18, btnGap = 10;
-            int totalBtnW = btnW * 2 + btnGap;
-            int cancelX = dx + SB_DLG_W / 2 - totalBtnW / 2;
-            int okX = cancelX + btnW + btnGap;
-            int btnY = dy + SB_DLG_H - btnH - 10;
-            if (mxi >= cancelX && mxi < cancelX + btnW && myi >= btnY && myi < btnY + btnH) {
-                closeScoreboardDialog();
-                return true;
-            }
-            if (mxi >= okX && mxi < okX + btnW && myi >= btnY && myi < btnY + btnH) {
-                confirmScoreboardDialog();
-                return true;
-            }
-            return true;
-        }
-
-        // Count dialog
-        if (countDialogType != null) {
-            int dw = 220, dh = 100, dx = this.width / 2 - dw / 2, dy = this.height / 2 - dh / 2;
-            int btnW = 60, btnH = 18, btnGap = 10;
-            int totalBtnW = btnW * 2 + btnGap;
-            int cancelX = dx + dw / 2 - totalBtnW / 2;
-            int okX = cancelX + btnW + btnGap;
-            int btnY = dy + dh - btnH - 8;
-            if (mouseX >= cancelX && mouseX < cancelX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
-                closeCountDialog();
-                return true;
-            }
-            if (mouseX >= okX && mouseX < okX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
-                confirmCountDialog();
-                return true;
-            }
-            return true;
-        }
 
         int mx = (int) mouseX, my = (int) mouseY;
 
@@ -2184,57 +1791,6 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.keyPressed(keyCode);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.keyPressed(keyCode);
-        if (countDialogType != null) {
-            if (keyCode == 256) {
-                closeCountDialog();
-                return true;
-            }
-            if (keyCode == 257) {
-                confirmCountDialog();
-                return true;
-            }
-            if (keyCode == 259 && !countInputText.isEmpty()) { // Backspace
-                countInputText = countInputText.substring(0, countInputText.length() - 1);
-                return true;
-            }
-            return true;
-        }
-        if (scoreboardDialogOpen) {
-            if (keyCode == 256) {
-                if (sbOpDropdownOpen) { sbOpDropdownOpen = false; return true; }
-                closeScoreboardDialog();
-                return true;
-            } // Esc
-            if (keyCode == 257) { // Enter
-                if (sbOpDropdownOpen) { sbOpDropdownOpen = false; return true; }
-                confirmScoreboardDialog();
-                return true;
-            }
-            if (keyCode == 258) { // Tab
-                sbOpDropdownOpen = false;
-                sbActiveField = (sbActiveField + 1) % 4;
-                return true;
-            }
-            if (keyCode == 259) { // Backspace
-                switch (sbActiveField) {
-                    case 0 -> { if (!sbObjective.isEmpty()) sbObjective = sbObjective.substring(0, sbObjective.length() - 1); }
-                    case 1 -> { if (!sbHolder.isEmpty()) sbHolder = sbHolder.substring(0, sbHolder.length() - 1); }
-                    case 3 -> { if (!sbValueText.isEmpty()) sbValueText = sbValueText.substring(0, sbValueText.length() - 1); }
-                }
-                return true;
-            }
-            if (sbActiveField == 2) {
-                if (keyCode == 263) { // Left arrow
-                    sbOpIndex = (sbOpIndex - 1 + ScoreboardDep.OPERATORS.length) % ScoreboardDep.OPERATORS.length;
-                    return true;
-                }
-                if (keyCode == 262) { // Right arrow
-                    sbOpIndex = (sbOpIndex + 1) % ScoreboardDep.OPERATORS.length;
-                    return true;
-                }
-            }
-            return true;
-        }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
@@ -2252,35 +1808,7 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.charTyped(codePoint);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.charTyped(codePoint);
-        if (countDialogType != null) {
-            if (Character.isDigit(codePoint) && countInputText.length() < 10) {
-                countInputText += codePoint;
-            }
-            return true;
-        }
-        if (scoreboardDialogOpen) {
-            switch (sbActiveField) {
-                case 0 -> {
-                    if (sbObjective.length() < 64 && isValidTextChar(codePoint))
-                        sbObjective += codePoint;
-                }
-                case 1 -> {
-                    if (sbHolder.length() < 64 && isValidTextChar(codePoint))
-                        sbHolder += codePoint;
-                }
-                case 3 -> {
-                    boolean allowMinus = sbValueText.isEmpty() && codePoint == '-';
-                    if (sbValueText.length() < 11 && (Character.isDigit(codePoint) || allowMinus))
-                        sbValueText += codePoint;
-                }
-            }
-            return true;
-        }
         return super.charTyped(codePoint, modifiers);
-    }
-
-    private static boolean isValidTextChar(char c) {
-        return c >= ' ' && c != 127;
     }
 
     @Override
@@ -2298,10 +1826,6 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-        if (countDialogType != null)
-            return true;
-        if (scoreboardDialogOpen)
-            return true;
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int) (delta * 30)));
             return true;

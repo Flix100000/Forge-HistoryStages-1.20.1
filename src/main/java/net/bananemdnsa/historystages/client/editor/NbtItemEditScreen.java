@@ -4,6 +4,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -1208,62 +1211,65 @@ public class NbtItemEditScreen extends Screen {
     // Input screen with autocomplete suggestions
     // ==========================================
 
-    static class SuggestingInputScreen extends Screen {
-        private final Screen parent;
-        private final String title;
-        private final String currentValue;
-        private final List<String> allSuggestions;
-        private final Consumer<String> onDone;
-        private EditBox inputField;
-        private List<String> filteredSuggestions = new ArrayList<>();
-        private int suggestionScroll = 0;
+    static class SuggestingInputScreen extends AbstractInputScreen {
         private static final int MAX_VISIBLE_SUGGESTIONS = 6;
         private static final int SUGGESTION_HEIGHT = 14;
 
+        private final Screen parent;
+        private final String currentValue;
+        private final List<String> allSuggestions;
+        private final Consumer<String> onDone;
+        private List<String> filteredSuggestions = new ArrayList<>();
+        private int suggestionScroll = 0;
+        private boolean draggingScrollbar = false;
+        /** Last query the list was filtered against, so a re-filter can tell a change from a repoll. */
+        private String lastFilterInput = null;
+
+        /** List bounds, recomputed every frame from the area the base class hands us. */
+        private int listX, listY, listW;
+
+        /** Distance of the scrollbar's left edge from the list's right edge. */
+        private static final int SCROLLBAR_INSET_X = 3;
+
         SuggestingInputScreen(Screen parent, String title, String currentValue, List<String> suggestions, Consumer<String> onDone) {
-            super(Component.literal(title));
+            super(parent, Component.literal(title));
             this.parent = parent;
-            this.title = title;
             this.currentValue = currentValue;
             this.allSuggestions = suggestions;
             this.onDone = onDone;
-        }
-
-        @Override
-        protected void init() {
-            int centerX = this.width / 2;
-            int centerY = this.height / 2 - 30;
-
-            // EditBox with bordered=false draws text at its y; shift +6 to vertically center in the 20px bg.
-            inputField = new EditBox(this.font, centerX - 120 + 4, centerY + 6, 240 - 4, 20, Component.literal(title));
-            inputField.setMaxLength(512);
-            inputField.setValue(currentValue);
-            inputField.setBordered(false);
-            inputField.setTextColor(0xFFFFFF);
-            inputField.moveCursorToEnd(false);
-            inputField.setResponder(val -> {
-                updateSuggestions(val);
-                suggestionScroll = 0;
-            });
-            this.addRenderableWidget(inputField);
-            this.setFocused(inputField);
-
-            int btnY = centerY + 26
-                    + Math.min(MAX_VISIBLE_SUGGESTIONS, Math.max(0, allSuggestions.size())) * SUGGESTION_HEIGHT
-                    + 6;
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.nbt.ok"),
-                    btn -> confirm(),
-                    centerX - 105, btnY, 100, 20));
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.cancel"),
-                    btn -> this.minecraft.setScreen(parent),
-                    centerX + 5, btnY, 100, 20));
-
             updateSuggestions(currentValue);
         }
 
+        @Override
+        protected Component confirmLabel() {
+            return Component.translatable("editor.historystages.nbt.ok");
+        }
+
+        @Override
+        protected List<InputField> fields() {
+            return List.of(InputField.text("value").maxLength(512).initial(currentValue));
+        }
+
+        /**
+         * Reserves the maximum list height rather than the current one: the box geometry is
+         * computed once in init(), so a height that tracked the hit count would make the
+         * dialog jump on every keystroke.
+         */
+        @Override
+        protected int extraContentHeight() {
+            return allSuggestions.isEmpty() ? 0 : MAX_VISIBLE_SUGGESTIONS * SUGGESTION_HEIGHT;
+        }
+
+        /**
+         * Re-filters the list, and rewinds the scroll whenever the query actually changed —
+         * the base class owns the EditBox responder, so the query is polled each frame rather
+         * than pushed, and only a real change should move the user's scroll position.
+         */
         private void updateSuggestions(String input) {
+            boolean queryChanged = !input.equals(lastFilterInput);
+            lastFilterInput = input;
+            if (queryChanged) suggestionScroll = 0;
+
             if (allSuggestions.isEmpty() || input.isEmpty()) {
                 filteredSuggestions = allSuggestions.isEmpty() ? Collections.emptyList() : new ArrayList<>(allSuggestions);
                 return;
@@ -1275,262 +1281,197 @@ public class NbtItemEditScreen extends Screen {
                     .collect(Collectors.toList());
         }
 
-        @Override
-        public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
+        private int maxScroll() {
+            return Math.max(0, filteredSuggestions.size() - MAX_VISIBLE_SUGGESTIONS);
+        }
+
+        /** The 5px-wide strip the scrollbar reacts in — wider than the 2px it draws, to be hittable. */
+        private boolean inScrollbar(double mx, double my) {
+            if (maxScroll() <= 0) return false;
+            int barX = listX + listW - SCROLLBAR_INSET_X;
+            int listH = visibleCount() * SUGGESTION_HEIGHT;
+            return mx >= barX - 2 && mx <= barX + 4 && my >= listY && my < listY + listH;
+        }
+
+        /** Maps a y inside the bar onto a scroll row, centring the thumb on the cursor. */
+        private void scrollFromMouse(double my) {
+            int listH = visibleCount() * SUGGESTION_HEIGHT;
+            int thumbH = Math.max(4, listH * MAX_VISIBLE_SUGGESTIONS / Math.max(1, filteredSuggestions.size()));
+            float usable = listH - thumbH;
+            if (usable <= 0) return;
+            float ratio = (float) ((my - listY - thumbH / 2.0) / usable);
+            ratio = Math.max(0.0f, Math.min(1.0f, ratio));
+            suggestionScroll = Math.round(ratio * maxScroll());
+        }
+
+        private int visibleCount() {
+            return Math.min(MAX_VISIBLE_SUGGESTIONS, filteredSuggestions.size());
         }
 
         @Override
-        public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            g.fill(0, 0, this.width, this.height, 0xC0000000);
-            int centerX = this.width / 2;
-            int centerY = this.height / 2 - 30;
+        protected void renderExtraContent(GuiGraphics g, int x, int y, int w, int mouseX, int mouseY) {
+            // The base class owns the EditBox responder (it drives validation), so the filter is
+            // refreshed from the live value each frame instead of on a change callback.
+            updateSuggestions(box(0).getValue());
+            suggestionScroll = Math.min(suggestionScroll, maxScroll());
 
-            int visibleSuggestions = Math.min(MAX_VISIBLE_SUGGESTIONS, filteredSuggestions.size());
-            int suggestionsH = visibleSuggestions * SUGGESTION_HEIGHT;
+            listX = x;
+            listY = y;
+            listW = w;
 
-            // Dialog background
-            int dlgW = 280;
-            int dlgH = 90 + suggestionsH;
-            int dlgX = centerX - dlgW / 2;
-            int dlgY = centerY - 20;
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
+            if (filteredSuggestions.isEmpty()) return;
 
-            g.drawCenteredString(this.font, title, centerX, dlgY + 10, 0xFFCC00);
+            int visible = visibleCount();
+            int listH = visible * SUGGESTION_HEIGHT;
+            g.fill(listX, listY, listX + listW, listY + listH, 0xF0222222);
 
-            // Input field background — focus-aware border
-            int fieldX = centerX - 120;
-            int fieldY = centerY;
-            int fieldW = 240;
-            int fieldH = 20;
-            int borderColor = inputField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
-            g.fill(fieldX - 1, fieldY - 1, fieldX + fieldW + 1, fieldY + fieldH + 1, borderColor);
-            g.fill(fieldX, fieldY, fieldX + fieldW, fieldY + fieldH, 0xFF0D0D0D);
+            String input = box(0).getValue().toLowerCase();
+            for (int i = 0; i < visible; i++) {
+                int idx = i + suggestionScroll;
+                if (idx >= filteredSuggestions.size()) break;
+                String suggestion = filteredSuggestions.get(idx);
+                int itemY = listY + i * SUGGESTION_HEIGHT;
+                boolean hovered = mouseX >= listX && mouseX < listX + listW
+                        && mouseY >= itemY && mouseY < itemY + SUGGESTION_HEIGHT;
 
-            // Suggestions list
-            if (!filteredSuggestions.isEmpty() && !allSuggestions.isEmpty()) {
-                int sugY = centerY + 24;
-                int sugX = centerX - 120;
-                int sugW = 240;
-
-                g.fill(sugX, sugY, sugX + sugW, sugY + suggestionsH, 0xF0222222);
-
-                int maxScroll = Math.max(0, filteredSuggestions.size() - MAX_VISIBLE_SUGGESTIONS);
-                suggestionScroll = Math.min(suggestionScroll, maxScroll);
-
-                for (int i = 0; i < visibleSuggestions; i++) {
-                    int idx = i + suggestionScroll;
-                    if (idx >= filteredSuggestions.size()) break;
-                    String suggestion = filteredSuggestions.get(idx);
-                    int itemY = sugY + i * SUGGESTION_HEIGHT;
-                    boolean hovered = mouseX >= sugX && mouseX < sugX + sugW && mouseY >= itemY && mouseY < itemY + SUGGESTION_HEIGHT;
-
-                    if (hovered) {
-                        g.fill(sugX, itemY, sugX + sugW, itemY + SUGGESTION_HEIGHT, 0x40FFCC00);
-                    }
-
-                    // Highlight matching part
-                    String input = inputField.getValue().toLowerCase();
-                    int matchIdx = suggestion.toLowerCase().indexOf(input);
-                    if (matchIdx >= 0 && !input.isEmpty()) {
-                        String before = suggestion.substring(0, matchIdx);
-                        String match = suggestion.substring(matchIdx, matchIdx + input.length());
-                        String after = suggestion.substring(matchIdx + input.length());
-                        int tx = sugX + 4;
-                        g.drawString(this.font, before, tx, itemY + 3, 0x999999);
-                        tx += this.font.width(before);
-                        g.drawString(this.font, match, tx, itemY + 3, 0xFFCC00);
-                        tx += this.font.width(match);
-                        g.drawString(this.font, after, tx, itemY + 3, 0x999999);
-                    } else {
-                        g.drawString(this.font, suggestion, sugX + 4, itemY + 3, 0x999999);
-                    }
+                if (hovered) {
+                    g.fill(listX, itemY, listX + listW, itemY + SUGGESTION_HEIGHT, 0x40FFCC00);
                 }
 
-                // Scroll indicator
-                if (filteredSuggestions.size() > MAX_VISIBLE_SUGGESTIONS) {
-                    int barX = sugX + sugW - 3;
-                    int thumbH = Math.max(4, suggestionsH * MAX_VISIBLE_SUGGESTIONS / filteredSuggestions.size());
-                    int thumbY = sugY + (int) ((float) suggestionScroll / maxScroll * (suggestionsH - thumbH));
-                    g.fill(barX, sugY, barX + 2, sugY + suggestionsH, 0x20FFFFFF);
-                    g.fill(barX, thumbY, barX + 2, thumbY + thumbH, 0x80FFCC00);
+                // Highlight the part matching the current input
+                int matchIdx = suggestion.toLowerCase().indexOf(input);
+                if (matchIdx >= 0 && !input.isEmpty()) {
+                    String before = suggestion.substring(0, matchIdx);
+                    String match = suggestion.substring(matchIdx, matchIdx + input.length());
+                    String after = suggestion.substring(matchIdx + input.length());
+                    int tx = listX + 4;
+                    g.drawString(this.font, before, tx, itemY + 3, 0x999999);
+                    tx += this.font.width(before);
+                    g.drawString(this.font, match, tx, itemY + 3, 0xFFCC00);
+                    tx += this.font.width(match);
+                    g.drawString(this.font, after, tx, itemY + 3, 0x999999);
+                } else {
+                    g.drawString(this.font, suggestion, listX + 4, itemY + 3, 0x999999);
                 }
             }
 
-            super.render(g, mouseX, mouseY, partialTick);
-        }
-
-        @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (super.mouseClicked(mouseX, mouseY, button)) return true;
-
-            // Check if clicking on a suggestion
-            if (!filteredSuggestions.isEmpty() && !allSuggestions.isEmpty()) {
-                int centerX = this.width / 2;
-                int centerY = this.height / 2 - 30;
-                int sugY = centerY + 24;
-                int sugX = centerX - 120;
-                int sugW = 240;
-                int visibleSuggestions = Math.min(MAX_VISIBLE_SUGGESTIONS, filteredSuggestions.size());
-
-                if (mouseX >= sugX && mouseX < sugX + sugW && mouseY >= sugY && mouseY < sugY + visibleSuggestions * SUGGESTION_HEIGHT) {
-                    int idx = (int) ((mouseY - sugY) / SUGGESTION_HEIGHT) + suggestionScroll;
-                    if (idx >= 0 && idx < filteredSuggestions.size()) {
-                        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                        inputField.setValue(filteredSuggestions.get(idx));
-                        return true;
-                    }
-                }
+            // Scrollbar — draggable, and brightening on hover so that reads as an affordance.
+            if (filteredSuggestions.size() > MAX_VISIBLE_SUGGESTIONS) {
+                int barX = listX + listW - SCROLLBAR_INSET_X;
+                int thumbH = Math.max(4, listH * MAX_VISIBLE_SUGGESTIONS / filteredSuggestions.size());
+                int thumbY = listY + (int) ((float) suggestionScroll / maxScroll() * (listH - thumbH));
+                int thumbColor = draggingScrollbar ? 0xFFFFCC00
+                        : (inScrollbar(mouseX, mouseY) ? 0xC0FFCC00 : 0x80FFCC00);
+                g.fill(barX, listY, barX + 2, listY + listH, 0x20FFFFFF);
+                g.fill(barX, thumbY, barX + 2, thumbY + thumbH, thumbColor);
             }
-
-            return false;
         }
 
         @Override
-        public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-            if (!filteredSuggestions.isEmpty()) {
-                int maxScroll = Math.max(0, filteredSuggestions.size() - MAX_VISIBLE_SUGGESTIONS);
-                suggestionScroll = (int) Math.max(0, Math.min(maxScroll, suggestionScroll - scrollY));
+        protected boolean extraContentMouseClicked(double mx, double my, int button) {
+            if (button != 0) return false;
+            if (filteredSuggestions.isEmpty()) return false;
+
+            // Scrollbar wins over the rows it sits on top of.
+            if (inScrollbar(mx, my)) {
+                draggingScrollbar = true;
+                scrollFromMouse(my);
                 return true;
             }
-            return false;
+
+            int listH = visibleCount() * SUGGESTION_HEIGHT;
+            if (mx < listX || mx >= listX + listW || my < listY || my >= listY + listH) return false;
+
+            int idx = (int) ((my - listY) / SUGGESTION_HEIGHT) + suggestionScroll;
+            if (idx < 0 || idx >= filteredSuggestions.size()) return false;
+
+            Minecraft.getInstance().getSoundManager().play(
+                    SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            box(0).setValue(filteredSuggestions.get(idx));
+            return true;
         }
 
-        private void confirm() {
-            onDone.accept(inputField.getValue());
+        @Override
+        protected boolean extraContentMouseDragged(double mx, double my, int button) {
+            if (!draggingScrollbar) return false;
+            scrollFromMouse(my);
+            return true;
+        }
+
+        @Override
+        protected boolean extraContentMouseReleased(double mx, double my, int button) {
+            if (!draggingScrollbar) return false;
+            draggingScrollbar = false;
+            return true;
+        }
+
+        @Override
+        protected boolean extraContentMouseScrolled(double mx, double my, double scrollY) {
+            if (filteredSuggestions.isEmpty()) return false;
+            suggestionScroll = (int) Math.max(0, Math.min(maxScroll(), suggestionScroll - scrollY));
+            return true;
+        }
+
+        @Override
+        protected void onConfirm(InputValues values) {
+            onDone.accept(values.getString("value"));
             this.minecraft.setScreen(parent);
         }
-
-        @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { confirm(); return true; } // Enter
-            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; } // Escape
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
-        @Override
-        public boolean isPauseScreen() { return true; }
     }
 
     // ==========================================
     // Custom NBT input screen
     // ==========================================
 
-    static class CustomNbtInputScreen extends Screen {
+    static class CustomNbtInputScreen extends AbstractInputScreen {
         private final Screen parent;
         private final java.util.function.BiConsumer<String, String> onDone;
-        private EditBox keyField;
-        private EditBox valueField;
 
         CustomNbtInputScreen(Screen parent, java.util.function.BiConsumer<String, String> onDone) {
-            super(Component.translatable("editor.historystages.nbt.custom.title"));
+            super(parent, Component.translatable("editor.historystages.nbt.custom.heading"));
             this.parent = parent;
             this.onDone = onDone;
         }
 
         @Override
-        protected void init() {
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-
-            keyField = new EditBox(this.font, centerX - 120 + 4, centerY - 14 + 6, 240 - 4, 20, Component.translatable("editor.historystages.nbt.custom.key_label"));
-            keyField.setMaxLength(128);
-            keyField.setHint(Component.translatable("editor.historystages.nbt.custom.key_hint"));
-            keyField.setBordered(false);
-            keyField.setTextColor(0xFFFFFF);
-            this.addRenderableWidget(keyField);
-            this.setFocused(keyField);
-
-            valueField = new EditBox(this.font, centerX - 120 + 4, centerY + 30 + 6, 240 - 4, 20, Component.translatable("editor.historystages.nbt.custom.value_label"));
-            valueField.setMaxLength(512);
-            valueField.setHint(Component.translatable("editor.historystages.nbt.custom.value_hint"));
-            valueField.setBordered(false);
-            valueField.setTextColor(0xFFFFFF);
-            this.addRenderableWidget(valueField);
-
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.nbt.ok"),
-                    btn -> confirm(),
-                    centerX - 105, centerY + 60, 100, 20));
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.cancel"),
-                    btn -> this.minecraft.setScreen(parent),
-                    centerX + 5, centerY + 60, 100, 20));
+        protected Component confirmLabel() {
+            return Component.translatable("editor.historystages.nbt.ok");
         }
 
         @Override
-        public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
+        protected List<InputField> fields() {
+            return List.of(
+                    InputField.text("key")
+                            .label(Component.translatable("editor.historystages.nbt.custom.key_label"))
+                            .hint(Component.translatable("editor.historystages.nbt.custom.key_hint"))
+                            .maxLength(128)
+                            .validator(v -> v.isEmpty()
+                                    ? Component.translatable("editor.historystages.input.empty") : null),
+                    InputField.text("value")
+                            .label(Component.translatable("editor.historystages.nbt.custom.value_label"))
+                            .hint(Component.translatable("editor.historystages.nbt.custom.value_hint"))
+                            .maxLength(512));
         }
 
         @Override
-        public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            g.fill(0, 0, this.width, this.height, 0xC0000000);
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-
-            int dlgW = 280;
-            int dlgH = 160;
-            int dlgX = centerX - dlgW / 2;
-            int dlgY = centerY - dlgH / 2;
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
-
-            g.drawCenteredString(this.font, Component.translatable("editor.historystages.nbt.custom.heading"), centerX, dlgY + 10, 0xFFCC00);
-
-            // Key label + field
-            g.drawString(this.font, Component.translatable("editor.historystages.nbt.custom.key_label"), centerX - 120, centerY - 26, 0x999999);
-            int kx = centerX - 120, ky = centerY - 14, kw = 240, kh = 20;
-            int kBorder = keyField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
-            g.fill(kx - 1, ky - 1, kx + kw + 1, ky + kh + 1, kBorder);
-            g.fill(kx, ky, kx + kw, ky + kh, 0xFF0D0D0D);
-
-            // Value label + field
-            g.drawString(this.font, Component.translatable("editor.historystages.nbt.custom.value_label"), centerX - 120, centerY + 18, 0x999999);
-            int vx = centerX - 120, vy = centerY + 30, vw = 240, vh = 20;
-            int vBorder = valueField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
-            g.fill(vx - 1, vy - 1, vx + vw + 1, vy + vh + 1, vBorder);
-            g.fill(vx, vy, vx + vw, vy + vh, 0xFF0D0D0D);
-
-            super.render(g, mouseX, mouseY, partialTick);
-        }
-
-        private void confirm() {
-            String key = keyField.getValue().trim();
-            String value = valueField.getValue().trim();
-            if (!key.isEmpty()) {
-                onDone.accept(key, value);
-            }
+        protected void onConfirm(InputValues values) {
+            onDone.accept(values.getString("key"), values.getString("value"));
             this.minecraft.setScreen(parent);
         }
-
-        @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { confirm(); return true; }
-            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; }
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
-        @Override
-        public boolean isPauseScreen() { return true; }
     }
 
     // ==========================================
     // Component value editor (raw JSON object for one data-component)
     // ==========================================
 
-    static class ComponentValueEditScreen extends Screen {
+    static class ComponentValueEditScreen extends AbstractInputScreen {
         private final Screen parent;
         private final String componentId;
         private final String initialValue;
         private final Consumer<String> onDone;
-        private EditBox valueField;
-        private String validationMessage = "";
-        private boolean valid = true;
 
         ComponentValueEditScreen(Screen parent, String componentId, String initialValue, Consumer<String> onDone) {
-            super(Component.translatable("editor.historystages.nbt.component.title"));
+            super(parent, Component.translatable("editor.historystages.nbt.component.heading"));
             this.parent = parent;
             this.componentId = componentId;
             this.initialValue = initialValue != null ? initialValue : "{}";
@@ -1538,103 +1479,45 @@ public class NbtItemEditScreen extends Screen {
         }
 
         @Override
-        protected void init() {
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-
-            valueField = new EditBox(this.font, centerX - 200 + 4, centerY - 5 + 6, 400 - 4, 20, Component.translatable("editor.historystages.nbt.json_label"));
-            valueField.setMaxLength(8192);
-            valueField.setHint(Component.literal("{\"key\": \"value\"}"));
-            valueField.setBordered(false);
-            valueField.setTextColor(0xFFFFFF);
-            valueField.setValue(initialValue);
-            valueField.moveCursorToEnd(false);
-            valueField.setResponder(this::validate);
-            this.addRenderableWidget(valueField);
-            this.setFocused(valueField);
-
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.nbt.ok"),
-                    btn -> confirm(),
-                    centerX - 105, centerY + 50, 100, 20));
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.cancel"),
-                    btn -> this.minecraft.setScreen(parent),
-                    centerX + 5, centerY + 50, 100, 20));
-
-            validate(initialValue);
+        protected Component subtitle() {
+            return Component.literal(componentId);
         }
 
-        private void validate(String raw) {
-            String trimmed = raw == null ? "" : raw.trim();
-            if (trimmed.isEmpty()) {
-                valid = false;
-                validationMessage = Component.translatable("editor.historystages.nbt.json.empty").getString();
-                return;
-            }
+        @Override
+        protected int dialogWidth() { return 460; }
+
+        @Override
+        protected Component confirmLabel() {
+            return Component.translatable("editor.historystages.nbt.ok");
+        }
+
+        @Override
+        protected List<InputField> fields() {
+            return List.of(InputField.text("json")
+                    .maxLength(8192)
+                    .hint(Component.literal("{\"key\": \"value\"}"))
+                    .initial(initialValue)
+                    .validator(this::validateJson));
+        }
+
+        /** Any JSON type is allowed — objects, arrays, strings, numbers, booleans — but not null. */
+        private Component validateJson(String raw) {
+            if (raw.isEmpty()) return Component.translatable("editor.historystages.nbt.json.empty");
             try {
-                com.google.gson.JsonElement parsed = com.google.gson.JsonParser.parseString(trimmed);
+                com.google.gson.JsonElement parsed = com.google.gson.JsonParser.parseString(raw);
                 if (parsed.isJsonNull()) {
-                    valid = false;
-                    validationMessage = Component.translatable("editor.historystages.nbt.json.not_object").getString();
-                    return;
+                    return Component.translatable("editor.historystages.nbt.json.not_object");
                 }
-                // Any JSON type is allowed: objects, arrays, strings (e.g.
-                // irons_jewelry:stored_pattern), numbers and booleans.
-                valid = true;
-                validationMessage = Component.translatable("editor.historystages.nbt.json.valid").getString();
+                return null;
             } catch (Exception e) {
-                valid = false;
-                validationMessage = Component.translatable("editor.historystages.nbt.json.invalid", e.getMessage()).getString();
+                return Component.translatable("editor.historystages.nbt.json.invalid", e.getMessage());
             }
         }
 
         @Override
-        public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
-        }
-
-        @Override
-        public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            g.fill(0, 0, this.width, this.height, 0xC0000000);
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-
-            int dlgW = 460;
-            int dlgH = 160;
-            int dlgX = centerX - dlgW / 2;
-            int dlgY = centerY - dlgH / 2;
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + dlgH, 0xF0181818);
-            g.fill(dlgX, dlgY, dlgX + dlgW, dlgY + 2, 0xFFFFCC00);
-
-            g.drawCenteredString(this.font, Component.translatable("editor.historystages.nbt.component.heading"), centerX, dlgY + 10, 0xFFCC00);
-            g.drawCenteredString(this.font, componentId, centerX, dlgY + 24, 0xCCCCCC);
-
-            int fx = centerX - 200, fy = centerY - 5, fw = 400, fh = 20;
-            int fBorder = valueField.isFocused() ? 0xFFFFCC00 : 0xFF4A4A4A;
-            g.fill(fx - 1, fy - 1, fx + fw + 1, fy + fh + 1, fBorder);
-            g.fill(fx, fy, fx + fw, fy + fh, 0xFF0D0D0D);
-
-            int statusColor = valid ? 0x66FF66 : 0xFF8866;
-            g.drawString(this.font, validationMessage, centerX - 200, centerY + 22, statusColor);
-
-            super.render(g, mouseX, mouseY, partialTick);
-        }
-
-        private void confirm() {
-            if (!valid) return; // refuse to save broken JSON
-            onDone.accept(valueField.getValue().trim());
+        protected void onConfirm(InputValues values) {
+            onDone.accept(values.getString("json"));
             this.minecraft.setScreen(parent);
         }
-
-        @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { confirm(); return true; } // Enter
-            if (keyCode == 256) { this.minecraft.setScreen(parent); return true; } // Escape
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
-        @Override
-        public boolean isPauseScreen() { return true; }
     }
 }

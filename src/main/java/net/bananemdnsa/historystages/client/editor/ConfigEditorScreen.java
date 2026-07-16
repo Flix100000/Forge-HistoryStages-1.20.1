@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
@@ -193,15 +196,17 @@ public class ConfigEditorScreen extends Screen {
         structureVisuals.add(new ConfigEntry("structureBorderEnabled", ConfigType.BOOLEAN,
                 Config.CLIENT.structureBorderEnabled.get().toString(), true, "true",
                 "Render a force-field-style border on the walls of locked structures when you get close?"));
-        structureVisuals.add(new ConfigEntry("structureBorderDistance", ConfigType.STRING,
+        structureVisuals.add(new ConfigEntry("structureBorderDistance", ConfigType.DOUBLE,
                 Config.CLIENT.structureBorderDistance.get().toString(), true, "8.0",
-                "How close (in blocks) to a locked structure wall before the border becomes visible (1.0-32.0)."));
+                "How close (in blocks) to a locked structure wall before the border becomes visible (1.0-32.0).",
+                1.0, 32.0));
         structureVisuals.add(new ConfigEntry("structureLockOverlayEnabled", ConfigType.BOOLEAN,
                 Config.CLIENT.structureLockOverlayEnabled.get().toString(), true, "true",
                 "While standing inside a locked structure, tint the whole screen red (red-glasses effect)?"));
-        structureVisuals.add(new ConfigEntry("structureLockOverlayOpacity", ConfigType.STRING,
+        structureVisuals.add(new ConfigEntry("structureLockOverlayOpacity", ConfigType.DOUBLE,
                 Config.CLIENT.structureLockOverlayOpacity.get().toString(), true, "0.3",
-                "Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque)."));
+                "Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque).",
+                0.0, 1.0));
         clientSections.add(structureVisuals);
 
         ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
@@ -248,9 +253,10 @@ public class ConfigEditorScreen extends Screen {
         gameplay.add(new ConfigEntry("lockBlockBreaking", ConfigType.BOOLEAN,
                 Config.COMMON.lockBlockBreaking.get().toString(), false, "true",
                 "Make locked blocks much harder to break and prevent their drops?"));
-        gameplay.add(new ConfigEntry("lockedBlockBreakSpeedMultiplier", ConfigType.STRING,
+        gameplay.add(new ConfigEntry("lockedBlockBreakSpeedMultiplier", ConfigType.DOUBLE,
                 Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
-                "Break speed multiplier for locked blocks (0.001-1.0). Lower = slower."));
+                "Break speed multiplier for locked blocks (0.001-1.0). Lower = slower.",
+                0.001, 1.0));
         gameplay.add(new ConfigEntry("lockItemUsage", ConfigType.BOOLEAN,
                 Config.COMMON.lockItemUsage.get().toString(), false, "true",
                 "Prevent using locked items? (equipping armor, weapons, food, etc.)"));
@@ -294,9 +300,10 @@ public class ConfigEditorScreen extends Screen {
         individualCommon.add(new ConfigEntry("individualLockBlockBreaking", ConfigType.BOOLEAN,
                 Config.COMMON.individualLockBlockBreaking.get().toString(), false, "true",
                 "Make blocks locked by individual stages much harder to break and prevent their drops?"));
-        individualCommon.add(new ConfigEntry("individualLockedBlockBreakSpeedMultiplier", ConfigType.STRING,
+        individualCommon.add(new ConfigEntry("individualLockedBlockBreakSpeedMultiplier", ConfigType.DOUBLE,
                 Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
-                "Break speed multiplier for blocks locked by individual stages (0.001-1.0). Lower = slower."));
+                "Break speed multiplier for blocks locked by individual stages (0.001-1.0). Lower = slower.",
+                0.001, 1.0));
         individualCommon.add(new ConfigEntry("individualLockItemUsage", ConfigType.BOOLEAN,
                 Config.COMMON.individualLockItemUsage.get().toString(), false, "true",
                 "Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.)"));
@@ -324,7 +331,8 @@ public class ConfigEditorScreen extends Screen {
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
                 Config.COMMON.researchTimeInSeconds.get().toString(), false, "20",
-                "Default research time in seconds. Used as fallback if a stage does not define its own. Range 1-86400."));
+                "Default research time in seconds. Used as fallback if a stage does not define its own. Range 1-86400.",
+                1, 86400));
         research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
                 Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
                 "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
@@ -352,7 +360,8 @@ public class ConfigEditorScreen extends Screen {
         ConfigSection structureLock = new ConfigSection("editor.historystages.config.structure_lock");
         structureLock.add(new ConfigEntry("structureCheckInterval", ConfigType.INTEGER,
                 Config.COMMON.structureCheckInterval.get().toString(), false, "10",
-                "How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction."));
+                "How often (in ticks) to check if a player is inside a locked structure. Higher = better performance, lower = faster reaction.",
+                1, 200));
         structureLock.add(new ConfigEntry("structureMessageEnabled", ConfigType.BOOLEAN,
                 Config.COMMON.structureMessageEnabled.get().toString(), false, "true",
                 "Show the player a message when they are inside a locked structure?"));
@@ -366,12 +375,14 @@ public class ConfigEditorScreen extends Screen {
         structureLock.add(new ConfigEntry("structureDamageEnabled", ConfigType.BOOLEAN,
                 Config.COMMON.structureDamageEnabled.get().toString(), false, "false",
                 "Damage the player while they are inside a locked structure?"));
-        structureLock.add(new ConfigEntry("structureDamageAmount", ConfigType.STRING,
+        structureLock.add(new ConfigEntry("structureDamageAmount", ConfigType.DOUBLE,
                 Config.COMMON.structureDamageAmount.get().toString(), false, "1.0",
-                "Amount of damage dealt per damage tick (0.1-100.0)."));
+                "Amount of damage dealt per damage tick (0.1-100.0).",
+                0.1, 100.0));
         structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
                 Config.COMMON.structureDamageInterval.get().toString(), false, "20",
-                "How often (in ticks) to deal damage while inside a locked structure."));
+                "How often (in ticks) to deal damage while inside a locked structure.",
+                1, 600));
         structureLock.add(new ConfigEntry("structureBlockRightClick", ConfigType.BOOLEAN,
                 Config.COMMON.structureBlockRightClick.get().toString(), false, "true",
                 "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked structure?"));
@@ -661,7 +672,7 @@ public class ConfigEditorScreen extends Screen {
                 if (toggleHovered) toggleColor = val ? 0x88FF88 : 0xFF8888;
                 guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
             }
-            case INTEGER -> {
+            case INTEGER, DOUBLE -> {
                 guiGraphics.drawString(this.font, entry.value, controlX, y + 8, 0xDDDDDD, false);
             }
             case STRING -> {
@@ -808,8 +819,7 @@ public class ConfigEditorScreen extends Screen {
                 boolean current = Boolean.parseBoolean(entry.value);
                 entry.value = String.valueOf(!current);
             }
-            case INTEGER -> this.minecraft.setScreen(new ValueInputScreen(this, entry, true));
-            case STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry, false));
+            case INTEGER, DOUBLE, STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry));
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
@@ -976,13 +986,11 @@ public class ConfigEditorScreen extends Screen {
                 case "showBoosterTooltips" -> Config.CLIENT.showBoosterTooltips.set(Boolean.parseBoolean(value));
                 case "showScrollTierTooltip" -> Config.CLIENT.showScrollTierTooltip.set(Boolean.parseBoolean(value));
                 case "structureBorderEnabled" -> Config.CLIENT.structureBorderEnabled.set(Boolean.parseBoolean(value));
-                case "structureBorderDistance" -> {
-                    try { Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
-                }
+                case "structureBorderDistance" ->
+                        Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value));
                 case "structureLockOverlayEnabled" -> Config.CLIENT.structureLockOverlayEnabled.set(Boolean.parseBoolean(value));
-                case "structureLockOverlayOpacity" -> {
-                    try { Config.CLIENT.structureLockOverlayOpacity.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
-                }
+                case "structureLockOverlayOpacity" ->
+                        Config.CLIENT.structureLockOverlayOpacity.set(Double.parseDouble(value));
                 case "hideLockedItemsInJei" -> Config.CLIENT.hideLockedItemsInJei.set(Boolean.parseBoolean(value));
                 case "hideLockedRecipesInJei" -> Config.CLIENT.hideLockedRecipesInJei.set(Boolean.parseBoolean(value));
                 case "lockedItemMultiStagePolicy" -> {
@@ -1010,7 +1018,7 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY
+        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY
     }
 
     /** Encode the live booster config list as the editor's internal string:
@@ -1031,8 +1039,18 @@ public class ConfigEditorScreen extends Screen {
         final boolean isClient;
         final String defaultValue;
         final String description;
+        /** Inclusive bounds for INTEGER / DOUBLE entries, mirroring Config.java's defineInRange. */
+        final double min;
+        final double max;
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient, String defaultValue, String description) {
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, String description) {
+            this(key, type, value, isClient, defaultValue, description,
+                    Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+        }
+
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, String description, double min, double max) {
             this.key = key;
             this.type = type;
             this.value = value;
@@ -1040,6 +1058,8 @@ public class ConfigEditorScreen extends Screen {
             this.isClient = isClient;
             this.defaultValue = defaultValue;
             this.description = description;
+            this.min = min;
+            this.max = max;
         }
     }
 
@@ -1540,93 +1560,34 @@ public class ConfigEditorScreen extends Screen {
     }
 
     /**
-     * Modal dialog for editing integer or string config values.
+     * Modal dialog for editing integer, decimal or string config values. Numeric entries get
+     * the range declared on the ConfigEntry, so the dialog cannot produce a value that the
+     * underlying ModConfigSpec would reject.
      */
-    static class ValueInputScreen extends Screen {
+    static class ValueInputScreen extends AbstractInputScreen {
         private final ConfigEditorScreen parent;
         private final ConfigEntry entry;
-        private final boolean numericOnly;
-        private EditBox inputField;
 
-        ValueInputScreen(ConfigEditorScreen parent, ConfigEntry entry, boolean numericOnly) {
-            super(Component.translatable("editor.historystages.config." + entry.key));
+        ValueInputScreen(ConfigEditorScreen parent, ConfigEntry entry) {
+            super(parent, Component.translatable("editor.historystages.config." + entry.key));
             this.parent = parent;
             this.entry = entry;
-            this.numericOnly = numericOnly;
         }
 
         @Override
-        protected void init() {
-            int centerX = this.width / 2;
-            int centerY = this.height / 2;
-
-            inputField = new EditBox(this.font, centerX - 100, centerY - 10, 200, 20,
-                    Component.translatable("editor.historystages.config." + entry.key));
-            inputField.setMaxLength(256);
-            inputField.setValue(entry.value);
-            inputField.setFocused(true);
-            if (numericOnly) {
-                inputField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
-            }
-            this.addRenderableWidget(inputField);
-            this.setFocused(inputField);
-
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.confirm"),
-                    btn -> applyAndClose(), centerX - 105, centerY + 20, 100, 20));
-
-            this.addRenderableWidget(StyledButton.of(
-                    Component.translatable("editor.historystages.cancel"),
-                    btn -> this.minecraft.setScreen(parent), centerX + 5, centerY + 20, 100, 20));
-        }
-
-        private void applyAndClose() {
-            String value = inputField.getValue();
-            if (numericOnly) {
-                try {
-                    Integer.parseInt(value);
-                } catch (NumberFormatException e) {
-                    return;
-                }
-            }
-            entry.value = value;
-
-            this.minecraft.setScreen(parent);
+        protected List<InputField> fields() {
+            return switch (entry.type) {
+                case INTEGER -> List.of(InputField.number("value")
+                        .range((int) entry.min, (int) entry.max).initial(entry.value));
+                case DOUBLE -> List.of(InputField.decimal("value")
+                        .range(entry.min, entry.max).initial(entry.value));
+                default -> List.of(InputField.text("value").maxLength(256).initial(entry.value));
+            };
         }
 
         @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (keyCode == 257) { // ENTER
-                applyAndClose();
-                return true;
-            }
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
-        @Override
-        public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-            // No-op — avoid 1.21's menu blur shader
-        }
-
-        @Override
-        public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-            guiGraphics.fill(0, 0, this.width, this.height, 0xC0000000);
-
-            int boxW = 260;
-            int boxH = 100;
-            int boxX = (this.width - boxW) / 2;
-            int boxY = (this.height - boxH) / 2 - 10;
-            guiGraphics.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xFF2D2D2D);
-            guiGraphics.fill(boxX + 1, boxY + 1, boxX + boxW - 1, boxY + boxH - 1, 0xFF1A1A1A);
-
-            String label = Component.translatable("editor.historystages.config." + entry.key).getString();
-            guiGraphics.drawCenteredString(this.font, label, this.width / 2, boxY + 8, 0xFFFFFF);
-
-            super.render(guiGraphics, mouseX, mouseY, partialTick);
-        }
-
-        @Override
-        public void onClose() {
+        protected void onConfirm(InputValues values) {
+            entry.value = values.getString("value");
             this.minecraft.setScreen(parent);
         }
     }
