@@ -49,9 +49,9 @@ public class HiddenDisplayConfig {
         return showLockHints == null || showLockHints;
     }
 
-    /** True when this config changes nothing — name and tooltip both OFF. */
+    /** True when this config changes nothing — name and tooltip both OFF and lock hints shown. */
     public boolean isNoop() {
-        return getNameMode() == DisplayMode.OFF && getTooltipMode() == DisplayMode.OFF;
+        return getNameMode() == DisplayMode.OFF && getTooltipMode() == DisplayMode.OFF && isShowLockHints();
     }
 
     public void setNameMode(DisplayMode mode) {

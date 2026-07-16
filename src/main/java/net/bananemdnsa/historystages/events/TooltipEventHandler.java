@@ -119,9 +119,9 @@ public class TooltipEventHandler {
         HiddenDisplayResolver.Resolved hidden = HiddenDisplayResolver.resolve(stack);
         if (hidden.changesTooltip()) {
             applyTooltipEffect(event.getToolTip(), hidden);
-            // Lock hints are the mod's own lines below; suppress them when configured.
-            if (!hidden.showLockHints()) return;
         }
+        // Lock hints are the mod's own lines below; suppress them when configured.
+        if (!hidden.showLockHints()) return;
 
         // --- AB HIER: NORMALER LOCKED ITEM CHECK ---
         ResourceLocation itemLocation = BuiltInRegistries.ITEM.getKey(stack.getItem());

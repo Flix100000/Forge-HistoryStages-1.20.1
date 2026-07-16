@@ -118,8 +118,7 @@ public class JadePlugin implements IWailaPlugin {
             }
 
             if (!Config.CLIENT.jadeShowInfo.get()) return;
-            // Couple the lock-info lines to show_lock_hints when the tooltip is hidden/replaced.
-            boolean suppressHints = hidden.changesTooltip() && !hidden.showLockHints();
+            boolean suppressHints = !hidden.showLockHints();
 
             ResourceLocation itemLocation = BuiltInRegistries.ITEM.getKey(blockItem.getItem());
             if (itemLocation == null) return;
