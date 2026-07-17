@@ -264,6 +264,14 @@
   "editor.historystages.config.structureBlockLeftClick": "Linksklick blockieren",
   "editor.historystages.config.structureBlockProjectiles": "Projektile blockieren",
 
+  "editor.historystages.config.graph": "Stufen-Graph",
+  "editor.historystages.config.graphEnabled": "Spieler-Graph aktivieren",
+  "editor.historystages.config.graphVisibility": "Sichtbarkeit",
+  "editor.historystages.config.graphRespectHiddenDisplay": "Hidden Display beachten",
+  "editor.historystages.config.graphShowStageElements": "Stufen-Elemente zeigen",
+  "editor.historystages.config.graphShowTriggers": "Auslöser zeigen",
+  "editor.historystages.config.graphShowIndividualStages": "Individuelle Stufen zeigen",
+
   "editor.historystages.config.lock_messages": "Sperr-Nachrichten",
   "editor.historystages.config.msgDimensionUnknown": "Dimension unbekannt",
   "editor.historystages.config.msgMobUnknown": "Wesen unbekannt",

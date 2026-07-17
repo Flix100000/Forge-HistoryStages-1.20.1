@@ -155,6 +155,18 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
 
                 // Same omission, outside the individual section.
                 case "lockBlockInteraction" -> Config.COMMON.lockBlockInteraction.set(Boolean.parseBoolean(value));
+
+                // Stage dependency graph visibility settings (issue #97).
+                case "graphEnabled" -> Config.COMMON.graphEnabled.set(Boolean.parseBoolean(value));
+                case "graphVisibility" -> {
+                    try {
+                        Config.COMMON.graphVisibility.set(Config.Common.GraphVisibility.valueOf(value));
+                    } catch (IllegalArgumentException ignored) {}
+                }
+                case "graphRespectHiddenDisplay" -> Config.COMMON.graphRespectHiddenDisplay.set(Boolean.parseBoolean(value));
+                case "graphShowStageElements" -> Config.COMMON.graphShowStageElements.set(Boolean.parseBoolean(value));
+                case "graphShowTriggers" -> Config.COMMON.graphShowTriggers.set(Boolean.parseBoolean(value));
+                case "graphShowIndividualStages" -> Config.COMMON.graphShowIndividualStages.set(Boolean.parseBoolean(value));
             }
         }
     }

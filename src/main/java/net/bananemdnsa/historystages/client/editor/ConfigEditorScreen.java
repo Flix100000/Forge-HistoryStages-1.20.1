@@ -394,6 +394,27 @@ public class ConfigEditorScreen extends Screen {
                 "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked structure?"));
         commonSections.add(structureLock);
 
+        ConfigSection graph = new ConfigSection("editor.historystages.config.graph");
+        graph.add(new ConfigEntry("graphEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.graphEnabled.get().toString(), false, "true",
+                "Show the 'Stage Graph' button in the pause screen for players? Admins can always reach the graph through the editor."));
+        graph.add(new ConfigEntry("graphVisibility", ConfigType.GRAPH_VISIBILITY,
+                Config.COMMON.graphVisibility.get().name(), false, "PROGRESSIVE",
+                "How much of the tree the player view reveals. ALL = everything; PROGRESSIVE = unlocked, everything researchable now, and their direct neighbours; UNLOCKED_ONLY = only what is already unlocked."));
+        graph.add(new ConfigEntry("graphRespectHiddenDisplay", ConfigType.BOOLEAN,
+                Config.COMMON.graphRespectHiddenDisplay.get().toString(), false, "true",
+                "Draw stages whose hidden_display hides their name as anonymous '???' nodes?"));
+        graph.add(new ConfigEntry("graphShowStageElements", ConfigType.BOOLEAN,
+                Config.COMMON.graphShowStageElements.get().toString(), false, "true",
+                "Show the detail nodes around a stage (items, XP, kills, advancements, stats, scoreboard)? Off = stage skeleton only."));
+        graph.add(new ConfigEntry("graphShowTriggers", ConfigType.BOOLEAN,
+                Config.COMMON.graphShowTriggers.get().toString(), false, "true",
+                "Show auto-unlock trigger nodes for AUTO/TEMPORARY stages? These reveal what unlocks a stage."));
+        graph.add(new ConfigEntry("graphShowIndividualStages", ConfigType.BOOLEAN,
+                Config.COMMON.graphShowIndividualStages.get().toString(), false, "true",
+                "Show individual (per-player) stages in the graph?"));
+        commonSections.add(graph);
+
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
         lockMessages.add(new ConfigEntry("msgDimensionUnknown", ConfigType.STRING,
                 Config.COMMON.msgDimensionUnknown.get(), false, "",
@@ -716,6 +737,20 @@ public class ConfigEditorScreen extends Screen {
                 if (toggleHovered) toggleColor = strict ? 0x88FF88 : 0xFFCC88;
                 guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
             }
+            case GRAPH_VISIBILITY -> {
+                // Four values, so this cycles rather than toggling. Colour runs from
+                // "reveals everything" to "reveals nothing" as a quick visual cue.
+                Config.Common.GraphVisibility vis = parseVisibility(entry.value);
+                int visColor = switch (vis) {
+                    case ALL -> 0xFF8855;
+                    case PROGRESSIVE -> 0x55FF55;
+                    case UNLOCKED_ONLY -> 0x55AAFF;
+                };
+                boolean visHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                if (visHovered) visColor |= 0x333333;
+                guiGraphics.drawString(this.font, "\u21bb " + vis.name(), controlX, y + 8, visColor, false);
+            }
             case ITEM -> {
                 // Render a 16x16 item icon + the item ID text
                 ItemStack preview = resolveItemStack(entry.value);
@@ -827,6 +862,11 @@ public class ConfigEditorScreen extends Screen {
             case MULTI_STAGE_POLICY -> {
                 boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
                 entry.value = strict ? "LENIENT" : "STRICT";
+            }
+            case GRAPH_VISIBILITY -> {
+                Config.Common.GraphVisibility[] all = Config.Common.GraphVisibility.values();
+                int next = (parseVisibility(entry.value).ordinal() + 1) % all.length;
+                entry.value = all[next].name();
             }
         }
     }
@@ -1018,7 +1058,20 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY
+        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY,
+        GRAPH_VISIBILITY
+    }
+
+    /**
+     * Parses a stored GRAPH_VISIBILITY value, falling back to the default if the string is
+     * unrecognised — a hand-edited config must not break the editor.
+     */
+    private static Config.Common.GraphVisibility parseVisibility(String value) {
+        try {
+            return Config.Common.GraphVisibility.valueOf(value);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return Config.Common.GraphVisibility.PROGRESSIVE;
+        }
     }
 
     /** Encode the live booster config list as the editor's internal string:
