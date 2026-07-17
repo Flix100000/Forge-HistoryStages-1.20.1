@@ -61,6 +61,8 @@
   "editor.historystages.search.tab.structure_tags": "Tags",
   "editor.historystages.search.add": "Add (%s)",
   "editor.historystages.search.add.empty": "Select an entry",
+  "editor.historystages.search.selectall": "Select all (%s)",
+  "editor.historystages.search.deselectall": "Deselect all (%s)",
   "editor.historystages.search.selected.placeholder": "Search selected (%s)...",
   "editor.historystages.search.selected.empty": "Nothing selected yet",
   "editor.historystages.delete": "Delete",

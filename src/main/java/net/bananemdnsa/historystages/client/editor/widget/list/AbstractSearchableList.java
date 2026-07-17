@@ -62,6 +62,8 @@ public abstract class AbstractSearchableList<T> {
 
     private static final int ADD_BTN_W = 100;
     private static final int ADD_BTN_H = 20;
+    private static final int SELECTALL_BTN_H = 14;
+    private static final int SELECTALL_BTN_GAP = 4;
 
     private boolean multiSelect = false;
     /**
@@ -264,7 +266,8 @@ public abstract class AbstractSearchableList<T> {
         allEntries.addAll(loadEntries());
         tabIndicatorInit = false;
         panelW = getPanelWidth();
-        panelH = getTabBarHeight() + SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4
+        panelH = getTabBarHeight() + SearchBar.HEIGHT + PADDING * 2 + visibleRows() * ROW_HEIGHT + PADDING + 4
+                + selectAllRowH()
                 + (multiSelect ? ADD_BTN_H + PADDING : 0);
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
@@ -353,7 +356,7 @@ public abstract class AbstractSearchableList<T> {
     }
 
     private void updateMaxScroll() {
-        maxScrollRow = Math.max(0, visibleCount() - VISIBLE_ROWS);
+        maxScrollRow = Math.max(0, visibleCount() - visibleRows());
     }
 
     protected final void emitSelection(String value) {
@@ -387,6 +390,39 @@ public abstract class AbstractSearchableList<T> {
 
     protected final int getTabBarHeight() {
         return tabBarVisible() ? TAB_HEIGHT + 4 : 0;
+    }
+
+    /** Reserved height for the select-all/deselect-all row. Only present in multi-select. */
+    private int selectAllRowH() {
+        return multiSelect ? SELECTALL_BTN_H + PADDING : 0;
+    }
+
+    /**
+     * Rendered list rows. Two fewer in multi-select so the panel doesn't grow taller than the
+     * single-select overlays once the tab bar, button row and Add button are added.
+     */
+    protected int visibleRows() {
+        return multiSelect ? VISIBLE_ROWS - 2 : VISIBLE_ROWS;
+    }
+
+    /** Y of the select-all button row (just below the search bar). */
+    private int selectAllRowY() {
+        return searchTopY() + SearchBar.HEIGHT + PADDING;
+    }
+
+    /** In multi-select the button row is always present; the buttons grey out when idle. */
+    private boolean selectAllButtonsVisible() {
+        return multiSelect;
+    }
+
+    /**
+     * Whether the buttons are actionable: on own tabs only once a query narrows the list
+     * (select-all with no filter would mean the whole registry), always on the Selected tab.
+     */
+    private boolean selectAllContextActive() {
+        if (isSelectedTabActive()) return true;
+        String q = searchBar.getText();
+        return q != null && !q.isEmpty();
     }
 
     private List<String> allTabLabels() {
@@ -431,6 +467,58 @@ public abstract class AbstractSearchableList<T> {
             selected.remove(value);
         } else {
             selected.put(value, entry);
+        }
+    }
+
+    /** How many currently-found entries "Select all" would add. 0 when idle (no filter). */
+    private int selectableFoundCount() {
+        if (!selectAllContextActive()) return 0;
+        int n = 0;
+        if (isSelectedTabActive()) {
+            for (Sel<T> ref : selectedView) if (!selected.containsKey(ref.value())) n++;
+        } else {
+            for (T entry : filteredEntries) if (!selected.containsKey(selectionValueOf(entry))) n++;
+        }
+        return n;
+    }
+
+    /**
+     * How many currently-found entries "Deselect all" would remove. Unlike selecting, this is
+     * available without a filter too — it only ever removes things already selected, so clearing
+     * the whole selection with no query is safe.
+     */
+    private int deselectableFoundCount() {
+        int n = 0;
+        if (isSelectedTabActive()) {
+            for (Sel<T> ref : selectedView) if (selected.containsKey(ref.value())) n++;
+        } else {
+            for (T entry : filteredEntries) if (selected.containsKey(selectionValueOf(entry))) n++;
+        }
+        return n;
+    }
+
+    private void selectAllFound() {
+        if (isSelectedTabActive()) {
+            for (Sel<T> ref : selectedView) selected.put(ref.value(), ref.entry());
+        } else {
+            for (T entry : filteredEntries) selected.put(selectionValueOf(entry), entry);
+        }
+        refreshSelectedPlaceholder();
+    }
+
+    private void deselectAllFound() {
+        if (isSelectedTabActive()) {
+            for (Sel<T> ref : selectedView) selected.remove(ref.value());
+        } else {
+            for (T entry : filteredEntries) selected.remove(selectionValueOf(entry));
+        }
+        refreshSelectedPlaceholder();
+    }
+
+    private void refreshSelectedPlaceholder() {
+        if (isSelectedTabActive()) {
+            searchBar.setPlaceholder(Component.translatable(
+                    "editor.historystages.search.selected.placeholder", selected.size()).getString());
         }
     }
 
@@ -529,7 +617,7 @@ public abstract class AbstractSearchableList<T> {
 
     /** Y of the first list row. */
     protected final int listTopY() {
-        return searchTopY() + SearchBar.HEIGHT + PADDING;
+        return searchTopY() + SearchBar.HEIGHT + PADDING + selectAllRowH();
     }
 
     private int listLeftX() {
@@ -608,6 +696,52 @@ public abstract class AbstractSearchableList<T> {
         }
     }
 
+    private void renderSelectAllRow(GuiGraphics g, Font font, int mouseX, int mouseY) {
+        int rowX = panelX + PADDING;
+        int rowW = panelW - PADDING * 2;
+        int btnW = (rowW - SELECTALL_BTN_GAP) / 2;
+        int leftX = rowX;
+        int rightX = rowX + btnW + SELECTALL_BTN_GAP;
+        int y = selectAllRowY();
+
+        int selCount = selectableFoundCount();
+        int deselCount = deselectableFoundCount();
+        boolean canSelect = selCount > 0;
+        boolean canDeselect = deselCount > 0;
+        boolean selHovered = canSelect && isInBtn(mouseX, mouseY, leftX, y, btnW);
+        boolean deselHovered = canDeselect && isInBtn(mouseX, mouseY, rightX, y, btnW);
+
+        String selLabel = Component.translatable("editor.historystages.search.selectall", selCount).getString();
+        String deselLabel = Component.translatable("editor.historystages.search.deselectall", deselCount).getString();
+        drawSmallButton(g, font, leftX, y, btnW, selLabel, true, canSelect, selHovered);
+        drawSmallButton(g, font, rightX, y, btnW, deselLabel, false, canDeselect, deselHovered);
+    }
+
+    private boolean isInBtn(double mouseX, double mouseY, int x, int y, int w) {
+        return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + SELECTALL_BTN_H;
+    }
+
+    private void drawSmallButton(GuiGraphics g, Font font, int x, int y, int w,
+                                 String label, boolean accentYellow, boolean enabled, boolean hovered) {
+        int border;
+        int bg;
+        int text;
+        if (!enabled) {
+            border = 0xFF333333; bg = 0xFF1E1E1E; text = 0xFF555555;
+        } else if (accentYellow) {
+            border = hovered ? 0xFFFFCC00 : 0xFFB38F00;
+            bg = hovered ? 0xFF553A10 : 0xFF2A2510;
+            text = hovered ? 0xFFFFFFFF : 0xFFDDCC88;
+        } else {
+            border = hovered ? 0xFF884444 : 0xFF663030;
+            bg = hovered ? 0xFF3A1A1A : 0xFF2A1010;
+            text = hovered ? 0xFFFFFFFF : 0xFFDDAAAA;
+        }
+        g.fill(x, y, x + w, y + SELECTALL_BTN_H, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + SELECTALL_BTN_H - 1, bg);
+        g.drawString(font, label, x + (w - font.width(label)) / 2, y + (SELECTALL_BTN_H - 8) / 2, text, false);
+    }
+
     private boolean confirmAndAdd() {
         if (!canConfirm()) return false;
         Minecraft.getInstance().getSoundManager()
@@ -633,14 +767,15 @@ public abstract class AbstractSearchableList<T> {
         int searchY = searchTopY();
         searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
         searchBar.render(g, font, mouseX, mouseY);
+        if (selectAllButtonsVisible()) renderSelectAllRow(g, font, mouseX, mouseY);
 
         int listX = panelX + PADDING;
-        int listY = searchY + SearchBar.HEIGHT + PADDING;
+        int listY = listTopY();
         int listW = panelW - PADDING * 2 - 8;
 
         boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
 
-        for (int i = 0; i < VISIBLE_ROWS; i++) {
+        for (int i = 0; i < visibleRows(); i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
 
@@ -673,7 +808,7 @@ public abstract class AbstractSearchableList<T> {
         // Selected tab with nothing selected: hint in the middle rather than a blank grid.
         if (isSelectedTabActive() && selectedSnapshot.isEmpty()) {
             String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
-            int listH = VISIBLE_ROWS * ROW_HEIGHT;
+            int listH = visibleRows() * ROW_HEIGHT;
             g.drawString(font, hint, listX + (listW - font.width(hint)) / 2,
                     listY + (listH - 8) / 2, 0xFF888888, false);
         }
@@ -681,11 +816,11 @@ public abstract class AbstractSearchableList<T> {
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
             int scrollBarTop = listY;
-            int scrollBarBottom = listY + VISIBLE_ROWS * ROW_HEIGHT;
+            int scrollBarBottom = listY + visibleRows() * ROW_HEIGHT;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
             g.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
             int thumbHeight = Math.max(10,
-                    (int) ((float) VISIBLE_ROWS / (maxScrollRow + VISIBLE_ROWS) * scrollBarHeight));
+                    (int) ((float) visibleRows() / (maxScrollRow + visibleRows()) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             g.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
@@ -713,6 +848,31 @@ public abstract class AbstractSearchableList<T> {
             return true;
         }
 
+        if (selectAllButtonsVisible()) {
+            int rowX = panelX + PADDING;
+            int rowW = panelW - PADDING * 2;
+            int btnW = (rowW - SELECTALL_BTN_GAP) / 2;
+            int leftX = rowX;
+            int rightX = rowX + btnW + SELECTALL_BTN_GAP;
+            int y = selectAllRowY();
+            if (isInBtn(mouseX, mouseY, leftX, y, btnW)) {
+                if (selectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    selectAllFound();
+                }
+                return true;
+            }
+            if (isInBtn(mouseX, mouseY, rightX, y, btnW)) {
+                if (deselectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    deselectAllFound();
+                }
+                return true;
+            }
+        }
+
         if (multiSelect && isAddButtonAt(mouseX, mouseY)) {
             confirmAndAdd();
             return true;
@@ -725,14 +885,14 @@ public abstract class AbstractSearchableList<T> {
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
-                    && mouseY >= listY && mouseY < listY + VISIBLE_ROWS * ROW_HEIGHT) {
+                    && mouseY >= listY && mouseY < listY + visibleRows() * ROW_HEIGHT) {
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, listY);
                 return true;
             }
         }
 
-        for (int i = 0; i < VISIBLE_ROWS; i++) {
+        for (int i = 0; i < visibleRows(); i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
             if (index < visibleCount() && mouseX >= listX && mouseX < listX + listW
@@ -778,9 +938,9 @@ public abstract class AbstractSearchableList<T> {
     }
 
     private void updateScrollFromMouse(double mouseY, int listY) {
-        int listH = VISIBLE_ROWS * ROW_HEIGHT;
-        int totalRows = maxScrollRow + VISIBLE_ROWS;
-        int thumbHeight = Math.max(10, (int) ((float) VISIBLE_ROWS / totalRows * listH));
+        int listH = visibleRows() * ROW_HEIGHT;
+        int totalRows = maxScrollRow + visibleRows();
+        int thumbHeight = Math.max(10, (int) ((float) visibleRows() / totalRows * listH));
         float usableH = listH - thumbHeight;
         if (usableH > 0) {
             float ratio = (float) (mouseY - listY - thumbHeight / 2.0) / usableH;

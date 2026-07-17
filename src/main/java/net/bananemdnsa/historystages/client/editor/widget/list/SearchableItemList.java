@@ -58,13 +58,14 @@ import java.util.function.Supplier;
 public class SearchableItemList {
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLS = 9;
-    private static final int GRID_ROWS = 5;
     private static final int PADDING = 6;
     private static final int TAB_HEIGHT = 14;
     private static final int TAB_PAD = 4;
     private static final int SCROLLBAR_GAP = 6;
     private static final int ADD_BTN_W = 100;
     private static final int ADD_BTN_H = 20;
+    private static final int SELECTALL_BTN_H = 14;
+    private static final int SELECTALL_BTN_GAP = 4;
 
     private static final int TAB_REGISTRY = 0;
     private static final int TAB_INVENTORY = 1;
@@ -179,6 +180,49 @@ public class SearchableItemList {
         return currentTab == TAB_SELECTED;
     }
 
+    /** Reserved height for the select-all row in registry / selected modes. */
+    private int selectAllRowReserve() {
+        return multiSelect ? SELECTALL_BTN_H + 4 : 0;
+    }
+
+    /** Top Y of the item grid, shifted down by the reserved select-all row. */
+    private int gridTopY() {
+        int searchY = panelY + PADDING + TAB_HEIGHT + 4;
+        return searchY + SearchBar.HEIGHT + PADDING + selectAllRowReserve();
+    }
+
+    /**
+     * Number of item rows that fit between the grid top and the Add button on the Registry /
+     * Selected tabs. Derived from the fixed panel height so the grid fills the panel instead of
+     * the panel shrinking to the grid.
+     */
+    private int gridRows() {
+        int gridBottom = panelY + panelH - PADDING - ADD_BTN_H - PADDING;
+        int rows = (gridBottom - gridTopY()) / SLOT_SIZE;
+        return Math.max(1, rows);
+    }
+
+    /** Y of the select-all button row (just below the search bar). */
+    private int selectAllRowY() {
+        int searchY = panelY + PADDING + TAB_HEIGHT + 4;
+        return searchY + SearchBar.HEIGHT + PADDING;
+    }
+
+    /** The button row is always present on the Registry / Selected tabs; buttons grey out when idle. */
+    private boolean selectAllButtonsVisible() {
+        return multiSelect && !isInventoryTab();
+    }
+
+    /**
+     * Whether the buttons are actionable: on the Registry tab only once a query narrows the list
+     * (select-all with no filter would mean the whole registry), always on the Selected tab.
+     */
+    private boolean selectAllContextActive() {
+        if (isSelectedTab()) return true;
+        String q = searchBar.getText();
+        return q != null && !q.isEmpty();
+    }
+
     private int totalSelectionCount() {
         return selectedRegistryIds.size() + selectedInventorySlots.size();
     }
@@ -210,20 +254,17 @@ public class SearchableItemList {
     }
 
     private void recalcPanelSize() {
-        if (isInventoryTab()) {
-            int gridW = SLOT_SIZE * 9;
-            panelW = PADDING + gridW + PADDING + 8;
-            int topAreaH = 4 * SLOT_SIZE + 4;
-            panelH = PADDING + TAB_HEIGHT + 4
-                    + topAreaH + 4
-                    + 3 * SLOT_SIZE + 6
-                    + SLOT_SIZE + 6
-                    + ADD_BTN_H + PADDING;
-        } else {
-            panelW = GRID_COLS * SLOT_SIZE + PADDING * 2 + 8;
-            panelH = TAB_HEIGHT + 4 + SearchBar.HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4
-                    + ADD_BTN_H + PADDING;
-        }
+        // Fixed size across all tabs = the Inventory tab's footprint (the tallest layout), so
+        // switching tabs never resizes the window. On the Registry / Selected tabs the item grid
+        // grows to fill the height instead of shrinking the panel (see gridRows()).
+        int gridW = SLOT_SIZE * 9;
+        panelW = PADDING + gridW + PADDING + 8;
+        int topAreaH = 4 * SLOT_SIZE + 4;
+        panelH = PADDING + TAB_HEIGHT + 4
+                + topAreaH + 4
+                + 3 * SLOT_SIZE + 6
+                + SLOT_SIZE + 6
+                + ADD_BTN_H + PADDING;
 
         int minW = calcMinTabWidth();
         if (panelW < minW)
@@ -365,7 +406,7 @@ public class SearchableItemList {
     private void updateMaxScroll() {
         int total = isSelectedTab() ? selectedView.size() : filteredItems.size();
         int totalRows = (total + GRID_COLS - 1) / GRID_COLS;
-        maxScrollRow = Math.max(0, totalRows - GRID_ROWS);
+        maxScrollRow = Math.max(0, totalRows - gridRows());
     }
 
     private List<String> tabLabels() {
@@ -463,13 +504,14 @@ public class SearchableItemList {
         int searchY = panelY + topOffset;
         searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
         searchBar.render(guiGraphics, font, mouseX, mouseY);
+        if (selectAllButtonsVisible()) renderSelectAllRow(guiGraphics, font, mouseX, mouseY);
 
         int gridX = getGridStartX(true);
-        int gridY = searchY + SearchBar.HEIGHT + PADDING;
+        int gridY = gridTopY();
 
         boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < GRID_ROWS; row++) {
+        for (int row = 0; row < gridRows(); row++) {
             for (int col = 0; col < GRID_COLS; col++) {
                 int index = startIndex + row * GRID_COLS + col;
                 int slotX = gridX + col * SLOT_SIZE;
@@ -508,7 +550,7 @@ public class SearchableItemList {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
         if (!filterUiHovered) {
-            for (int row = 0; row < GRID_ROWS; row++) {
+            for (int row = 0; row < gridRows(); row++) {
                 for (int col = 0; col < GRID_COLS; col++) {
                     int index = startIndex + row * GRID_COLS + col;
                     int slotX = gridX + col * SLOT_SIZE;
@@ -560,12 +602,58 @@ public class SearchableItemList {
     private void renderScrollbar(GuiGraphics guiGraphics, int gridX, int gridY) {
         int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
         int scrollBarTop = gridY;
-        int scrollBarBottom = gridY + GRID_ROWS * SLOT_SIZE;
+        int scrollBarBottom = gridY + gridRows() * SLOT_SIZE;
         int scrollBarHeight = scrollBarBottom - scrollBarTop;
         guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-        int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / (maxScrollRow + GRID_ROWS) * scrollBarHeight));
+        int thumbHeight = Math.max(10, (int) ((float) gridRows() / (maxScrollRow + gridRows()) * scrollBarHeight));
         int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
         guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+    }
+
+    private void renderSelectAllRow(GuiGraphics g, Font font, int mouseX, int mouseY) {
+        int rowX = panelX + PADDING;
+        int rowW = panelW - PADDING * 2;
+        int btnW = (rowW - SELECTALL_BTN_GAP) / 2;
+        int leftX = rowX;
+        int rightX = rowX + btnW + SELECTALL_BTN_GAP;
+        int y = selectAllRowY();
+
+        int selCount = selectableFoundCount();
+        int deselCount = deselectableFoundCount();
+        boolean canSelect = selCount > 0;
+        boolean canDeselect = deselCount > 0;
+        boolean selHovered = canSelect && isInBtn(mouseX, mouseY, leftX, y, btnW);
+        boolean deselHovered = canDeselect && isInBtn(mouseX, mouseY, rightX, y, btnW);
+
+        String selLabel = Component.translatable("editor.historystages.search.selectall", selCount).getString();
+        String deselLabel = Component.translatable("editor.historystages.search.deselectall", deselCount).getString();
+        drawSmallButton(g, font, leftX, y, btnW, selLabel, true, canSelect, selHovered);
+        drawSmallButton(g, font, rightX, y, btnW, deselLabel, false, canDeselect, deselHovered);
+    }
+
+    private boolean isInBtn(double mouseX, double mouseY, int x, int y, int w) {
+        return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + SELECTALL_BTN_H;
+    }
+
+    private void drawSmallButton(GuiGraphics g, Font font, int x, int y, int w,
+                                 String label, boolean accentYellow, boolean enabled, boolean hovered) {
+        int border;
+        int bg;
+        int text;
+        if (!enabled) {
+            border = 0xFF333333; bg = 0xFF1E1E1E; text = 0xFF555555;
+        } else if (accentYellow) {
+            border = hovered ? 0xFFFFCC00 : 0xFFB38F00;
+            bg = hovered ? 0xFF553A10 : 0xFF2A2510;
+            text = hovered ? 0xFFFFFFFF : 0xFFDDCC88;
+        } else {
+            border = hovered ? 0xFF884444 : 0xFF663030;
+            bg = hovered ? 0xFF3A1A1A : 0xFF2A1010;
+            text = hovered ? 0xFFFFFFFF : 0xFFDDAAAA;
+        }
+        g.fill(x, y, x + w, y + SELECTALL_BTN_H, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + SELECTALL_BTN_H - 1, bg);
+        g.drawString(font, label, x + (w - font.width(label)) / 2, y + (SELECTALL_BTN_H - 8) / 2, text, false);
     }
 
     private void renderAddButton(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -708,13 +796,14 @@ public class SearchableItemList {
         int searchY = panelY + topOffset;
         searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
         searchBar.render(guiGraphics, font, mouseX, mouseY);
+        if (selectAllButtonsVisible()) renderSelectAllRow(guiGraphics, font, mouseX, mouseY);
 
         int gridX = getGridStartX(true);
-        int gridY = searchY + SearchBar.HEIGHT + PADDING;
+        int gridY = gridTopY();
 
         boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < GRID_ROWS; row++) {
+        for (int row = 0; row < gridRows(); row++) {
             for (int col = 0; col < GRID_COLS; col++) {
                 int index = startIndex + row * GRID_COLS + col;
                 int slotX = gridX + col * SLOT_SIZE;
@@ -766,7 +855,7 @@ public class SearchableItemList {
         // Nothing selected yet: hint in the middle rather than a blank grid.
         if (selectedSnapshot.isEmpty()) {
             String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
-            int gridH = GRID_ROWS * SLOT_SIZE;
+            int gridH = gridRows() * SLOT_SIZE;
             int gridBlockW = GRID_COLS * SLOT_SIZE;
             guiGraphics.drawString(font, hint, gridX + (gridBlockW - font.width(hint)) / 2,
                     gridY + (gridH - 8) / 2, 0xFF888888, false);
@@ -781,7 +870,7 @@ public class SearchableItemList {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 300);
         if (!filterUiHovered) {
-            for (int row = 0; row < GRID_ROWS; row++) {
+            for (int row = 0; row < gridRows(); row++) {
                 for (int col = 0; col < GRID_COLS; col++) {
                     int index = startIndex + row * GRID_COLS + col;
                     int slotX = gridX + col * SLOT_SIZE;
@@ -1308,15 +1397,40 @@ public class SearchableItemList {
             return true;
         }
 
+        if (selectAllButtonsVisible()) {
+            int rowX = panelX + PADDING;
+            int rowW = panelW - PADDING * 2;
+            int btnW = (rowW - SELECTALL_BTN_GAP) / 2;
+            int leftX = rowX;
+            int rightX = rowX + btnW + SELECTALL_BTN_GAP;
+            int y = selectAllRowY();
+            if (isInBtn(mouseX, mouseY, leftX, y, btnW)) {
+                if (selectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    selectAllFound();
+                }
+                return true;
+            }
+            if (isInBtn(mouseX, mouseY, rightX, y, btnW)) {
+                if (deselectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    deselectAllFound();
+                }
+                return true;
+            }
+        }
+
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
         int gridX = getGridStartX(true);
-        int gridY = searchY + SearchBar.HEIGHT + PADDING;
+        int gridY = gridTopY();
 
         if (maxScrollRow > 0) {
             int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
-                    && mouseY >= gridY && mouseY < gridY + GRID_ROWS * SLOT_SIZE) {
+                    && mouseY >= gridY && mouseY < gridY + gridRows() * SLOT_SIZE) {
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, gridY);
                 return true;
@@ -1324,7 +1438,7 @@ public class SearchableItemList {
         }
 
         int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < GRID_ROWS; row++) {
+        for (int row = 0; row < gridRows(); row++) {
             for (int col = 0; col < GRID_COLS; col++) {
                 int index = startIndex + row * GRID_COLS + col;
                 int slotX = gridX + col * SLOT_SIZE;
@@ -1350,15 +1464,40 @@ public class SearchableItemList {
             return true;
         }
 
+        if (selectAllButtonsVisible()) {
+            int rowX = panelX + PADDING;
+            int rowW = panelW - PADDING * 2;
+            int btnW = (rowW - SELECTALL_BTN_GAP) / 2;
+            int leftX = rowX;
+            int rightX = rowX + btnW + SELECTALL_BTN_GAP;
+            int y = selectAllRowY();
+            if (isInBtn(mouseX, mouseY, leftX, y, btnW)) {
+                if (selectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    selectAllFound();
+                }
+                return true;
+            }
+            if (isInBtn(mouseX, mouseY, rightX, y, btnW)) {
+                if (deselectableFoundCount() > 0) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    deselectAllFound();
+                }
+                return true;
+            }
+        }
+
         int topOffset = PADDING + TAB_HEIGHT + 4;
         int searchY = panelY + topOffset;
         int gridX = getGridStartX(true);
-        int gridY = searchY + SearchBar.HEIGHT + PADDING;
+        int gridY = gridTopY();
 
         if (maxScrollRow > 0) {
             int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
-                    && mouseY >= gridY && mouseY < gridY + GRID_ROWS * SLOT_SIZE) {
+                    && mouseY >= gridY && mouseY < gridY + gridRows() * SLOT_SIZE) {
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, gridY);
                 return true;
@@ -1366,7 +1505,7 @@ public class SearchableItemList {
         }
 
         int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < GRID_ROWS; row++) {
+        for (int row = 0; row < gridRows(); row++) {
             for (int col = 0; col < GRID_COLS; col++) {
                 int index = startIndex + row * GRID_COLS + col;
                 int slotX = gridX + col * SLOT_SIZE;
@@ -1383,6 +1522,67 @@ public class SearchableItemList {
         }
         searchBar.setFocused(true);
         return true;
+    }
+
+    /** How many currently-found items "Select all" would add. 0 when idle (no filter). */
+    private int selectableFoundCount() {
+        if (!selectAllContextActive()) return 0;
+        int n = 0;
+        if (isSelectedTab()) {
+            for (SelectedRef ref : selectedView) if (!isStillSelected(ref)) n++;
+        } else {
+            for (ItemEntry entry : filteredItems) if (!selectedRegistryIds.contains(entry.id)) n++;
+        }
+        return n;
+    }
+
+    /**
+     * How many currently-found items "Deselect all" would remove. Unlike selecting, this is
+     * available without a filter too — it only ever removes things already selected, so clearing
+     * the whole selection with no query is safe.
+     */
+    private int deselectableFoundCount() {
+        int n = 0;
+        if (isSelectedTab()) {
+            for (SelectedRef ref : selectedView) if (isStillSelected(ref)) n++;
+        } else {
+            for (ItemEntry entry : filteredItems) if (selectedRegistryIds.contains(entry.id)) n++;
+        }
+        return n;
+    }
+
+    private void selectAllFound() {
+        if (isSelectedTab()) {
+            for (SelectedRef ref : selectedView) {
+                if (ref.fromInventory) selectedInventorySlots.add(ref.inventorySlot);
+                else selectedRegistryIds.add(ref.entry.id);
+            }
+        } else {
+            for (ItemEntry entry : filteredItems) selectedRegistryIds.add(entry.id);
+        }
+        refreshSelectedPlaceholder();
+    }
+
+    private void deselectAllFound() {
+        if (isSelectedTab()) {
+            for (SelectedRef ref : selectedView) {
+                if (ref.fromInventory) {
+                    selectedInventorySlots.remove(ref.inventorySlot);
+                    nbtSelectedInventorySlots.remove(ref.inventorySlot);
+                } else {
+                    selectedRegistryIds.remove(ref.entry.id);
+                }
+            }
+        } else {
+            for (ItemEntry entry : filteredItems) selectedRegistryIds.remove(entry.id);
+        }
+        refreshSelectedPlaceholder();
+    }
+
+    private void refreshSelectedPlaceholder() {
+        if (isSelectedTab()) {
+            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+        }
     }
 
     /**
@@ -1413,9 +1613,7 @@ public class SearchableItemList {
     public boolean mouseDragged(double mouseX, double mouseY) {
         if (!visible || !draggingScrollbar || isInventoryTab())
             return false;
-        int topOffset = PADDING + TAB_HEIGHT + 4;
-        int searchY = panelY + topOffset;
-        int gridY = searchY + SearchBar.HEIGHT + PADDING;
+        int gridY = gridTopY();
         updateScrollFromMouse(mouseY, gridY);
         return true;
     }
@@ -1429,9 +1627,9 @@ public class SearchableItemList {
     }
 
     private void updateScrollFromMouse(double mouseY, int gridY) {
-        int gridH = GRID_ROWS * SLOT_SIZE;
-        int totalRows = maxScrollRow + GRID_ROWS;
-        int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / totalRows * gridH));
+        int gridH = gridRows() * SLOT_SIZE;
+        int totalRows = maxScrollRow + gridRows();
+        int thumbHeight = Math.max(10, (int) ((float) gridRows() / totalRows * gridH));
         float usableH = gridH - thumbHeight;
         if (usableH > 0) {
             float ratio = (float) (mouseY - gridY - thumbHeight / 2.0) / usableH;
