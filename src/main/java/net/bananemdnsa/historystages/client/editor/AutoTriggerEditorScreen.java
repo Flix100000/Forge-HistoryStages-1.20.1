@@ -786,13 +786,13 @@ public class AutoTriggerEditorScreen extends Screen {
     private void openEditFor(int idx, TriggerCondition t) {
         editIndex = idx;
         switch (t) {
-            case BiomeTrigger b -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null);
-            case StructureTrigger s -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE);
-            case DimensionTrigger d -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION);
+            case BiomeTrigger b -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null, false);
+            case StructureTrigger s -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE, true);
+            case DimensionTrigger d -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION, true);
             case ItemTrigger i -> showItem(new SearchableItemList(id -> placeTrigger(new ItemTrigger(id))));
             case BlockPlaceTrigger bp -> showItem(new SearchableItemList(id -> placeTrigger(new BlockPlaceTrigger(id))));
             case BlockBreakTrigger bb -> showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
-            case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null);
+            case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case EntityTrigger e -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case PlaytimeTrigger p -> openPlaytimeDialog(idx, p.days());
         }
@@ -800,19 +800,20 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private void openPickerFor(TriggerType type) {
         switch (type) {
-            case BIOME -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null);
-            case STRUCTURE -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE);
-            case DIMENSION -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION);
+            case BIOME -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null, false);
+            case STRUCTURE -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE, true);
+            case DIMENSION -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION, true);
             case ITEM -> showItem(new SearchableItemList(id -> placeTrigger(new ItemTrigger(id))));
             case ENTITY -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case BLOCK_PLACE -> showItem(new SearchableItemList(id -> placeTrigger(new BlockPlaceTrigger(id))));
             case BLOCK_BREAK -> showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
-            case ADVANCEMENT -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null);
+            case ADVANCEMENT -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case PLAYTIME -> openPlaytimeDialog(-1, 1);
         }
     }
 
-    private void showAbstract(AbstractSearchableList<String> list, TriggerType type) {
+    private void showAbstract(AbstractSearchableList<String> list, TriggerType type, boolean multi) {
+        list.setMultiSelect(multi);
         // Wire the "Hide stage-locked" filter for trigger types that have a meaningful
         // lock source on the stage (dimension / structure). Biome and advancement have
         // no direct lock list, so we don't add a filter there.

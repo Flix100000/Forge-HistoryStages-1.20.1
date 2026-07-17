@@ -8,6 +8,7 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
@@ -175,8 +176,12 @@ public class SearchableEntityList {
         return selectedRegistryIds.size() + selectedInventorySlots.size();
     }
 
+    /**
+     * The Selected tab is present for the whole lifetime of a multi-select panel, empty or
+     * not. Showing it only once something is selected would resize the tab bar mid-click.
+     */
     private boolean showSelectedTab() {
-        return multiSelect && (totalSelectionCount() > 0 || !selectedSnapshot.isEmpty());
+        return multiSelect;
     }
 
     private boolean isStillSelected(SelectedRef ref) {
@@ -482,9 +487,17 @@ public class SearchableEntityList {
                 RowState state = isStillSelected(ref) ? RowState.SELECTED : RowState.DESELECTED;
                 renderEntityRow(guiGraphics, font, listX, rowY, listW, ref.id, ref.displayName, rowHovered, state);
             } else {
-                guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
-                        rowHovered ? 0xFF353535 : 0xFF252525);
+                // Empty slots don't react to hover — there's nothing there to point at.
+                guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT, 0xFF252525);
             }
+        }
+
+        // Nothing selected yet: hint in the middle rather than a blank list.
+        if (selectedSnapshot.isEmpty()) {
+            String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
+            int listH = VISIBLE_ROWS * ROW_HEIGHT;
+            guiGraphics.drawString(font, hint, listX + (listW - font.width(hint)) / 2,
+                    listY + (listH - 8) / 2, 0xFF888888, false);
         }
 
         if (maxScrollRow > 0) {

@@ -183,8 +183,12 @@ public class SearchableItemList {
         return selectedRegistryIds.size() + selectedInventorySlots.size();
     }
 
+    /**
+     * The Selected tab is present for the whole lifetime of a multi-select panel, empty or
+     * not. Showing it only once something is selected would resize the tab bar mid-click.
+     */
     private boolean showSelectedTab() {
-        return multiSelect && (totalSelectionCount() > 0 || !selectedSnapshot.isEmpty());
+        return multiSelect;
     }
 
     private boolean isStillSelected(SelectedRef ref) {
@@ -757,6 +761,15 @@ public class SearchableItemList {
                     guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1, 0xFF1A1A1A);
                 }
             }
+        }
+
+        // Nothing selected yet: hint in the middle rather than a blank grid.
+        if (selectedSnapshot.isEmpty()) {
+            String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
+            int gridH = GRID_ROWS * SLOT_SIZE;
+            int gridBlockW = GRID_COLS * SLOT_SIZE;
+            guiGraphics.drawString(font, hint, gridX + (gridBlockW - font.width(hint)) / 2,
+                    gridY + (gridH - 8) / 2, 0xFF888888, false);
         }
 
         if (maxScrollRow > 0) {
