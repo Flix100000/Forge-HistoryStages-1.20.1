@@ -294,6 +294,9 @@ public class ConfigEditorScreen extends Screen {
         individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
                 Config.COMMON.individualLockItemPickup.get().toString(), false, "true",
                 "Prevent players from picking up items locked by individual stages?"));
+        individualCommon.add(new ConfigEntry("individualLockLoot", ConfigType.BOOLEAN,
+                Config.COMMON.individualLockLoot.get().toString(), false, "true",
+                "Handle items locked by individual stages in Lootr containers and mob loot? Mob drops are checked against the killing player."));
         individualCommon.add(new ConfigEntry("individualDropOnRevoke", ConfigType.BOOLEAN,
                 Config.COMMON.individualDropOnRevoke.get().toString(), false, "true",
                 "Drop locked items from a player's inventory when their individual stage is revoked?"));

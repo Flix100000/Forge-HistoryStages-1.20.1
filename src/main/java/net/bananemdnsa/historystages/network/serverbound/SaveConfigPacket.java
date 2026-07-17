@@ -141,6 +141,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 // throughout the mod, but had no case here, so changing them in the GUI did
                 // nothing — the switch dropped them silently.
                 case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
+                case "individualLockLoot" -> Config.COMMON.individualLockLoot.set(Boolean.parseBoolean(value));
                 case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));
                 case "individualLockBlockBreaking" -> Config.COMMON.individualLockBlockBreaking.set(Boolean.parseBoolean(value));
                 case "individualLockedBlockBreakSpeedMultiplier" ->
