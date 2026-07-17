@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.client.display;
 
+import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
 import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
@@ -15,17 +16,21 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Client-side resolver that decides how a locked item's name and tooltip should be
  * displayed, based on the {@link HiddenDisplayConfig} of the stages that lock it.
  *
+ * <p>Global and individual stages are resolved against their respective client caches and
+ * share a single scoring pool, so an item may take its display from either kind.</p>
+ *
  * <p>The hidden-display mode is stage-wide; only the REPLACE text varies per item via
  * overrides. When an item is locked by several stages, name and tooltip are resolved
  * <b>independently</b>; for each axis the winner is the stage that matches the item most
  * specifically — explicit item entry (3) &gt; tag (2) &gt; mod (1) — with ties broken on
- * stage iteration order. A per-item REPLACE override only applies when that axis won via
- * an explicit item entry.</p>
+ * stage iteration order, where global stages are visited first. A per-item REPLACE override
+ * only applies when that axis won via an explicit item entry.</p>
  *
  * <p>Lock hints are resolved independently of name and tooltip: any matching locked stage
  * that disables them wins, so a stage can suppress the hints while leaving the item's own
@@ -59,19 +64,38 @@ public final class HiddenDisplayResolver {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        int bestNameScore = 0;
+        Accumulator acc = new Accumulator();
+        // Global stages run first, so on an equal match score the global stage keeps the win.
+        collect(StageManager.getStages(), ClientStageCache::isStageUnlocked, itemId, modId, stack, acc);
+        collect(StageManager.getIndividualStages(), ClientIndividualStageCache::isStageUnlocked,
+                itemId, modId, stack, acc);
+
+        if (acc.nameMode == DisplayMode.OFF && acc.tooltipMode == DisplayMode.OFF && acc.showLockHints) {
+            return Resolved.NONE;
+        }
+        return new Resolved(acc.nameMode, acc.nameText, acc.tooltipMode, acc.tooltipText, acc.showLockHints);
+    }
+
+    /** Mutable carry for a resolve pass, so global and individual stages share one scoring pool. */
+    private static final class Accumulator {
+        int bestNameScore;
+        int bestTooltipScore;
         DisplayMode nameMode = DisplayMode.OFF;
         String nameText = "";
-        int bestTooltipScore = 0;
         DisplayMode tooltipMode = DisplayMode.OFF;
         String tooltipText = "";
         boolean showLockHints = true;
+    }
 
-        for (Map.Entry<String, StageEntry> e : StageManager.getStages().entrySet()) {
+    private static void collect(Map<String, StageEntry> stages,
+                                Predicate<String> isUnlocked,
+                                String itemId, String modId, ItemStack stack,
+                                Accumulator acc) {
+        for (Map.Entry<String, StageEntry> e : stages.entrySet()) {
             StageEntry stage = e.getValue();
             HiddenDisplayConfig cfg = stage.getHiddenDisplay();
             if (cfg.isNoop()) continue;
-            if (ClientStageCache.isStageUnlocked(e.getKey())) continue;
+            if (isUnlocked.test(e.getKey())) continue;
 
             TextOverrideHolder holder;
             int score;
@@ -92,23 +116,20 @@ public final class HiddenDisplayResolver {
                 }
             }
 
-            if (!cfg.isShowLockHints()) showLockHints = false;
+            if (!cfg.isShowLockHints()) acc.showLockHints = false;
 
             // Strict > keeps the first stage on ties (iteration order).
-            if (cfg.getNameMode() != DisplayMode.OFF && score > bestNameScore) {
-                bestNameScore = score;
-                nameMode = cfg.getNameMode();
-                nameText = resolveText(cfg.getNameText(), holder.getNameTextOverride());
+            if (cfg.getNameMode() != DisplayMode.OFF && score > acc.bestNameScore) {
+                acc.bestNameScore = score;
+                acc.nameMode = cfg.getNameMode();
+                acc.nameText = resolveText(cfg.getNameText(), holder.getNameTextOverride());
             }
-            if (cfg.getTooltipMode() != DisplayMode.OFF && score > bestTooltipScore) {
-                bestTooltipScore = score;
-                tooltipMode = cfg.getTooltipMode();
-                tooltipText = resolveText(cfg.getTooltipText(), holder.getTooltipTextOverride());
+            if (cfg.getTooltipMode() != DisplayMode.OFF && score > acc.bestTooltipScore) {
+                acc.bestTooltipScore = score;
+                acc.tooltipMode = cfg.getTooltipMode();
+                acc.tooltipText = resolveText(cfg.getTooltipText(), holder.getTooltipTextOverride());
             }
         }
-
-        if (nameMode == DisplayMode.OFF && tooltipMode == DisplayMode.OFF && showLockHints) return Resolved.NONE;
-        return new Resolved(nameMode, nameText, tooltipMode, tooltipText, showLockHints);
     }
 
     /** Override wins over the stage default; either may be empty. */
