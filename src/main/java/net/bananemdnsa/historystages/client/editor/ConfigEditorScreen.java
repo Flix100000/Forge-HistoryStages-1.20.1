@@ -399,8 +399,8 @@ public class ConfigEditorScreen extends Screen {
 
         ConfigSection graph = new ConfigSection("editor.historystages.config.graph");
         graph.add(new ConfigEntry("graphEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.graphEnabled.get().toString(), false, "true",
-                "Show the 'Stage Graph' button in the pause screen for players? Admins can always reach the graph through the editor."));
+                Config.COMMON.graphEnabled.get().toString(), false, "false",
+                "Show the 'Stage Graph' button in the pause screen for players? Off by default — switch it on deliberately. Admins can always reach the graph through the editor."));
         graph.add(new ConfigEntry("graphVisibility", ConfigType.GRAPH_VISIBILITY,
                 Config.COMMON.graphVisibility.get().name(), false, "PROGRESSIVE",
                 "How much of the tree the player view reveals. ALL = everything; PROGRESSIVE = unlocked, everything researchable now, and their direct neighbours; UNLOCKED_ONLY = only what is already unlocked."));

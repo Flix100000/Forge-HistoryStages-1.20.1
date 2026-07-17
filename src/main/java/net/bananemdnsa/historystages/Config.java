@@ -545,8 +545,12 @@ public class Config {
             ).push("graph");
 
             graphEnabled = builder
-                    .comment("Show the 'Stage Graph' button in the pause screen for players? Setting this to false only removes the player button — admins can still reach the graph through the editor. [Default: true]")
-                    .define("enabled", true);
+                    .comment("Show the 'Stage Graph' button in the pause screen for players?",
+                            "Off by default: the graph reveals how the pack is structured, so a pack",
+                            "author should switch it on deliberately rather than find it already there.",
+                            "Turning it off only removes the player button — admins can always reach the",
+                            "graph through the in-game editor. [Default: false]")
+                    .define("enabled", false);
 
             graphVisibility = builder
                     .comment("How much of the tree the player view reveals:",
