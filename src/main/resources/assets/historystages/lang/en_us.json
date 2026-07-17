@@ -477,6 +477,9 @@
 
   "editor.historystages.depgraph.button": "Dep Graph",
   "editor.historystages.depgraph.title": "Dependency Graph",
+  "editor.historystages.depgraph.hidden_stage": "???",
+  "graph.historystages.button": "Stage Graph",
+  "graph.historystages.title": "Stage Graph",
   "editor.historystages.depgraph.hint": "Select a stage on the left",
   "editor.historystages.depgraph.legend.title": "Legend",
   "editor.historystages.depgraph.legend.nodes": "Nodes",

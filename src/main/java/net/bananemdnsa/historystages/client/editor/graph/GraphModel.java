@@ -25,7 +25,9 @@ import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,11 +40,12 @@ import java.util.Set;
  */
 public class GraphModel {
 
+    /** The focused stage this model is built around. */
     public final GraphNode focus;
     public final List<GraphNode> nodes = new ArrayList<>();
     public final List<GraphEdge> edges = new ArrayList<>();
 
-    /** De-dupes satellite detail/trigger nodes within this build (by a type:value key). */
+    /** De-dupes satellite detail/trigger nodes per owning stage (by "<stageId>|<type>:<value>"). */
     private final Set<String> seenSatellites = new HashSet<>();
 
     private GraphModel(GraphNode focus) {
@@ -54,16 +57,20 @@ public class GraphModel {
         return Component.translatable("editor.historystages.depgraph." + key).getString();
     }
 
-    /** Builds the model for {@code focusStageId}, or null if the id is unknown in both maps. */
-    public static GraphModel build(String focusStageId) {
+    /**
+     * Builds the model for {@code focusStageId}, or null if the id is unknown in both maps
+     * or the {@code filter} hides the focus stage.
+     */
+    public static GraphModel build(String focusStageId, GraphViewFilter filter) {
         Map<String, StageEntry> global = StageManager.getStages();
         Map<String, StageEntry> individual = StageManager.getIndividualStages();
 
         boolean focusIsIndividual = individual.containsKey(focusStageId);
         StageEntry focusEntry = focusIsIndividual ? individual.get(focusStageId) : global.get(focusStageId);
         if (focusEntry == null) return null;
+        if (!filter.showsStage(focusStageId, focusIsIndividual)) return null;
 
-        GraphNode focusNode = stageNode(focusStageId, focusEntry, focusIsIndividual, GraphNode.Zone.CENTER);
+        GraphNode focusNode = stageNode(focusStageId, focusEntry, focusIsIndividual, GraphNode.Zone.CENTER, filter);
         GraphModel model = new GraphModel(focusNode);
         model.nodes.add(focusNode);
 
@@ -76,8 +83,9 @@ public class GraphModel {
             for (String depId : group.getStages()) {
                 StageEntry depEntry = global.get(depId);
                 if (depEntry == null) continue;
+                if (!filter.showsStage(depId, false)) continue;
                 if (!seenPrereqs.add(depId)) continue;
-                GraphNode n = stageNode(depId, depEntry, false, GraphNode.Zone.LEFT);
+                GraphNode n = stageNode(depId, depEntry, false, GraphNode.Zone.LEFT, filter);
                 model.nodes.add(n);
                 model.edges.add(new GraphEdge(focusNode, n, or));
             }
@@ -86,17 +94,18 @@ public class GraphModel {
                 if (depId == null) continue;
                 StageEntry depEntry = individual.get(depId);
                 if (depEntry == null) continue;
+                if (!filter.showsStage(depId, true)) continue;
                 if (!seenPrereqs.add(depId)) continue;
-                GraphNode n = stageNode(depId, depEntry, true, GraphNode.Zone.LEFT);
+                GraphNode n = stageNode(depId, depEntry, true, GraphNode.Zone.LEFT, filter);
                 model.nodes.add(n);
                 model.edges.add(new GraphEdge(focusNode, n, or));
             }
-            model.addDetailNodes(focusNode, group, or);
+            if (filter.showsDetails()) model.addDetailNodes(focusNode, group, or);
         }
 
         // --- Trigger satellites (AUTO / TEMPORARY only) ---
         StageMode mode = focusEntry.getMode();
-        if (mode == StageMode.AUTO || mode == StageMode.TEMPORARY) {
+        if (filter.showsTriggers() && (mode == StageMode.AUTO || mode == StageMode.TEMPORARY)) {
             AutoTrigger at = focusEntry.getAutoTrigger();
             if (at != null && !at.isEmpty()) {
                 for (TriggerCondition c : at.getTriggers()) {
@@ -106,17 +115,20 @@ public class GraphModel {
         }
 
         // --- Right column: dependents ---
-        addDependents(model, focusNode, focusStageId, global, false);
-        addDependents(model, focusNode, focusStageId, individual, true);
+        addDependents(model, focusNode, focusStageId, global, false, filter);
+        addDependents(model, focusNode, focusStageId, individual, true, filter);
 
         return model;
     }
 
+
     private static void addDependents(GraphModel model, GraphNode focusNode, String focusStageId,
-                                      Map<String, StageEntry> map, boolean individual) {
+                                      Map<String, StageEntry> map, boolean individual,
+                                      GraphViewFilter filter) {
         for (Map.Entry<String, StageEntry> e : map.entrySet()) {
             String id = e.getKey();
             if (id.equals(focusStageId)) continue;
+            if (!filter.showsStage(id, individual)) continue;
             StageEntry entry = e.getValue();
             boolean dependsOnFocus = false;
             boolean viaOr = false;
@@ -127,7 +139,7 @@ public class GraphModel {
                 }
             }
             if (!dependsOnFocus) continue;
-            GraphNode n = stageNode(id, entry, individual, GraphNode.Zone.RIGHT);
+            GraphNode n = stageNode(id, entry, individual, GraphNode.Zone.RIGHT, filter);
             model.nodes.add(n);
             model.edges.add(new GraphEdge(n, focusNode, viaOr)); // arrow dependent -> focus
         }
@@ -136,37 +148,37 @@ public class GraphModel {
     private void addDetailNodes(GraphNode focusNode, DependencyGroup group, boolean or) {
         for (DependencyItem it : group.getItems()) {
             if (it.getId() == null) continue;
-            if (!seenSatellites.add("item:" + it.getId())) continue;
+            if (!seenSatellites.add(focusNode.id + "|item:" + it.getId())) continue;
             List<String> tip = List.of("§b" + tr("node.item"), it.getCount() + "x " + it.getId());
             addDetail(focusNode, GraphNode.Type.DETAIL_ITEM, "", it.getId(), null, tip, or);
         }
         XpLevelDep xp = group.getXpLevel();
-        if (xp != null && seenSatellites.add("xp:" + xp.getLevel())) {
+        if (xp != null && seenSatellites.add(focusNode.id + "|xp:" + xp.getLevel())) {
             List<String> tip = List.of("§b" + tr("node.xp_level"),
                     xp.getLevel() + (xp.isConsume() ? " (" + tr("node.consumed") + ")" : ""));
             addDetail(focusNode, GraphNode.Type.DETAIL_XP, "", "minecraft:experience_bottle", null, tip, or);
         }
         for (String a : group.getAdvancements()) {
-            if (!seenSatellites.add("adv:" + a)) continue;
+            if (!seenSatellites.add(focusNode.id + "|adv:" + a)) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_ADVANCEMENT, "Ad", null, null,
                     List.of("§b" + tr("node.advancement"), a), or);
         }
         for (EntityKillDep k : group.getEntityKills()) {
             if (k.getEntityId() == null) continue;
-            if (!seenSatellites.add("kill:" + k.getEntityId())) continue;
+            if (!seenSatellites.add(focusNode.id + "|kill:" + k.getEntityId())) continue;
             List<String> tip = List.of("§b" + tr("node.entity_kill"), k.getCount() + "x " + k.getEntityId());
             addDetail(focusNode, GraphNode.Type.DETAIL_KILL, "", null, k.getEntityId(), tip, or);
         }
         for (StatDep s : group.getStats()) {
             if (s.getStatId() == null) continue;
-            if (!seenSatellites.add("stat:" + s.getStatId())) continue;
+            if (!seenSatellites.add(focusNode.id + "|stat:" + s.getStatId())) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_STAT, "St", null, null,
                     List.of("§b" + tr("node.stat"), s.getStatId() + " >= " + s.getMinValue()), or);
         }
         for (ScoreboardDep s : group.getScoreboard()) {
             String holder = s.isPlayerSelf() ? "<player>" : s.getScoreHolder();
             String line = holder + " " + s.getObjective() + " " + s.getOp() + " " + s.getValue();
-            if (!seenSatellites.add("score:" + line)) continue;
+            if (!seenSatellites.add(focusNode.id + "|score:" + line)) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_SCOREBOARD, "SB", null, null,
                     List.of("§b" + tr("node.scoreboard"), line), or);
         }
@@ -189,7 +201,7 @@ public class GraphModel {
             case AdvancementTrigger t -> { label = "Ad"; detail = tr("trigger.advancement") + ": " + t.id(); }
             case PlaytimeTrigger t -> { label = "PT"; detail = tr("trigger.playtime") + ": " + t.days() + "d"; }
         }
-        if (!seenSatellites.add("trig:" + detail)) return;
+        if (!seenSatellites.add(focusNode.id + "|trig:" + detail)) return;
         String id = "trigger:" + nodes.size();
         GraphNode n = new GraphNode(id, GraphNode.Type.TRIGGER, GraphNode.Category.TRIGGER,
                 GraphNode.Zone.SATELLITE, label, false, itemIcon, entityId,
@@ -207,19 +219,34 @@ public class GraphModel {
         edges.add(new GraphEdge(focusNode, n, or));
     }
 
-    private static GraphNode stageNode(String id, StageEntry entry, boolean individual, GraphNode.Zone zone) {
+    /**
+     * Builds a stage node. When the filter anonymises the stage, the node reveals only its
+     * lock state: name, id and custom icon are all replaced — the id is usually as
+     * descriptive as the name, and a custom icon typically shows the stage's reward item.
+     */
+    private static GraphNode stageNode(String id, StageEntry entry, boolean individual, GraphNode.Zone zone,
+                                       GraphViewFilter filter) {
         GraphNode.Type type = individual ? GraphNode.Type.STAGE_INDIVIDUAL : GraphNode.Type.STAGE_GLOBAL;
         boolean unlocked = !individual && ClientStageCache.isStageUnlocked(id);
+        boolean anon = filter.anonymizes(id, entry);
+
+        String display = anon
+                ? Component.translatable("editor.historystages.depgraph.hidden_stage").getString()
+                : entry.getDisplayName();
+
         List<String> tip = new ArrayList<>();
-        tip.add(entry.getDisplayName());
-        tip.add("§7" + id);
+        tip.add(display);
+        if (!anon) tip.add("§7" + id);
         tip.add(individual ? "§8" + tr("node.individual") : (unlocked ? "§a" + tr("node.unlocked") : "§7" + tr("node.locked")));
+
         // Fall back to the configured default stage icon when no custom icon is set,
         // matching the pedestal / FTB / command rendering elsewhere.
-        String icon = entry.getIcon().isEmpty()
+        String icon = anon
                 ? net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get()
-                : entry.getIcon();
-        return new GraphNode(id, type, GraphNode.Category.STAGE, zone, entry.getDisplayName(),
-                unlocked, icon, null, tip);
+                : (entry.getIcon().isEmpty()
+                        ? net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get()
+                        : entry.getIcon());
+
+        return new GraphNode(id, type, GraphNode.Category.STAGE, zone, display, unlocked, icon, null, tip);
     }
 }

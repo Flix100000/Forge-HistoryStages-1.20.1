@@ -477,6 +477,9 @@
 
   "editor.historystages.depgraph.button": "Dep-Graph",
   "editor.historystages.depgraph.title": "Abhängigkeits-Graph",
+  "editor.historystages.depgraph.hidden_stage": "???",
+  "graph.historystages.button": "Stufen-Graph",
+  "graph.historystages.title": "Stufen-Graph",
   "editor.historystages.depgraph.hint": "Wähle links eine Stage",
   "editor.historystages.depgraph.legend.title": "Legende",
   "editor.historystages.depgraph.legend.nodes": "Knoten",

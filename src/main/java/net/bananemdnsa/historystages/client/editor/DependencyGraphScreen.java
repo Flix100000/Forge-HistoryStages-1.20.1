@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.client.editor.graph.GraphNode;
+import net.bananemdnsa.historystages.client.editor.graph.GraphViewFilter;
 import net.bananemdnsa.historystages.client.editor.graph.NodeShapes;
 import net.bananemdnsa.historystages.client.editor.graph.NodeTextures;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
@@ -30,13 +31,15 @@ import java.util.Map;
 public class DependencyGraphScreen extends Screen {
 
     private final Screen parent;
+    /** Decides which stages and node categories this view may show. */
+    private final GraphViewFilter filter;
 
     // --- Left panel state ---
     private static final int ROW_H = 20;               // card row slot (card height + gap)
     private static final int CARD_H = 16;              // visible card height within the slot
     private static final int PROP_ROW_H = 11;          // vertical step for a property line
     private static final int DEP_ROW_H = 10;           // vertical step for a dependency line
-    private static final int PROPS_DETAIL_ROWS = 4;    // Mode, Research time, Pedestal tier, Lock entries
+    private static final int PROPS_ALL_ROWS = 4;       // Mode, Research time, Pedestal tier, Lock entries
     private int panelWidth;                 // 1/3 of screen
     private double panelScroll = 0;
     private int panelContentHeight = 0;
@@ -71,14 +74,40 @@ public class DependencyGraphScreen extends Screen {
     private static final float DETAIL_R = 11f;    // detail/trigger node radius (graph-space)
     private static final float LABEL_HIDE_ZOOM = 0.55f; // below this zoom, node labels are hidden
 
+    /** Admin view — opened from the editor. Sees everything. */
     public DependencyGraphScreen(Screen parent) {
-        super(Component.translatable("editor.historystages.depgraph.title"));
+        this(parent, GraphViewFilter.passThrough(), "editor.historystages.depgraph.title");
+    }
+
+    /** Player view — opened from the pause screen. Applies the server's {@code [graph]} config. */
+    public static DependencyGraphScreen forPlayer(Screen parent) {
+        return new DependencyGraphScreen(parent, GraphViewFilter.fromConfig(),
+                "graph.historystages.title");
+    }
+
+    private DependencyGraphScreen(Screen parent, GraphViewFilter filter, String titleKey) {
+        super(Component.translatable(titleKey));
         this.parent = parent;
+        this.filter = filter;
     }
 
     @Override
     protected void init() {
         panelWidth = this.width / 3;
+    }
+
+    /** (Re)builds {@link #graphModel} for the focused stage and restarts the pop-in animation. */
+    private void rebuildGraph() {
+        graphModel = focusStageId != null
+                ? net.bananemdnsa.historystages.client.editor.graph.GraphModel.build(focusStageId, filter)
+                : null;
+        if (graphModel != null) {
+            net.bananemdnsa.historystages.client.editor.graph.GraphLayout.apply(graphModel);
+        }
+        graphBuildTime = System.currentTimeMillis();
+        introScale = 0f;
+        introAlpha = 0f;
+        hoverNodeAnim = 0f;
     }
 
     @Override
@@ -124,13 +153,30 @@ public class DependencyGraphScreen extends Screen {
         Map<String, StageEntry> global = StageManager.getStages();
         Map<String, StageEntry> individual = StageManager.getIndividualStages();
 
-        y = renderSection(g, tr("panel.global"), StageManager.getStageOrder(), global, false, left, right, top, bottom, mouseX, mouseY, y);
-        y = renderSection(g, tr("panel.individual"), StageManager.getIndividualStageOrder(), individual, true, left, right, top, bottom, mouseX, mouseY, y);
+        y = renderSection(g, tr("panel.global"), visibleOrder(false), global, false, left, right, top, bottom, mouseX, mouseY, y);
+        y = renderSection(g, tr("panel.individual"), visibleOrder(true), individual, true, left, right, top, bottom, mouseX, mouseY, y);
 
         panelContentHeight = (y + (int) panelScroll) - (top + 4);
         g.disableScissor();
 
         renderPanelScrollbar(g, top, bottom, right, mouseX, mouseY);
+    }
+
+    /**
+     * The panel's stage order for one section, with everything the filter hides removed.
+     * Rendering and click hit-testing both go through this so an invisible row can never
+     * be clicked.
+     */
+    private List<String> visibleOrder(boolean individual) {
+        List<String> order = individual ? StageManager.getIndividualStageOrder() : StageManager.getStageOrder();
+        return order.stream().filter(id -> filter.showsStage(id, individual)).toList();
+    }
+
+    /** The label a panel row shows for a stage — the placeholder when it is anonymised. */
+    private String rowLabel(String id, StageEntry entry) {
+        return filter.anonymizes(id, entry)
+                ? Component.translatable("editor.historystages.depgraph.hidden_stage").getString()
+                : entry.getDisplayName();
     }
 
     /** Draws the panel scrollbar (track + thumb) at the panel's right edge when content overflows. */
@@ -188,7 +234,7 @@ public class DependencyGraphScreen extends Screen {
 
             if (id.equals(expandedStageId)) {
                 // Nested detail panel behind the properties/dependencies, with a gold guide.
-                int detailH = PROPS_DETAIL_ROWS * PROP_ROW_H + ROW_H
+                int detailH = propsRowCount() * PROP_ROW_H + ROW_H
                         + (depsExpanded ? dependencyBlockHeight(entry) : 0);
                 g.fill(left + 8, y, right, y + detailH, 0xFF161616);
                 g.fill(left + 8, y, left + 9, y + detailH, 0x66FFCC00);
@@ -222,7 +268,7 @@ public class DependencyGraphScreen extends Screen {
 
         g.drawString(this.font, expanded ? "▼" : "▶", left + 7, y + 4, 0xFFAAAAAA, false);
 
-        ItemStack icon = panelIconStack(entry);
+        ItemStack icon = panelIconStack(entry, filter.anonymizes(id, entry));
         if (icon != null && !icon.isEmpty()) {
             g.pose().pushPose();
             g.pose().translate(left + 16, y + 2, 0);
@@ -240,7 +286,7 @@ public class DependencyGraphScreen extends Screen {
         }
 
         int nameX = left + 30;
-        String name = entry.getDisplayName();
+        String name = rowLabel(id, entry);
         int avail = nameRight - nameX;
         if (this.font.width(name) > avail) {
             name = this.font.plainSubstrByWidth(name, avail - 6) + "..";
@@ -248,17 +294,50 @@ public class DependencyGraphScreen extends Screen {
         g.drawString(this.font, name, nameX, y + 4, individual ? 0xFFBBBBBB : 0xFFEEEEEE, false);
     }
 
-    /** Resolves a stage's icon (custom, else the configured default) to an ItemStack, or null. */
-    private ItemStack panelIconStack(StageEntry entry) {
-        String iconId = entry.getIcon().isEmpty()
+    /**
+     * Resolves a stage's icon (custom, else the configured default) to an ItemStack, or null.
+     * An anonymised stage always falls back to the default icon — a custom icon typically
+     * shows the stage's reward item and would give it away.
+     */
+    private ItemStack panelIconStack(StageEntry entry, boolean anon) {
+        String iconId = (anon || entry.getIcon().isEmpty())
                 ? net.bananemdnsa.historystages.Config.COMMON.defaultStageIcon.get()
                 : entry.getIcon();
         return resolveItem(iconId);
     }
+    /**
+     * Whether the panel may name a stage's mode. Tied to {@code showTriggers}: the graph hides a
+     * stage's auto-unlock conditions when that is off, and "Mode: AUTO" would still give away
+     * that it unlocks on its own.
+     *
+     * <p>Note this hides the line for <i>every</i> stage, not just AUTO ones. Hiding it only for
+     * AUTO stages would leak the same fact through the gap — a missing mode line would itself
+     * read as "this one is automatic".</p>
+     */
+    private boolean showsModeLine() {
+        return filter.showsTriggers();
+    }
+
+    /**
+     * Whether the panel's dependency block may list the non-stage requirements (items, XP,
+     * kills, ...). Tied to {@code showStageElements}, which promises the stage skeleton without
+     * its contents — a promise the panel would otherwise break by counting them out.
+     */
+    private boolean showsElementLines() {
+        return filter.showsDetails();
+    }
+
+    /** Property lines actually drawn — the geometry below derives from this, never from a constant. */
+    private int propsRowCount() {
+        return showsModeLine() ? PROPS_ALL_ROWS : PROPS_ALL_ROWS - 1;
+    }
+
     private int renderProperties(GuiGraphics g, StageEntry entry, boolean individual, int left, int y) {
         int x = left + 20;
-        g.drawString(this.font, "§7" + tr("prop.mode") + ": §f" + entry.getMode().serialize(), x, y + 2, 0xAAAAAA, false);
-        y += PROP_ROW_H;
+        if (showsModeLine()) {
+            g.drawString(this.font, "§7" + tr("prop.mode") + ": §f" + entry.getMode().serialize(), x, y + 2, 0xAAAAAA, false);
+            y += PROP_ROW_H;
+        }
         g.drawString(this.font, "§7" + tr("prop.research_time") + ": §f" + entry.getResearchTime(), x, y + 2, 0xAAAAAA, false);
         y += PROP_ROW_H;
         g.drawString(this.font, "§7" + tr("prop.pedestal_tier") + ": §f" + entry.getMinPedestalTier(), x, y + 2, 0xAAAAAA, false);
@@ -288,6 +367,7 @@ public class DependencyGraphScreen extends Screen {
             y += DEP_ROW_H;
             for (String s : grp.getStages()) { g.drawString(this.font, "§7- " + tr("dep.stage") + ": " + s, x + 6, y + 2, 0xAAAAAA, false); y += DEP_ROW_H; }
             for (IndividualStageDep d : grp.getIndividualStages()) { g.drawString(this.font, "§7- " + tr("dep.ind_stage") + ": " + d.getStageId(), x + 6, y + 2, 0xAAAAAA, false); y += DEP_ROW_H; }
+            if (!showsElementLines()) continue;
             if (!grp.getItems().isEmpty()) { g.drawString(this.font, "§7- " + tr("dep.items") + ": " + grp.getItems().size(), x + 6, y + 2, 0xAAAAAA, false); y += DEP_ROW_H; }
             if (grp.getXpLevel() != null) { g.drawString(this.font, "§7- " + tr("dep.xp_level") + ": " + grp.getXpLevel().getLevel(), x + 6, y + 2, 0xAAAAAA, false); y += DEP_ROW_H; }
             if (!grp.getAdvancements().isEmpty()) { g.drawString(this.font, "§7- " + tr("dep.advancements") + ": " + grp.getAdvancements().size(), x + 6, y + 2, 0xAAAAAA, false); y += DEP_ROW_H; }
@@ -737,7 +817,9 @@ public class DependencyGraphScreen extends Screen {
         if (button == 0 && mouseX >= panelWidth && graphModel != null) {
             String clicked = stageNodeAt(mouseX, mouseY);
             if (clicked != null) {
-                expandedStageId = clicked;
+                // Same rule as the panel rows: an anonymised stage must not expand.
+                StageEntry entry = lookupStage(clicked);
+                expandedStageId = filter.anonymizes(clicked, entry) ? null : clicked;
                 depsExpanded = false;
                 focusStageId = clicked;
                 onFocusChanged();
@@ -759,8 +841,8 @@ public class DependencyGraphScreen extends Screen {
         Map<String, StageEntry> individual = StageManager.getIndividualStages();
 
         int[] yBox = { y };
-        if (hitSection(StageManager.getStageOrder(), global, false, left, mouseX, mouseY, yBox)) return;
-        hitSection(StageManager.getIndividualStageOrder(), individual, true, left, mouseX, mouseY, yBox);
+        if (hitSection(visibleOrder(false), global, false, left, mouseX, mouseY, yBox)) return;
+        hitSection(visibleOrder(true), individual, true, left, mouseX, mouseY, yBox);
     }
 
     private boolean hitSection(List<String> order, Map<String, StageEntry> map, boolean individual,
@@ -773,14 +855,14 @@ public class DependencyGraphScreen extends Screen {
             if (entry == null) continue;
             int rowY = yBox[0];
             if (mouseY >= rowY && mouseY < rowY + ROW_H) {
-                onStageRowClicked(id);
+                onStageRowClicked(id, entry);
                 return true;
             }
             yBox[0] += ROW_H;
 
             if (id.equals(expandedStageId)) {
-                // properties block = 4 lines + deps-toggle line
-                int propsLines = PROPS_DETAIL_ROWS;
+                // properties block = property lines + deps-toggle line
+                int propsLines = propsRowCount();
                 int propsH = propsLines * PROP_ROW_H + ROW_H;
                 int depsToggleY = yBox[0] + propsLines * PROP_ROW_H;
                 if (mouseY >= depsToggleY && mouseY < depsToggleY + ROW_H) {
@@ -806,6 +888,7 @@ public class DependencyGraphScreen extends Screen {
             h += DEP_ROW_H; // group header
             h += grp.getStages().size() * DEP_ROW_H;
             h += grp.getIndividualStages().size() * DEP_ROW_H;
+            if (!showsElementLines()) continue;
             if (!grp.getItems().isEmpty()) h += DEP_ROW_H;
             if (grp.getXpLevel() != null) h += DEP_ROW_H;
             if (!grp.getAdvancements().isEmpty()) h += DEP_ROW_H;
@@ -816,8 +899,12 @@ public class DependencyGraphScreen extends Screen {
         return h + 2;
     }
 
-    private void onStageRowClicked(String id) {
-        if (id.equals(expandedStageId)) {
+    private void onStageRowClicked(String id, StageEntry entry) {
+        // An anonymised row must not expand: the properties/dependencies block is a full
+        // description of the stage and would undo the anonymisation. It may still focus
+        // the graph, where the node is anonymised as well.
+        boolean anon = filter.anonymizes(id, entry);
+        if (anon || id.equals(expandedStageId)) {
             // Clicking the already-expanded stage collapses it.
             expandedStageId = null;
             depsExpanded = false;
@@ -829,18 +916,10 @@ public class DependencyGraphScreen extends Screen {
         onFocusChanged();             // overridden in a later task (no-op stub for now)
     }
 
+    /** Rebuilds the graph around the new focus and re-centres the view on it. */
     protected void onFocusChanged() {
         panning = false;
-        if (focusStageId == null) { graphModel = null; return; }
-        graphModel = net.bananemdnsa.historystages.client.editor.graph.GraphModel.build(focusStageId);
-        if (graphModel != null) {
-            net.bananemdnsa.historystages.client.editor.graph.GraphLayout.apply(graphModel);
-        }
-        // Restart the pop-in animation for the freshly built graph.
-        graphBuildTime = System.currentTimeMillis();
-        introScale = 0f;
-        introAlpha = 0f;
-        hoverNodeAnim = 0f;
+        rebuildGraph();
         // Center the graph in the graph area.
         int left = panelWidth + 4;
         panX = left + (this.width - left) / 2f;
@@ -867,6 +946,12 @@ public class DependencyGraphScreen extends Screen {
         if (draggingPanelScrollbar && button == 0) { draggingPanelScrollbar = false; return true; }
         if (panning && button == 0) { panning = false; return true; }
         return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    /** Looks a stage id up in both maps (global first), or null if unknown. */
+    private StageEntry lookupStage(String id) {
+        StageEntry e = StageManager.getStages().get(id);
+        return e != null ? e : StageManager.getIndividualStages().get(id);
     }
 
     /** Returns any node (stage or detail) under the cursor, or null. */

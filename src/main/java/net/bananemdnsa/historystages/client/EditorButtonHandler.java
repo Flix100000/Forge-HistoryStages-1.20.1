@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.client;
 
+import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.client.editor.DependencyGraphScreen;
 import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
@@ -19,13 +21,22 @@ public class EditorButtonHandler {
         if (!(event.getScreen() instanceof PauseScreen)) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || !mc.player.hasPermissions(2)) return;
+        if (mc.player == null) return;
 
         int screenWidth = event.getScreen().width;
 
-        event.addListener(Button.builder(
-                Component.translatable("editor.historystages.title"),
-                btn -> mc.setScreen(new StageOverviewScreen())
-        ).bounds(screenWidth - 110, 5, 100, 20).build());
+        if (mc.player.hasPermissions(2)) {
+            event.addListener(Button.builder(
+                    Component.translatable("editor.historystages.title"),
+                    btn -> mc.setScreen(new StageOverviewScreen())
+            ).bounds(screenWidth - 110, 5, 100, 20).build());
+        }
+
+        if (Config.COMMON.graphEnabled.get()) {
+            event.addListener(Button.builder(
+                    Component.translatable("graph.historystages.button"),
+                    btn -> mc.setScreen(DependencyGraphScreen.forPlayer(mc.screen))
+            ).bounds(screenWidth - 110, 29, 100, 20).build());
+        }
     }
 }
