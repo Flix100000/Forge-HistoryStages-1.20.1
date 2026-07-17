@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
+import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
 
 import com.google.gson.Gson;
@@ -62,6 +63,7 @@ public class StageManager {
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK = new HashMap<>();
     // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
     private static final Map<String, Set<String>> DUAL_PHASE_ITEMS_IND       = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_TAGS_IND        = new HashMap<>();
@@ -69,6 +71,7 @@ public class StageManager {
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK_IND = new HashMap<>();
 
     public enum MessageLevel { ERROR, WARN, INFO }
     public record LoadingMessage(MessageLevel level, String message) {}
@@ -89,7 +92,7 @@ public class StageManager {
             "mode", "auto_trigger", "temporary", "hidden_display"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
-            "spawnlock", "attacklock", "modLinked"
+            "spawnlock", "attacklock", "interactionlock", "modLinked"
     );
     private static final Set<String> KNOWN_HIDDEN_DISPLAY_KEYS = Set.of(
             "name_mode", "name_text", "tooltip_mode", "tooltip_text", "show_lock_hints"
@@ -103,6 +106,9 @@ public class StageManager {
     private static final Set<String> KNOWN_SPAWN_SOURCES = Set.of(
             "natural", "spawner", "structure", "breeding", "summon", "spawn_egg"
     );
+    private static final Set<String> KNOWN_INTERACTION_ACTIONS = Set.of(
+            "breed", "mount", "trade", "leash", "shear", "milk", "name", "equip", "other"
+    );
 
     public static void load() {
         STAGES.clear();
@@ -113,12 +119,14 @@ public class StageManager {
         DUAL_PHASE_DIMENSIONS.clear();
         DUAL_PHASE_STRUCTURES.clear();
         DUAL_PHASE_ATTACKLOCK.clear();
+        DUAL_PHASE_INTERACTIONLOCK.clear();
         DUAL_PHASE_ITEMS_IND.clear();
         DUAL_PHASE_TAGS_IND.clear();
         DUAL_PHASE_MODS_IND.clear();
         DUAL_PHASE_DIMENSIONS_IND.clear();
         DUAL_PHASE_STRUCTURES_IND.clear();
         DUAL_PHASE_ATTACKLOCK_IND.clear();
+        DUAL_PHASE_INTERACTIONLOCK_IND.clear();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
@@ -245,6 +253,7 @@ public class StageManager {
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getStructures(), stageId, "structures");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+        removeEmptyInteractionlockEntries(entry.getEntities().getInteractionlock(), stageId);
         removeEmptySpawnlockEntries(entry.getEntities().getSpawnlock(), stageId);
 
         checkDuplicateItems(entry.getItemEntries(), stageId);
@@ -255,6 +264,7 @@ public class StageManager {
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getStructures(), stageId, "structures");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+        checkDuplicateInteractionlock(entry.getEntities().getInteractionlock(), stageId);
         checkDuplicateSpawnlock(entry.getEntities().getSpawnlock(), stageId);
 
         entry.getItemEntries().removeIf(item -> {
@@ -343,6 +353,20 @@ public class StageManager {
             }
             return false;
         });
+
+        entry.getEntities().getInteractionlock().removeIf(inEntry -> {
+            if (!isValidResourceLocation(inEntry.getId())) {
+                addMessage(MessageLevel.WARN, "Entity interactionlock '" + inEntry.getId() + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Entities", "Entity interactionlock '" + inEntry.getId() + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        // Validate per-entry interaction action filters
+        for (EntityInteractionLockEntry inEntry : entry.getEntities().getInteractionlock()) {
+            validateInteractionActions(inEntry.getLockActions(), stageId, inEntry.getId());
+        }
 
         entry.getEntities().getSpawnlock().removeIf(spEntry -> {
             String entityId = spEntry.getId();
@@ -578,7 +602,8 @@ public class StageManager {
 
         int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                 + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
-                + entry.getStructures().size() + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
+                + entry.getStructures().size() + entry.getEntities().getAttacklock().size()
+                + entry.getEntities().getInteractionlock().size() + entry.getEntities().getSpawnlock().size();
         if (totalEntries == 0) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
             DebugLogger.info("Empty Stages", "Stage '" + stageId + "' has no content at all. It will be loaded but won't lock anything.");
@@ -678,6 +703,44 @@ public class StageManager {
             if (!seen.add(entry.getId())) {
                 addMessage(MessageLevel.INFO, "Duplicate '" + entry.getId() + "' in 'entities.spawnlock' (Stage: " + stageId + ").");
                 DebugLogger.info("Duplicates", "Duplicate entry '" + entry.getId() + "' in 'entities.spawnlock' (Stage: " + stageId + ").");
+            }
+        }
+    }
+
+    private static void removeEmptyInteractionlockEntries(List<EntityInteractionLockEntry> list, String stageId) {
+        int removed = 0;
+        var it = list.iterator();
+        while (it.hasNext()) {
+            EntityInteractionLockEntry entry = it.next();
+            if (entry.getId() == null || entry.getId().isBlank()) {
+                it.remove();
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            addMessage(MessageLevel.WARN, "Removed " + removed + " empty entry(s) from 'entities.interactionlock' (Stage: " + stageId + ").");
+            DebugLogger.warn("Empty Entries", "Removed " + removed + " empty/blank entry(s) from 'entities.interactionlock' (Stage: " + stageId + ").");
+        }
+    }
+
+    private static void checkDuplicateInteractionlock(List<EntityInteractionLockEntry> list, String stageId) {
+        Set<String> seen = new HashSet<>();
+        for (EntityInteractionLockEntry entry : list) {
+            if (!seen.add(entry.getId())) {
+                addMessage(MessageLevel.INFO, "Duplicate '" + entry.getId() + "' in 'entities.interactionlock' (Stage: " + stageId + ").");
+                DebugLogger.info("Duplicates", "Duplicate entry '" + entry.getId() + "' in 'entities.interactionlock' (Stage: " + stageId + ").");
+            }
+        }
+    }
+
+    /** Validates per-entry interaction action lists (internal representation = locked actions). */
+    private static void validateInteractionActions(List<String> actions, String stageId, String entryId) {
+        if (actions == null || actions.isEmpty()) return;
+        for (String action : actions) {
+            if (action == null || !KNOWN_INTERACTION_ACTIONS.contains(action)) {
+                addMessage(MessageLevel.WARN, "Unknown interaction action '" + action + "' on '" + entryId + "' in entities.interactionlock (Stage: " + stageId + ").");
+                DebugLogger.warn("Invalid Interaction Actions",
+                        "Unknown interaction action '" + action + "' on '" + entryId + "' in entities.interactionlock (Stage: " + stageId + "). Known actions: " + KNOWN_INTERACTION_ACTIONS + ".");
             }
         }
     }
@@ -790,6 +853,16 @@ public class StageManager {
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", attacklock). Typo or missing mod?");
                 }
             }
+
+            for (EntityInteractionLockEntry inEntry : entry.getEntities().getInteractionlock()) {
+                String entityId = inEntry.getId();
+                if (!isValidResourceLocation(entityId)) continue;
+                ResourceLocation rl = ResourceLocation.parse(entityId);
+                if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Stage: " + stageId + ", interactionlock).");
+                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", interactionlock). Typo or missing mod?");
+                }
+            }
             for (EntitySpawnLockEntry spEntry : entry.getEntities().getSpawnlock()) {
                 String entityId = spEntry.getId();
                 if (!isValidResourceLocation(entityId)) continue;
@@ -830,6 +903,16 @@ public class StageManager {
                 if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
                     addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Individual Stage: " + indId + ", attacklock).");
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Individual Stage: " + indId + ", attacklock). Typo or missing mod?");
+                }
+            }
+
+            for (EntityInteractionLockEntry inEntry : indData.getEntities().getInteractionlock()) {
+                String entityId = inEntry.getId();
+                if (!isValidResourceLocation(entityId)) continue;
+                ResourceLocation rl = ResourceLocation.parse(entityId);
+                if (!BuiltInRegistries.ENTITY_TYPE.containsKey(rl)) {
+                    addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Individual Stage: " + indId + ", interactionlock).");
+                    DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Individual Stage: " + indId + ", interactionlock). Typo or missing mod?");
                 }
             }
         }
@@ -880,6 +963,25 @@ public class StageManager {
             // A spawnlock entry implies attacklock only when it blocks ALL sources.
             for (EntitySpawnLockEntry spEntry : locks.getSpawnlock()) {
                 if (spEntry.getId().equals(entityId) && !spEntry.hasLockSources()) {
+                    allFoundStages.add(entry.getKey());
+                    break;
+                }
+            }
+        }
+        return allFoundStages;
+    }
+
+    /**
+     * Returns the global stages that block the given interaction action on the given entity.
+     * Unlike attacklock, interactionlock is a standalone list — spawnlock does not imply it.
+     * A stage blocks the action if it has an interactionlock entry for the entity whose action
+     * filter covers this action (no filter = all actions blocked).
+     */
+    public static List<String> getAllStagesForInteractionLockedEntity(String entityId, String action) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
+            for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
+                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action)) {
                     allFoundStages.add(entry.getKey());
                     break;
                 }
@@ -1317,6 +1419,7 @@ public class StageManager {
         removeEmptyItemEntries(entry.getModExceptionEntries(), stageId);
         removeEmptyStrings(entry.getDimensions(), stageId, "dimensions");
         removeEmptyStrings(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+        removeEmptyInteractionlockEntries(entry.getEntities().getInteractionlock(), stageId);
 
         checkDuplicateItems(entry.getItemEntries(), stageId);
         checkDuplicates(entry.getTags(), stageId, "tags");
@@ -1324,6 +1427,7 @@ public class StageManager {
         checkDuplicateItems(entry.getModExceptionEntries(), stageId);
         checkDuplicates(entry.getDimensions(), stageId, "dimensions");
         checkDuplicates(entry.getEntities().getAttacklock(), stageId, "entities.attacklock");
+        checkDuplicateInteractionlock(entry.getEntities().getInteractionlock(), stageId);
 
         entry.getItemEntries().removeIf(item -> {
             if (!isValidResourceLocation(item.getId())) {
@@ -1392,6 +1496,17 @@ public class StageManager {
             return false;
         });
 
+        entry.getEntities().getInteractionlock().removeIf(inEntry -> {
+            if (!isValidResourceLocation(inEntry.getId())) {
+                addMessage(MessageLevel.WARN, "Entity interactionlock '" + inEntry.getId() + "' invalid format (Individual Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+        for (EntityInteractionLockEntry inEntry : entry.getEntities().getInteractionlock()) {
+            validateInteractionActions(inEntry.getLockActions(), stageId, inEntry.getId());
+        }
+
         // --- Lock actions: validate per-entry unlock_actions lists ---
         for (ItemEntry item : entry.getItemEntries()) {
             validateLockActions(item.getLockActions(), stageId, item.getId(), "items");
@@ -1429,6 +1544,7 @@ public class StageManager {
         Map<String, Set<String>> globalDimensionMap  = new HashMap<>();
         Map<String, Set<String>> globalStructureMap  = new HashMap<>();
         Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
+        Map<String, Set<String>> globalInteractionlockMap = new HashMap<>();
 
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             String gStageId = entry.getKey();
@@ -1449,6 +1565,8 @@ public class StageManager {
             for (EntitySpawnLockEntry spEntry : gEntry.getEntities().getSpawnlock())
                 if (!spEntry.hasLockSources())
                     globalAttacklockMap.computeIfAbsent(spEntry.getId(), k -> new HashSet<>()).add(gStageId);
+            for (EntityInteractionLockEntry inEntry : gEntry.getEntities().getInteractionlock())
+                globalInteractionlockMap.computeIfAbsent(inEntry.getId(), k -> new HashSet<>()).add(gStageId);
         }
 
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
@@ -1473,6 +1591,9 @@ public class StageManager {
             for (String entityId : iEntry.getEntities().getAttacklock()) {
                 registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
             }
+            for (EntityInteractionLockEntry inEntry : iEntry.getEntities().getInteractionlock()) {
+                registerDualPhase(DUAL_PHASE_INTERACTIONLOCK, DUAL_PHASE_INTERACTIONLOCK_IND, globalInteractionlockMap, inEntry.getId(), "interactionlock entity", iStageId);
+            }
         }
     }
 
@@ -1484,12 +1605,14 @@ public class StageManager {
         DUAL_PHASE_DIMENSIONS.clear();
         DUAL_PHASE_STRUCTURES.clear();
         DUAL_PHASE_ATTACKLOCK.clear();
+        DUAL_PHASE_INTERACTIONLOCK.clear();
         DUAL_PHASE_ITEMS_IND.clear();
         DUAL_PHASE_TAGS_IND.clear();
         DUAL_PHASE_MODS_IND.clear();
         DUAL_PHASE_DIMENSIONS_IND.clear();
         DUAL_PHASE_STRUCTURES_IND.clear();
         DUAL_PHASE_ATTACKLOCK_IND.clear();
+        DUAL_PHASE_INTERACTIONLOCK_IND.clear();
         detectOverlaps();
     }
 
@@ -1512,12 +1635,14 @@ public class StageManager {
     public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
     public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
     public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
+    public static Map<String, Set<String>> getDualPhaseInteractionlock()    { return DUAL_PHASE_INTERACTIONLOCK; }
     public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
     public static Map<String, Set<String>> getDualPhaseTagsInd()       { return DUAL_PHASE_TAGS_IND; }
     public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
     public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
     public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
     public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
+    public static Map<String, Set<String>> getDualPhaseInteractionlockInd() { return DUAL_PHASE_INTERACTIONLOCK_IND; }
 
     public static Map<String, StageEntry> getIndividualStages() {
         return INDIVIDUAL_STAGES;
@@ -1582,6 +1707,19 @@ public class StageManager {
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
             if (entry.getValue().getEntities().getAttacklock().contains(entityId)) {
                 allFoundStages.add(entry.getKey());
+            }
+        }
+        return allFoundStages;
+    }
+
+    public static List<String> getAllIndividualStagesForInteractionLockedEntity(String entityId, String action) {
+        List<String> allFoundStages = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
+                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action)) {
+                    allFoundStages.add(entry.getKey());
+                    break;
+                }
             }
         }
         return allFoundStages;

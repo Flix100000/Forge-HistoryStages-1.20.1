@@ -229,6 +229,13 @@ public class StageCommand {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
             entry.getEntities().getAttacklock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
         }
+        if (!entry.getEntities().getInteractionlock().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§c▶ Entities (Interactionlock):"), false);
+            entry.getEntities().getInteractionlock().forEach(e -> {
+                String suffix = e.hasLockActions() ? " §8[" + String.join(", ", e.getLockActions()) + "]" : "";
+                source.sendSuccess(() -> Component.literal("  §8• §7" + e.getId() + suffix), false);
+            });
+        }
         if (!entry.getEntities().getSpawnlock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Spawnlock):"), false);
             entry.getEntities().getSpawnlock().forEach(e -> {
@@ -550,6 +557,13 @@ public class StageCommand {
         if (!entry.getEntities().getAttacklock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
             entry.getEntities().getAttacklock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
+        }
+        if (!entry.getEntities().getInteractionlock().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§c▶ Entities (Interactionlock):"), false);
+            entry.getEntities().getInteractionlock().forEach(e -> {
+                String suffix = e.hasLockActions() ? " §8[" + String.join(", ", e.getLockActions()) + "]" : "";
+                source.sendSuccess(() -> Component.literal("  §8• §7" + e.getId() + suffix), false);
+            });
         }
         return 1;
     }

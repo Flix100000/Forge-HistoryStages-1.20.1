@@ -57,11 +57,12 @@ public final class StageLockFilter {
         };
     }
 
-    /** Entity-id predicate: attack-lock + spawn-lock entries. */
+    /** Entity-id predicate: attack-lock + interaction-lock + spawn-lock entries. */
     public static Predicate<String> forEntities(StageEntry entry) {
         Set<String> locked = new HashSet<>();
         if (entry.getEntities() != null) {
             locked.addAll(entry.getEntities().getAttacklock());
+            locked.addAll(entry.getEntities().getInteractionlockIds());
             locked.addAll(entry.getEntities().getSpawnlockIds());
         }
         return id -> id != null && locked.contains(id);

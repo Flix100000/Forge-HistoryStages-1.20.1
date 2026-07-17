@@ -318,7 +318,8 @@ public class StageOverviewScreen extends Screen {
             // Item count info
             int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                     + entry.getRecipes().size() + entry.getDimensions().size() + entry.getStructures().size()
-                    + entry.getEntities().getAttacklock().size() + entry.getEntities().getSpawnlock().size();
+                    + entry.getEntities().getAttacklock().size() + entry.getEntities().getInteractionlock().size()
+                    + entry.getEntities().getSpawnlock().size();
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
             guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
@@ -436,7 +437,7 @@ public class StageOverviewScreen extends Screen {
                 // Item count info
                 int itemCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
                         + entry.getDimensions().size() + entry.getStructures().size()
-                        + entry.getEntities().getAttacklock().size();
+                        + entry.getEntities().getAttacklock().size() + entry.getEntities().getInteractionlock().size();
                 String info = itemCount + " entries";
                 int infoColor = (int) (0x88 + progress * 0x33);
                 guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);

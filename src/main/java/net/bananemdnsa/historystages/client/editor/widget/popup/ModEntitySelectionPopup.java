@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
@@ -21,20 +22,27 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
- * Popup that shows all entities from a specific mod with checkboxes for spawnlock and attacklock.
- * Appears after adding a mod in the editor, allowing users to configure entity locks.
- * Only one checkbox per entity can be active at a time (mutually exclusive).
+ * Popup that shows all entities from a specific mod with checkboxes for spawnlock, attacklock
+ * and interactionlock. Appears after adding a mod in the editor, allowing users to configure
+ * entity locks. Spawn and attack are mutually exclusive per row (spawnlock already implies
+ * attacklock); interaction is an independent axis and can be combined with either.
  */
 public class ModEntitySelectionPopup {
+
+    /** Callback receiving the three selected entity-id lists (spawnlock, attacklock, interactionlock). */
+    @FunctionalInterface
+    public interface EntityLockConsumer {
+        void accept(List<String> spawnlock, List<String> attacklock, List<String> interactionlock);
+    }
+
     private static final int ROW_HEIGHT = 24;
     private static final int VISIBLE_ROWS = 6;
     private static final int PADDING = 8;
-    private static final int PANEL_WIDTH = 280;
+    private static final int PANEL_WIDTH = 340;
     private static final int CHECKBOX_SIZE = 12;
+    private static final int COL_PITCH = 48;
     private static final int HEADER_HEIGHT = 38;
     private static final int FOOTER_HEIGHT = 30;
 
@@ -44,7 +52,7 @@ public class ModEntitySelectionPopup {
 
     private final List<EntityRow> entities = new ArrayList<>();
     private final Map<String, LivingEntity> entityCache = new HashMap<>();
-    private final BiConsumer<List<String>, List<String>> onConfirm; // (spawnlock, attacklock)
+    private final EntityLockConsumer onConfirm; // (spawnlock, attacklock, interactionlock)
     private final Runnable onSkip;
 
     private int panelX, panelY, panelW, panelH;
@@ -64,6 +72,7 @@ public class ModEntitySelectionPopup {
     // Select-all state
     private boolean allSpawn = false;
     private boolean allAttack = false;
+    private boolean allInteract = false;
 
     // Tooltip hover tracking
     private String hoveredTooltipKey = null;
@@ -74,13 +83,13 @@ public class ModEntitySelectionPopup {
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
 
-    public ModEntitySelectionPopup(BiConsumer<List<String>, List<String>> onConfirm, Runnable onSkip) {
+    public ModEntitySelectionPopup(EntityLockConsumer onConfirm, Runnable onSkip) {
         this.onConfirm = onConfirm;
         this.onSkip = onSkip;
     }
 
     public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY,
-            List<String> initialSpawnlock, List<String> initialAttacklock) {
+            List<String> initialSpawnlock, List<String> initialAttacklock, List<String> initialInteractionlock) {
         this.modDisplayName = modDisplayName;
         entities.clear();
         entityCache.clear();
@@ -89,6 +98,7 @@ public class ModEntitySelectionPopup {
         hoveredRowIndex = -1;
         allSpawn = false;
         allAttack = false;
+        allInteract = false;
 
         for (EntityType<?> entityType : BuiltInRegistries.ENTITY_TYPE) {
             ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
@@ -96,7 +106,8 @@ public class ModEntitySelectionPopup {
                 String displayName = entityType.getDescription().getString();
                 boolean sLock = initialSpawnlock != null && initialSpawnlock.contains(key.toString());
                 boolean aLock = initialAttacklock != null && initialAttacklock.contains(key.toString());
-                entities.add(new EntityRow(key.toString(), displayName, sLock, aLock));
+                boolean iLock = initialInteractionlock != null && initialInteractionlock.contains(key.toString());
+                entities.add(new EntityRow(key.toString(), displayName, sLock, aLock, iLock));
             }
         }
 
@@ -167,13 +178,19 @@ public class ModEntitySelectionPopup {
         maxScrollRow = Math.max(0, entities.size() - visibleRows);
     }
 
-    // Checkbox column positions relative to panel
-    private int getCbSpawnX() {
-        return panelX + panelW - PADDING - CHECKBOX_SIZE * 2 - 46;
+    // Checkbox column positions relative to panel (Interact rightmost, then Attack, then Spawn).
+    // The right inset leaves room for the centered "Interact"/"Interakt." header label so it
+    // does not overflow the panel edge.
+    private int getCbInteractX() {
+        return panelX + panelW - PADDING - CHECKBOX_SIZE - 20;
     }
 
     private int getCbAttackX() {
-        return getCbSpawnX() + CHECKBOX_SIZE + 20;
+        return getCbInteractX() - COL_PITCH;
+    }
+
+    private int getCbSpawnX() {
+        return getCbAttackX() - COL_PITCH;
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
@@ -190,44 +207,56 @@ public class ModEntitySelectionPopup {
 
         // Header with mod name
         String title = modDisplayName + " - Entities";
-        if (font.width(title) > panelW - PADDING * 2 - 90) {
-            title = font.plainSubstrByWidth(title, panelW - PADDING * 2 - 96) + "...";
+        if (font.width(title) > panelW - PADDING * 2 - 150) {
+            title = font.plainSubstrByWidth(title, panelW - PADDING * 2 - 156) + "...";
         }
         guiGraphics.drawString(font, title, panelX + PADDING, panelY + 7, 0xFFFFFF, false);
 
         // Column headers with hover tooltips
         int cbSpawnX = getCbSpawnX();
         int cbAttackX = getCbAttackX();
-        String spawnLabel = "Spawn";
-        String attackLabel = "Attack";
+        int cbInteractX = getCbInteractX();
+        String spawnLabel = Component.translatable("editor.historystages.entitypopup.spawn").getString();
+        String attackLabel = Component.translatable("editor.historystages.entitypopup.attack").getString();
+        String interactLabel = Component.translatable("editor.historystages.entitypopup.interact").getString();
         int spawnLabelW = font.width(spawnLabel);
         int attackLabelW = font.width(attackLabel);
+        int interactLabelW = font.width(interactLabel);
         int spawnLabelX = cbSpawnX + (CHECKBOX_SIZE - spawnLabelW) / 2;
         int attackLabelX = cbAttackX + (CHECKBOX_SIZE - attackLabelW) / 2;
+        int interactLabelX = cbInteractX + (CHECKBOX_SIZE - interactLabelW) / 2;
 
         boolean spawnHeaderHovered = mouseX >= spawnLabelX - 2 && mouseX < spawnLabelX + spawnLabelW + 2
                 && mouseY >= panelY + 4 && mouseY < panelY + 16;
         boolean attackHeaderHovered = mouseX >= attackLabelX - 2 && mouseX < attackLabelX + attackLabelW + 2
+                && mouseY >= panelY + 4 && mouseY < panelY + 16;
+        boolean interactHeaderHovered = mouseX >= interactLabelX - 2 && mouseX < interactLabelX + interactLabelW + 2
                 && mouseY >= panelY + 4 && mouseY < panelY + 16;
 
         guiGraphics.drawString(font, spawnLabel, spawnLabelX, panelY + 7,
                 spawnHeaderHovered ? 0xDDDDDD : 0x999999, false);
         guiGraphics.drawString(font, attackLabel, attackLabelX, panelY + 7,
                 attackHeaderHovered ? 0xDDDDDD : 0x999999, false);
+        guiGraphics.drawString(font, interactLabel, interactLabelX, panelY + 7,
+                interactHeaderHovered ? 0xDDDDDD : 0x999999, false);
 
         // Select-all checkboxes below labels
         int selectAllY = panelY + 20;
         renderCheckbox(guiGraphics, cbSpawnX, selectAllY, allSpawn, mouseX, mouseY, "all_s");
         renderCheckbox(guiGraphics, cbAttackX, selectAllY, allAttack, mouseX, mouseY, "all_a");
+        renderCheckbox(guiGraphics, cbInteractX, selectAllY, allInteract, mouseX, mouseY, "all_i");
 
         String currentTooltipKey = null;
         String currentTooltipText = null;
         if (spawnHeaderHovered) {
             currentTooltipKey = "spawn_header";
-            currentTooltipText = "Prevents this entity from spawning";
+            currentTooltipText = Component.translatable("editor.historystages.entitypopup.spawn_tooltip").getString();
         } else if (attackHeaderHovered) {
             currentTooltipKey = "attack_header";
-            currentTooltipText = "Prevents attacking this entity";
+            currentTooltipText = Component.translatable("editor.historystages.entitypopup.attack_tooltip").getString();
+        } else if (interactHeaderHovered) {
+            currentTooltipKey = "interact_header";
+            currentTooltipText = Component.translatable("editor.historystages.entitypopup.interact_tooltip").getString();
         }
 
         // List area
@@ -300,6 +329,9 @@ public class ModEntitySelectionPopup {
 
             // Attacklock checkbox
             renderCheckbox(guiGraphics, cbAttackX, cbY, row.attacklock, mouseX, mouseY, index + "_a");
+
+            // Interactionlock checkbox
+            renderCheckbox(guiGraphics, cbInteractX, cbY, row.interactionlock, mouseX, mouseY, index + "_i");
         }
 
         // Update marquee hover tracking
@@ -521,12 +553,14 @@ public class ModEntitySelectionPopup {
             if (mouseX >= confirmX && mouseX < confirmX + btnW) {
                 List<String> spawnlockIds = new ArrayList<>();
                 List<String> attacklockIds = new ArrayList<>();
+                List<String> interactionlockIds = new ArrayList<>();
                 for (EntityRow row : entities) {
                     if (row.spawnlock) spawnlockIds.add(row.id);
                     if (row.attacklock) attacklockIds.add(row.id);
+                    if (row.interactionlock) interactionlockIds.add(row.id);
                 }
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                onConfirm.accept(spawnlockIds, attacklockIds);
+                onConfirm.accept(spawnlockIds, attacklockIds, interactionlockIds);
                 hide();
                 return true;
             }
@@ -554,23 +588,24 @@ public class ModEntitySelectionPopup {
         // Select-all checkbox clicks
         int cbSpawnX = getCbSpawnX();
         int cbAttackX = getCbAttackX();
+        int cbInteractX = getCbInteractX();
         int selectAllY = panelY + 20;
         if (mouseX >= cbSpawnX && mouseX < cbSpawnX + CHECKBOX_SIZE
                 && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allSpawn = !allSpawn;
             if (allSpawn) {
-                // ON: set all unchecked spawn to checked, clear their attacklock
+                // ON: set all spawn checked, clear their attacklock (mutually exclusive); interaction untouched
                 allAttack = false;
                 for (int idx = 0; idx < entities.size(); idx++) {
                     EntityRow r = entities.get(idx);
-                    entities.set(idx, new EntityRow(r.id, r.displayName, true, false));
+                    entities.set(idx, new EntityRow(r.id, r.displayName, true, false, r.interactionlock));
                 }
             } else {
                 // OFF: clear all spawn
                 for (int idx = 0; idx < entities.size(); idx++) {
                     EntityRow r = entities.get(idx);
-                    entities.set(idx, new EntityRow(r.id, r.displayName, false, r.attacklock));
+                    entities.set(idx, new EntityRow(r.id, r.displayName, false, r.attacklock, r.interactionlock));
                 }
             }
             return true;
@@ -580,18 +615,29 @@ public class ModEntitySelectionPopup {
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allAttack = !allAttack;
             if (allAttack) {
-                // ON: set all unchecked attack to checked, clear their spawnlock
+                // ON: set all attack checked, clear their spawnlock (mutually exclusive); interaction untouched
                 allSpawn = false;
                 for (int idx = 0; idx < entities.size(); idx++) {
                     EntityRow r = entities.get(idx);
-                    entities.set(idx, new EntityRow(r.id, r.displayName, false, true));
+                    entities.set(idx, new EntityRow(r.id, r.displayName, false, true, r.interactionlock));
                 }
             } else {
                 // OFF: clear all attack
                 for (int idx = 0; idx < entities.size(); idx++) {
                     EntityRow r = entities.get(idx);
-                    entities.set(idx, new EntityRow(r.id, r.displayName, r.spawnlock, false));
+                    entities.set(idx, new EntityRow(r.id, r.displayName, r.spawnlock, false, r.interactionlock));
                 }
+            }
+            return true;
+        }
+        if (mouseX >= cbInteractX && mouseX < cbInteractX + CHECKBOX_SIZE
+                && mouseY >= selectAllY && mouseY < selectAllY + CHECKBOX_SIZE) {
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            allInteract = !allInteract;
+            // Interaction is an independent axis — toggle it without touching spawn/attack.
+            for (int idx = 0; idx < entities.size(); idx++) {
+                EntityRow r = entities.get(idx);
+                entities.set(idx, new EntityRow(r.id, r.displayName, r.spawnlock, r.attacklock, allInteract));
             }
             return true;
         }
@@ -612,7 +658,7 @@ public class ModEntitySelectionPopup {
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newSpawn = !row.spawnlock;
-                entities.set(index, new EntityRow(row.id, row.displayName, newSpawn, newSpawn ? false : row.attacklock));
+                entities.set(index, new EntityRow(row.id, row.displayName, newSpawn, newSpawn ? false : row.attacklock, row.interactionlock));
                 allSpawn = false;
                 return true;
             }
@@ -623,8 +669,18 @@ public class ModEntitySelectionPopup {
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 EntityRow row = entities.get(index);
                 boolean newAttack = !row.attacklock;
-                entities.set(index, new EntityRow(row.id, row.displayName, newAttack ? false : row.spawnlock, newAttack));
+                entities.set(index, new EntityRow(row.id, row.displayName, newAttack ? false : row.spawnlock, newAttack, row.interactionlock));
                 allAttack = false;
+                return true;
+            }
+
+            // Interactionlock checkbox (independent axis)
+            if (mouseX >= cbInteractX && mouseX < cbInteractX + CHECKBOX_SIZE
+                    && mouseY >= cbY && mouseY < cbY + CHECKBOX_SIZE) {
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                EntityRow row = entities.get(index);
+                entities.set(index, new EntityRow(row.id, row.displayName, row.spawnlock, row.attacklock, !row.interactionlock));
+                allInteract = false;
                 return true;
             }
         }
@@ -679,5 +735,5 @@ public class ModEntitySelectionPopup {
         return false;
     }
 
-    private record EntityRow(String id, String displayName, boolean spawnlock, boolean attacklock) {}
+    private record EntityRow(String id, String displayName, boolean spawnlock, boolean attacklock, boolean interactionlock) {}
 }
