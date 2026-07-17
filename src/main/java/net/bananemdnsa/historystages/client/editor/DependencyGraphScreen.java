@@ -19,7 +19,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +32,8 @@ public class DependencyGraphScreen extends Screen {
     private final Screen parent;
     /** Decides which stages and node categories this view may show. */
     private final GraphViewFilter filter;
+    /** True for the editor/admin view (shows a back button); false for the player view. */
+    private final boolean editorView;
 
     // --- Left panel state ---
     private static final int ROW_H = 20;               // card row slot (card height + gap)
@@ -76,24 +77,33 @@ public class DependencyGraphScreen extends Screen {
 
     /** Admin view — opened from the editor. Sees everything. */
     public DependencyGraphScreen(Screen parent) {
-        this(parent, GraphViewFilter.passThrough(), "editor.historystages.depgraph.title");
+        this(parent, GraphViewFilter.passThrough(), "editor.historystages.depgraph.title", true);
     }
 
     /** Player view — opened from the pause screen. Applies the server's {@code [graph]} config. */
     public static DependencyGraphScreen forPlayer(Screen parent) {
         return new DependencyGraphScreen(parent, GraphViewFilter.fromConfig(),
-                "graph.historystages.title");
+                "graph.historystages.title", false);
     }
 
-    private DependencyGraphScreen(Screen parent, GraphViewFilter filter, String titleKey) {
+    private DependencyGraphScreen(Screen parent, GraphViewFilter filter, String titleKey, boolean editorView) {
         super(Component.translatable(titleKey));
         this.parent = parent;
         this.filter = filter;
+        this.editorView = editorView;
     }
 
     @Override
     protected void init() {
         panelWidth = this.width / 3;
+        // Back button — editor view only. The player view relies on ESC (its parent is the
+        // pause screen) and must not offer an editor-style navigation control.
+        if (editorView) {
+            this.addRenderableWidget(net.bananemdnsa.historystages.client.editor.widget.StyledButton.of(
+                    Component.translatable("editor.historystages.back"),
+                    btn -> this.minecraft.setScreen(parent),
+                    6, 2, 60, 18));
+        }
     }
 
     /** (Re)builds {@link #graphModel} for the focused stage and restarts the pop-in animation. */
@@ -129,11 +139,42 @@ public class DependencyGraphScreen extends Screen {
         if (graphModel != null && mouseX >= panelWidth && !isOverLegend(mouseX, mouseY)) {
             net.bananemdnsa.historystages.client.editor.graph.GraphNode hov = nodeAt(mouseX, mouseY);
             if (hov != null && !hov.tooltip.isEmpty()) {
-                java.util.List<net.minecraft.network.chat.Component> lines = new java.util.ArrayList<>();
-                for (String s : hov.tooltip) lines.add(Component.literal(s));
-                g.renderComponentTooltip(this.font, lines, mouseX, mouseY);
+                drawGraphTooltip(g, hov.tooltip, mouseX, mouseY);
             }
         }
+    }
+
+    /**
+     * Renders a node tooltip in the editor's own style (dark bg, gold top accent, subtle border)
+     * instead of the vanilla {@code renderComponentTooltip} look — matching the tooltip boxes
+     * used elsewhere in the editor. Lines may carry legacy {@code §} formatting codes.
+     */
+    private void drawGraphTooltip(GuiGraphics g, List<String> lines, int mx, int my) {
+        int maxW = 0;
+        for (String l : lines) maxW = Math.max(maxW, this.font.width(l));
+
+        int pad = 5;
+        int lineH = this.font.lineHeight + 1;
+        int boxW = maxW + pad * 2;
+        int boxH = lines.size() * lineH + pad * 2 - 1;
+
+        int bx = mx + 10;
+        int by = my - 4;
+        if (bx + boxW > this.width - 4) bx = this.width - 4 - boxW;
+        if (by + boxH > this.height - 4) by = this.height - 4 - boxH;
+        if (by < 4) by = 4;
+
+        // z above the spinning entity previews (rendered at effective depth ~550, see
+        // EntityPreviewRenderer) so their models don't poke through the tooltip box.
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 700);
+        g.fill(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, 0xFF555555); // border
+        g.fill(bx, by, bx + boxW, by + boxH, 0xFF1A1A1A);                 // background
+        g.fill(bx, by, bx + boxW, by + 1, 0xFFFFCC00);                    // gold top accent
+        for (int i = 0; i < lines.size(); i++) {
+            g.drawString(this.font, lines.get(i), bx + pad, by + pad + i * lineH, 0xFFDDDDDD, false);
+        }
+        g.pose().popPose();
     }
 
     // --- Left panel -------------------------------------------------------

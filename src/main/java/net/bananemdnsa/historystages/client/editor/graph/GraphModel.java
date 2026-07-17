@@ -87,7 +87,7 @@ public class GraphModel {
                 if (!seenPrereqs.add(depId)) continue;
                 GraphNode n = stageNode(depId, depEntry, false, GraphNode.Zone.LEFT, filter);
                 model.nodes.add(n);
-                model.edges.add(new GraphEdge(focusNode, n, or));
+                model.edges.add(new GraphEdge(n, focusNode, or)); // arrow prerequisite -> focus
             }
             for (IndividualStageDep dep : group.getIndividualStages()) {
                 String depId = dep.getStageId();
@@ -98,7 +98,7 @@ public class GraphModel {
                 if (!seenPrereqs.add(depId)) continue;
                 GraphNode n = stageNode(depId, depEntry, true, GraphNode.Zone.LEFT, filter);
                 model.nodes.add(n);
-                model.edges.add(new GraphEdge(focusNode, n, or));
+                model.edges.add(new GraphEdge(n, focusNode, or)); // arrow prerequisite -> focus
             }
             if (filter.showsDetails()) model.addDetailNodes(focusNode, group, or);
         }
@@ -141,7 +141,7 @@ public class GraphModel {
             if (!dependsOnFocus) continue;
             GraphNode n = stageNode(id, entry, individual, GraphNode.Zone.RIGHT, filter);
             model.nodes.add(n);
-            model.edges.add(new GraphEdge(n, focusNode, viaOr)); // arrow dependent -> focus
+            model.edges.add(new GraphEdge(focusNode, n, viaOr)); // arrow focus -> dependent
         }
     }
 
@@ -149,38 +149,38 @@ public class GraphModel {
         for (DependencyItem it : group.getItems()) {
             if (it.getId() == null) continue;
             if (!seenSatellites.add(focusNode.id + "|item:" + it.getId())) continue;
-            List<String> tip = List.of("§b" + tr("node.item"), it.getCount() + "x " + it.getId());
+            List<String> tip = List.of("§6" + tr("node.item"), it.getCount() + "x " + it.getId());
             addDetail(focusNode, GraphNode.Type.DETAIL_ITEM, "", it.getId(), null, tip, or);
         }
         XpLevelDep xp = group.getXpLevel();
         if (xp != null && seenSatellites.add(focusNode.id + "|xp:" + xp.getLevel())) {
-            List<String> tip = List.of("§b" + tr("node.xp_level"),
+            List<String> tip = List.of("§6" + tr("node.xp_level"),
                     xp.getLevel() + (xp.isConsume() ? " (" + tr("node.consumed") + ")" : ""));
             addDetail(focusNode, GraphNode.Type.DETAIL_XP, "", "minecraft:experience_bottle", null, tip, or);
         }
         for (String a : group.getAdvancements()) {
             if (!seenSatellites.add(focusNode.id + "|adv:" + a)) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_ADVANCEMENT, "Ad", null, null,
-                    List.of("§b" + tr("node.advancement"), a), or);
+                    List.of("§6" + tr("node.advancement"), a), or);
         }
         for (EntityKillDep k : group.getEntityKills()) {
             if (k.getEntityId() == null) continue;
             if (!seenSatellites.add(focusNode.id + "|kill:" + k.getEntityId())) continue;
-            List<String> tip = List.of("§b" + tr("node.entity_kill"), k.getCount() + "x " + k.getEntityId());
+            List<String> tip = List.of("§6" + tr("node.entity_kill"), k.getCount() + "x " + k.getEntityId());
             addDetail(focusNode, GraphNode.Type.DETAIL_KILL, "", null, k.getEntityId(), tip, or);
         }
         for (StatDep s : group.getStats()) {
             if (s.getStatId() == null) continue;
             if (!seenSatellites.add(focusNode.id + "|stat:" + s.getStatId())) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_STAT, "St", null, null,
-                    List.of("§b" + tr("node.stat"), s.getStatId() + " >= " + s.getMinValue()), or);
+                    List.of("§6" + tr("node.stat"), s.getStatId() + " >= " + s.getMinValue()), or);
         }
         for (ScoreboardDep s : group.getScoreboard()) {
             String holder = s.isPlayerSelf() ? "<player>" : s.getScoreHolder();
             String line = holder + " " + s.getObjective() + " " + s.getOp() + " " + s.getValue();
             if (!seenSatellites.add(focusNode.id + "|score:" + line)) continue;
             addDetail(focusNode, GraphNode.Type.DETAIL_SCOREBOARD, "SB", null, null,
-                    List.of("§b" + tr("node.scoreboard"), line), or);
+                    List.of("§6" + tr("node.scoreboard"), line), or);
         }
     }
 
@@ -207,7 +207,7 @@ public class GraphModel {
                 GraphNode.Zone.SATELLITE, label, false, itemIcon, entityId,
                 List.of("§6" + tr("node.trigger"), detail));
         nodes.add(n);
-        edges.add(new GraphEdge(focusNode, n, false));
+        edges.add(new GraphEdge(n, focusNode, false)); // arrow trigger -> focus
     }
 
     private void addDetail(GraphNode focusNode, GraphNode.Type type, String label,
@@ -216,7 +216,7 @@ public class GraphModel {
         GraphNode n = new GraphNode(id, type, GraphNode.Category.DETAIL, GraphNode.Zone.SATELLITE,
                 label, false, itemIcon, entityId, new ArrayList<>(tooltip));
         nodes.add(n);
-        edges.add(new GraphEdge(focusNode, n, or));
+        edges.add(new GraphEdge(n, focusNode, or)); // arrow detail -> focus
     }
 
     /**
