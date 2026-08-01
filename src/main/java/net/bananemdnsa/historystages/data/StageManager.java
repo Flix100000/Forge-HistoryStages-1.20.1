@@ -171,6 +171,25 @@ public class StageManager {
         net.bananemdnsa.historystages.data.auto.AutoTriggerManager.rebuildIndex();
     }
 
+    /**
+     * Drops dependency groups beyond {@link DependencyGroup#MAX_GROUPS}. Hand-written JSON can
+     * declare any number; only the first {@code MAX_GROUPS} are evaluated, so the surplus is
+     * removed here instead of silently taking effect.
+     */
+    private static void trimDependencyGroups(String stageId, StageEntry entry) {
+        List<DependencyGroup> deps = entry.getDependencies();
+        if (deps.size() <= DependencyGroup.MAX_GROUPS) return;
+
+        int dropped = deps.size() - DependencyGroup.MAX_GROUPS;
+        entry.setDependencies(new ArrayList<>(deps.subList(0, DependencyGroup.MAX_GROUPS)));
+
+        String msg = "Stage '" + stageId + "' declares " + deps.size() + " dependency groups, "
+                + "but only " + DependencyGroup.MAX_GROUPS + " are supported. Dropped the last "
+                + dropped + ".";
+        addMessage(MessageLevel.WARN, msg);
+        DebugLogger.warn("Dependency Groups", msg);
+    }
+
     private static void validateFileName(String id, String fileName) {
         if (!id.equals(id.toLowerCase())) {
             addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
@@ -244,6 +263,8 @@ public class StageManager {
             addMessage(MessageLevel.WARN, "Stage '" + stageId + "' has no 'display_name'. Defaults to 'Unknown Stage'.");
             DebugLogger.warn("Missing Fields", "Stage '" + stageId + "' has no 'display_name' set. It will show as 'Unknown Stage'.");
         }
+
+        trimDependencyGroups(stageId, entry);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
@@ -1479,6 +1500,8 @@ public class StageManager {
             DebugLogger.error("Individual Stage Loading", msg);
             return;
         }
+
+        trimDependencyGroups(stageId, entry);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
