@@ -1291,6 +1291,22 @@ public class StageManager {
         return false;
     }
 
+    /**
+     * Client-side check whether a recipe ID is locked by any not-yet-unlocked
+     * individual stage. Mirrors {@link #isRecipeIdLocked} for individual stages,
+     * which the global check ignores.
+     */
+    public static boolean isRecipeIdLockedByIndividualStageClient(String recipeId) {
+        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
+            if (entry.getValue().getRecipes().contains(recipeId)) {
+                if (!net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache.isStageUnlocked(entry.getKey())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static boolean isItemLockedForServer(ItemStack stack) {
         if (stack.isEmpty()) return false;
         ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());

@@ -54,14 +54,18 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
     public static boolean isRecipeLocked(EmiRecipe recipe) {
         // 1. Check by recipe ID
         ResourceLocation recipeId = recipe.getId();
-        if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {
+        if (recipeId != null
+                && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
+                    || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
             return true;
         }
 
         // 2. Check by output items
         for (EmiStack output : recipe.getOutputs()) {
             ItemStack stack = output.getItemStack();
-            if (!stack.isEmpty() && StageLockHelper.isActionLockedForClient(stack, "recipe")) {
+            if (!stack.isEmpty()
+                    && (StageLockHelper.isActionLockedForClient(stack, "recipe")
+                        || StageLockHelper.isActionLockedByIndividualStageClient(stack, "recipe"))) {
                 return true;
             }
         }

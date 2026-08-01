@@ -50,7 +50,9 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
         // 1. Check by recipe ID if it's a vanilla RecipeHolder
         if (recipe instanceof RecipeHolder<?> holder) {
             ResourceLocation recipeId = holder.id();
-            if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {
+            if (recipeId != null
+                    && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
+                        || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
                 return true;
             }
         }
@@ -61,7 +63,9 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
             var displayed = slot.getDisplayedItemStack();
             if (displayed.isPresent()) {
                 ItemStack stack = displayed.get();
-                if (!stack.isEmpty() && StageLockHelper.isActionLockedForClient(stack, "recipe")) {
+                if (!stack.isEmpty()
+                        && (StageLockHelper.isActionLockedForClient(stack, "recipe")
+                            || StageLockHelper.isActionLockedByIndividualStageClient(stack, "recipe"))) {
                     return true;
                 }
             }

@@ -48,7 +48,9 @@ public abstract class RecipeLayoutMixin {
         // 1. Check by recipe ID — in 1.21 recipes are wrapped in RecipeHolder<?>
         if (recipe instanceof RecipeHolder<?> holder) {
             ResourceLocation recipeId = holder.id();
-            if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {
+            if (recipeId != null
+                    && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
+                        || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
                 return true;
             }
         }
@@ -61,7 +63,8 @@ public abstract class RecipeLayoutMixin {
             for (var slot : outputSlots) {
                 Optional<ItemStack> displayed = slot.getDisplayedItemStack();
                 if (displayed.isPresent() && !displayed.get().isEmpty()) {
-                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")) {
+                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")
+                            || StageLockHelper.isActionLockedByIndividualStageClient(displayed.get(), "recipe")) {
                         return true;
                     }
                 }
