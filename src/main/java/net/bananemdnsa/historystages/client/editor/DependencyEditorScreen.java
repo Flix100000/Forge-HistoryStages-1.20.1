@@ -1734,6 +1734,8 @@ public class DependencyEditorScreen extends Screen {
                 currentGroup().getItems().get(entryIdx).setNbt(null);
             }
             hasChanges = true;
+            // Routes through this screen's own save, so the whole stage is persisted.
+            save();
         }));
     }
 

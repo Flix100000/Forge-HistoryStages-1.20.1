@@ -97,7 +97,7 @@ public class NbtItemEditScreen extends Screen {
 
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.nbt.save"),
-                btn -> saveAndClose(),
+                btn -> saveNbt(),
                 this.width / 2 - 50, this.height - 30, 100, 20));
 
         this.addRenderableWidget(StyledButton.of(
@@ -637,9 +637,7 @@ public class NbtItemEditScreen extends Screen {
             int btnCancelX = this.width / 2 + 10;
             if (mouseX >= btnSaveX && mouseX < btnSaveX + 60 && mouseY >= btnY && mouseY < btnY + 18) {
                 // Save anyway
-                JsonObject nbt = buildNbtJson();
-                onSave.accept(nbt.size() > 0 ? nbt : null);
-                this.minecraft.setScreen(parent);
+                commitNbt();
                 return true;
             }
             if (mouseX >= btnCancelX && mouseX < btnCancelX + 60 && mouseY >= btnY && mouseY < btnY + 18) {
@@ -965,15 +963,23 @@ public class NbtItemEditScreen extends Screen {
     // Save
     // ==========================================
 
-    private void saveAndClose() {
+    private void saveNbt() {
         validationWarnings = validateNbt();
         if (!validationWarnings.isEmpty() && !showingWarnings) {
             showingWarnings = true;
             return;
         }
+        commitNbt();
+    }
+
+    /**
+     * Hands the NBT up and persists it, staying on this screen. Also clears the warning
+     * overlay — without a screen change it would otherwise stay up after saving.
+     */
+    private void commitNbt() {
         JsonObject nbt = buildNbtJson();
         onSave.accept(nbt.size() > 0 ? nbt : null);
-        this.minecraft.setScreen(parent);
+        showingWarnings = false;
     }
 
     private List<String> validateNbt() {

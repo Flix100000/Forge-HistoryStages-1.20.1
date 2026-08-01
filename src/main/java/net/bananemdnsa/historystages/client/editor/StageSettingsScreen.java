@@ -266,7 +266,7 @@ public class StageSettingsScreen extends Screen {
                                 if (autoTriggerButton != null) {
                                     autoTriggerButton.setMessage(buildAutoTriggerLabel());
                                 }
-                            }, lockSnapshot));
+                            }, lockSnapshot, this::save));
                 },
                 cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
         addContentWidget(autoTriggerButton);
@@ -591,10 +591,11 @@ public class StageSettingsScreen extends Screen {
             return;
         }
         saveError = "";
+        // The callback hands the values up and persists the stage; staying put is deliberate,
+        // so Save never yanks the user out of the screen they are working in.
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
                 editMode, editAutoTrigger, editTemporary, editHiddenDisplay);
         hasChanges = false;
-        this.minecraft.setScreen(parent);
     }
 
     private static String tierModeLabelKey(TierMode mode) {
