@@ -284,6 +284,12 @@ public class DebugLogger {
                     pw.println("    - " + mod);
                 }
             }
+            if (!s.getStructureBlockGeneration().isEmpty()) {
+                pw.println("  Structures (generation blocked) (" + s.getStructureBlockGeneration().size() + "):");
+                for (String struct : s.getStructureBlockGeneration()) {
+                    pw.println("    - " + struct);
+                }
+            }
         }
 
         if (!s.getBiomes().isEmpty()) {

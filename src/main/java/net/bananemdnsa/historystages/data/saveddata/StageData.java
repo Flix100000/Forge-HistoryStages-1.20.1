@@ -40,6 +40,7 @@ public class StageData extends SavedData {
             data.unlockedStages.add(stage);
             SERVER_CACHE.add(stage);
         }
+        net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
         return data;
     }
 
@@ -71,6 +72,7 @@ public class StageData extends SavedData {
         if (!unlockedStages.contains(stage)) {
             unlockedStages.add(stage);
             SERVER_CACHE.add(stage);
+            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             setDirty();
         }
     }
@@ -78,6 +80,7 @@ public class StageData extends SavedData {
     public void removeStage(String stage) {
         if (unlockedStages.remove(stage)) {
             SERVER_CACHE.remove(stage);
+            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             setDirty();
         }
     }

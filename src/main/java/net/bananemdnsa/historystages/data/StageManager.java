@@ -100,7 +100,7 @@ public class StageManager {
             "name_mode", "name_text", "tooltip_mode", "tooltip_text", "show_lock_hints"
     );
     private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
-            "structures", "mod_linked"
+            "structures", "mod_linked", "block_generation"
     );
     private static final Set<String> KNOWN_BIOME_KEYS = Set.of(
             "biomes", "mod_linked"
@@ -1423,6 +1423,10 @@ public class StageManager {
         }
 
         detectOverlaps();
+
+        // Stage definitions carry the block_generation lists, so the worldgen gate has to be
+        // rebuilt here too — StageData.load() alone doesn't cover a world without saved data.
+        net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
 
         System.out.println("[HistoryStages] Individual Stages geladen: " + INDIVIDUAL_STAGES.size());
 

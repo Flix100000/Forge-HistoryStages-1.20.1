@@ -10,9 +10,17 @@ public class StructureLocks {
     @SerializedName("mod_linked")
     private List<String> modLinked;
 
+    /**
+     * Subset of {@link #structures} that must not generate at all while the stage is locked.
+     * Worldgen is global and permanent per chunk, so this only applies to global stages.
+     */
+    @SerializedName("block_generation")
+    private List<String> blockGeneration;
+
     public StructureLocks() {
         this.structures = new ArrayList<>();
         this.modLinked = new ArrayList<>();
+        this.blockGeneration = new ArrayList<>();
     }
 
     public List<String> getStructures() {
@@ -29,5 +37,13 @@ public class StructureLocks {
 
     public void setModLinked(List<String> modLinked) {
         this.modLinked = modLinked != null ? new ArrayList<>(modLinked) : new ArrayList<>();
+    }
+
+    public List<String> getBlockGeneration() {
+        return blockGeneration != null ? blockGeneration : new ArrayList<>();
+    }
+
+    public void setBlockGeneration(List<String> blockGeneration) {
+        this.blockGeneration = blockGeneration != null ? new ArrayList<>(blockGeneration) : new ArrayList<>();
     }
 }

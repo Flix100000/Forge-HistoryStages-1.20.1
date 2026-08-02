@@ -210,6 +210,11 @@ public class StageEntry {
         return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
+    /** Structure entries of this stage that must not generate while the stage is locked. */
+    public List<String> getStructureBlockGeneration() {
+        return structures != null ? structures.getBlockGeneration() : new ArrayList<>();
+    }
+
     public List<String> getBiomes() {
         return biomes != null ? biomes.getBiomes() : new ArrayList<>();
     }
@@ -369,6 +374,11 @@ public class StageEntry {
         this.structures.setModLinked(modLinked);
     }
 
+    public void setStructureBlockGeneration(List<String> blockGeneration) {
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setBlockGeneration(blockGeneration);
+    }
+
     public void setBiomes(List<String> biomes) {
         if (this.biomes == null) this.biomes = new BiomeLocks();
         this.biomes.setBiomes(biomes);
@@ -403,6 +413,7 @@ public class StageEntry {
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
+        copy.setStructureBlockGeneration(getStructureBlockGeneration());
         copy.setBiomes(getBiomes());
         copy.setBiomeModLinked(getBiomeModLinked());
         copy.setIcon(getIcon());

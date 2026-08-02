@@ -62,6 +62,7 @@ public record ToggleStageLockPacket(String stageId, boolean unlock) implements C
             // state changes, instead of lingering until the next chunk scan.
             net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
             net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
+            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
             PacketHandler.reloadRecipesOnly(player.server);
 

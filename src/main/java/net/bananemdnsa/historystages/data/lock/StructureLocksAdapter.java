@@ -35,6 +35,12 @@ public class StructureLocksAdapter extends TypeAdapter<StructureLocks> {
             for (String s : value.getModLinked()) out.value(s);
             out.endArray();
         }
+        if (!value.getBlockGeneration().isEmpty()) {
+            out.name("block_generation");
+            out.beginArray();
+            for (String s : value.getBlockGeneration()) out.value(s);
+            out.endArray();
+        }
         out.endObject();
     }
 
@@ -75,6 +81,13 @@ public class StructureLocksAdapter extends TypeAdapter<StructureLocks> {
                     while (in.hasNext()) list.add(in.nextString());
                     in.endArray();
                     result.setModLinked(list);
+                }
+                case "block_generation" -> {
+                    List<String> list = new ArrayList<>();
+                    in.beginArray();
+                    while (in.hasNext()) list.add(in.nextString());
+                    in.endArray();
+                    result.setBlockGeneration(list);
                 }
                 default -> in.skipValue();
             }
