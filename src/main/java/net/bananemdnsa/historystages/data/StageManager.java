@@ -33,12 +33,9 @@ import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.util.DebugLogger;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.Reader;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -53,6 +50,22 @@ public class StageManager {
     // in that race; CHM's iterators are weakly consistent and never throw.
     private static final Map<String, StageEntry> STAGES = new ConcurrentHashMap<>();
     private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new ConcurrentHashMap<>();
+
+    /**
+     * Stage ID → relative folder path inside its tree ({@code ""} = tree root). The folder
+     * is never part of the ID; it only says where the file lives. Filled by the recursive
+     * load on the server, and by {@code SyncStageDefinitionsPacket} on the client.
+     */
+    private static final Map<String, String> STAGE_PATHS = new ConcurrentHashMap<>();
+    private static final Map<String, String> INDIVIDUAL_STAGE_PATHS = new ConcurrentHashMap<>();
+
+    /**
+     * Every folder that exists in the tree, empty ones included — a folder created in the
+     * editor holds no stages yet and would otherwise disappear on the next reload.
+     */
+    private static final Set<String> FOLDERS = ConcurrentHashMap.newKeySet();
+    private static final Set<String> INDIVIDUAL_FOLDERS = ConcurrentHashMap.newKeySet();
+
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
@@ -137,21 +150,28 @@ public class StageManager {
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
+        STAGE_PATHS.clear();
+        FOLDERS.clear();
+        File configDir = treeRoot(false);
 
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
+        for (String relFile : collectStageFiles(false)) {
+            File file = new File(configDir, relFile.replace('/', File.separatorChar));
+            String id = file.getName().substring(0, file.getName().length() - ".json".length());
+            String folder = StagePaths.parent(relFile);
 
-        if (files == null) return;
-
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
+            if (STAGE_PATHS.containsKey(id)) {
+                String kept = StagePaths.join(STAGE_PATHS.get(id), id + ".json");
+                String msg = "Duplicate stage name: '" + relFile + "' collides with '" + kept
+                        + "'. Stage IDs are file names and must be unique across all folders — '"
+                        + relFile + "' was skipped.";
+                addMessage(MessageLevel.ERROR, msg);
+                DebugLogger.error("Stage Loading", msg);
+                continue;
+            }
 
             validateFileName(id, file.getName());
 
-            try (Reader reader = new FileReader(file)) {
+            try {
                 String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
                 detectUnknownKeys(id, content);
 
@@ -159,13 +179,16 @@ public class StageManager {
 
                 if (entry != null) {
                     validateAndAdd(id, entry);
+                    // Only a stage that actually made it into the map gets a path. A rejected
+                    // one must not be counted by the folder rows or synced to clients.
+                    if (STAGES.containsKey(id)) STAGE_PATHS.put(id, folder);
                 } else {
-                    String msg = "File '" + file.getName() + "' parsed as null (empty or invalid JSON)";
+                    String msg = "File '" + relFile + "' parsed as null (empty or invalid JSON)";
                     addMessage(MessageLevel.ERROR, msg);
                     DebugLogger.error("Stage Loading", msg);
                 }
             } catch (Exception e) {
-                String msg = "Error in file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
+                String msg = "Error in file: " + relFile + " (Invalid JSON syntax, stage skipped)";
                 addMessage(MessageLevel.ERROR, msg);
                 DebugLogger.error("Stage Loading", msg + " — " + e.getMessage());
             }
@@ -210,6 +233,56 @@ public class StageManager {
             addMessage(MessageLevel.INFO, "File '" + fileName + "' contains special characters.");
             DebugLogger.info("File Names", "'" + fileName + "' contains special characters. Only use a-z, 0-9, _ and -.");
         }
+    }
+
+    /**
+     * Collects every stage file below {@code dir} as a path relative to the tree root, and
+     * records the folders it walks through — including empty ones. Names starting with
+     * {@code _} are skipped, which now covers directories too: {@code _backup/} is ignored
+     * whole, just like {@code _note.json}.
+     */
+    private static void collectStageFiles(File dir, String relPath, boolean individual, List<String> out) {
+        File[] entries = dir.listFiles();
+        if (entries == null) return;
+        Set<String> folders = individual ? INDIVIDUAL_FOLDERS : FOLDERS;
+
+        for (File entry : entries) {
+            String name = entry.getName();
+            if (name.startsWith("_")) continue;
+
+            if (entry.isDirectory()) {
+                String childPath = StagePaths.join(relPath, name);
+                if (StagePaths.depth(childPath) > StagePaths.MAX_DEPTH) {
+                    String msg = "Folder '" + childPath + "' is nested deeper than "
+                            + StagePaths.MAX_DEPTH + " levels and was skipped.";
+                    addMessage(MessageLevel.WARN, msg);
+                    DebugLogger.warn("Stage Folders", msg);
+                    continue;
+                }
+                if (!StagePaths.isValidSegment(name)) {
+                    String msg = "Folder '" + childPath + "' contains characters outside a-z, 0-9, _ and -. "
+                            + "It is loaded, but rename it for consistency.";
+                    addMessage(MessageLevel.INFO, msg);
+                    DebugLogger.info("Stage Folders", msg);
+                }
+                folders.add(childPath);
+                collectStageFiles(entry, childPath, individual, out);
+            } else if (name.endsWith(".json")) {
+                out.add(StagePaths.join(relPath, name));
+            }
+        }
+    }
+
+    /**
+     * Sorted list of every stage file in a tree, as paths relative to the tree root.
+     * Sorting makes the duplicate rule below deterministic: the alphabetically first path
+     * wins, so a reload always keeps the same file.
+     */
+    private static List<String> collectStageFiles(boolean individual) {
+        List<String> files = new ArrayList<>();
+        collectStageFiles(treeRoot(individual), "", individual, files);
+        java.util.Collections.sort(files);
+        return files;
     }
 
     private static void detectUnknownKeys(String stageId, String content) {
@@ -1017,6 +1090,41 @@ public class StageManager {
         }
     }
 
+    public static Map<String, String> getStagePaths() { return STAGE_PATHS; }
+    public static Map<String, String> getIndividualStagePaths() { return INDIVIDUAL_STAGE_PATHS; }
+    public static Set<String> getFolders() { return FOLDERS; }
+    public static Set<String> getIndividualFolders() { return INDIVIDUAL_FOLDERS; }
+
+    /** Folder a stage's file lives in, {@code ""} for the tree root. */
+    public static String getStageFolder(String stageId, boolean individual) {
+        Map<String, String> paths = individual ? INDIVIDUAL_STAGE_PATHS : STAGE_PATHS;
+        return paths.getOrDefault(stageId, "");
+    }
+
+    /** Root directory of a tree; created if missing. */
+    public static File treeRoot(boolean individual) {
+        File dir = FMLPaths.CONFIGDIR.get().resolve("historystages")
+                .resolve(individual ? "individual" : "global").toFile();
+        if (!dir.exists()) dir.mkdirs();
+        return dir;
+    }
+
+    /** Client-side entry point used by the definition sync. */
+    public static void setStagePaths(Map<String, String> global, Map<String, String> individual) {
+        STAGE_PATHS.clear();
+        STAGE_PATHS.putAll(global);
+        INDIVIDUAL_STAGE_PATHS.clear();
+        INDIVIDUAL_STAGE_PATHS.putAll(individual);
+    }
+
+    /** Client-side entry point used by the definition sync. */
+    public static void setFolders(Set<String> global, Set<String> individual) {
+        FOLDERS.clear();
+        FOLDERS.addAll(global);
+        INDIVIDUAL_FOLDERS.clear();
+        INDIVIDUAL_FOLDERS.addAll(individual);
+    }
+
     public static String getStageForItemOrMod(String itemId, String modId) {
         for (var entry : STAGES.entrySet()) {
             String stageName = entry.getKey();
@@ -1254,14 +1362,41 @@ public class StageManager {
     }
 
     public static boolean saveStage(String stageId, StageEntry entry) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
+        return saveStage(stageId, entry, null);
+    }
 
-        File file = new File(configDir, stageId + ".json");
+    /**
+     * Writes a stage to disk. An existing stage keeps the folder it already lives in;
+     * {@code targetFolder} only applies to a stage that does not exist yet — that is the
+     * folder the editor was standing in when the user created it.
+     */
+    public static boolean saveStage(String stageId, StageEntry entry, String targetFolder) {
+        // Only new IDs are held to the charset rule. A stage already on disk was named by
+        // hand and may contain a space or a dot — loading only warns about that, so saving
+        // must not start failing for it. Its file name cannot traverse anywhere either,
+        // since it came from the tree in the first place.
+        if (!STAGE_PATHS.containsKey(stageId) && !StagePaths.isValidSegment(stageId)) {
+            DebugLogger.error("Stage Saving", "Rejected stage id '" + stageId + "': invalid characters.");
+            return false;
+        }
+        String folder = STAGE_PATHS.containsKey(stageId)
+                ? STAGE_PATHS.get(stageId)
+                : (targetFolder == null ? "" : targetFolder);
+
+        File dir = StagePaths.resolve(treeRoot(false), folder);
+        if (dir == null) {
+            DebugLogger.error("Stage Saving", "Rejected folder '" + folder + "' for stage '" + stageId + "'.");
+            return false;
+        }
+        if (!dir.exists()) dir.mkdirs();
+
+        File file = new File(dir, stageId + ".json");
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             STAGES.put(stageId, entry);
-            DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to " + file.getName());
+            STAGE_PATHS.put(stageId, folder);
+            DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to "
+                    + StagePaths.join(folder, file.getName()));
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
@@ -1272,10 +1407,19 @@ public class StageManager {
     }
 
     public static boolean deleteStage(String stageId) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        File file = new File(configDir, stageId + ".json");
+        // Same rule as saveStage: an unknown ID is only accepted when it is a plain file
+        // name. Without this, getStageFolder() falls back to the tree root and the ID alone
+        // could walk out of it.
+        if (!STAGE_PATHS.containsKey(stageId) && !StagePaths.isValidSegment(stageId)) {
+            DebugLogger.error("Stage Delete", "Rejected stage id '" + stageId + "': invalid characters.");
+            return false;
+        }
+        File dir = StagePaths.resolve(treeRoot(false), getStageFolder(stageId, false));
+        if (dir == null) return false;
+        File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             STAGES.remove(stageId);
+            STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Stage Delete", "Deleted stage '" + stageId + "'");
             return true;
         }
@@ -1283,27 +1427,9 @@ public class StageManager {
     }
 
     public static List<String> getStageOrder() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("global").toFile();
-        if (!configDir.exists()) return new ArrayList<>(STAGES.keySet());
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-        if (files == null) return new ArrayList<>(STAGES.keySet());
-
-        Arrays.sort(files);
-        List<String> order = new ArrayList<>();
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-            if (STAGES.containsKey(id)) {
-                order.add(id);
-            }
-        }
-        for (String id : STAGES.keySet()) {
-            if (!order.contains(id)) {
-                order.add(id);
-            }
-        }
+        List<String> order = new ArrayList<>(STAGES.keySet());
+        order.sort(java.util.Comparator.comparing(
+                id -> StagePaths.join(STAGE_PATHS.getOrDefault(id, ""), id)));
         return order;
     }
 
@@ -1384,24 +1510,28 @@ public class StageManager {
     // =============================================
 
     private static void loadIndividual() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) {
-            configDir.mkdirs();
-            return;
-        }
+        INDIVIDUAL_STAGE_PATHS.clear();
+        INDIVIDUAL_FOLDERS.clear();
+        File configDir = treeRoot(true);
 
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
+        for (String relFile : collectStageFiles(true)) {
+            File file = new File(configDir, relFile.replace('/', File.separatorChar));
+            String id = file.getName().substring(0, file.getName().length() - ".json".length());
+            String folder = StagePaths.parent(relFile);
 
-        if (files == null) return;
-
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
+            if (INDIVIDUAL_STAGE_PATHS.containsKey(id)) {
+                String kept = StagePaths.join(INDIVIDUAL_STAGE_PATHS.get(id), id + ".json");
+                String msg = "Duplicate individual stage name: '" + relFile + "' collides with '"
+                        + kept + "'. Stage IDs are file names and must be unique across all folders — '"
+                        + relFile + "' was skipped.";
+                addMessage(MessageLevel.ERROR, msg);
+                DebugLogger.error("Individual Stage Loading", msg);
+                continue;
+            }
 
             validateFileName(id, file.getName());
 
-            try (Reader reader = new FileReader(file)) {
+            try {
                 String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
                 detectUnknownKeys(id, content);
 
@@ -1410,13 +1540,15 @@ public class StageManager {
                 if (entry != null) {
                     stripUnsupportedIndividualCategories(id, entry);
                     validateAndAddIndividual(id, entry);
+                    // See load(): a rejected stage leaves no path entry behind.
+                    if (INDIVIDUAL_STAGES.containsKey(id)) INDIVIDUAL_STAGE_PATHS.put(id, folder);
                 } else {
-                    String msg = "Individual file '" + file.getName() + "' parsed as null (empty or invalid JSON)";
+                    String msg = "Individual file '" + relFile + "' parsed as null (empty or invalid JSON)";
                     addMessage(MessageLevel.ERROR, msg);
                     DebugLogger.error("Individual Stage Loading", msg);
                 }
             } catch (Exception e) {
-                String msg = "Error in individual file: " + file.getName() + " (Invalid JSON syntax, stage skipped)";
+                String msg = "Error in individual file: " + relFile + " (Invalid JSON syntax, stage skipped)";
                 addMessage(MessageLevel.ERROR, msg);
                 DebugLogger.error("Individual Stage Loading", msg + " — " + e.getMessage());
             }
@@ -1857,14 +1989,34 @@ public class StageManager {
     }
 
     public static boolean saveIndividualStage(String stageId, StageEntry entry) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) configDir.mkdirs();
+        return saveIndividualStage(stageId, entry, null);
+    }
 
-        File file = new File(configDir, stageId + ".json");
+    /** Individual counterpart of {@link #saveStage(String, StageEntry, String)}. */
+    public static boolean saveIndividualStage(String stageId, StageEntry entry, String targetFolder) {
+        // See saveStage: the charset rule applies to new IDs only.
+        if (!INDIVIDUAL_STAGE_PATHS.containsKey(stageId) && !StagePaths.isValidSegment(stageId)) {
+            DebugLogger.error("Individual Stage Saving", "Rejected stage id '" + stageId + "': invalid characters.");
+            return false;
+        }
+        String folder = INDIVIDUAL_STAGE_PATHS.containsKey(stageId)
+                ? INDIVIDUAL_STAGE_PATHS.get(stageId)
+                : (targetFolder == null ? "" : targetFolder);
+
+        File dir = StagePaths.resolve(treeRoot(true), folder);
+        if (dir == null) {
+            DebugLogger.error("Individual Stage Saving", "Rejected folder '" + folder + "' for stage '" + stageId + "'.");
+            return false;
+        }
+        if (!dir.exists()) dir.mkdirs();
+
+        File file = new File(dir, stageId + ".json");
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             INDIVIDUAL_STAGES.put(stageId, entry);
-            DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to " + file.getName());
+            INDIVIDUAL_STAGE_PATHS.put(stageId, folder);
+            DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to "
+                    + StagePaths.join(folder, file.getName()));
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save individual stage: " + stageId + " - " + e.getMessage());
@@ -1874,38 +2026,289 @@ public class StageManager {
     }
 
     public static boolean deleteIndividualStage(String stageId) {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        File file = new File(configDir, stageId + ".json");
+        // See deleteStage: an unknown ID must be a plain file name, or it could traverse.
+        if (!INDIVIDUAL_STAGE_PATHS.containsKey(stageId) && !StagePaths.isValidSegment(stageId)) {
+            DebugLogger.error("Individual Stage Delete", "Rejected stage id '" + stageId + "': invalid characters.");
+            return false;
+        }
+        File dir = StagePaths.resolve(treeRoot(true), getStageFolder(stageId, true));
+        if (dir == null) return false;
+        File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             INDIVIDUAL_STAGES.remove(stageId);
+            INDIVIDUAL_STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Individual Stage Delete", "Deleted individual stage '" + stageId + "'");
             return true;
         }
         return false;
     }
 
+    // =============================================
+    // FOLDER OPERATIONS
+    // =============================================
+
+    /** Creates a folder (including missing parents). Returns false on an invalid path or IO failure. */
+    public static boolean createFolder(boolean individual, String path) {
+        if (path == null || path.isEmpty()) return false;
+        File dir = StagePaths.resolve(treeRoot(individual), path);
+        if (dir == null) return false;
+        if (dir.exists()) return false;
+        if (!dir.mkdirs()) {
+            DebugLogger.error("Stage Folders", "Could not create folder '" + path + "'.");
+            return false;
+        }
+        (individual ? INDIVIDUAL_FOLDERS : FOLDERS).add(path);
+        DebugLogger.runtime("Stage Folders", "Created folder '" + path + "'");
+        return true;
+    }
+
+    /**
+     * Renames a folder in place. {@code newName} is a single segment, not a path — the
+     * folder stays where it is. Stage IDs are unaffected because the ID is the file name.
+     */
+    public static boolean renameFolder(boolean individual, String path, String newName) {
+        if (path == null || path.isEmpty()) return false;
+        if (!StagePaths.isValidSegment(newName)) return false;
+
+        File root = treeRoot(individual);
+        File dir = StagePaths.resolve(root, path);
+        if (dir == null || !dir.isDirectory()) return false;
+
+        String targetPath = StagePaths.join(StagePaths.parent(path), newName);
+        File target = StagePaths.resolve(root, targetPath);
+        if (target == null || target.exists()) return false;
+
+        if (!dir.renameTo(target)) {
+            DebugLogger.error("Stage Folders", "Could not rename folder '" + path + "' to '" + newName + "'.");
+            return false;
+        }
+        DebugLogger.runtime("Stage Folders", "Renamed folder '" + path + "' to '" + targetPath + "'");
+        return true;
+    }
+
+    /**
+     * Deletes a folder and lifts its content one level up. A subfolder whose name already
+     * exists in the parent is merged into it rather than failing the operation.
+     *
+     * <p>A file that collides with a file of the same name in the parent aborts the move and
+     * returns false — file names are not unique tree-wide (see {@link #mergeInto}), and no
+     * folder deletion is worth losing a file over. Everything moved before the collision
+     * stays where it landed, so the caller has to reload before reporting the failure.
+     */
+    public static boolean deleteFolder(boolean individual, String path) {
+        if (path == null || path.isEmpty()) return false;
+
+        File root = treeRoot(individual);
+        File dir = StagePaths.resolve(root, path);
+        if (dir == null || !dir.isDirectory()) return false;
+
+        File parent = StagePaths.resolve(root, StagePaths.parent(path));
+        if (parent == null) return false;
+
+        File[] children = dir.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                try {
+                    mergeInto(child, new File(parent, child.getName()));
+                } catch (Exception e) {
+                    DebugLogger.error("Stage Folders",
+                            "Could not move '" + child.getName() + "' out of '" + path + "': " + e.getMessage());
+                    return false;
+                }
+            }
+        }
+
+        if (!dir.delete()) {
+            DebugLogger.error("Stage Folders", "Folder '" + path + "' could not be removed after emptying it.");
+            return false;
+        }
+        DebugLogger.runtime("Stage Folders", "Deleted folder '" + path + "', content moved one level up");
+        return true;
+    }
+
+    /**
+     * Moves the files of {@code stageIds} into {@code targetFolder} ({@code ""} = tree root).
+     * Stage IDs are file names, so a move changes nothing about a stage except where its
+     * file lives.
+     *
+     * <p>Returns true only when every requested stage ended up in the target. A stage that
+     * already sits there counts as moved and is skipped. A partial failure leaves the stages
+     * moved so far in their new place — the caller reloads either way, so memory and disk
+     * stay in step.
+     */
+    public static boolean moveStages(boolean individual, List<String> stageIds, String targetFolder) {
+        if (stageIds == null || stageIds.isEmpty()) return false;
+        if (!StagePaths.isValid(targetFolder)) return false;
+
+        File root = treeRoot(individual);
+        File targetDir = StagePaths.resolve(root, targetFolder);
+        if (targetDir == null) return false;
+        if (!targetDir.isDirectory() && !targetDir.mkdirs()) {
+            DebugLogger.error("Stage Folders", "Could not create target folder '" + targetFolder + "' for the move.");
+            return false;
+        }
+
+        Map<String, String> paths = individual ? INDIVIDUAL_STAGE_PATHS : STAGE_PATHS;
+        boolean allMoved = true;
+
+        for (String stageId : stageIds) {
+            String currentFolder = paths.get(stageId);
+            if (currentFolder == null) {
+                // Not in the path map means the tree has never seen this file. Guessing a
+                // source location from the id would move whatever happens to match.
+                DebugLogger.error("Stage Folders", "Cannot move stage '" + stageId + "': unknown stage id.");
+                allMoved = false;
+                continue;
+            }
+            if (currentFolder.equals(targetFolder)) continue;
+
+            File sourceDir = StagePaths.resolve(root, currentFolder);
+            if (sourceDir == null) {
+                DebugLogger.error("Stage Folders", "Cannot move stage '" + stageId
+                        + "': its folder '" + currentFolder + "' is not a valid path.");
+                allMoved = false;
+                continue;
+            }
+
+            File source = new File(sourceDir, stageId + ".json");
+            File target = new File(targetDir, stageId + ".json");
+            if (!source.isFile()) {
+                DebugLogger.error("Stage Folders", "Cannot move stage '" + stageId
+                        + "': '" + source.getAbsolutePath() + "' does not exist.");
+                allMoved = false;
+                continue;
+            }
+            if (target.exists()) {
+                // Unreachable while IDs are unique tree-wide, but the loader tolerates a
+                // duplicate file name (it keeps one and logs an error), so the case is real.
+                DebugLogger.error("Stage Folders", "Cannot move stage '" + stageId + "' to '"
+                        + targetFolder + "': a file of that name already exists there.");
+                allMoved = false;
+                continue;
+            }
+
+            try {
+                java.nio.file.Files.move(source.toPath(), target.toPath());
+            } catch (Exception e) {
+                DebugLogger.error("Stage Folders", "Could not move stage '" + stageId + "' to '"
+                        + targetFolder + "': " + e.getMessage());
+                allMoved = false;
+                continue;
+            }
+
+            paths.put(stageId, targetFolder);
+            DebugLogger.runtime("Stage Folders", "Moved stage '" + stageId + "' to '" + targetFolder + "'");
+        }
+
+        return allMoved;
+    }
+
+    /**
+     * Moves a folder and everything below it into {@code targetParent} ({@code ""} = tree root).
+     *
+     * <p>Rejects a move into the folder itself or into one of its own descendants, a move that
+     * would push the subtree past {@link StagePaths#MAX_DEPTH} (the loader skips folders below
+     * that limit, so the stages inside would silently vanish from the editor), and a target
+     * parent that already holds a folder of that name. The name collision is not merged on
+     * purpose: merging is what {@link #deleteFolder} does deliberately, and a move that quietly
+     * fuses two trees is a surprise.
+     */
+    public static boolean moveFolder(boolean individual, String path, String targetParent) {
+        if (path == null || path.isEmpty()) return false;
+        if (!StagePaths.isValid(path) || !StagePaths.isValid(targetParent)) return false;
+        if (targetParent.equals(path) || targetParent.startsWith(path + "/")) {
+            DebugLogger.error("Stage Folders", "Cannot move folder '" + path + "' into itself.");
+            return false;
+        }
+
+        File root = treeRoot(individual);
+        File dir = StagePaths.resolve(root, path);
+        if (dir == null || !dir.isDirectory()) return false;
+
+        String targetPath = StagePaths.join(targetParent, StagePaths.name(path));
+        if (targetPath.equals(path)) return true; // already in that parent
+
+        if (StagePaths.depth(targetPath) + maxSubfolderDepth(dir) > StagePaths.MAX_DEPTH) {
+            DebugLogger.error("Stage Folders", "Cannot move folder '" + path + "' to '" + targetPath
+                    + "': the result would be nested deeper than " + StagePaths.MAX_DEPTH + " levels.");
+            return false;
+        }
+
+        File target = StagePaths.resolve(root, targetPath);
+        if (target == null) return false;
+        if (target.exists()) {
+            DebugLogger.error("Stage Folders", "Cannot move folder '" + path + "' to '" + targetPath
+                    + "': a folder of that name already exists there.");
+            return false;
+        }
+
+        File targetParentDir = StagePaths.resolve(root, targetParent);
+        if (targetParentDir == null) return false;
+        if (!targetParentDir.isDirectory() && !targetParentDir.mkdirs()) {
+            DebugLogger.error("Stage Folders", "Could not create target folder '" + targetParent + "' for the move.");
+            return false;
+        }
+
+        try {
+            java.nio.file.Files.move(dir.toPath(), target.toPath());
+        } catch (Exception e) {
+            DebugLogger.error("Stage Folders", "Could not move folder '" + path + "' to '"
+                    + targetPath + "': " + e.getMessage());
+            return false;
+        }
+
+        DebugLogger.runtime("Stage Folders", "Moved folder '" + path + "' to '" + targetPath + "'");
+        return true;
+    }
+
+    /**
+     * Deepest level of subfolders below {@code dir}; 0 when it holds no folders. Names starting
+     * with {@code _} are skipped because the loader ignores them anyway.
+     */
+    private static int maxSubfolderDepth(File dir) {
+        File[] entries = dir.listFiles();
+        if (entries == null) return 0;
+        int deepest = 0;
+        for (File entry : entries) {
+            if (!entry.isDirectory() || entry.getName().startsWith("_")) continue;
+            deepest = Math.max(deepest, 1 + maxSubfolderDepth(entry));
+        }
+        return deepest;
+    }
+
+    /**
+     * Moves {@code source} to {@code target}. Two directories are merged recursively and the
+     * emptied source directory is removed.
+     *
+     * <p>Any other collision aborts with an {@link java.io.IOException} naming both sides.
+     * File names are not guaranteed to be unique tree-wide: the loader tolerates a duplicate
+     * stage file name (it keeps one and logs an error), and {@code _}-prefixed files such as
+     * {@code _exampleStage.json} are outside the uniqueness rule altogether. Overwriting or
+     * dropping the source in those cases would destroy a file the user still has on disk.
+     */
+    private static void mergeInto(File source, File target) throws java.io.IOException {
+        if (!target.exists()) {
+            java.nio.file.Files.move(source.toPath(), target.toPath());
+            return;
+        }
+        if (!source.isDirectory() || !target.isDirectory()) {
+            throw new java.io.IOException("Cannot move '" + source.getAbsolutePath() + "' to '"
+                    + target.getAbsolutePath() + "': the target already exists and at least one "
+                    + "side is a file, so merging would lose data.");
+        }
+        File[] children = source.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                mergeInto(child, new File(target, child.getName()));
+            }
+        }
+        source.delete();
+    }
+
     public static List<String> getIndividualStageOrder() {
-        File configDir = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("individual").toFile();
-        if (!configDir.exists()) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
-
-        File[] files = configDir.listFiles((dir, name) ->
-                name.endsWith(".json") && !name.startsWith("_")
-        );
-        if (files == null) return new ArrayList<>(INDIVIDUAL_STAGES.keySet());
-
-        Arrays.sort(files);
-        List<String> order = new ArrayList<>();
-        for (File file : files) {
-            String id = file.getName().replace(".json", "");
-            if (INDIVIDUAL_STAGES.containsKey(id)) {
-                order.add(id);
-            }
-        }
-        for (String id : INDIVIDUAL_STAGES.keySet()) {
-            if (!order.contains(id)) {
-                order.add(id);
-            }
-        }
+        List<String> order = new ArrayList<>(INDIVIDUAL_STAGES.keySet());
+        order.sort(java.util.Comparator.comparing(
+                id -> StagePaths.join(INDIVIDUAL_STAGE_PATHS.getOrDefault(id, ""), id)));
         return order;
     }
 
