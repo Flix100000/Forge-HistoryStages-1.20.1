@@ -18,7 +18,8 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 
-public record SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate) implements CustomPacketPayload {
+public record SaveStagePacket(String stageId, String stageJson, boolean individual,
+                              boolean duplicate, String folder) implements CustomPacketPayload {
     private static final Gson GSON = new Gson();
 
     public static final CustomPacketPayload.Type<SaveStagePacket> TYPE =
@@ -28,15 +29,20 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
             StreamCodec.of(SaveStagePacket::encode, SaveStagePacket::decode);
 
     public SaveStagePacket(String stageId, StageEntry entry) {
-        this(stageId, entry.toJson(), false, false);
+        this(stageId, entry.toJson(), false, false, "");
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual) {
-        this(stageId, entry.toJson(), individual, false);
+        this(stageId, entry.toJson(), individual, false, "");
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
-        this(stageId, entry.toJson(), individual, duplicate);
+        this(stageId, entry.toJson(), individual, duplicate, "");
+    }
+
+    /** {@code folder} is the folder the editor was standing in; it only applies to a new stage. */
+    public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate, String folder) {
+        this(stageId, entry.toJson(), individual, duplicate, folder == null ? "" : folder);
     }
 
     private static void encode(FriendlyByteBuf buffer, SaveStagePacket msg) {
@@ -44,6 +50,7 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
         buffer.writeUtf(msg.stageJson, 65536);
         buffer.writeBoolean(msg.individual);
         buffer.writeBoolean(msg.duplicate);
+        buffer.writeUtf(msg.folder);
     }
 
     private static SaveStagePacket decode(FriendlyByteBuf buffer) {
@@ -51,7 +58,8 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
         String stageJson = buffer.readUtf(65536);
         boolean individual = buffer.readBoolean();
         boolean duplicate = buffer.readBoolean();
-        return new SaveStagePacket(stageId, stageJson, individual, duplicate);
+        String folder = buffer.readUtf();
+        return new SaveStagePacket(stageId, stageJson, individual, duplicate, folder);
     }
 
     public static void handle(SaveStagePacket msg, IPayloadContext ctx) {
@@ -62,11 +70,21 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
             StageEntry entry = GSON.fromJson(msg.stageJson, StageEntry.class);
             if (entry == null) return;
 
+            if (!net.bananemdnsa.historystages.data.StagePaths.isValid(msg.folder)) {
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.error(
+                                "editor.historystages.toast.stage_save_failed.title",
+                                "editor.historystages.toast.stage_save_failed.message",
+                                msg.stageId),
+                        player);
+                return;
+            }
+
             boolean success;
             if (msg.individual) {
-                success = StageManager.saveIndividualStage(msg.stageId, entry);
+                success = StageManager.saveIndividualStage(msg.stageId, entry, msg.folder);
             } else {
-                success = StageManager.saveStage(msg.stageId, entry);
+                success = StageManager.saveStage(msg.stageId, entry, msg.folder);
             }
 
             if (success) {

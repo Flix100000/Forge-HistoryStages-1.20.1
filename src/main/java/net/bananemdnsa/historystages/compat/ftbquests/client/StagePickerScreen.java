@@ -1,10 +1,12 @@
 package net.bananemdnsa.historystages.compat.ftbquests.client;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.client.editor.folder.StageFolderTree;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.compat.ftbquests.StagePickerConfig;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.StagePaths;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -35,6 +37,15 @@ public class StagePickerScreen extends Screen {
     private static final int TAB_PAD = 8;
     private static final int TAB_Y = 30;
     private static final float SMALL_SCALE = 0.85f;
+    /** Height of the breadcrumb row, reserved above the list while inside a folder. */
+    private static final int BREADCRUMB_H = 12;
+    /** Width of the three bars marking a folder row, in pixels. */
+    private static final int FOLDER_ICON_WIDTH = 7;
+
+    /** One list row: either a folder to descend into, or a selectable stage. */
+    private record Row(String id, boolean folder, int stageCount) {}
+
+    private record BreadcrumbHit(int x1, int x2, String path) {}
 
     private final Screen parent;
     private final Consumer<String> onChosen;
@@ -47,7 +58,10 @@ public class StagePickerScreen extends Screen {
     private boolean individualTab;
     private EditBox searchBox;
     private String filter = "";
-    private final List<String> visible = new ArrayList<>();
+    private final List<Row> visible = new ArrayList<>();
+    /** Folder being browsed inside the active tab's tree; {@code ""} is that tree's root. */
+    private String currentPath = "";
+    private final List<BreadcrumbHit> breadcrumbHits = new ArrayList<>();
     private double scrollOffset = 0;
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
@@ -67,9 +81,20 @@ public class StagePickerScreen extends Screen {
         this.selectedId = StagePickerConfig.stripPrefix(currentValue);
         this.selectedIndividual = StagePickerConfig.isIndividual(currentValue);
         this.individualTab = this.selectedIndividual;
+        // Open where the current value lives, so an already-chosen stage is on screen
+        // instead of hidden inside a folder the user has to find first. Done here rather
+        // than in init(), which also runs on every resize and would yank the user back.
+        if (this.hasSelection) {
+            this.currentPath = StageManager.getStageFolder(this.selectedId, this.selectedIndividual);
+        }
     }
 
-    private int listTop() { return HEADER_HEIGHT; }
+    /** True while a search is active — results are flat and span the whole tree. */
+    private boolean searching() { return !filter.trim().isEmpty(); }
+
+    private boolean showBreadcrumb() { return !currentPath.isEmpty() && !searching(); }
+
+    private int listTop() { return HEADER_HEIGHT + (showBreadcrumb() ? BREADCRUMB_H : 0); }
     private int listBottom() { return this.height - 40; }
     private int listLeft() { return 20; }
     private int listRight() { return this.width - 20; }
@@ -122,13 +147,27 @@ public class StagePickerScreen extends Screen {
         String q = filter.toLowerCase().trim();
         Map<String, StageEntry> map = entries();
         visible.clear();
-        for (String id : order()) {
-            StageEntry e = map.get(id);
-            String name = e != null ? e.getDisplayName() : id;
-            if (q.isEmpty() || id.toLowerCase().contains(q) || name.toLowerCase().contains(q)) {
-                visible.add(id);
+
+        if (!q.isEmpty()) {
+            // A search covers the tab's whole tree, wherever the user currently stands —
+            // finding a stage is the one job that must not depend on being in the right
+            // folder. Clearing the box returns to the folder view at the same spot.
+            for (String id : order()) {
+                StageEntry e = map.get(id);
+                String name = e != null ? e.getDisplayName() : id;
+                if (id.toLowerCase().contains(q) || name.toLowerCase().contains(q)) {
+                    visible.add(new Row(id, false, 0));
+                }
+            }
+        } else {
+            for (StageFolderTree.Folder f : StageFolderTree.foldersAt(individualTab, currentPath)) {
+                visible.add(new Row(f.path(), true, f.stageCount()));
+            }
+            for (String id : StageFolderTree.stagesAt(individualTab, currentPath, order())) {
+                visible.add(new Row(id, false, 0));
             }
         }
+
         int listH = listBottom() - listTop();
         maxScroll = Math.max(0, visible.size() * ROW_HEIGHT - listH);
         scrollOffset = Math.min(scrollOffset, maxScroll);
@@ -137,7 +176,11 @@ public class StagePickerScreen extends Screen {
     /** If the pending selection is on the active tab and visible, center it. */
     private void scrollToSelected() {
         if (!hasSelection || individualTab != selectedIndividual) return;
-        int idx = visible.indexOf(selectedId);
+        int idx = -1;
+        for (int i = 0; i < visible.size(); i++) {
+            Row row = visible.get(i);
+            if (!row.folder() && row.id().equals(selectedId)) { idx = i; break; }
+        }
         if (idx < 0) return;
         int listH = listBottom() - listTop();
         scrollOffset = Math.max(0, Math.min(maxScroll, (double) idx * ROW_HEIGHT - listH / 2.0 + ROW_HEIGHT / 2.0));
@@ -147,9 +190,21 @@ public class StagePickerScreen extends Screen {
         if (individualTab == individual) return;
         individualTab = individual;
         this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        // The path belongs to the tree we just left; the other tree's folders are its own.
+        currentPath = (hasSelection && selectedIndividual == individual)
+                ? StageManager.getStageFolder(selectedId, individual)
+                : "";
         scrollOffset = 0;
         rebuild();
         scrollToSelected();
+    }
+
+    /** Enters a folder, or jumps to an ancestor from the breadcrumb. */
+    private void navigateTo(String path) {
+        currentPath = path;
+        scrollOffset = 0;
+        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        rebuild();
     }
 
     @Override
@@ -179,6 +234,16 @@ public class StagePickerScreen extends Screen {
             }
         }
 
+        // Breadcrumb segments jump to an ancestor; the leading one is the tree root.
+        if (button == 0 && showBreadcrumb() && my >= HEADER_HEIGHT && my < HEADER_HEIGHT + BREADCRUMB_H) {
+            for (BreadcrumbHit hit : breadcrumbHits) {
+                if (mx >= hit.x1() && mx <= hit.x2()) {
+                    navigateTo(hit.path());
+                    return true;
+                }
+            }
+        }
+
         int listTop = listTop(), listBottom = listBottom(), listRight = listRight();
 
         // Scrollbar drag start
@@ -189,15 +254,21 @@ public class StagePickerScreen extends Screen {
             return true;
         }
 
-        // Row click: move the pending selection only (do NOT apply/close)
+        // Row click: a folder descends, a stage moves the pending selection only
+        // (selecting does NOT apply/close — that happens on Back).
         if (button == 0 && mx >= listLeft() && mx <= listRight
                 && my >= listTop && my < listBottom) {
             int idx = (int) ((my - listTop + scrollOffset) / ROW_HEIGHT);
             if (idx >= 0 && idx < visible.size()) {
-                selectedId = visible.get(idx);
-                selectedIndividual = individualTab;
-                hasSelection = true;
-                this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Row row = visible.get(idx);
+                if (row.folder()) {
+                    navigateTo(row.id());
+                } else {
+                    selectedId = row.id();
+                    selectedIndividual = individualTab;
+                    hasSelection = true;
+                    this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                }
                 return true;
             }
         }
@@ -272,18 +343,33 @@ public class StagePickerScreen extends Screen {
         // Separator below tabs
         g.fill(10, HEADER_HEIGHT - 2, this.width - 10, HEADER_HEIGHT - 1, 0xFF555555);
 
-        int listTop = listTop(), listBottom = listBottom(), listLeft = listLeft(), listRight = listRight();
+        int listLeft = listLeft(), listRight = listRight();
+        if (showBreadcrumb()) drawBreadcrumb(g, listLeft + 4, HEADER_HEIGHT + 2, mx, my);
+
+        int listTop = listTop(), listBottom = listBottom();
         g.enableScissor(listLeft, listTop, listRight, listBottom);
         Map<String, StageEntry> map = entries();
         for (int i = 0; i < visible.size(); i++) {
             int rowY = listTop - (int) scrollOffset + i * ROW_HEIGHT;
             if (rowY + ROW_HEIGHT < listTop || rowY > listBottom) continue;
 
-            String id = visible.get(i);
-            StageEntry e = map.get(id);
-            boolean isSelected = hasSelection && individualTab == selectedIndividual && id.equals(selectedId);
+            Row row = visible.get(i);
             boolean hover = mx >= listLeft && mx <= listRight
                     && my >= Math.max(rowY, listTop) && my < Math.min(rowY + ROW_HEIGHT - 2, listBottom);
+
+            if (row.folder()) {
+                if (hover) g.fill(listLeft, rowY, listRight, rowY + ROW_HEIGHT - 2, 0x25FFFFFF);
+                drawFolderIcon(g, listLeft + 6, rowY + 6, 0xFFCC00);
+                g.drawString(this.font, StagePaths.name(row.id()), listLeft + 26, rowY + 3, 0xFFFFFF);
+                g.drawString(this.font, Component.translatable(
+                                "editor.historystages.folder.stage_count", row.stageCount()).getString(),
+                        listLeft + 26, rowY + 13, 0xAAAAAA, false);
+                continue;
+            }
+
+            String id = row.id();
+            StageEntry e = map.get(id);
+            boolean isSelected = hasSelection && individualTab == selectedIndividual && id.equals(selectedId);
 
             if (isSelected) {
                 g.fill(listLeft, rowY, listRight, rowY + ROW_HEIGHT - 2, 0x40FFCC00);
@@ -296,7 +382,10 @@ public class StagePickerScreen extends Screen {
             if (!icon.isEmpty()) g.renderItem(icon, listLeft + 4, rowY + 3);
             String name = e != null ? e.getDisplayName() : id;
             g.drawString(this.font, name, listLeft + 26, rowY + 3, 0xFFFFFF);
-            g.drawString(this.font, id, listLeft + 26, rowY + 13, 0xAAAAAA, false);
+            // While searching the row could be from any folder, so say which one.
+            String folder = StageManager.getStageFolder(id, individualTab);
+            String sub = (searching() && !folder.isEmpty()) ? id + "  §8" + folder + "/" : id;
+            g.drawString(this.font, sub, listLeft + 26, rowY + 13, 0xAAAAAA, false);
         }
         g.disableScissor();
 
@@ -309,6 +398,42 @@ public class StagePickerScreen extends Screen {
         }
 
         super.render(g, mx, my, pt);
+    }
+
+    /**
+     * Draws {@code global / stone / basalt} above the list and records each segment's
+     * clickable range. The leading segment is the tab's own name and leads back to the
+     * tree root, which is what the Back button cannot do — that one applies and closes.
+     */
+    private void drawBreadcrumb(GuiGraphics g, int x, int y, int mx, int my) {
+        breadcrumbHits.clear();
+        List<String> parts = StagePaths.breadcrumb(currentPath);
+        boolean onRow = my >= HEADER_HEIGHT && my < HEADER_HEIGHT + BREADCRUMB_H;
+        int cx = x;
+        for (int i = 0; i < parts.size(); i++) {
+            String path = parts.get(i);
+            String label = path.isEmpty()
+                    ? Component.translatable(tabKeys[individualTab ? 1 : 0]).getString()
+                    : StagePaths.name(path);
+            int w = this.font.width(label);
+            boolean last = i == parts.size() - 1;
+            boolean hovered = !last && onRow && mx >= cx && mx <= cx + w;
+            g.drawString(this.font, label, cx, y, last ? 0xFFFFFF : (hovered ? 0xFFCC00 : 0x888888), false);
+            if (!last) breadcrumbHits.add(new BreadcrumbHit(cx, cx + w, path));
+            cx += w;
+            if (!last) {
+                g.drawString(this.font, " / ", cx, y, 0x555555, false);
+                cx += this.font.width(" / ");
+            }
+        }
+    }
+
+    /** Three stacked bars marking a folder row, matching the stage editor's overview. */
+    private void drawFolderIcon(GuiGraphics g, int x, int y, int color) {
+        int argb = 0xFF000000 | (color & 0xFFFFFF);
+        for (int i = 0; i < 3; i++) {
+            g.fill(x, y + i * 3, x + FOLDER_ICON_WIDTH, y + i * 3 + 1, argb);
+        }
     }
 
     private void drawSmallText(GuiGraphics g, String text, int x, int y, int color) {

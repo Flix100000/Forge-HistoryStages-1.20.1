@@ -91,7 +91,7 @@ public class StageManager {
             "display_name", "research_time", "items", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
-            "mode", "auto_trigger", "temporary", "hidden_display"
+            "mode", "auto_trigger", "temporary", "hidden_display", "lose_on_death"
     );
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "interactionlock", "modLinked"
