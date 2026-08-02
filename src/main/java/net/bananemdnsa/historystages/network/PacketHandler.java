@@ -12,6 +12,8 @@ import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
 import net.bananemdnsa.historystages.network.serverbound.CreateFolderPacket;
 import net.bananemdnsa.historystages.network.serverbound.RenameFolderPacket;
 import net.bananemdnsa.historystages.network.serverbound.DeleteFolderPacket;
+import net.bananemdnsa.historystages.network.serverbound.MoveStagesPacket;
+import net.bananemdnsa.historystages.network.serverbound.MoveFoldersPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestIndividualStatesPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestEditorDataPacket;
@@ -69,6 +71,8 @@ public class PacketHandler {
         registrar.playToServer(CreateFolderPacket.TYPE, CreateFolderPacket.STREAM_CODEC, CreateFolderPacket::handle);
         registrar.playToServer(RenameFolderPacket.TYPE, RenameFolderPacket.STREAM_CODEC, RenameFolderPacket::handle);
         registrar.playToServer(DeleteFolderPacket.TYPE, DeleteFolderPacket.STREAM_CODEC, DeleteFolderPacket::handle);
+        registrar.playToServer(MoveStagesPacket.TYPE, MoveStagesPacket.STREAM_CODEC, MoveStagesPacket::handle);
+        registrar.playToServer(MoveFoldersPacket.TYPE, MoveFoldersPacket.STREAM_CODEC, MoveFoldersPacket::handle);
         registrar.playToServer(ToggleStageLockPacket.TYPE, ToggleStageLockPacket.STREAM_CODEC, ToggleStageLockPacket::handle);
         registrar.playToServer(ToggleIndividualStageLockPacket.TYPE, ToggleIndividualStageLockPacket.STREAM_CODEC, ToggleIndividualStageLockPacket::handle);
         registrar.playToServer(SaveConfigPacket.TYPE, SaveConfigPacket.STREAM_CODEC, SaveConfigPacket::handle);

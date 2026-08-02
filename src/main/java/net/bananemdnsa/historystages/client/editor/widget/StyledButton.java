@@ -86,10 +86,12 @@ public class StyledButton extends Button {
         int bgR = (int) (0xFF);
         int bgG = (int) (0xFF - hoverProgress * 0x33);
         int bgB = (int) (0xFF - hoverProgress * 0xFF);
-        guiGraphics.fill(x, y, x + w, y + h, (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB);
+        guiGraphics.fill(x, y, x + w, y + h, ((this.active ? bgAlpha : 0x15) << 24)
+                | (bgR << 16) | (bgG << 8) | bgB);
 
-        // Animated bottom accent line - opacity transitions
-        int accentAlpha = (int) (0x60 + hoverProgress * 0x9F);
+        // Animated bottom accent line - opacity transitions. A disabled button keeps a
+        // trace of it so it still reads as a button, just an unavailable one.
+        int accentAlpha = this.active ? (int) (0x60 + hoverProgress * 0x9F) : 0x25;
         guiGraphics.fill(x, y + h - 2, x + w, y + h, (accentAlpha << 24) | 0xFFCC00);
 
         // Subtle top/side borders
@@ -97,8 +99,8 @@ public class StyledButton extends Button {
         guiGraphics.fill(x, y, x + 1, y + h, 0x15FFFFFF);
         guiGraphics.fill(x + w - 1, y, x + w, y + h, 0x15FFFFFF);
 
-        // Text - smooth color transition
-        int textGray = (int) (0xCC + hoverProgress * 0x33);
+        // Text - smooth color transition, greyed out while inactive
+        int textGray = this.active ? (int) (0xCC + hoverProgress * 0x33) : 0x66;
         int textColor = (0xFF << 24) | (textGray << 16) | (textGray << 8) | textGray;
         guiGraphics.drawCenteredString(Minecraft.getInstance().font, this.getMessage(),
                 x + w / 2, y + (h - 8) / 2, textColor);

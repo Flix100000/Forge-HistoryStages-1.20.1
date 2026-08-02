@@ -44,6 +44,16 @@ public class ContextMenu {
         menuHeight = entries.size() * ITEM_HEIGHT + PADDING * 2;
     }
 
+    /**
+     * Opens the menu with its right edge at {@code rightX}. Used for a trigger button in
+     * a screen's top-right corner, where anchoring by the left edge would push the menu
+     * off screen — the width is only known once {@link #show} has measured the entries.
+     */
+    public void showRightAligned(int rightX, int y, Font font) {
+        show(rightX, y, font);
+        this.x = rightX - menuWidth;
+    }
+
     public void hide() {
         this.visible = false;
     }
