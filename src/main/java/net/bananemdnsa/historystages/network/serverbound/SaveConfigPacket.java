@@ -130,6 +130,33 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 case "structureBlockRightClick" -> Config.COMMON.structureBlockRightClick.set(Boolean.parseBoolean(value));
                 case "structureBlockLeftClick" -> Config.COMMON.structureBlockLeftClick.set(Boolean.parseBoolean(value));
                 case "structureBlockProjectiles" -> Config.COMMON.structureBlockProjectiles.set(Boolean.parseBoolean(value));
+                case "biomeCheckInterval" -> {
+                    try { Config.COMMON.biomeCheckInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "biomeEffectsEnabled" -> Config.COMMON.biomeEffectsEnabled.set(Boolean.parseBoolean(value));
+                case "biomeEffects" -> {
+                    List<String> effectList = Arrays.stream(value.split(";"))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .collect(Collectors.toList());
+                    Config.COMMON.biomeEffects.set(effectList);
+                    // Rebuild the parsed specs so the change applies without a reload.
+                    net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(effectList);
+                }
+                case "biomeClearEffectsOnLeave" -> Config.COMMON.biomeClearEffectsOnLeave.set(Boolean.parseBoolean(value));
+                case "biomeMessageEnabled" -> Config.COMMON.biomeMessageEnabled.set(Boolean.parseBoolean(value));
+                case "biomeLockMessageFormat" -> Config.COMMON.biomeLockMessageFormat.set(value);
+                case "biomeLockInChat" -> Config.COMMON.biomeLockInChat.set(Boolean.parseBoolean(value));
+                case "biomeDamageEnabled" -> Config.COMMON.biomeDamageEnabled.set(Boolean.parseBoolean(value));
+                case "biomeDamageAmount" -> {
+                    try { Config.COMMON.biomeDamageAmount.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "biomeDamageInterval" -> {
+                    try { Config.COMMON.biomeDamageInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
+                }
+                case "biomeBlockRightClick" -> Config.COMMON.biomeBlockRightClick.set(Boolean.parseBoolean(value));
+                case "biomeBlockLeftClick" -> Config.COMMON.biomeBlockLeftClick.set(Boolean.parseBoolean(value));
+                case "biomeBlockProjectiles" -> Config.COMMON.biomeBlockProjectiles.set(Boolean.parseBoolean(value));
                 case "msgDimensionUnknown" -> Config.COMMON.msgDimensionUnknown.set(value);
                 case "msgMobUnknown" -> Config.COMMON.msgMobUnknown.set(value);
                 case "msgItemLocked" -> Config.COMMON.msgItemLocked.set(value);

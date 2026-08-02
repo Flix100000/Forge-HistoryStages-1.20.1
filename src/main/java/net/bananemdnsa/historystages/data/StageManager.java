@@ -62,6 +62,7 @@ public class StageManager {
     private static final Map<String, Set<String>> DUAL_PHASE_MODS        = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_BIOMES      = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK = new HashMap<>();
     // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
@@ -70,6 +71,7 @@ public class StageManager {
     private static final Map<String, Set<String>> DUAL_PHASE_MODS_IND        = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND  = new HashMap<>();
+    private static final Map<String, Set<String>> DUAL_PHASE_BIOMES_IND      = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND  = new HashMap<>();
     private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK_IND = new HashMap<>();
 
@@ -87,7 +89,7 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "structures", "entities", "dependencies", "icon",
+            "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
             "mode", "auto_trigger", "temporary", "hidden_display"
     );
@@ -99,6 +101,9 @@ public class StageManager {
     );
     private static final Set<String> KNOWN_STRUCTURE_KEYS = Set.of(
             "structures", "mod_linked"
+    );
+    private static final Set<String> KNOWN_BIOME_KEYS = Set.of(
+            "biomes", "mod_linked"
     );
     private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
             "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
@@ -118,6 +123,7 @@ public class StageManager {
         DUAL_PHASE_MODS.clear();
         DUAL_PHASE_DIMENSIONS.clear();
         DUAL_PHASE_STRUCTURES.clear();
+        DUAL_PHASE_BIOMES.clear();
         DUAL_PHASE_ATTACKLOCK.clear();
         DUAL_PHASE_INTERACTIONLOCK.clear();
         DUAL_PHASE_ITEMS_IND.clear();
@@ -125,6 +131,7 @@ public class StageManager {
         DUAL_PHASE_MODS_IND.clear();
         DUAL_PHASE_DIMENSIONS_IND.clear();
         DUAL_PHASE_STRUCTURES_IND.clear();
+        DUAL_PHASE_BIOMES_IND.clear();
         DUAL_PHASE_ATTACKLOCK_IND.clear();
         DUAL_PHASE_INTERACTIONLOCK_IND.clear();
         LOADING_MESSAGES.clear();
@@ -229,6 +236,15 @@ public class StageManager {
                     if (!KNOWN_STRUCTURE_KEYS.contains(key)) {
                         addMessage(MessageLevel.WARN, "Unknown structure key '" + key + "' in stage '" + stageId + "'. Typo?");
                         DebugLogger.warn("Unknown Keys", "Unknown key 'structures." + key + "' in stage '" + stageId + "'. Known structure keys: " + KNOWN_STRUCTURE_KEYS + ".");
+                    }
+                }
+            }
+            if (json.has("biomes") && json.get("biomes").isJsonObject()) {
+                JsonObject biomes = json.getAsJsonObject("biomes");
+                for (String key : biomes.keySet()) {
+                    if (!KNOWN_BIOME_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown biome key '" + key + "' in stage '" + stageId + "'. Typo?");
+                        DebugLogger.warn("Unknown Keys", "Unknown key 'biomes." + key + "' in stage '" + stageId + "'. Known biome keys: " + KNOWN_BIOME_KEYS + ".");
                     }
                 }
             }
@@ -1634,6 +1650,7 @@ public class StageManager {
         Map<String, Set<String>> globalModMap        = new HashMap<>();
         Map<String, Set<String>> globalDimensionMap  = new HashMap<>();
         Map<String, Set<String>> globalStructureMap  = new HashMap<>();
+        Map<String, Set<String>> globalBiomeMap      = new HashMap<>();
         Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
         Map<String, Set<String>> globalInteractionlockMap = new HashMap<>();
 
@@ -1650,6 +1667,8 @@ public class StageManager {
                 globalDimensionMap.computeIfAbsent(dim, k -> new HashSet<>()).add(gStageId);
             for (String struct : gEntry.getStructures())
                 globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
+            for (String biome : gEntry.getBiomes())
+                globalBiomeMap.computeIfAbsent(biome, k -> new HashSet<>()).add(gStageId);
             for (String entityId : gEntry.getEntities().getAttacklock())
                 globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
             // Spawnlocked entities are also attacklocked globally — but only when the entry blocks all sources.
@@ -1679,6 +1698,9 @@ public class StageManager {
             for (String struct : iEntry.getStructures()) {
                 registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructureMap, struct, "structure", iStageId);
             }
+            for (String biome : iEntry.getBiomes()) {
+                registerDualPhase(DUAL_PHASE_BIOMES, DUAL_PHASE_BIOMES_IND, globalBiomeMap, biome, "biome", iStageId);
+            }
             for (String entityId : iEntry.getEntities().getAttacklock()) {
                 registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
             }
@@ -1695,6 +1717,7 @@ public class StageManager {
         DUAL_PHASE_MODS.clear();
         DUAL_PHASE_DIMENSIONS.clear();
         DUAL_PHASE_STRUCTURES.clear();
+        DUAL_PHASE_BIOMES.clear();
         DUAL_PHASE_ATTACKLOCK.clear();
         DUAL_PHASE_INTERACTIONLOCK.clear();
         DUAL_PHASE_ITEMS_IND.clear();
@@ -1702,6 +1725,7 @@ public class StageManager {
         DUAL_PHASE_MODS_IND.clear();
         DUAL_PHASE_DIMENSIONS_IND.clear();
         DUAL_PHASE_STRUCTURES_IND.clear();
+        DUAL_PHASE_BIOMES_IND.clear();
         DUAL_PHASE_ATTACKLOCK_IND.clear();
         DUAL_PHASE_INTERACTIONLOCK_IND.clear();
         detectOverlaps();
@@ -1725,6 +1749,7 @@ public class StageManager {
     public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE_MODS; }
     public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
     public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
+    public static Map<String, Set<String>> getDualPhaseBiomes()        { return DUAL_PHASE_BIOMES; }
     public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
     public static Map<String, Set<String>> getDualPhaseInteractionlock()    { return DUAL_PHASE_INTERACTIONLOCK; }
     public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
@@ -1732,6 +1757,7 @@ public class StageManager {
     public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
     public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
     public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
+    public static Map<String, Set<String>> getDualPhaseBiomesInd()     { return DUAL_PHASE_BIOMES_IND; }
     public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
     public static Map<String, Set<String>> getDualPhaseInteractionlockInd() { return DUAL_PHASE_INTERACTIONLOCK_IND; }
 
@@ -1904,6 +1930,16 @@ public class StageManager {
         }
         for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
             if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
+        }
+        return false;
+    }
+
+    public static boolean anyStageHasBiomes() {
+        for (StageEntry entry : STAGES.values()) {
+            if (!entry.getBiomes().isEmpty()) return true;
+        }
+        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
+            if (!entry.getBiomes().isEmpty()) return true;
         }
         return false;
     }

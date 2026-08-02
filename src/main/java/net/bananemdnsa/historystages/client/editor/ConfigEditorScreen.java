@@ -397,6 +397,54 @@ public class ConfigEditorScreen extends Screen {
                 "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked structure?"));
         commonSections.add(structureLock);
 
+        ConfigSection biomeLock = new ConfigSection("editor.historystages.config.biome_lock");
+        biomeLock.add(new ConfigEntry("biomeCheckInterval", ConfigType.INTEGER,
+                Config.COMMON.biomeCheckInterval.get().toString(), false, "10",
+                "How often (in ticks) to re-check a player's biome even when they haven't moved to a new biome cell. Moving always re-checks immediately.",
+                1, 200));
+        biomeLock.add(new ConfigEntry("biomeEffectsEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.biomeEffectsEnabled.get().toString(), false, "true",
+                "Apply the potion effects below while the player is inside a locked biome?"));
+        biomeLock.add(new ConfigEntry("biomeEffects", ConfigType.EFFECT_LIST,
+                encodeEffectList(Config.COMMON.biomeEffects.get()), false,
+                "minecraft:blindness, 30, 0",
+                "Potion effects applied inside a locked biome. Refreshed while the player stays inside, so the duration is really how long it lingers after leaving. Click to manage."));
+        biomeLock.add(new ConfigEntry("biomeClearEffectsOnLeave", ConfigType.BOOLEAN,
+                Config.COMMON.biomeClearEffectsOnLeave.get().toString(), false, "false",
+                "Remove those effects the moment the player leaves the locked biome, instead of letting them run out?"));
+        biomeLock.add(new ConfigEntry("biomeMessageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.biomeMessageEnabled.get().toString(), false, "true",
+                "Show the player a message while they are inside a locked biome?"));
+        biomeLock.add(new ConfigEntry("biomeLockMessageFormat", ConfigType.STRING,
+                Config.COMMON.biomeLockMessageFormat.get(), false,
+                "&cYou cannot survive in &e{biome}&c yet!",
+                "Message format for biome lock. Use {biome} for the ID, {stage} for the required stage, and & for colors."));
+        biomeLock.add(new ConfigEntry("biomeLockInChat", ConfigType.BOOLEAN,
+                Config.COMMON.biomeLockInChat.get().toString(), false, "false",
+                "Show the biome lock message in chat as well (otherwise only actionbar)?"));
+        biomeLock.add(new ConfigEntry("biomeDamageEnabled", ConfigType.BOOLEAN,
+                Config.COMMON.biomeDamageEnabled.get().toString(), false, "true",
+                "Damage the player while they are inside a locked biome?"));
+        biomeLock.add(new ConfigEntry("biomeDamageAmount", ConfigType.DOUBLE,
+                Config.COMMON.biomeDamageAmount.get().toString(), false, "1.0",
+                "Amount of damage dealt per damage tick (0.1-100.0).",
+                0.1, 100.0));
+        biomeLock.add(new ConfigEntry("biomeDamageInterval", ConfigType.INTEGER,
+                Config.COMMON.biomeDamageInterval.get().toString(), false, "20",
+                "How often (in ticks) to deal damage while inside a locked biome.",
+                1, 600));
+        biomeLock.add(new ConfigEntry("biomeBlockRightClick", ConfigType.BOOLEAN,
+                Config.COMMON.biomeBlockRightClick.get().toString(), false, "true",
+                "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked biome?"));
+        biomeLock.add(new ConfigEntry("biomeBlockLeftClick", ConfigType.BOOLEAN,
+                Config.COMMON.biomeBlockLeftClick.get().toString(), false, "true",
+                "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked biome?"));
+        biomeLock.add(new ConfigEntry("biomeBlockProjectiles", ConfigType.BOOLEAN,
+                Config.COMMON.biomeBlockProjectiles.get().toString(), false, "true",
+                "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked biome?"));
+        commonSections.add(biomeLock);
+
+
         ConfigSection graph = new ConfigSection("editor.historystages.config.graph");
         graph.add(new ConfigEntry("graphEnabled", ConfigType.BOOLEAN,
                 Config.COMMON.graphEnabled.get().toString(), false, "false",
@@ -723,6 +771,15 @@ public class ConfigEditorScreen extends Screen {
                 guiGraphics.drawString(this.font, display, controlX, y + 8,
                         listHovered ? 0xFFCC00 : 0xDDDDDD, false);
             }
+            case EFFECT_LIST -> {
+                int count = entry.value.isEmpty() ? 0 : entry.value.split(";").length;
+                String display = Component.translatable(
+                        "editor.historystages.config.effects_summary", count).getString();
+                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
+                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
+                guiGraphics.drawString(this.font, display, controlX, y + 8,
+                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
+            }
             case BOOSTER_LIST -> {
                 int count = entry.value.isEmpty() ? 0 : entry.value.split(";").length;
                 String display = "[" + count + " boosters] \u00A77(click to edit)";
@@ -862,6 +919,7 @@ public class ConfigEditorScreen extends Screen {
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
             case BOOSTER_LIST -> this.minecraft.setScreen(new BoosterListEditorScreen(this, entry));
+            case EFFECT_LIST -> this.minecraft.setScreen(new EffectListEditorScreen(this, entry));
             case MULTI_STAGE_POLICY -> {
                 boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
                 entry.value = strict ? "LENIENT" : "STRICT";
@@ -1061,8 +1119,16 @@ public class ConfigEditorScreen extends Screen {
     // --- Inner data classes ---
 
     enum ConfigType {
-        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, MULTI_STAGE_POLICY,
-        GRAPH_VISIBILITY
+        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, EFFECT_LIST,
+        MULTI_STAGE_POLICY, GRAPH_VISIBILITY
+    }
+
+    /** Encode the live biome-effect config list as the editor's internal string: "id,seconds,amp;...". */
+    private static String encodeEffectList(java.util.List<? extends String> entries) {
+        return entries.stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.joining(";"));
     }
 
     /**
@@ -1656,6 +1722,366 @@ public class ConfigEditorScreen extends Screen {
      *
      * Internal entry serialization: "block_id,speed,cost" joined by ';'.
      */
+    /**
+     * List editor for the {@code biomeEffects} config value. Rows are "effect_id, seconds,
+     * amplifier"; duration and amplifier are edited through {@link EffectEditDialog} rather than
+     * inline EditBoxes, matching the project's dialog convention.
+     */
+    static class EffectListEditorScreen extends Screen {
+        private final ConfigEditorScreen parent;
+        private final ConfigEntry entry;
+        private final List<EffectRow> rows = new ArrayList<>();
+        private net.bananemdnsa.historystages.client.editor.widget.list.SearchableEffectList effectOverlay;
+        private net.minecraft.client.gui.components.Button backButton;
+        private net.minecraft.client.gui.components.Button addButton;
+        private double scrollOffset = 0;
+        private int maxScroll = 0;
+        private boolean draggingScrollbar = false;
+        private static final int ROW_HEIGHT = 26;
+        private static final int LIST_TOP = 50;
+
+        EffectListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
+            super(Component.translatable("editor.historystages.config." + entry.key));
+            this.parent = parent;
+            this.entry = entry;
+            decode(entry.value);
+        }
+
+        private void decode(String value) {
+            rows.clear();
+            if (value == null || value.isEmpty()) return;
+            for (String part : value.split(";")) {
+                String trimmed = part.trim();
+                if (trimmed.isEmpty()) continue;
+                String[] tokens = trimmed.split(",");
+                if (tokens.length != 3) continue;
+                rows.add(new EffectRow(tokens[0].trim(),
+                        clamp(tokens[1].trim(), 1, 3600, 30),
+                        clamp(tokens[2].trim(), 0, 255, 0)));
+            }
+        }
+
+        private static int clamp(String s, int min, int max, int fallback) {
+            try {
+                return Math.max(min, Math.min(max, Integer.parseInt(s)));
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+
+        @Override
+        protected void init() {
+            backButton = StyledButton.of(
+                    Component.translatable("editor.historystages.back"),
+                    btn -> saveAndClose(), 10, this.height - 30, 60, 20);
+            this.addRenderableWidget(backButton);
+
+            addButton = StyledButton.of(
+                    Component.translatable("editor.historystages.add"),
+                    btn -> openPicker(),
+                    this.width / 2 - 50, this.height - 30, 100, 20);
+            this.addRenderableWidget(addButton);
+
+            rebuildEditButtons();
+            updateMaxScroll();
+        }
+
+        /**
+         * Drops the picker reference once it has hidden itself. Clicking outside the panel makes
+         * the list hide and still report the click as consumed, so without this the screen would
+         * keep a non-null but invisible overlay — leaving the dim layer up and the header hidden
+         * for good.
+         */
+        private void syncOverlayState() {
+            if (effectOverlay != null && !effectOverlay.isVisible()) effectOverlay = null;
+        }
+
+        /** Closes the picker and reports the click as consumed. */
+        private boolean clearOverlay() {
+            effectOverlay = null;
+            return true;
+        }
+
+        private void openPicker() {
+            this.setFocused(null);
+            for (EffectRow r : rows) {
+                if (r.editButton != null) r.editButton.visible = false;
+            }
+            effectOverlay = new net.bananemdnsa.historystages.client.editor.widget.list.SearchableEffectList(
+                    effectId -> {
+                        if (rows.stream().noneMatch(r -> r.effectId.equals(effectId))) {
+                            rows.add(new EffectRow(effectId, 30, 0));
+                            rebuildEditButtons();
+                            updateMaxScroll();
+                        }
+                        effectOverlay = null;
+                    },
+                    () -> rows.stream().map(r -> r.effectId).toList());
+            effectOverlay.show(this.width / 2, this.height / 2, this.width);
+        }
+
+        private void rebuildEditButtons() {
+            for (EffectRow r : rows) {
+                if (r.editButton != null) this.removeWidget(r.editButton);
+            }
+            for (EffectRow r : rows) {
+                final EffectRow rRef = r;
+                r.editButton = StyledButton.of(
+                        Component.translatable("editor.historystages.edit"),
+                        btn -> this.minecraft.setScreen(new EffectEditDialog(this, rRef)),
+                        0, 0, 50, 18);
+                this.addRenderableWidget(r.editButton);
+            }
+        }
+
+        private void updateMaxScroll() {
+            int listBottom = this.height - 40;
+            maxScroll = Math.max(0, rows.size() * ROW_HEIGHT - (listBottom - LIST_TOP));
+            scrollOffset = Math.min(scrollOffset, maxScroll);
+        }
+
+        private void saveAndClose() {
+            StringBuilder sb = new StringBuilder();
+            for (EffectRow r : rows) {
+                if (r.effectId == null || r.effectId.isEmpty()) continue;
+                if (sb.length() > 0) sb.append(';');
+                sb.append(r.effectId).append(',').append(r.seconds).append(',').append(r.amplifier);
+            }
+            entry.value = sb.toString();
+            this.minecraft.setScreen(parent);
+        }
+
+        @Override
+        public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {}
+
+        @Override
+        public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            syncOverlayState();
+            guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
+            boolean overlayOpen = effectOverlay != null;
+            // Vanilla batches text and flushes it late, so a button drawn before the overlay
+            // would still show its label on top of the panel. Hiding them outright is the only
+            // reliable fix here.
+            if (backButton != null) backButton.visible = !overlayOpen;
+            if (addButton != null) addButton.visible = !overlayOpen;
+            if (!overlayOpen) {
+                guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+                guiGraphics.drawCenteredString(this.font, Component.translatable(
+                        "editor.historystages.config.effects_count", rows.size()).getString(),
+                        this.width / 2, 25, 0x999999);
+                guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+            }
+
+            int listBottom = this.height - 40;
+            int contentLeft = 40;
+            int contentRight = this.width - 40;
+            int removeX = contentRight - 14;
+            int editButtonX = removeX - 8 - 50;
+            int summaryRightX = editButtonX - 8;
+
+            guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
+
+            int y = LIST_TOP - (int) scrollOffset;
+            for (int i = 0; i < rows.size(); i++) {
+                EffectRow r = rows.get(i);
+                boolean fullyVisible = !overlayOpen && y >= LIST_TOP && y + ROW_HEIGHT <= listBottom;
+                if (r.editButton != null) r.editButton.visible = fullyVisible;
+                if (y + ROW_HEIGHT > LIST_TOP - 10 && y < listBottom + 10) {
+                    boolean hovered = mouseX >= contentLeft && mouseX <= contentRight
+                            && mouseY >= y && mouseY < y + ROW_HEIGHT
+                            && mouseY >= LIST_TOP && mouseY <= listBottom;
+                    if (hovered) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, 0x20FFFFFF);
+                    }
+
+                    String summary = Component.translatable("editor.historystages.config.effect_summary",
+                            r.seconds, r.amplifier + 1).getString();
+                    int summaryX = summaryRightX - this.font.width(summary);
+                    guiGraphics.drawString(this.font, summary, summaryX, y + 9, 0xAACCFF, false);
+
+                    String name = net.bananemdnsa.historystages.client.editor.widget.list
+                            .SearchableEffectList.displayName(r.effectId);
+                    int idX = contentLeft + 4;
+                    int maxIdWidth = summaryX - idX - 8;
+                    String label = name.equals(r.effectId) ? name : name + " §8" + r.effectId;
+                    if (maxIdWidth > 0 && this.font.width(label) > maxIdWidth) {
+                        label = this.font.plainSubstrByWidth(label, maxIdWidth - 6) + "...";
+                    }
+                    guiGraphics.drawString(this.font, label, idX, y + 9,
+                            hovered ? 0xFFFFFF : 0xCCCCCC, false);
+
+                    r.editButton.setX(editButtonX);
+                    r.editButton.setY(y + 4);
+
+                    boolean removeHovered = mouseX >= removeX && mouseX <= removeX + 12
+                            && mouseY >= y + 2 && mouseY < y + ROW_HEIGHT - 2
+                            && mouseY >= LIST_TOP && mouseY <= listBottom;
+                    guiGraphics.drawString(this.font, "×", removeX + 2, y + 8,
+                            removeHovered ? 0xFF5555 : 0x888888, false);
+                }
+                y += ROW_HEIGHT;
+            }
+            guiGraphics.disableScissor();
+
+            if (maxScroll > 0) {
+                int scrollAreaHeight = listBottom - LIST_TOP;
+                int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
+                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                guiGraphics.fill(contentRight + 2, LIST_TOP, contentRight + 8, listBottom, 0x40000000);
+                guiGraphics.fill(contentRight + 2, barY, contentRight + 8, barY + barHeight, 0xC0FFFFFF);
+            }
+            guiGraphics.fill(30, listBottom + 1, this.width - 30, listBottom + 2, 0xFF555555);
+
+            super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+            if (effectOverlay != null) {
+                guiGraphics.fill(0, 0, this.width, this.height, 0x80000000);
+                effectOverlay.render(guiGraphics, this.font, mouseX, mouseY);
+            }
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            syncOverlayState();
+            if (effectOverlay != null) {
+                boolean consumed = effectOverlay.mouseClicked(mouseX, mouseY);
+                syncOverlayState();
+                return consumed || clearOverlay();
+            }
+
+            int listBottom = this.height - 40;
+            int contentLeft = 40;
+            int contentRight = this.width - 40;
+            int removeX = contentRight - 14;
+
+            if (maxScroll > 0 && mouseX >= contentRight + 1 && mouseX <= contentRight + 9
+                    && mouseY >= LIST_TOP && mouseY <= listBottom) {
+                draggingScrollbar = true;
+                updateScrollFromMouse(mouseY, LIST_TOP, listBottom);
+                return true;
+            }
+
+            if (super.mouseClicked(mouseX, mouseY, button)) return true;
+
+            if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
+                return false;
+
+            int y = LIST_TOP - (int) scrollOffset;
+            for (int i = 0; i < rows.size(); i++) {
+                if (mouseY >= y && mouseY < y + ROW_HEIGHT
+                        && mouseX >= removeX && mouseX <= removeX + 12) {
+                    EffectRow removed = rows.remove(i);
+                    if (removed.editButton != null) this.removeWidget(removed.editButton);
+                    updateMaxScroll();
+                    return true;
+                }
+                y += ROW_HEIGHT;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+            if (draggingScrollbar) {
+                updateScrollFromMouse(mouseY, LIST_TOP, this.height - 40);
+                return true;
+            }
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        }
+
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            if (draggingScrollbar) { draggingScrollbar = false; return true; }
+            return super.mouseReleased(mouseX, mouseY, button);
+        }
+
+        private void updateScrollFromMouse(double mouseY, int listTop, int listBottom) {
+            int scrollAreaHeight = listBottom - listTop;
+            float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
+            scrollOffset = Math.max(0, Math.min(maxScroll, Math.round(ratio * maxScroll)));
+        }
+
+        @Override
+        public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+            syncOverlayState();
+            if (effectOverlay != null) return effectOverlay.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * 16));
+            return true;
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            syncOverlayState();
+            if (effectOverlay != null) {
+                if (keyCode == 256) return clearOverlay();
+                boolean consumed = effectOverlay.keyPressed(keyCode);
+                syncOverlayState();
+                return consumed;
+            }
+            if (keyCode == 256) { saveAndClose(); return true; }
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public boolean charTyped(char c, int modifiers) {
+            syncOverlayState();
+            if (effectOverlay != null) return effectOverlay.charTyped(c);
+            return super.charTyped(c, modifiers);
+        }
+
+        @Override
+        public void onClose() { saveAndClose(); }
+
+        @Override
+        public boolean isPauseScreen() { return true; }
+
+        private static class EffectRow {
+            final String effectId;
+            int seconds;
+            int amplifier;
+            net.minecraft.client.gui.components.Button editButton;
+            EffectRow(String effectId, int seconds, int amplifier) {
+                this.effectId = effectId;
+                this.seconds = seconds;
+                this.amplifier = amplifier;
+            }
+        }
+    }
+
+    /** Duration + amplifier dialog for a single {@code EffectListEditorScreen} row. */
+    static class EffectEditDialog extends AbstractInputScreen {
+        private final EffectListEditorScreen.EffectRow row;
+
+        EffectEditDialog(EffectListEditorScreen parent, EffectListEditorScreen.EffectRow row) {
+            super(parent, Component.translatable("editor.historystages.effect.edit_title",
+                    net.bananemdnsa.historystages.client.editor.widget.list
+                            .SearchableEffectList.displayName(row.effectId)));
+            this.row = row;
+        }
+
+        @Override
+        protected List<InputField> fields() {
+            return List.of(
+                    InputField.number("seconds")
+                            .label(Component.translatable("editor.historystages.effect.seconds"))
+                            .hint(Component.translatable("editor.historystages.effect.seconds_hint"))
+                            .range(1, 3600)
+                            .initial(String.valueOf(row.seconds)),
+                    InputField.number("amplifier")
+                            .label(Component.translatable("editor.historystages.effect.amplifier"))
+                            .hint(Component.translatable("editor.historystages.effect.amplifier_hint"))
+                            .range(0, 255)
+                            .initial(String.valueOf(row.amplifier)));
+        }
+
+        @Override
+        protected void onConfirm(InputValues values) {
+            row.seconds = values.getInt("seconds");
+            row.amplifier = values.getInt("amplifier");
+            this.minecraft.setScreen(parent);
+        }
+    }
+
     static class BoosterListEditorScreen extends Screen {
         private final ConfigEditorScreen parent;
         private final ConfigEntry entry;

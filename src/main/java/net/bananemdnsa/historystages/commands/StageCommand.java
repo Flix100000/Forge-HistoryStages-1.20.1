@@ -225,6 +225,10 @@ public class StageCommand {
             source.sendSuccess(() -> Component.literal("§5▶ Structures:"), false);
             entry.getStructures().forEach(s -> source.sendSuccess(() -> Component.literal("  §8• §7" + s), false));
         }
+        if (!entry.getBiomes().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§2▶ Biomes:"), false);
+            entry.getBiomes().forEach(b -> source.sendSuccess(() -> Component.literal("  §8• §7" + b), false));
+        }
         if (!entry.getEntities().getAttacklock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);
             entry.getEntities().getAttacklock().forEach(e -> source.sendSuccess(() -> Component.literal("  §8• §7" + e), false));
@@ -553,6 +557,10 @@ public class StageCommand {
         if (!entry.getStructures().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§5▶ Structures:"), false);
             entry.getStructures().forEach(s -> source.sendSuccess(() -> Component.literal("  §8• §7" + s), false));
+        }
+        if (!entry.getBiomes().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§2▶ Biomes:"), false);
+            entry.getBiomes().forEach(b -> source.sendSuccess(() -> Component.literal("  §8• §7" + b), false));
         }
         if (!entry.getEntities().getAttacklock().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§c▶ Entities (Attacklock):"), false);

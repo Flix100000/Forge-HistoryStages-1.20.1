@@ -384,7 +384,8 @@ public class DependencyGraphScreen extends Screen {
         g.drawString(this.font, "§7" + tr("prop.pedestal_tier") + ": §f" + entry.getMinPedestalTier(), x, y + 2, 0xAAAAAA, false);
         y += PROP_ROW_H;
         int lockCount = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                + entry.getRecipes().size() + entry.getDimensions().size() + entry.getStructures().size();
+                + entry.getRecipes().size() + entry.getDimensions().size() + entry.getStructures().size()
+                + entry.getBiomes().size();
         g.drawString(this.font, "§7" + tr("prop.lock_entries") + ": §f" + lockCount, x, y + 2, 0xAAAAAA, false);
         y += PROP_ROW_H;
         // Dependencies sub-toggle

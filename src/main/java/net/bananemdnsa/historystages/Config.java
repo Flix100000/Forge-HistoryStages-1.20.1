@@ -260,6 +260,20 @@ public class Config {
         public final ModConfigSpec.BooleanValue structureBlockLeftClick;
         public final ModConfigSpec.BooleanValue structureBlockProjectiles;
 
+        public final ModConfigSpec.IntValue biomeCheckInterval;
+        public final ModConfigSpec.BooleanValue biomeEffectsEnabled;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> biomeEffects;
+        public final ModConfigSpec.BooleanValue biomeClearEffectsOnLeave;
+        public final ModConfigSpec.BooleanValue biomeMessageEnabled;
+        public final ModConfigSpec.ConfigValue<String> biomeLockMessageFormat;
+        public final ModConfigSpec.BooleanValue biomeLockInChat;
+        public final ModConfigSpec.BooleanValue biomeDamageEnabled;
+        public final ModConfigSpec.DoubleValue biomeDamageAmount;
+        public final ModConfigSpec.IntValue biomeDamageInterval;
+        public final ModConfigSpec.BooleanValue biomeBlockRightClick;
+        public final ModConfigSpec.BooleanValue biomeBlockLeftClick;
+        public final ModConfigSpec.BooleanValue biomeBlockProjectiles;
+
         // Lock-Message Overrides (leer = Translation Key wird verwendet)
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
         public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
@@ -536,6 +550,71 @@ public class Config {
                     .define("blockProjectiles", true);
 
             builder.pop(); // structure_lock
+
+            // --- BIOME LOCK SECTION ---
+            builder.comment("Biome Lock Settings (punishes players standing in a biome they haven't unlocked yet)").push("biome_lock");
+
+            biomeCheckInterval = builder
+                    .comment("How often (in ticks) to re-check a player's biome even when they haven't moved to a new biome cell. Moving always re-checks immediately. [Default: 10]")
+                    .defineInRange("checkInterval", 10, 1, 200);
+
+            biomeEffectsEnabled = builder
+                    .comment("Apply the potion effects listed below while the player is inside a locked biome? [Default: true]")
+                    .define("effectsEnabled", true);
+
+            biomeEffects = builder
+                    .comment(
+                            "Potion effects applied while the player stands in a locked biome.",
+                            "Format per entry: \"effect_id, seconds, amplifier\"",
+                            "  seconds:   how long the effect lasts. It is refreshed while the player stays inside,",
+                            "             so this is really 'how long it lingers after leaving' (1-3600).",
+                            "  amplifier: 0 = level I, 1 = level II, ... (0-255).",
+                            "Unknown effect ids are logged once and skipped.")
+                    .defineListAllowEmpty("effects",
+                            List.of("minecraft:blindness, 30, 0"),
+                            obj -> obj instanceof String);
+
+            biomeClearEffectsOnLeave = builder
+                    .comment("Remove those effects the moment the player leaves the locked biome, instead of letting them run out? [Default: false]")
+                    .define("clearEffectsOnLeave", false);
+
+            biomeMessageEnabled = builder
+                    .comment("Show the player a message while they are inside a locked biome? [Default: true]")
+                    .define("messageEnabled", true);
+
+            biomeLockMessageFormat = builder
+                    .comment("Message format for biome lock. Use {biome} for the biome ID, {stage} for the required stage, and & for colors.")
+                    .define("messageFormat", "&cYou cannot survive in &e{biome}&c yet!");
+
+            biomeLockInChat = builder
+                    .comment("Show the biome lock message in chat as well (otherwise only actionbar)? [Default: false]")
+                    .define("showInChat", false);
+
+            biomeDamageEnabled = builder
+                    .comment("Damage the player while they are inside a locked biome? [Default: true]")
+                    .define("damageEnabled", true);
+
+            biomeDamageAmount = builder
+                    .comment("Amount of damage dealt per damage tick. [Default: 1.0]")
+                    .defineInRange("damageAmount", 1.0, 0.1, 100.0);
+
+            biomeDamageInterval = builder
+                    .comment("How often (in ticks) to deal damage while inside a locked biome. [Default: 20]")
+                    .defineInRange("damageInterval", 20, 1, 600);
+
+            biomeBlockRightClick = builder
+                    .comment("Cancel ALL right-click interactions (blocks, items, entities) while the player is inside a locked biome? [Default: true]")
+                    .define("blockRightClick", true);
+
+            biomeBlockLeftClick = builder
+                    .comment("Cancel ALL left-click interactions (attacking entities, breaking blocks) while the player is inside a locked biome? [Default: true]")
+                    .define("blockLeftClick", true);
+
+            biomeBlockProjectiles = builder
+                    .comment("Cancel projectiles (arrows, snowballs, ender pearls, etc.) the moment they would impact inside a locked biome? [Default: true]")
+                    .define("blockProjectiles", true);
+
+            builder.pop(); // biome_lock
 
             // --- STAGE GRAPH SECTION ---
             builder.comment(

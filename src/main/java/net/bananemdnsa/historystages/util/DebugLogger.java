@@ -123,7 +123,7 @@ public class DebugLogger {
                     .orElse("unknown");
 
             int totalItems = 0, totalTags = 0, totalMods = 0, totalModExceptions = 0;
-            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0;
+            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0, totalBiomes = 0;
             int totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
                 totalItems += entry.getItemEntries().size();
@@ -133,6 +133,7 @@ public class DebugLogger {
                 totalRecipes += entry.getRecipes().size();
                 totalDimensions += entry.getDimensions().size();
                 totalStructures += entry.getStructures().size();
+                totalBiomes += entry.getBiomes().size();
                 totalAttacklock += entry.getEntities().getAttacklock().size();
                 totalSpawnlock += entry.getEntities().getSpawnlock().size();
             }
@@ -155,6 +156,7 @@ public class DebugLogger {
                 pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods);
                 pw.println("    Mod Exceptions: " + totalModExceptions + "  |  Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions);
                 pw.println("    Structures: " + totalStructures);
+                pw.println("    Biomes: " + totalBiomes);
                 pw.println("    Entities (attacklock): " + totalAttacklock + "  |  Entities (spawnlock): " + totalSpawnlock);
                 pw.println();
 
@@ -250,7 +252,7 @@ public class DebugLogger {
 
         int entryCount = s.getItemEntries().size() + s.getTagEntries().size() + s.getModEntries().size()
                 + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
-                + structures.size() + attacklock.size() + spawnlock.size();
+                + structures.size() + s.getBiomes().size() + attacklock.size() + spawnlock.size();
 
         pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
         StageMode mode = s.getMode();
@@ -279,6 +281,19 @@ public class DebugLogger {
             if (!s.getStructureModLinked().isEmpty()) {
                 pw.println("  Structures (mod-linked) (" + s.getStructureModLinked().size() + "):");
                 for (String mod : s.getStructureModLinked()) {
+                    pw.println("    - " + mod);
+                }
+            }
+        }
+
+        if (!s.getBiomes().isEmpty()) {
+            pw.println("  Biomes (" + s.getBiomes().size() + "):");
+            for (String biome : s.getBiomes()) {
+                pw.println("    - " + biome);
+            }
+            if (!s.getBiomeModLinked().isEmpty()) {
+                pw.println("  Biomes (mod-linked) (" + s.getBiomeModLinked().size() + "):");
+                for (String mod : s.getBiomeModLinked()) {
                     pw.println("    - " + mod);
                 }
             }

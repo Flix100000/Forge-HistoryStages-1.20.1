@@ -57,6 +57,7 @@ public record DeleteStagePacket(String stageId, boolean individual) implements C
                 // Deleting a stage removes its structure-lock entries — invalidate
                 // the per-player cache so borders disappear within one tick.
                 net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
+                net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
                 String titleKey = msg.individual

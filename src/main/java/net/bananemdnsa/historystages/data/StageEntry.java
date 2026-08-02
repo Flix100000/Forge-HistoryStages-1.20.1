@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.StructureLocksAdapter;
 import net.bananemdnsa.historystages.data.lock.StructureLocks;
+import net.bananemdnsa.historystages.data.lock.BiomeLocksAdapter;
+import net.bananemdnsa.historystages.data.lock.BiomeLocks;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntryListAdapter;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
@@ -59,6 +61,10 @@ public class StageEntry {
 
     @JsonAdapter(StructureLocksAdapter.class)
     private StructureLocks structures;
+
+    @JsonAdapter(BiomeLocksAdapter.class)
+    private BiomeLocks biomes;
+
     @SerializedName("icon")
     private String icon;
     private EntityLocks entities;
@@ -76,6 +82,7 @@ public class StageEntry {
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
         this.structures = new StructureLocks();
+        this.biomes = new BiomeLocks();
         this.entities = new EntityLocks();
     }
 
@@ -201,6 +208,14 @@ public class StageEntry {
 
     public List<String> getStructureModLinked() {
         return structures != null ? structures.getModLinked() : new ArrayList<>();
+    }
+
+    public List<String> getBiomes() {
+        return biomes != null ? biomes.getBiomes() : new ArrayList<>();
+    }
+
+    public List<String> getBiomeModLinked() {
+        return biomes != null ? biomes.getModLinked() : new ArrayList<>();
     }
 
     public String getIcon() { return icon != null ? icon : ""; }
@@ -354,6 +369,16 @@ public class StageEntry {
         this.structures.setModLinked(modLinked);
     }
 
+    public void setBiomes(List<String> biomes) {
+        if (this.biomes == null) this.biomes = new BiomeLocks();
+        this.biomes.setBiomes(biomes);
+    }
+
+    public void setBiomeModLinked(List<String> modLinked) {
+        if (this.biomes == null) this.biomes = new BiomeLocks();
+        this.biomes.setModLinked(modLinked);
+    }
+
     public void setIcon(String icon) { this.icon = (icon != null && !icon.isEmpty()) ? icon : null; }
 
     public void setEntities(EntityLocks entities) {
@@ -378,6 +403,8 @@ public class StageEntry {
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
+        copy.setBiomes(getBiomes());
+        copy.setBiomeModLinked(getBiomeModLinked());
         copy.setIcon(getIcon());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());

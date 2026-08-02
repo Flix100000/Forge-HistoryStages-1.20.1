@@ -825,14 +825,15 @@ public class AutoTriggerEditorScreen extends Screen {
     private void showAbstract(AbstractSearchableList<String> list, TriggerType type, boolean multi) {
         list.setMultiSelect(multi);
         // Wire the "Hide stage-locked" filter for trigger types that have a meaningful
-        // lock source on the stage (dimension / structure). Biome and advancement have
-        // no direct lock list, so we don't add a filter there.
+        // lock source on the stage (dimension / structure / biome). Advancements have no
+        // direct lock list, so we don't add a filter there.
         StageEntry stage = lockSnapshot == null ? null : lockSnapshot.get();
         if (stage != null && type != null) {
             String label = Component.translatable("editor.historystages.auto_trigger.filter.hide_locked").getString();
             switch (type) {
                 case DIMENSION -> list.addLockedFilter(label, StageLockFilter.forDimensions(stage));
                 case STRUCTURE -> list.addLockedFilter(label, StageLockFilter.forStructures(stage));
+                case BIOME -> list.addLockedFilter(label, StageLockFilter.forBiomes(stage));
                 default -> {}
             }
         }

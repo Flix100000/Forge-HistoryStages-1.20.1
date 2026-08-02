@@ -61,6 +61,7 @@ public record ToggleStageLockPacket(String stageId, boolean unlock) implements C
             // screen overlay appear (or disappear) immediately when a stage's lock
             // state changes, instead of lingering until the next chunk scan.
             net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
+            net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
             PacketHandler.reloadRecipesOnly(player.server);
 
