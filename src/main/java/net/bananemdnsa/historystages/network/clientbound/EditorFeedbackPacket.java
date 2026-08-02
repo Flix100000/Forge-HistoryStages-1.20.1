@@ -12,6 +12,8 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Server → Client notification for editor actions. Renders as an
@@ -19,8 +21,11 @@ import java.util.List;
  *
  * <p>Title and body are sent as translation keys with string arguments so
  * future call sites can reuse the system without changing the payload shape.
+ * {@code face} optionally names a player whose head is drawn on the toast —
+ * used when the feedback is about one specific player.
  */
-public record EditorFeedbackPacket(byte level, String titleKey, String messageKey, List<String> args)
+public record EditorFeedbackPacket(byte level, String titleKey, String messageKey, List<String> args,
+                                   Optional<UUID> face)
         implements CustomPacketPayload {
 
     public static final byte LEVEL_SUCCESS = 0;
@@ -38,6 +43,7 @@ public record EditorFeedbackPacket(byte level, String titleKey, String messageKe
                         buf.writeUtf(msg.messageKey);
                         buf.writeVarInt(msg.args.size());
                         for (String a : msg.args) buf.writeUtf(a);
+                        buf.writeOptional(msg.face, (b, uuid) -> b.writeUUID(uuid));
                     },
                     buf -> {
                         byte level = buf.readByte();
@@ -46,20 +52,26 @@ public record EditorFeedbackPacket(byte level, String titleKey, String messageKe
                         int size = buf.readVarInt();
                         List<String> args = new ArrayList<>(size);
                         for (int i = 0; i < size; i++) args.add(buf.readUtf());
-                        return new EditorFeedbackPacket(level, titleKey, messageKey, args);
+                        Optional<UUID> face = buf.readOptional(b -> b.readUUID());
+                        return new EditorFeedbackPacket(level, titleKey, messageKey, args, face);
                     }
             );
 
     public static EditorFeedbackPacket success(String titleKey, String messageKey, String... args) {
-        return new EditorFeedbackPacket(LEVEL_SUCCESS, titleKey, messageKey, List.of(args));
+        return new EditorFeedbackPacket(LEVEL_SUCCESS, titleKey, messageKey, List.of(args), Optional.empty());
+    }
+
+    /** Success feedback about one specific player, whose head is drawn on the toast. */
+    public static EditorFeedbackPacket successForPlayer(String titleKey, String messageKey, UUID face, String... args) {
+        return new EditorFeedbackPacket(LEVEL_SUCCESS, titleKey, messageKey, List.of(args), Optional.of(face));
     }
 
     public static EditorFeedbackPacket error(String titleKey, String messageKey, String... args) {
-        return new EditorFeedbackPacket(LEVEL_ERROR, titleKey, messageKey, List.of(args));
+        return new EditorFeedbackPacket(LEVEL_ERROR, titleKey, messageKey, List.of(args), Optional.empty());
     }
 
     public static EditorFeedbackPacket info(String titleKey, String messageKey, String... args) {
-        return new EditorFeedbackPacket(LEVEL_INFO, titleKey, messageKey, List.of(args));
+        return new EditorFeedbackPacket(LEVEL_INFO, titleKey, messageKey, List.of(args), Optional.empty());
     }
 
     public static void handle(EditorFeedbackPacket msg, IPayloadContext ctx) {
@@ -72,7 +84,7 @@ public record EditorFeedbackPacket(byte level, String titleKey, String messageKe
             Component title = Component.translatable(msg.titleKey);
             Object[] argArr = msg.args.toArray();
             Component message = Component.translatable(msg.messageKey, argArr);
-            EditorToastHandler.show(lvl, title, message);
+            EditorToastHandler.show(lvl, title, message, msg.face.orElse(null));
         });
     }
 

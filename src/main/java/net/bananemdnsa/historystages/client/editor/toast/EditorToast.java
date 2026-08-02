@@ -8,9 +8,12 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.toasts.Toast;
 import net.minecraft.client.gui.components.toasts.ToastComponent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.client.gui.components.PlayerFaceRenderer;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Editor-styled notification toast. Matches the gold/dark design language
@@ -39,23 +42,47 @@ public class EditorToast implements Toast, DismissibleToast {
     /** Quick fade-out when the toast is clicked away — short on purpose; you want it gone. */
     private static final long DISMISS_FADE_MS = 140L;
 
+    /** Size of the optional player head, and the horizontal room it takes from the text. */
+    private static final int FACE_SIZE = 12;
+    private static final int FACE_GUTTER = FACE_SIZE + 4;
+
     private final Component title;
     private final Component message;
     private final Level level;
+    /** Player whose head is drawn left of the text, or null for a plain toast. */
+    private final UUID face;
     private List<FormattedCharSequence> wrappedMessage;
     private int computedHeight = BASE_HEIGHT;
     private long dismissAtMs = -1L;
 
     public EditorToast(Level level, Component title, Component message) {
+        this(level, title, message, null);
+    }
+
+    public EditorToast(Level level, Component title, Component message, UUID face) {
         this.level = level;
         this.title = title;
         this.message = message;
+        this.face = face;
     }
 
     @Override
     public void dismiss() {
         if (dismissAtMs < 0L) {
             dismissAtMs = Util.getMillis();
+        }
+    }
+
+    /**
+     * Draws a player head from the tab list. Silently skips players the client does not
+     * know — the toast still reads fine without the head, and the alternative would be
+     * a wrong default skin next to a named player.
+     */
+    private static void drawFace(UUID uuid, GuiGraphics g, int x, int y) {
+        Minecraft mc = Minecraft.getInstance();
+        PlayerInfo info = mc.getConnection() != null ? mc.getConnection().getPlayerInfo(uuid) : null;
+        if (info != null) {
+            PlayerFaceRenderer.draw(g, info.getSkin().texture(), x, y, FACE_SIZE);
         }
     }
 
@@ -93,7 +120,7 @@ public class EditorToast implements Toast, DismissibleToast {
             return;
         }
         Font font = Minecraft.getInstance().font;
-        wrappedMessage = font.split(message, WIDTH - 12);
+        wrappedMessage = font.split(message, WIDTH - 12 - (face != null ? FACE_GUTTER : 0));
         int lines = Math.max(1, wrappedMessage.size());
         computedHeight = Math.max(BASE_HEIGHT, 8 + 10 + lines * 10 + 4);
     }
@@ -128,13 +155,20 @@ public class EditorToast implements Toast, DismissibleToast {
         // Bottom accent — level-colored, 2px like StyledButton
         g.fill(0, h - 2, w, h, scaleAlpha(level.accentColor, fade));
 
+        // Optional player head, left of the text block
+        int textX = 8;
+        if (face != null) {
+            drawFace(face, g, 8, 6);
+            textX += FACE_GUTTER;
+        }
+
         // Title
-        g.drawString(font, title, 8, 6, scaleAlpha(level.titleColor, fade), false);
+        g.drawString(font, title, textX, 6, scaleAlpha(level.titleColor, fade), false);
 
         // Message body (wrapped)
         int y = 18;
         for (FormattedCharSequence line : wrappedMessage) {
-            g.drawString(font, line, 8, y, scaleAlpha(0xFFDDDDDD, fade), false);
+            g.drawString(font, line, textX, y, scaleAlpha(0xFFDDDDDD, fade), false);
             y += 10;
         }
 
