@@ -33,7 +33,7 @@ public class StageSettingsScreen extends Screen {
         void onSave(String stageId, String displayName, int researchTime,
                     int minPedestalTier, TierMode pedestalTierMode,
                     StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
-                    HiddenDisplayConfig hiddenDisplay);
+                    HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -41,6 +41,8 @@ public class StageSettingsScreen extends Screen {
 
     private final Screen parent;
     private final boolean isNewStage;
+    /** Individual stages get an extra settings card; global stages never show it. */
+    private final boolean isIndividual;
     private final SaveCallback onSave;
     /** Live snapshot of the parent stage's lock data, forwarded to the trigger editor. */
     private final Supplier<StageEntry> lockSnapshot;
@@ -56,6 +58,7 @@ public class StageSettingsScreen extends Screen {
     private AutoTrigger editAutoTrigger;
     private TemporaryConfig editTemporary;
     private final HiddenDisplayConfig editHiddenDisplay;
+    private boolean editLoseOnDeath;
 
     // Display card state
     private EditBox nameTextField;
@@ -75,6 +78,16 @@ public class StageSettingsScreen extends Screen {
     // Name only supports OFF/REPLACE (the title is never blanked); tooltip adds HIDDEN.
     private static final DisplayMode[] NAME_MODES = {DisplayMode.OFF, DisplayMode.REPLACE};
     private static final DisplayMode[] TOOLTIP_MODES = {DisplayMode.OFF, DisplayMode.HIDDEN, DisplayMode.REPLACE};
+
+    // Individual card state (only laid out and rendered when isIndividual).
+    private int indivCardX, indivCardY, indivCardW, indivCardH;
+    private int loseRowY, loseToggleX, loseToggleW;
+    // Individual-card vertical metrics (kept in sync with computeIndividualCardHeight()).
+    private static final int INDIV_BODY_TOP = 28;
+    private static final int INDIV_TOGGLE_H = 14;
+    private static final int INDIV_HINT_GAP = 4;
+    private static final int INDIV_HINT_H = 10;
+    private static final int INDIV_BOTTOM_PAD = 8;
 
     private final String origStageId;
     private final String origDisplayName;
@@ -120,21 +133,23 @@ public class StageSettingsScreen extends Screen {
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
-                               HiddenDisplayConfig hiddenDisplay,
-                               boolean isNewStage, SaveCallback onSave) {
+                               HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
+                               boolean isNewStage, boolean isIndividual, SaveCallback onSave) {
         this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
-                mode, autoTrigger, temporary, hiddenDisplay, isNewStage, onSave, null);
+                mode, autoTrigger, temporary, hiddenDisplay, loseOnDeath, isNewStage, isIndividual,
+                onSave, null);
     }
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
-                               HiddenDisplayConfig hiddenDisplay,
-                               boolean isNewStage, SaveCallback onSave,
+                               HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
+                               boolean isNewStage, boolean isIndividual, SaveCallback onSave,
                                Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
         this.parent = parent;
         this.isNewStage = isNewStage;
+        this.isIndividual = isIndividual;
         this.onSave = onSave;
         this.lockSnapshot = lockSnapshot;
 
@@ -147,6 +162,7 @@ public class StageSettingsScreen extends Screen {
         this.editAutoTrigger = autoTrigger;
         this.editTemporary = temporary;
         this.editHiddenDisplay = hiddenDisplay != null ? hiddenDisplay : new HiddenDisplayConfig();
+        this.editLoseOnDeath = loseOnDeath;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
@@ -478,6 +494,31 @@ public class StageSettingsScreen extends Screen {
         String value = lockHintsValue();
         lockHintsToggleX = displayCardX + 12 + this.font.width(label) + 8;
         lockHintsToggleW = this.font.width(value) + 8;
+
+        layoutIndividualCard();
+    }
+
+    /** Computes the Individual card geometry below the Display card. Individual stages only. */
+    private void layoutIndividualCard() {
+        if (!isIndividual) {
+            indivCardH = 0;
+            return;
+        }
+        indivCardX = displayCardX;
+        indivCardW = displayCardW;
+        indivCardY = displayCardY + displayCardH + 6;
+        indivCardH = computeIndividualCardHeight();
+
+        loseRowY = indivCardY + INDIV_BODY_TOP;
+        String label = Component.translatable("editor.historystages.individual.lose_on_death").getString();
+        loseToggleX = indivCardX + 12 + this.font.width(label) + 8;
+        loseToggleW = this.font.width(loseOnDeathValue()) + 8;
+    }
+
+    private String loseOnDeathValue() {
+        return Component.translatable(editLoseOnDeath
+                ? "editor.historystages.display.on"
+                : "editor.historystages.display.off").getString();
     }
 
     private String lockHintsValue() {
@@ -523,8 +564,14 @@ public class StageSettingsScreen extends Screen {
         return lockHintsRow + DISP_TOGGLE_H + DISP_BOTTOM_PAD;
     }
 
+    /** Individual-card height (scroll-invariant): one toggle row plus its hint line. */
+    private int computeIndividualCardHeight() {
+        return INDIV_BODY_TOP + INDIV_TOGGLE_H + INDIV_HINT_GAP + INDIV_HINT_H + INDIV_BOTTOM_PAD;
+    }
+
     private void clampScroll() {
         int contentBottom = 96 + computeCardHeight() + 6 + computeDisplayCardHeight();
+        if (isIndividual) contentBottom += 6 + computeIndividualCardHeight();
         maxScroll = Math.max(0, contentBottom + 6 - viewBottom);
         if (scrollY < 0) scrollY = 0;
         if (scrollY > maxScroll) scrollY = maxScroll;
@@ -594,7 +641,7 @@ public class StageSettingsScreen extends Screen {
         // The callback hands the values up and persists the stage; staying put is deliberate,
         // so Save never yanks the user out of the screen they are working in.
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
-                editMode, editAutoTrigger, editTemporary, editHiddenDisplay);
+                editMode, editAutoTrigger, editTemporary, editHiddenDisplay, editLoseOnDeath);
         hasChanges = false;
     }
 
@@ -725,6 +772,10 @@ public class StageSettingsScreen extends Screen {
         renderCard(guiGraphics, cardX, cardY, cardW, cardH, modeCardKey(editMode));
         renderCard(guiGraphics, displayCardX, displayCardY, displayCardW, displayCardH,
                 "editor.historystages.display.card");
+        if (isIndividual) {
+            renderCard(guiGraphics, indivCardX, indivCardY, indivCardW, indivCardH,
+                    "editor.historystages.individual.card");
+        }
 
         // Content widgets (manually rendered at their scrolled positions)
         for (AbstractWidget w : contentWidgets) {
@@ -732,6 +783,7 @@ public class StageSettingsScreen extends Screen {
         }
 
         renderDisplayCardContent(guiGraphics, mouseX, mouseY);
+        renderIndividualCardContent(guiGraphics, mouseX, mouseY);
 
         int bodyY = cardY + 28;
 
@@ -878,6 +930,39 @@ public class StageSettingsScreen extends Screen {
                 tHov ? 0xFFCC00 : 0xCCCCCC, false);
     }
 
+    private void renderIndividualCardContent(GuiGraphics g, int mouseX, int mouseY) {
+        if (!isIndividual || indivCardH <= 0) return;
+        int labelX = indivCardX + 12;
+
+        g.drawString(this.font,
+                Component.translatable("editor.historystages.individual.lose_on_death").getString(),
+                labelX, loseRowY + 3, 0xAAAAAA, false);
+
+        boolean hov = mouseX >= loseToggleX && mouseX < loseToggleX + loseToggleW
+                && mouseY >= loseRowY && mouseY < loseRowY + INDIV_TOGGLE_H;
+        g.fill(loseToggleX, loseRowY, loseToggleX + loseToggleW, loseRowY + INDIV_TOGGLE_H,
+                hov ? 0xFF3D3520 : 0xFF2A2A2A);
+        g.drawString(this.font, loseOnDeathValue(), loseToggleX + 4, loseRowY + 3,
+                hov ? 0xFFCC00 : 0xCCCCCC, false);
+
+        drawSmallText(g,
+                Component.translatable("editor.historystages.individual.lose_on_death.hint").getString(),
+                labelX, loseRowY + INDIV_TOGGLE_H + INDIV_HINT_GAP, 0x888888);
+    }
+
+    /** Returns true if an Individual-card control consumed the click. */
+    private boolean handleIndividualCardClick(double mouseX, double mouseY) {
+        if (!isIndividual || indivCardH <= 0) return false;
+
+        if (mouseX >= loseToggleX && mouseX < loseToggleX + loseToggleW
+                && mouseY >= loseRowY && mouseY < loseRowY + INDIV_TOGGLE_H) {
+            editLoseOnDeath = !editLoseOnDeath;
+            onDisplayChanged();
+            return true;
+        }
+        return false;
+    }
+
     /** Returns true if a Display-card control consumed the click. */
     private boolean handleDisplayCardClick(double mouseX, double mouseY) {
         if (displayCardH <= 0) return false;
@@ -1011,6 +1096,7 @@ public class StageSettingsScreen extends Screen {
         if (nameModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (tooltipModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (button == 0 && handleDisplayCardClick(mouseX, mouseY)) return true;
+        if (button == 0 && handleIndividualCardClick(mouseX, mouseY)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 

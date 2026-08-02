@@ -78,6 +78,7 @@ public class StageDetailScreen extends Screen {
     private net.bananemdnsa.historystages.data.temporary.TemporaryConfig editTemporary;
     private String editIcon;
     private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
+    private boolean editLoseOnDeath;
     private final List<String> editItems;
     private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
     private final Map<Integer, List<String>> editItemLockActions;
@@ -313,6 +314,7 @@ public class StageDetailScreen extends Screen {
         this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
         this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
         this.editHiddenDisplay = e.getHiddenDisplay().copy();
+        this.editLoseOnDeath = e.isLoseOnDeath();
         this.editItems = new ArrayList<>(e.getAllItemIds());
         this.editItemNbt = new HashMap<>();
         this.editItemLockActions = new HashMap<>();
@@ -3186,8 +3188,8 @@ public class StageDetailScreen extends Screen {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
                 editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary,
-                editHiddenDisplay.copy(), isNewStage,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden) -> {
+                editHiddenDisplay.copy(), editLoseOnDeath, isNewStage, isIndividual,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -3197,6 +3199,7 @@ public class StageDetailScreen extends Screen {
                     editAutoTrigger = newAutoTrigger;
                     editTemporary = newTemporary;
                     editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
+                    editLoseOnDeath = newLoseOnDeath;
                     hasChanges = true;
                     // Saving in a sub-screen persists the whole stage, so the user never has to
                     // come back here and press Save again.
@@ -3384,6 +3387,7 @@ public class StageDetailScreen extends Screen {
         }
         newEntry.setItemEntries(itemEntries);
         newEntry.setHiddenDisplay(editHiddenDisplay);
+        newEntry.setLoseOnDeath(editLoseOnDeath);
         List<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagEntries = new ArrayList<>();
         for (int idx = 0; idx < editTags.size(); idx++) {
             tagEntries.add(new net.bananemdnsa.historystages.data.lock.NamedLockEntry(

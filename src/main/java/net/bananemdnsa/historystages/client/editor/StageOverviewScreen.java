@@ -454,11 +454,18 @@ public class StageOverviewScreen extends Screen {
                 int badgeX = lockBtnX - badgeWidth - 6;
                 if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, null, badgeX, badgeY);
 
+                // Lose-on-death badge, left of the mode badge. Individual stages only —
+                // the flag has no effect on global stages, so their rows never show it.
+                int deathWidth = deathBadgeWidth(entry);
+                int modeLeft = (badgeWidth > 0) ? badgeX : lockBtnX;
+                int deathX = modeLeft - deathWidth - 6;
+                if (deathWidth > 0) drawDeathBadge(guiGraphics, deathX, badgeY);
+
                 // Stage name with marquee
                 String displayText = entry.getDisplayName() + " \u00A78(" + stageId + ")";
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
                 int nameX = listLeft + 16;
-                int nameRightLimit = (badgeWidth > 0) ? badgeX : lockBtnX;
+                int nameRightLimit = (deathWidth > 0) ? deathX : modeLeft;
                 int nameAvailW = nameRightLimit - nameX - 6;
                 int nameW = this.font.width(displayText);
 
@@ -860,6 +867,29 @@ public class StageOverviewScreen extends Screen {
         if (mode.usesAutoTrigger() && isAutoEmpty(entry)) {
             g.drawString(this.font, MODE_BADGE_WARN, x + pillW + 3, y + 2, 0xFFAA55, false);
         }
+    }
+
+    /** Rendered width of the lose-on-death pill, or 0 when the stage isn't flagged. */
+    private int deathBadgeWidth(StageEntry entry) {
+        if (!entry.isLoseOnDeath()) return 0;
+        return this.font.width(deathBadgeLabel()) + 8;
+    }
+
+    private String deathBadgeLabel() {
+        return Component.translatable("editor.historystages.badge.lose_on_death").getString();
+    }
+
+    /**
+     * Draws the lose-on-death pill at (x, y). Same shape as the mode badge but
+     * red-tinted, so a stage that can be taken away reads differently at a glance.
+     */
+    private void drawDeathBadge(GuiGraphics g, int x, int y) {
+        String label = deathBadgeLabel();
+        int pillW = this.font.width(label) + 8;
+        int pillH = 12;
+        g.fill(x, y, x + pillW, y + pillH, 0x20FF5555);
+        g.fill(x, y + pillH - 1, x + pillW, y + pillH, 0x40FF5555);
+        g.drawString(this.font, label, x + 4, y + 2, 0xFFFF7777, false);
     }
 
     /**
