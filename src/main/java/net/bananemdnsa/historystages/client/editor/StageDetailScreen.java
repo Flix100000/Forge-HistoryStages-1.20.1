@@ -29,6 +29,9 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -155,18 +158,18 @@ public class StageDetailScreen extends Screen {
     // Tooltip hover tracking
     private String hoveredTooltipKey = null;
     private long tooltipHoverStart = 0;
-    private static final long TOOLTIP_DELAY_MS = 400;
+    private static final long TOOLTIP_DELAY_MS = Timing.TOOLTIP_DELAY_MS;
 
     // Scrollbar drag state
     private boolean scrollBarDragging = false;
 
     // Animation state
-    private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
-    private float tabIndicatorX = 0;
-    private float tabIndicatorW = 0;
+    private final Map<Integer, Anim> cardHoverProgress = new HashMap<>();
+    private final Anim tabIndicatorXAnim = new Anim();
+    private final Anim tabIndicatorWAnim = new Anim();
     private boolean tabIndicatorInit = false;
     private long tabSwitchTime = 0;
-    private float smoothScrollOffset = 0;
+    private final Anim smoothScrollOffset = new Anim();
 
     // Category search box (inline header, next to icon button)
     private EditBox categorySearchBox;
@@ -175,7 +178,7 @@ public class StageDetailScreen extends Screen {
     private List<String> categoryDropdownSuggestions = new ArrayList<>();
     private int categorySearchBoxX;
     private int categorySearchBoxW;
-    private float categorySearchHoverProgress = 0.0f;
+    private final Anim categorySearchHover = new Anim();
     private static final int DROPDOWN_ENTRY_H = 13;
     private static final int MAX_DROPDOWN_ENTRIES = 8;   // visible rows
     private static final int MAX_DROPDOWN_COLLECT = 50;  // max suggestions collected
@@ -184,8 +187,8 @@ public class StageDetailScreen extends Screen {
     // Marquee state for card entries
     private int hoveredCardIndex = -1;
     private long cardHoverStartTime = 0;
-    private static final long CARD_MARQUEE_DELAY_MS = 800;
-    private static final float CARD_MARQUEE_SPEED = 25.0f;
+    private static final long CARD_MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float CARD_MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     // Lock Actions popup state
     private boolean lockActionsPopupVisible = false;
@@ -943,7 +946,7 @@ public class StageDetailScreen extends Screen {
         if (activeTab != tab) {
             activeTab = tab;
             scrollOffset = 0;
-            smoothScrollOffset = 0;
+            smoothScrollOffset.set(0.0f);
             tabSwitchTime = System.currentTimeMillis();
             cardHoverProgress.clear();
             updateMaxScroll();
@@ -1016,16 +1019,16 @@ public class StageDetailScreen extends Screen {
 
         // Animated tab indicator - smoothly slide to active tab
         if (!tabIndicatorInit) {
-            tabIndicatorX = tabX[activeTab] - tabScrollOffset;
-            tabIndicatorW = tabW[activeTab];
+            tabIndicatorXAnim.set(tabX[activeTab] - tabScrollOffset);
+            tabIndicatorWAnim.set(tabW[activeTab]);
             tabIndicatorInit = true;
         }
         float targetX = tabX[activeTab] - tabScrollOffset;
         float targetW = tabW[activeTab];
-        tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
-        tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+        tabIndicatorXAnim.approach(targetX, Timing.SCROLL_HALF_LIFE_MS);
+        tabIndicatorWAnim.approach(targetW, Timing.SCROLL_HALF_LIFE_MS);
+        tabIndicatorXAnim.settle(targetX, 0.5f);
+        tabIndicatorWAnim.settle(targetW, 0.5f);
 
         // Suppress hover when overlays are open or mouse is over the category search dropdown
         boolean overlayOpen = isAnyOverlayVisible();
@@ -1111,7 +1114,8 @@ public class StageDetailScreen extends Screen {
         }
 
         // Sliding gold underline indicator
-        guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+        guiGraphics.fill(Math.round(tabIndicatorXAnim.value()), tabY + TAB_HEIGHT - 2,
+                Math.round(tabIndicatorXAnim.value() + tabIndicatorWAnim.value()), tabY + TAB_HEIGHT, 0xFFFFCC00);
 
         if (hasTabScroll) {
             guiGraphics.disableScissor();
@@ -1127,11 +1131,11 @@ public class StageDetailScreen extends Screen {
         guiGraphics.enableScissor(contentLeft - 10, listTop, contentRight + 10, listBottom);
 
         // Smooth scroll interpolation
-        smoothScrollOffset += ((float) scrollOffset - smoothScrollOffset) * 0.25f;
-        if (Math.abs(smoothScrollOffset - (float) scrollOffset) < 0.5f) smoothScrollOffset = (float) scrollOffset;
+        smoothScrollOffset.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScrollOffset.settle((float) scrollOffset, 0.5f);
 
         List<String> list = getActiveList();
-        int y = listTop - (int) smoothScrollOffset + CARD_GAP;
+        int y = listTop - Math.round(smoothScrollOffset.value()) + CARD_GAP;
         boolean isItemsTab = (activeTab == 0);
         boolean isExceptionsTab = (activeTab == 3);
 
@@ -1159,14 +1163,8 @@ public class StageDetailScreen extends Screen {
                 if (entryHovered) currentHoveredCard = i;
 
                 // Smooth card hover progress
-                float cardProgress = cardHoverProgress.getOrDefault(i, 0.0f);
-                if (entryHovered) {
-                    cardProgress = Math.min(1.0f, cardProgress + 0.1f);
-                } else {
-                    cardProgress = Math.max(0.0f, cardProgress - 0.07f);
-                }
-                if (cardProgress > 0.001f) cardHoverProgress.put(i, cardProgress);
-                else cardHoverProgress.remove(i);
+                float cardProgress = Ease.outCubic(cardHoverProgress.computeIfAbsent(i, k -> new Anim())
+                        .ramp(entryHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
                 // Hover lift: card moves up slightly
                 int liftY = (int) (cardProgress * -1.5f);
@@ -1443,8 +1441,9 @@ public class StageDetailScreen extends Screen {
         }
 
         if (hasChanges) {
-            float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
-            pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
+            float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
+                    / Timing.BREATHE_PERIOD_MS;
+            float pulse = 0.35f + 0.45f * Ease.breathe(phase);
             int dotAlpha = (int) (pulse * 255);
             int dotX = this.width - 60 - 8 - 6;
             String unsavedLabel = Component.translatable("editor.historystages.unsaved").getString();
@@ -1463,11 +1462,8 @@ public class StageDetailScreen extends Screen {
             boolean csFocused = categorySearchBox.isFocused();
             boolean csHovered = mouseX >= categorySearchBoxX && mouseX < categorySearchBoxX + categorySearchBoxW
                     && mouseY >= 22 && mouseY < 22 + FIELD_HEIGHT && !overlayOpen;
-            if (csFocused || csHovered)
-                categorySearchHoverProgress = Math.min(1.0f, categorySearchHoverProgress + 0.10f);
-            else
-                categorySearchHoverProgress = Math.max(0.0f, categorySearchHoverProgress - 0.08f);
-            float hp = categorySearchHoverProgress;
+            float hp = Ease.outCubic(categorySearchHover.ramp(csFocused || csHovered,
+                    Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
             // Background — subtle white tint, brightens when focused/hovered
             int bgAlpha = (int) (0x25 + hp * 0x18);
@@ -2547,7 +2543,7 @@ public class StageDetailScreen extends Screen {
                     if (targetIdx >= 0) {
                         int targetY = targetIdx * (CARD_HEIGHT + CARD_GAP);
                         scrollOffset = Math.max(0, Math.min(maxScroll, targetY));
-                        smoothScrollOffset = (float) scrollOffset;
+                        smoothScrollOffset.set((float) scrollOffset);
                     }
                     Minecraft.getInstance().getSoundManager()
                             .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -2598,7 +2594,7 @@ public class StageDetailScreen extends Screen {
             return false;
 
         List<String> list = getActiveList();
-        int y = listTop - (int) smoothScrollOffset + CARD_GAP;
+        int y = listTop - Math.round(smoothScrollOffset.value()) + CARD_GAP;
 
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
@@ -3055,6 +3051,9 @@ public class StageDetailScreen extends Screen {
             ratio = Math.max(0, Math.min(1, ratio));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScrollOffset.set((float) scrollOffset);
         }
     }
 

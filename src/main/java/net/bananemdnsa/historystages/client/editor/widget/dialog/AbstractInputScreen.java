@@ -293,6 +293,8 @@ public abstract class AbstractInputScreen extends AbstractModalScreen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // Swallowed while the dialog is still scaling in — see isOpenSettled().
+        if (!isOpenSettled()) return true;
         if (extraContentMouseClicked(mx, my, button)) return true;
         if (button == 0 && focusFieldAt(mx, my, button)) return true;
         return super.mouseClicked(mx, my, button);

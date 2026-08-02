@@ -3,6 +3,10 @@ import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -22,6 +26,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -81,15 +87,28 @@ public class SearchableEntityList {
     private int currentTab = TAB_REGISTRY;
     private boolean multiSelect = false;
     private final Set<String> selectedRegistryIds = new LinkedHashSet<>();
+    /** Hover and selection progress per slot, mirroring the item picker's grid. */
+    private final Map<Integer, Anim> slotHover = new HashMap<>();
+    /**
+     * Row hover progress keyed by entity id rather than row index: the registry tab and the
+     * Selected tab share {@link #renderEntityRow}, and an index would carry one tab's hover
+     * state straight onto whatever row happens to sit at that position in the other.
+     */
+    private final Map<String, Anim> entityRowHover = new HashMap<>();
+    /** Entity currently shown in the preview panel, so a change can be animated. */
+    private String previewedEntityId = null;
+    /** Intro progress of the preview panel, restarted whenever the previewed entity changes. */
+    private final Anim previewIntro = new Anim(1.0f);
+    private final Map<Integer, Anim> slotSelect = new HashMap<>();
     private final Set<Integer> selectedInventorySlots = new LinkedHashSet<>();
 
     // Tab indicator animation
-    private float tabIndicatorX = 0;
-    private float tabIndicatorW = 0;
+    private final Anim tabIndicatorXAnim = new Anim();
+    private final Anim tabIndicatorWAnim = new Anim();
     private boolean tabIndicatorInit = false;
 
     // Add button hover animation
-    private float addHoverProgress = 0.0f;
+    private final Anim addHoverProgress = new Anim();
 
     public SearchableEntityList(Consumer<String> onSelect) {
         this(onSelect, null);
@@ -433,19 +452,17 @@ public class SearchableEntityList {
 
         int activeIdx = Math.min(currentTab, n - 1);
         if (!tabIndicatorInit) {
-            tabIndicatorX = tabXs[activeIdx];
-            tabIndicatorW = tabWs[activeIdx];
+            tabIndicatorXAnim.set(tabXs[activeIdx]);
+            tabIndicatorWAnim.set(tabWs[activeIdx]);
             tabIndicatorInit = true;
         }
 
         float targetX = tabXs[activeIdx];
         float targetW = tabWs[activeIdx];
-        tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
-        tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f)
-            tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f)
-            tabIndicatorW = targetW;
+        tabIndicatorXAnim.approach(targetX, Timing.SCROLL_HALF_LIFE_MS);
+        tabIndicatorWAnim.approach(targetW, Timing.SCROLL_HALF_LIFE_MS);
+        tabIndicatorXAnim.settle(targetX, 0.5f);
+        tabIndicatorWAnim.settle(targetW, 0.5f);
 
         for (int i = 0; i < n; i++) {
             boolean active = (i == activeIdx);
@@ -459,8 +476,8 @@ public class SearchableEntityList {
             guiGraphics.drawString(font, labels.get(i), tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
         }
 
-        guiGraphics.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2,
-                (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+        guiGraphics.fill(Math.round(tabIndicatorXAnim.value()), tabY + TAB_HEIGHT - 2,
+                Math.round(tabIndicatorXAnim.value() + tabIndicatorWAnim.value()), tabY + TAB_HEIGHT, 0xFFFFCC00);
 
         guiGraphics.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1,
                 0xFF555555);
@@ -557,17 +574,23 @@ public class SearchableEntityList {
 
     private void renderEntityRow(GuiGraphics guiGraphics, Font font, int listX, int rowY, int listW,
             String id, String displayName, boolean rowHovered, RowState state) {
-        int bg;
-        switch (state) {
-            case SELECTED -> bg = rowHovered ? 0xFF553A10 : 0xFF2A2510;
-            case DESELECTED -> bg = rowHovered ? 0xFF3A1A1A : 0xFF1A0D0D;
-            default -> bg = rowHovered ? 0xFF353535 : 0xFF252525;
-        }
+        float hp = Ease.outCubic(entityRowHover.computeIfAbsent(id, k -> new Anim())
+                .ramp(rowHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+        int bg = switch (state) {
+            case SELECTED -> Fade.mix(0xFF2A2510, 0xFF553A10, hp);
+            case DESELECTED -> Fade.mix(0xFF1A0D0D, 0xFF3A1A1A, hp);
+            default -> Fade.mix(0xFF252525, 0xFF353535, hp);
+        };
         guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT, bg);
         if (state == RowState.SELECTED) {
             guiGraphics.fill(listX, rowY, listX + 2, rowY + ROW_HEIGHT, 0xFFFFCC00);
         } else if (state == RowState.DESELECTED) {
             guiGraphics.fill(listX, rowY, listX + 2, rowY + ROW_HEIGHT, 0xFFCC4444);
+        } else if (hp > 0.001f) {
+            // Plain rows grow the same gold edge the other lists use, so a hovered row is
+            // identifiable without comparing two near-identical greys.
+            guiGraphics.fill(listX, rowY, listX + 1, rowY + ROW_HEIGHT, Fade.rgba(0xFFCC00, hp * 0.8f));
         }
 
         LivingEntity living = EntityPreviewRenderer.getOrCreate(id);
@@ -614,12 +637,11 @@ public class SearchableEntityList {
         boolean canAdd = canConfirm();
         boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
                 && mouseY >= addBtnY && mouseY < addBtnY + ADD_BTN_H;
-        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
-                : Math.max(0.0f, addHoverProgress - 0.08f);
+        float addHoverProgressValue = Ease.outCubic(addHoverProgress.ramp(addHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
         if (canAdd) {
             renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, ADD_BTN_H, addButtonLabel(),
-                    addHoverProgress);
+                    addHoverProgressValue);
         } else {
             guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + ADD_BTN_H, 0x20FFFFFF);
             guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 1, 0x10FFFFFF);
@@ -669,11 +691,13 @@ public class SearchableEntityList {
         }
 
         guiGraphics.fill(entityAreaX, topY, entityAreaX + entityAreaW, topY + entityAreaH, 0xFF0D0D0D);
-        int entityCenterX = entityAreaX + entityAreaW / 2;
-        int entityBottomY = topY + entityAreaH - 3;
+        // Raw cursor position, exactly as InventoryScreen passes its own xMouse/yMouse. The
+        // method derives the look angle itself as atan((boxCentre - mouse) / 40); handing it a
+        // pre-computed offset made it subtract twice, which cancelled the box centre out and
+        // left the model staring at the raw screen coordinate — pinned aside and inverted.
         InventoryScreen.renderEntityInInventoryFollowsMouse(guiGraphics,
                 entityAreaX, topY, entityAreaX + entityAreaW, topY + entityAreaH, 25,
-                0.0625f, (float) (entityCenterX - mouseX), (float) (entityBottomY - 50 - mouseY), player);
+                0.0625f, (float) mouseX, (float) mouseY, player);
 
         renderInventorySlot(guiGraphics, font, offhandX, topY + 3 * SLOT_SIZE,
                 player.getInventory().getItem(40), 40, mouseX, mouseY, "O");
@@ -695,12 +719,6 @@ public class SearchableEntityList {
 
         int previewY = topY;
         int previewH = panelY + panelH - PADDING - 20 - 6 - previewY;
-        guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF0D0D0D);
-        guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + 1, 0xFF333333);
-        guiGraphics.fill(previewX, previewY, previewX + 1, previewY + previewH, 0xFF333333);
-        guiGraphics.fill(previewX + PREVIEW_SIZE - 1, previewY, previewX + PREVIEW_SIZE, previewY + previewH,
-                0xFF333333);
-        guiGraphics.fill(previewX, previewY + previewH - 1, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF333333);
 
         int previewSlot = lastSelectedSlot();
         String selectedEntityId = null;
@@ -708,6 +726,23 @@ public class SearchableEntityList {
             ItemStack selectedStack = player.getInventory().getItem(previewSlot);
             selectedEntityId = getEntityIdFromSpawnEgg(selectedStack);
         }
+
+        // Restart the intro whenever the previewed entity changes, so switching spawn eggs
+        // reads as the panel being refilled rather than one model silently becoming another.
+        if (!java.util.Objects.equals(selectedEntityId, previewedEntityId)) {
+            previewedEntityId = selectedEntityId;
+            previewIntro.set(0.0f);
+        }
+        float intro = Ease.outCubic(previewIntro.ramp(1.0f, Timing.MODAL_MS));
+
+        // Frame warms towards gold while something is in the panel, tying it to the slot the
+        // selection came from; empty it stays the neutral grey of the rest of the chrome.
+        int frame = Fade.mix(0xFF333333, 0xFF6A5A20, selectedEntityId != null ? intro : 0.0f);
+        guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + previewH, 0xFF0D0D0D);
+        guiGraphics.fill(previewX, previewY, previewX + PREVIEW_SIZE, previewY + 1, frame);
+        guiGraphics.fill(previewX, previewY, previewX + 1, previewY + previewH, frame);
+        guiGraphics.fill(previewX + PREVIEW_SIZE - 1, previewY, previewX + PREVIEW_SIZE, previewY + previewH, frame);
+        guiGraphics.fill(previewX, previewY + previewH - 1, previewX + PREVIEW_SIZE, previewY + previewH, frame);
 
         if (selectedEntityId != null) {
             LivingEntity previewEntity = EntityPreviewRenderer.getOrCreate(selectedEntityId);
@@ -718,9 +753,13 @@ public class SearchableEntityList {
                             30.0f / Math.max(previewEntity.getBbWidth(), previewEntity.getBbHeight()));
                     int prevCenterX = previewX + PREVIEW_SIZE / 2;
                     int prevCenterY = previewY + previewH / 2 + entityScale;
+                    // The model itself grows into place. Scaling the render size is enough —
+                    // the entity renderer has no alpha to fade, so a size change is the only
+                    // handle available for an entrance.
+                    int drawScale = Math.max(1, Math.round(entityScale * Ease.lerp(0.55f, 1.0f, intro)));
                     guiGraphics.enableScissor(previewX + 1, previewY + 1, previewX + PREVIEW_SIZE - 1,
                             previewY + previewH - 1);
-                    EntityPreviewRenderer.renderSpinning(guiGraphics, prevCenterX, prevCenterY, entityScale, angle, previewEntity);
+                    EntityPreviewRenderer.renderSpinning(guiGraphics, prevCenterX, prevCenterY, drawScale, angle, previewEntity);
                     guiGraphics.disableScissor();
                 } catch (Exception ignored) {
                 }
@@ -737,7 +776,8 @@ public class SearchableEntityList {
                     entityName = font.plainSubstrByWidth(entityName, PREVIEW_SIZE - 10) + "..";
                     nameX = previewX + 2;
                 }
-                guiGraphics.drawString(font, entityName, nameX, previewY + previewH - 11, 0xFFCC00, false);
+                guiGraphics.drawString(font, entityName, nameX, previewY + previewH - 11,
+                        Fade.rgba(0xFFCC00, intro), false);
                 guiGraphics.pose().popPose();
             }
         } else {
@@ -760,11 +800,11 @@ public class SearchableEntityList {
 
         boolean addHovered = canAdd && mouseX >= addBtnX && mouseX < addBtnX + addBtnW
                 && mouseY >= addBtnY && mouseY < addBtnY + ADD_BTN_H;
-        addHoverProgress = addHovered ? Math.min(1.0f, addHoverProgress + 0.1f)
-                : Math.max(0.0f, addHoverProgress - 0.08f);
+        float addHoverProgressValue = Ease.outCubic(addHoverProgress.ramp(addHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
         if (canAdd) {
-            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, ADD_BTN_H, addButtonLabel(), addHoverProgress);
+            renderStyledButton(guiGraphics, font, addBtnX, addBtnY, addBtnW, ADD_BTN_H, addButtonLabel(),
+                    addHoverProgressValue);
         } else {
             guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + ADD_BTN_H, 0x20FFFFFF);
             guiGraphics.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 1, 0x10FFFFFF);
@@ -812,8 +852,15 @@ public class SearchableEntityList {
         boolean isSelected = selectedInventorySlots.contains(slotIndex);
         boolean isHovered = !isEmpty && mouseX >= x && mouseX < x + SLOT_SIZE && mouseY >= y && mouseY < y + SLOT_SIZE;
 
-        int borderColor = isSelected ? 0xFFFFCC00 : 0xFF252525;
-        int bgColor = isSelected ? 0xFF2A2510 : (isHovered ? 0xFF353535 : 0xFF1A1A1A);
+        float hp = Ease.outCubic(slotHover.computeIfAbsent(slotIndex, k -> new Anim())
+                .ramp(isHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        float sp = Ease.outCubic(slotSelect.computeIfAbsent(slotIndex, k -> new Anim())
+                .ramp(isSelected, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+        // Hover first, selection layered over it — same order as the item picker, so the two
+        // grids react identically.
+        int borderColor = Fade.mix(Fade.mix(0xFF252525, 0xFF4A4A4A, hp), 0xFFFFCC00, sp);
+        int bgColor = Fade.mix(Fade.mix(0xFF1A1A1A, 0xFF353535, hp), 0xFF2A2510, sp);
 
         guiGraphics.fill(x, y, x + SLOT_SIZE, y + SLOT_SIZE, borderColor);
         guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, bgColor);
@@ -831,8 +878,9 @@ public class SearchableEntityList {
             if (!isSpawnEgg) {
                 guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x80000000);
             }
-            if (isSelected) {
-                guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1, 0x40FFCC00);
+            if (sp > 0.001f) {
+                guiGraphics.fill(x + 1, y + 1, x + SLOT_SIZE - 1, y + SLOT_SIZE - 1,
+                        Fade.rgba(0xFFCC00, 0.25f * sp));
             }
         } else if (placeholder != null) {
             guiGraphics.drawString(font, placeholder, x + (SLOT_SIZE - font.width(placeholder)) / 2, y + 5, 0xFF444444,

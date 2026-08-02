@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget.dropdown;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -11,8 +15,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -55,6 +61,11 @@ public class PlayerPickerDropdown {
      *  character or paste replaces the whole text, backspace clears it. */
     private boolean allSelected = false;
     private int scrollRow = 0;
+    /** Reveal progress of the popup; also drives the caret turning over. */
+    private final Anim open = new Anim();
+    private final Anim buttonHover = new Anim();
+    /** Per-slot hover progress. Keyed by visible slot, not entry — the list scrolls under it. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
     /** Currently picked target; null means "@a". */
     private UUID selected;
     private List<Entry> filtered = new ArrayList<>();
@@ -163,24 +174,14 @@ public class PlayerPickerDropdown {
         }
     }
 
-    private static void drawCaret(GuiGraphics g, int x, int y, boolean up, int color) {
-        if (up) {
-            g.fill(x + 2, y, x + 3, y + 1, color);
-            g.fill(x + 1, y + 1, x + 4, y + 2, color);
-            g.fill(x, y + 2, x + 5, y + 3, color);
-        } else {
-            g.fill(x, y, x + 5, y + 1, color);
-            g.fill(x + 1, y + 1, x + 4, y + 2, color);
-            g.fill(x + 2, y + 2, x + 3, y + 3, color);
-        }
-    }
-
     public void renderButton(GuiGraphics g, Font font, int mouseX, int mouseY) {
         refresh();
         boolean hovered = mouseX >= buttonX && mouseX < buttonX + buttonW
                 && mouseY >= buttonY && mouseY < buttonY + BUTTON_HEIGHT;
-        int border = expanded ? 0xFFFFCC00 : (hovered ? 0xFF888888 : 0xFF4A4A4A);
-        int bg = hovered ? 0xFF252525 : 0xFF0D0D0D;
+        float hp = Ease.outCubic(buttonHover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+        int border = expanded ? 0xFFFFCC00 : Fade.mix(0xFF4A4A4A, 0xFF888888, hp);
+        int bg = Fade.mix(0xFF0D0D0D, 0xFF252525, hp);
         g.fill(buttonX, buttonY, buttonX + buttonW, buttonY + BUTTON_HEIGHT, border);
         g.fill(buttonX + 1, buttonY + 1, buttonX + buttonW - 1, buttonY + BUTTON_HEIGHT - 1, bg);
 
@@ -192,19 +193,18 @@ public class PlayerPickerDropdown {
         g.drawString(font, selectedLabel(), textX, buttonY + 5, 0xFFEEEEEE, false);
         g.disableScissor();
 
-        drawCaret(g, buttonX + buttonW - 8, buttonY + BUTTON_HEIGHT / 2 - 1, expanded,
-                hovered ? 0xFFDDDDDD : 0xFF999999);
+        DropdownChrome.drawCaret(g, buttonX + buttonW - 8, buttonY + BUTTON_HEIGHT / 2 - 1,
+                Fade.mix(0xFF999999, 0xFFDDDDDD, hp), open.value());
     }
 
     public void renderPopup(GuiGraphics g, Font font, int mouseX, int mouseY) {
-        if (!expanded) return;
+        float t = open.ramp(expanded ? 1.0f : 0.0f, Timing.POPUP_MS);
+        if (t < 0.02f) return;
+
         int[] geom = popupGeometry();
         int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 400);
-        g.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + ph, 0xFF1A1A1A);
+        if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < buttonY)) return;
 
         String shown = search.isEmpty()
                 ? Component.translatable("editor.historystages.player_picker.search").getString()
@@ -229,8 +229,11 @@ public class PlayerPickerDropdown {
         for (int i = 0; i < visible; i++) {
             Entry entry = filtered.get(scrollRow + i);
             int rowY = listTop + i * ROW_HEIGHT;
-            boolean rowHovered = mouseX >= px && mouseX < px + pw && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered) g.fill(px + 1, rowY, px + pw - 1, rowY + ROW_HEIGHT, 0x25FFFFFF);
+            boolean rowHovered = expanded && mouseX >= px && mouseX < px + pw
+                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+            float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(rowHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            DropdownChrome.drawRowHighlight(g, px + 1, rowY, pw - 2, ROW_HEIGHT, rh);
 
             drawIcon(g, font, entry.uuid(), px + 4, rowY + (ROW_HEIGHT - FACE_SIZE) / 2);
 
@@ -255,7 +258,7 @@ public class PlayerPickerDropdown {
             g.fill(sbX, thumbY, sbX + SCROLLBAR_W, thumbY + thumbH, 0x80FFFFFF);
         }
 
-        g.pose().popPose();
+        DropdownChrome.end(g);
     }
 
     /**

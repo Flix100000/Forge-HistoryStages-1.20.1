@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.popup;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -31,8 +34,8 @@ public class ModEntrySelectionPopup {
     private static final int HEADER_HEIGHT = 38;
     private static final int FOOTER_HEIGHT = 30;
 
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     private record EntryRow(String id, boolean selected) {}
 
@@ -49,10 +52,10 @@ public class ModEntrySelectionPopup {
     private String modDisplayName = "";
     private boolean allSelected = false;
 
-    private float confirmHoverProgress = 0;
-    private float skipHoverProgress = 0;
+    private final Anim confirmHoverProgress = new Anim();
+    private final Anim skipHoverProgress = new Anim();
 
-    private final Map<String, Float> checkboxHoverProgress = new HashMap<>();
+    private final Map<String, Anim> checkboxHoverProgress = new HashMap<>();
 
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
@@ -76,8 +79,8 @@ public class ModEntrySelectionPopup {
         this.modDisplayName = modDisplayName;
         entries.clear();
         checkboxHoverProgress.clear();
-        confirmHoverProgress = 0;
-        skipHoverProgress = 0;
+        confirmHoverProgress.set(0.0f);
+        skipHoverProgress.set(0.0f);
         hoveredRowIndex = -1;
         allSelected = false;
 
@@ -230,26 +233,21 @@ public class ModEntrySelectionPopup {
         boolean skipHovered = mouseX >= skipX && mouseX < skipX + btnW
                 && mouseY >= footerY + 5 && mouseY < footerY + 5 + btnH;
 
-        confirmHoverProgress = confirmHovered
-                ? Math.min(1.0f, confirmHoverProgress + 0.1f)
-                : Math.max(0.0f, confirmHoverProgress - 0.08f);
-        skipHoverProgress = skipHovered
-                ? Math.min(1.0f, skipHoverProgress + 0.1f)
-                : Math.max(0.0f, skipHoverProgress - 0.08f);
+        float confirmHoverProgressValue = Ease.outCubic(confirmHoverProgress.ramp(confirmHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        float skipHoverProgressValue = Ease.outCubic(skipHoverProgress.ramp(skipHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
         renderStyledButton(guiGraphics, font,
                 Component.translatable("editor.historystages.popup.confirm").getString(),
-                confirmX, footerY + 5, btnW, btnH, confirmHoverProgress);
+                confirmX, footerY + 5, btnW, btnH, confirmHoverProgressValue);
         renderStyledButton(guiGraphics, font,
                 Component.translatable("editor.historystages.popup.skip").getString(),
-                skipX, footerY + 5, btnW, btnH, skipHoverProgress);
+                skipX, footerY + 5, btnW, btnH, skipHoverProgressValue);
     }
 
     private void renderCheckbox(GuiGraphics g, int x, int y, boolean checked, int mx, int my, String hoverKey) {
         boolean hovered = mx >= x && mx < x + CHECKBOX_SIZE && my >= y && my < y + CHECKBOX_SIZE;
-        float hp = checkboxHoverProgress.getOrDefault(hoverKey, 0f);
-        hp = hovered ? Math.min(1.0f, hp + 0.1f) : Math.max(0.0f, hp - 0.08f);
-        checkboxHoverProgress.put(hoverKey, hp);
+        float hp = Ease.outCubic(checkboxHoverProgress.computeIfAbsent(hoverKey, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
         float progress = checked ? 1.0f : hp;
 
         int bgAlpha = (int) (0x30 + progress * 0x20);

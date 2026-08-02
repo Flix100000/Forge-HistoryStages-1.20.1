@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget.dropdown;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.data.temporary.DurationUnit;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -8,6 +12,8 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -28,6 +34,11 @@ public class DurationUnitDropdown {
     private DurationUnit unit;
     private int buttonX, buttonY, buttonW;
     private boolean expanded = false;
+
+    /** Reveal progress of the popup; also drives the caret turning over. */
+    private final Anim open = new Anim();
+    private final Anim buttonHover = new Anim();
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
 
     public DurationUnitDropdown(DurationUnit initial, int minWidth, Consumer<DurationUnit> onChange) {
         this.unit = initial != null ? initial : DurationUnit.HOURS;
@@ -74,46 +85,44 @@ public class DurationUnitDropdown {
     public void renderButton(GuiGraphics g, Font font, int mouseX, int mouseY) {
         boolean hovered = mouseX >= buttonX && mouseX < buttonX + buttonW
                 && mouseY >= buttonY && mouseY < buttonY + BUTTON_HEIGHT;
-        int border = expanded ? 0xFFFFCC00 : (hovered ? 0xFF888888 : 0xFF4A4A4A);
-        int bg = hovered ? 0xFF252525 : 0xFF0D0D0D;
+        float hp = Ease.outCubic(buttonHover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+        int border = expanded ? 0xFFFFCC00 : Fade.mix(0xFF4A4A4A, 0xFF888888, hp);
+        int bg = Fade.mix(0xFF0D0D0D, 0xFF252525, hp);
         g.fill(buttonX, buttonY, buttonX + buttonW, buttonY + BUTTON_HEIGHT, border);
         g.fill(buttonX + 1, buttonY + 1, buttonX + buttonW - 1, buttonY + BUTTON_HEIGHT - 1, bg);
 
         g.drawString(font, label(unit), buttonX + 4, buttonY + 5, 0xFFEEEEEE, false);
 
-        // Caret on the right
-        int cx = buttonX + buttonW - 7;
-        int cy = buttonY + BUTTON_HEIGHT / 2 - 1;
-        int caret = hovered ? 0xFFDDDDDD : 0xFF999999;
-        g.fill(cx, cy, cx + 5, cy + 1, caret);
-        g.fill(cx + 1, cy + 1, cx + 4, cy + 2, caret);
-        g.fill(cx + 2, cy + 2, cx + 3, cy + 3, caret);
+        DropdownChrome.drawCaret(g, buttonX + buttonW - 7, buttonY + BUTTON_HEIGHT / 2 - 1,
+                Fade.mix(0xFF999999, 0xFFDDDDDD, hp), open.value());
     }
 
     public void renderPopup(GuiGraphics g, Font font, int mouseX, int mouseY) {
-        if (!expanded) return;
+        float t = open.ramp(expanded ? 1.0f : 0.0f, Timing.POPUP_MS);
+        if (t < 0.02f) return;
+
         int[] geom = popupGeometry();
         int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
         DurationUnit[] all = DurationUnit.values();
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 400);
-        g.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + ph, 0xFF1A1A1A);
+        if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < buttonY)) return;
 
         for (int i = 0; i < all.length; i++) {
             int rowY = py + POPUP_PAD + i * ROW_HEIGHT;
-            boolean rowHovered = mouseX >= px && mouseX < px + pw
+            boolean rowHovered = expanded && mouseX >= px && mouseX < px + pw
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered) {
-                g.fill(px + 1, rowY, px + pw - 1, rowY + ROW_HEIGHT, 0x25FFFFFF);
-            }
+            float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(rowHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            DropdownChrome.drawRowHighlight(g, px + 1, rowY, pw - 2, ROW_HEIGHT, rh);
+
             boolean selected = all[i] == unit;
             if (selected) g.fill(px + 1, rowY, px + 2, rowY + ROW_HEIGHT, 0xFFFFCC00);
             int textColor = selected ? 0xFFFFCC00 : 0xFFEEEEEE;
-            g.drawString(font, label(all[i]), px + 5, rowY + 4, textColor, false);
+            g.drawString(font, label(all[i]), px + 5 + Math.round(rh * 2.0f), rowY + 4,
+                    textColor, false);
         }
-        g.pose().popPose();
+        DropdownChrome.end(g);
     }
 
     private static String label(DurationUnit u) {

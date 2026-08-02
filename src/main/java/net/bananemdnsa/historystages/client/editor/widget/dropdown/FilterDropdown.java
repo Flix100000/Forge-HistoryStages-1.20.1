@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget.dropdown;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -7,7 +11,9 @@ import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Reusable funnel-icon button + checkbox dropdown for filter toggles.
@@ -44,6 +50,13 @@ public class FilterDropdown {
     private final Runnable onChange;
     private boolean expanded = false;
     private int buttonX, buttonY;
+
+    /** Reveal progress of the popup. */
+    private final Anim open = new Anim();
+    private final Anim buttonHover = new Anim();
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
+    /** Per-option tick progress, so a checkbox fills in rather than flipping. */
+    private final Map<Integer, Anim> checkAnim = new HashMap<>();
 
     public FilterDropdown(Runnable onChange) {
         this.onChange = onChange;
@@ -124,13 +137,14 @@ public class FilterDropdown {
         boolean hovered = mouseX >= buttonX && mouseX < buttonX + BUTTON_SIZE
                 && mouseY >= buttonY && mouseY < buttonY + BUTTON_SIZE;
         boolean active = hasActiveFilters();
+        float hp = Ease.outCubic(buttonHover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
-        int border = active ? 0xFFFFCC00 : (hovered ? 0xFF888888 : 0xFF4A4A4A);
-        int bg = active ? 0xFF2A2510 : (hovered ? 0xFF252525 : 0xFF0D0D0D);
+        int border = active ? 0xFFFFCC00 : Fade.mix(0xFF4A4A4A, 0xFF888888, hp);
+        int bg = active ? 0xFF2A2510 : Fade.mix(0xFF0D0D0D, 0xFF252525, hp);
         g.fill(buttonX, buttonY, buttonX + BUTTON_SIZE, buttonY + BUTTON_SIZE, border);
         g.fill(buttonX + 1, buttonY + 1, buttonX + BUTTON_SIZE - 1, buttonY + BUTTON_SIZE - 1, bg);
 
-        int color = active ? 0xFFFFCC00 : (hovered ? 0xFFDDDDDD : 0xFF999999);
+        int color = active ? 0xFFFFCC00 : Fade.mix(0xFF999999, 0xFFDDDDDD, hp);
         int cx = buttonX + BUTTON_SIZE / 2;
         int top = buttonY + 4;
         g.fill(cx - 5, top, cx + 5, top + 1, color);
@@ -146,42 +160,51 @@ public class FilterDropdown {
 
     /** Renders the dropdown popup. Call AFTER all other UI so it draws on top. */
     public void renderPopup(GuiGraphics g, Font font, int mouseX, int mouseY) {
-        if (!expanded || options.isEmpty())
-            return;
+        if (options.isEmpty()) return;
+
+        // Kept rendering past the click that closed it, so the popup rolls back up.
+        float t = open.ramp(expanded ? 1.0f : 0.0f, Timing.POPUP_MS);
+        if (t < 0.02f) return;
+
         int[] geom = popupGeometry(font);
         int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 400);
-        g.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + ph, 0xFF1A1A1A);
+        if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < buttonY)) return;
 
         for (int i = 0; i < options.size(); i++) {
             Option opt = options.get(i);
             int rowY = py + POPUP_PAD + i * ROW_HEIGHT;
-            boolean rowHovered = mouseX >= px && mouseX < px + pw
+            boolean rowHovered = expanded && mouseX >= px && mouseX < px + pw
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered) {
-                g.fill(px + 2, rowY, px + pw - 2, rowY + ROW_HEIGHT, 0x25FFFFFF);
-            }
+            float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(rowHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            DropdownChrome.drawRowHighlight(g, px + 2, rowY, pw - 4, ROW_HEIGHT, rh);
+
+            // The tick grows in instead of appearing, which makes it obvious which box the
+            // click actually landed on when several rows sit close together.
+            float check = Ease.outCubic(checkAnim.computeIfAbsent(i, k -> new Anim())
+                    .ramp(opt.active, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
             int boxX = px + 6;
             int boxY = rowY + 3;
             int boxSize = 10;
-            int boxBorder = opt.active ? 0xFFFFCC00 : 0xFF666666;
-            int boxBg = opt.active ? 0xFF2A2510 : 0xFF0D0D0D;
-            g.fill(boxX, boxY, boxX + boxSize, boxY + boxSize, boxBorder);
-            g.fill(boxX + 1, boxY + 1, boxX + boxSize - 1, boxY + boxSize - 1, boxBg);
-            if (opt.active) {
-                g.fill(boxX + 3, boxY + 5, boxX + 4, boxY + 8, 0xFFFFCC00);
-                g.fill(boxX + 4, boxY + 6, boxX + 5, boxY + 9, 0xFFFFCC00);
-                g.fill(boxX + 5, boxY + 5, boxX + 6, boxY + 8, 0xFFFFCC00);
-                g.fill(boxX + 6, boxY + 4, boxX + 7, boxY + 7, 0xFFFFCC00);
-                g.fill(boxX + 7, boxY + 3, boxX + 8, boxY + 6, 0xFFFFCC00);
+            g.fill(boxX, boxY, boxX + boxSize, boxY + boxSize, Fade.mix(0xFF666666, 0xFFFFCC00, check));
+            g.fill(boxX + 1, boxY + 1, boxX + boxSize - 1, boxY + boxSize - 1,
+                    Fade.mix(0xFF0D0D0D, 0xFF2A2510, check));
+            if (check > 0.001f) {
+                int tick = Fade.rgba(0xFFCC00, check);
+                // Drawn left to right so the stroke reads as being written on.
+                int steps = Math.max(1, Math.round(5 * check));
+                if (steps > 0) g.fill(boxX + 3, boxY + 5, boxX + 4, boxY + 8, tick);
+                if (steps > 1) g.fill(boxX + 4, boxY + 6, boxX + 5, boxY + 9, tick);
+                if (steps > 2) g.fill(boxX + 5, boxY + 5, boxX + 6, boxY + 8, tick);
+                if (steps > 3) g.fill(boxX + 6, boxY + 4, boxX + 7, boxY + 7, tick);
+                if (steps > 4) g.fill(boxX + 7, boxY + 3, boxX + 8, boxY + 6, tick);
             }
-            g.drawString(font, opt.label, boxX + boxSize + 5, rowY + 4, 0xFFEEEEEE, false);
+            g.drawString(font, opt.label, boxX + boxSize + 5 + Math.round(rh * 2.0f), rowY + 4,
+                    0xFFEEEEEE, false);
         }
-        g.pose().popPose();
+        DropdownChrome.end(g);
     }
 
     private int[] popupGeometry(Font font) {

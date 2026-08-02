@@ -7,6 +7,10 @@ import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -38,6 +42,15 @@ public class ConfigEditorScreen extends Screen {
 
     // Scrolling
     private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Per-row hover progress, keyed by row index. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
+    /** Per-tab hover progress, indexed by tab position. */
+    private final Map<Integer, Anim> tabHover = new HashMap<>();
+    /** Hover progress per config entry, keyed by the entry's config key. */
+    private final Map<String, Anim> entryHover = new HashMap<>();
+    private final Anim scrollThumbHover = new Anim();
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
 
@@ -50,7 +63,7 @@ public class ConfigEditorScreen extends Screen {
     // Tooltip hover tracking
     private String hoveredEntryKey = null;
     private long hoverStartTime = 0;
-    private static final long TOOLTIP_DELAY_MS = 500;
+    private static final long TOOLTIP_DELAY_MS = Timing.TOOLTIP_DELAY_MS;
 
     // Tab layout
     private static final String[] TAB_KEYS = {
@@ -518,8 +531,19 @@ public class ConfigEditorScreen extends Screen {
         if (activeTab != tab) {
             activeTab = tab;
             scrollOffset = 0;
+            smoothScroll.set(0.0f);
             updateMaxScroll();
+            playClick();
         }
+    }
+
+    /**
+     * The editor's single UI click. Every control that changes state routes through this, so
+     * a config toggle sounds like a config toggle and not like nothing at all.
+     */
+    private static void playClick() {
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
     }
 
     private void updateMaxScroll() {
@@ -546,6 +570,8 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle((float) scrollOffset, 0.5f);
         syncPickerState();
 
         // Background
@@ -564,15 +590,17 @@ public class ConfigEditorScreen extends Screen {
             boolean hovered = mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
 
-            int bg = active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF);
-            guiGraphics.fill(tabX[i], tabY, tabX[i] + tabW[i], tabY + TAB_HEIGHT, bg);
+            float th = Ease.outCubic(tabHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hovered && !active, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            guiGraphics.fill(tabX[i], tabY, tabX[i] + tabW[i], tabY + TAB_HEIGHT,
+                    active ? 0x40FFCC00 : Fade.mix(0x15FFFFFF, 0x25FFFFFF, th));
 
             if (active) {
                 guiGraphics.fill(tabX[i], tabY + TAB_HEIGHT - 2, tabX[i] + tabW[i], tabY + TAB_HEIGHT, 0xFFFFCC00);
             }
 
             String label = Component.translatable(TAB_KEYS[i]).getString();
-            int textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
+            int textColor = active ? 0xFFFFFF : Fade.mix(0xFF999999, 0xFFDDDDDD, th);
             drawSmallText(guiGraphics, label, tabX[i] + TAB_PAD, tabY + 4, textColor);
 
             if (hovered) {
@@ -591,7 +619,7 @@ public class ConfigEditorScreen extends Screen {
 
         guiGraphics.enableScissor(contentLeft - 10, listTop, contentRight + 10, listBottom);
 
-        int y = listTop - (int) scrollOffset;
+        int y = listTop - Math.round(smoothScroll.value());
         List<ConfigSection> sections = getActiveSections();
 
         // Track hover for tooltip
@@ -640,14 +668,23 @@ public class ConfigEditorScreen extends Screen {
         if (maxScroll > 0) {
             int scrollAreaHeight = listBottom - listTop;
             int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
-            int barY = listTop + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
-            guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
+            int barY = listTop + Math.round(smoothScroll.value() / maxScroll * (scrollAreaHeight - barHeight));
+            boolean barHovered = mouseX >= contentRight && mouseX <= contentRight + 7
+                    && mouseY >= listTop && mouseY <= listBottom;
+            float bh = Ease.outCubic(scrollThumbHover.ramp(barHovered,
+                    Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            guiGraphics.fill(contentRight + 2, listTop, contentRight + 5, listBottom, 0x20FFFFFF);
+            guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight,
+                    Fade.mix(0x80FFFFFF, 0xFFFFCC00, bh));
         }
 
         // Unsaved changes indicator — yellow dot + text
         if (hasChanges()) {
             int dotX = this.width / 2 + 55;
-            guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19, 0xFFFFCC00);
+            float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
+                    / Timing.BREATHE_PERIOD_MS;
+            guiGraphics.fill(dotX, this.height - 25, dotX + 6, this.height - 19,
+                    Fade.rgba(0xFFCC00, 0.4f + 0.6f * Ease.breathe(phase)));
             drawSmallText(guiGraphics, Component.translatable("editor.historystages.unsaved").getString(), dotX + 9, this.height - 24, 0xFFCC00);
         }
 
@@ -731,13 +768,20 @@ public class ConfigEditorScreen extends Screen {
 
     private void renderConfigEntry(GuiGraphics guiGraphics, ConfigEntry entry, int left, int y, int right, int mouseX, int mouseY) {
         boolean hovered = mouseX >= left && mouseX <= right && mouseY >= y && mouseY < y + ENTRY_HEIGHT;
-        if (hovered) {
-            guiGraphics.fill(left, y, right, y + ENTRY_HEIGHT, 0x15FFFFFF);
+        // Keyed by the config key rather than the row index: sections collapse and the active
+        // tab changes, so an index would carry one row's hover state over to a different setting.
+        float hp = Ease.outCubic(entryHover.computeIfAbsent(entry.key, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        if (hp > 0.001f) {
+            guiGraphics.fill(left, y, right, y + ENTRY_HEIGHT, Fade.rgba(0xFFFFFF, 0.082f * hp));
+            // Gold edge, the same cue the stage list and the dropdowns use for a hovered row.
+            guiGraphics.fill(left, y, left + 1, y + ENTRY_HEIGHT, Fade.rgba(0xFFCC00, hp * 0.8f));
         }
 
         // Label
         String label = Component.translatable("editor.historystages.config." + entry.key).getString();
-        guiGraphics.drawString(this.font, label, left + 8, y + 8, 0xCCCCCC, false);
+        guiGraphics.drawString(this.font, label, left + 8 + Math.round(hp * 2.0f), y + 8,
+                Fade.mix(0xFFCCCCCC, 0xFFFFFFFF, hp), false);
 
         // Value control — positioned further left for better readability
         int labelWidth = this.font.width(label);
@@ -882,7 +926,7 @@ public class ConfigEditorScreen extends Screen {
         if (mouseX < contentLeft - 10 || mouseX > contentRight + 10 || mouseY < listTop || mouseY > listBottom)
             return false;
 
-        int y = listTop - (int) scrollOffset;
+        int y = listTop - Math.round(smoothScroll.value());
         List<ConfigSection> sections = getActiveSections();
 
         for (ConfigSection section : sections) {
@@ -929,6 +973,7 @@ public class ConfigEditorScreen extends Screen {
     }
 
     private void handleEntryClick(ConfigEntry entry) {
+        playClick();
         switch (entry.type) {
             case BOOLEAN -> {
                 boolean current = Boolean.parseBoolean(entry.value);
@@ -1002,6 +1047,9 @@ public class ConfigEditorScreen extends Screen {
         float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
         scrollOffset = Math.round(ratio * maxScroll);
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        // Snapped, not eased: while the thumb is held the list must track the
+        // cursor exactly, or the thumb drifts from where the pointer is.
+        smoothScroll.set((float) scrollOffset);
     }
 
     @Override
@@ -1235,6 +1283,10 @@ public class ConfigEditorScreen extends Screen {
         private net.minecraft.client.gui.components.Button backButton;
         private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Per-row hover progress, keyed by row index. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
         private int maxScroll = 0;
         private boolean draggingScrollbar = false;
         private static final int ITEM_ROW_HEIGHT = 22;
@@ -1317,6 +1369,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+            smoothScroll.settle((float) scrollOffset, 0.5f);
             syncOverlayState();
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
@@ -1344,7 +1398,7 @@ public class ConfigEditorScreen extends Screen {
 
             guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < items.size(); i++) {
                 if (y + ITEM_ROW_HEIGHT > LIST_TOP - 10 && y < listBottom + 10) {
                     String itemId = items.get(i);
@@ -1352,8 +1406,11 @@ public class ConfigEditorScreen extends Screen {
                             && mouseY >= y && mouseY < y + ITEM_ROW_HEIGHT
                             && mouseY >= LIST_TOP && mouseY <= listBottom;
 
-                    if (hovered) {
-                        guiGraphics.fill(contentLeft, y, contentRight, y + ITEM_ROW_HEIGHT, 0x20FFFFFF);
+                    float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                            .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+                    if (rh > 0.001f) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + ITEM_ROW_HEIGHT, Fade.rgba(0xFFFFFF, 0.125f * rh));
+                        guiGraphics.fill(contentLeft, y, contentLeft + 1, y + ITEM_ROW_HEIGHT, Fade.rgba(0xFFCC00, rh * 0.8f));
                     }
 
                     // Item icon
@@ -1385,7 +1442,7 @@ public class ConfigEditorScreen extends Screen {
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
                 int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
-                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                int barY = LIST_TOP + Math.round(smoothScroll.value() / maxScroll * (scrollAreaHeight - barHeight));
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
             }
 
@@ -1429,7 +1486,7 @@ public class ConfigEditorScreen extends Screen {
             if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
                 return false;
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < items.size(); i++) {
                 if (mouseY >= y && mouseY < y + ITEM_ROW_HEIGHT) {
                     int removeX = contentRight - 14;
@@ -1465,6 +1522,9 @@ public class ConfigEditorScreen extends Screen {
             float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScroll.set((float) scrollOffset);
         }
 
         @Override
@@ -1517,6 +1577,10 @@ public class ConfigEditorScreen extends Screen {
         private net.minecraft.client.gui.components.Button backButton;
         private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Per-row hover progress, keyed by row index. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
         private int maxScroll = 0;
         private boolean draggingScrollbar = false;
         private static final int TAG_ROW_HEIGHT = 22;
@@ -1599,6 +1663,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+            smoothScroll.settle((float) scrollOffset, 0.5f);
             syncOverlayState();
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
@@ -1626,7 +1692,7 @@ public class ConfigEditorScreen extends Screen {
 
             guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < tags.size(); i++) {
                 if (y + TAG_ROW_HEIGHT > LIST_TOP - 10 && y < listBottom + 10) {
                     String tagId = tags.get(i);
@@ -1634,8 +1700,11 @@ public class ConfigEditorScreen extends Screen {
                             && mouseY >= y && mouseY < y + TAG_ROW_HEIGHT
                             && mouseY >= LIST_TOP && mouseY <= listBottom;
 
-                    if (hovered) {
-                        guiGraphics.fill(contentLeft, y, contentRight, y + TAG_ROW_HEIGHT, 0x20FFFFFF);
+                    float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                            .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+                    if (rh > 0.001f) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + TAG_ROW_HEIGHT, Fade.rgba(0xFFFFFF, 0.125f * rh));
+                        guiGraphics.fill(contentLeft, y, contentLeft + 1, y + TAG_ROW_HEIGHT, Fade.rgba(0xFFCC00, rh * 0.8f));
                     }
 
                     // Tag icon (#)
@@ -1661,7 +1730,7 @@ public class ConfigEditorScreen extends Screen {
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
                 int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
-                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                int barY = LIST_TOP + Math.round(smoothScroll.value() / maxScroll * (scrollAreaHeight - barHeight));
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 5, barY + barHeight, 0x80FFFFFF);
             }
 
@@ -1703,7 +1772,7 @@ public class ConfigEditorScreen extends Screen {
             if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
                 return false;
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < tags.size(); i++) {
                 if (mouseY >= y && mouseY < y + TAG_ROW_HEIGHT) {
                     int removeX = contentRight - 14;
@@ -1739,6 +1808,9 @@ public class ConfigEditorScreen extends Screen {
             float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScroll.set((float) scrollOffset);
         }
 
         @Override
@@ -1832,6 +1904,10 @@ public class ConfigEditorScreen extends Screen {
         private net.minecraft.client.gui.components.Button backButton;
         private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Per-row hover progress, keyed by row index. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
         private int maxScroll = 0;
         private boolean draggingScrollbar = false;
         private static final int ROW_HEIGHT = 26;
@@ -1953,6 +2029,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+            smoothScroll.settle((float) scrollOffset, 0.5f);
             syncOverlayState();
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
             boolean overlayOpen = effectOverlay != null;
@@ -1978,7 +2056,7 @@ public class ConfigEditorScreen extends Screen {
 
             guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < rows.size(); i++) {
                 EffectRow r = rows.get(i);
                 boolean fullyVisible = !overlayOpen && y >= LIST_TOP && y + ROW_HEIGHT <= listBottom;
@@ -1987,8 +2065,11 @@ public class ConfigEditorScreen extends Screen {
                     boolean hovered = mouseX >= contentLeft && mouseX <= contentRight
                             && mouseY >= y && mouseY < y + ROW_HEIGHT
                             && mouseY >= LIST_TOP && mouseY <= listBottom;
-                    if (hovered) {
-                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, 0x20FFFFFF);
+                    float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                            .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+                    if (rh > 0.001f) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, Fade.rgba(0xFFFFFF, 0.125f * rh));
+                        guiGraphics.fill(contentLeft, y, contentLeft + 1, y + ROW_HEIGHT, Fade.rgba(0xFFCC00, rh * 0.8f));
                     }
 
                     String summary = Component.translatable("editor.historystages.config.effect_summary",
@@ -2023,7 +2104,7 @@ public class ConfigEditorScreen extends Screen {
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
                 int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
-                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                int barY = LIST_TOP + Math.round(smoothScroll.value() / maxScroll * (scrollAreaHeight - barHeight));
                 guiGraphics.fill(contentRight + 2, LIST_TOP, contentRight + 8, listBottom, 0x40000000);
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 8, barY + barHeight, 0xC0FFFFFF);
             }
@@ -2063,7 +2144,7 @@ public class ConfigEditorScreen extends Screen {
             if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
                 return false;
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < rows.size(); i++) {
                 if (mouseY >= y && mouseY < y + ROW_HEIGHT
                         && mouseX >= removeX && mouseX <= removeX + 12) {
@@ -2187,13 +2268,17 @@ public class ConfigEditorScreen extends Screen {
         private net.minecraft.client.gui.components.Button backButton;
         private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Per-row hover progress, keyed by row index. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
         private int maxScroll = 0;
         private boolean draggingScrollbar = false;
         private static final int ROW_HEIGHT = 26;
         private static final int LIST_TOP = 50;
         private static final int FIELD_W = 30;
-        private static final long MARQUEE_DELAY_MS = 800;
-        private static final float MARQUEE_SPEED = 25.0f;
+        private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+        private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
         private int hoveredRow = -1;
         private long hoverStartTime = 0L;
 
@@ -2378,6 +2463,8 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+            smoothScroll.settle((float) scrollOffset, 0.5f);
             syncOverlayState();
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
             boolean overlayOpen = itemOverlay != null;
@@ -2404,7 +2491,7 @@ public class ConfigEditorScreen extends Screen {
             // Buttons render via super.render() outside the scissor — toggle visible based on row clipping.
             guiGraphics.enableScissor(contentLeft - 5, LIST_TOP, contentRight + 5, listBottom);
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             boolean anyHover = false;
             for (int i = 0; i < rows.size(); i++) {
                 BoosterRow r = rows.get(i);
@@ -2416,7 +2503,14 @@ public class ConfigEditorScreen extends Screen {
                             && mouseY >= LIST_TOP && mouseY <= listBottom;
                     if (hovered) {
                         anyHover = true;
-                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, 0x20FFFFFF);
+                    }
+                    // Advanced unconditionally — running it only while hovered would leave the
+                    // highlight stuck on the last row the cursor touched.
+                    float rh = Ease.outCubic(rowHover.computeIfAbsent(i, k -> new Anim())
+                            .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+                    if (rh > 0.001f) {
+                        guiGraphics.fill(contentLeft, y, contentRight, y + ROW_HEIGHT, Fade.rgba(0xFFFFFF, 0.125f * rh));
+                        guiGraphics.fill(contentLeft, y, contentLeft + 1, y + ROW_HEIGHT, Fade.rgba(0xFFCC00, rh * 0.8f));
                     }
 
                     // Block icon
@@ -2457,7 +2551,7 @@ public class ConfigEditorScreen extends Screen {
             if (maxScroll > 0) {
                 int scrollAreaHeight = listBottom - LIST_TOP;
                 int barHeight = Math.max(20, (int) ((float) scrollAreaHeight / (maxScroll + scrollAreaHeight) * scrollAreaHeight));
-                int barY = LIST_TOP + (int) ((float) scrollOffset / maxScroll * (scrollAreaHeight - barHeight));
+                int barY = LIST_TOP + Math.round(smoothScroll.value() / maxScroll * (scrollAreaHeight - barHeight));
                 // Track + thumb, 6px wide for an easier hit target.
                 guiGraphics.fill(contentRight + 2, LIST_TOP, contentRight + 8, listBottom, 0x40000000);
                 guiGraphics.fill(contentRight + 2, barY, contentRight + 8, barY + barHeight, 0xC0FFFFFF);
@@ -2499,7 +2593,7 @@ public class ConfigEditorScreen extends Screen {
             if (mouseX < contentLeft || mouseX > contentRight || mouseY < LIST_TOP || mouseY > listBottom)
                 return false;
 
-            int y = LIST_TOP - (int) scrollOffset;
+            int y = LIST_TOP - Math.round(smoothScroll.value());
             for (int i = 0; i < rows.size(); i++) {
                 if (mouseY >= y && mouseY < y + ROW_HEIGHT) {
                     if (mouseX >= removeX && mouseX <= removeX + 12) {
@@ -2534,6 +2628,9 @@ public class ConfigEditorScreen extends Screen {
             float ratio = (float) Math.max(0, Math.min(1, (mouseY - listTop) / (double) scrollAreaHeight));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScroll.set((float) scrollOffset);
         }
 
         @Override

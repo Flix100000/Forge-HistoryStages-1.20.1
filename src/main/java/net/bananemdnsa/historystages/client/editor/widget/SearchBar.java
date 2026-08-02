@@ -1,6 +1,10 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.FilterDropdown;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -42,7 +46,8 @@ public class SearchBar {
      * category search. Default is the popup widget's dark-inset look.
      */
     private boolean lightStyle = false;
-    private float hoverProgress = 0.0f;
+    private final Anim hoverAnim = new Anim();
+    private final Anim focusAnim = new Anim();
 
     public SearchBar(String placeholder) {
         this.placeholder = placeholder;
@@ -133,25 +138,33 @@ public class SearchBar {
         int sy = y;
         int sw = searchFieldWidth();
 
-        if (lightStyle) {
-            // Smoothly track focus/hover for the brighter editor-style background
-            boolean hovered = mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + HEIGHT;
-            if (focused || hovered) hoverProgress = Math.min(1.0f, hoverProgress + 0.10f);
-            else hoverProgress = Math.max(0.0f, hoverProgress - 0.08f);
-            float hp = hoverProgress;
+        boolean hovered = mouseX >= sx && mouseX < sx + sw && mouseY >= sy && mouseY < sy + HEIGHT;
+        float hp = Ease.outCubic(hoverAnim.ramp(focused || hovered,
+                Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        // Focus is tracked apart from hover so the focus cue does not fire when the cursor
+        // merely passes over the field.
+        float fp = Ease.outCubic(focusAnim.ramp(focused, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
+        if (lightStyle) {
             int bgAlpha = (int) (0x25 + hp * 0x18);
             g.fill(sx, sy, sx + sw, sy + HEIGHT, (bgAlpha << 24) | 0xFFFFFF);
             // Top + side edge highlights (matches StyledButton / detail-screen search)
             g.fill(sx, sy, sx + sw, sy + 1, 0x20FFFFFF);
             g.fill(sx, sy, sx + 1, sy + HEIGHT, 0x15FFFFFF);
             g.fill(sx + sw - 1, sy, sx + sw, sy + HEIGHT, 0x15FFFFFF);
-            // Bottom accent: gold when focused, grey otherwise
-            int accentAlpha = focused ? (int) (0xCC + hp * 0x33) : (int) (0x40 + hp * 0x40);
-            int accentRGB = focused ? 0xFFCC00 : 0x888888;
-            g.fill(sx, sy + HEIGHT - 2, sx + sw, sy + HEIGHT, (accentAlpha << 24) | accentRGB);
+            // This style has no frame of its own, so the bottom accent is the only thing that
+            // can carry state: grey at rest, gold once focused. Same accent StyledButton uses.
+            int accentAlpha = (int) (0x40 + hp * 0x40);
+            g.fill(sx, sy + HEIGHT - 2, sx + sw, sy + HEIGHT, (accentAlpha << 24) | 0x888888);
+            if (fp > 0.001f) {
+                g.fill(sx, sy + HEIGHT - 2, sx + sw, sy + HEIGHT, Fade.rgba(0xFFCC00, fp));
+            }
         } else {
-            g.fill(sx - 1, sy - 1, sx + sw + 1, sy + HEIGHT + 1, 0xFF4A4A4A);
+            // The boxed style already has a frame, so focus is carried by that frame turning
+            // gold. An extra underline inside the box reads as a separate element sitting on
+            // top of the field rather than as the field's own state.
+            int resting = Fade.mix(0xFF4A4A4A, 0xFF888888, hp);
+            g.fill(sx - 1, sy - 1, sx + sw + 1, sy + HEIGHT + 1, Fade.mix(resting, 0xFFFFCC00, fp));
             g.fill(sx, sy, sx + sw, sy + HEIGHT, 0xFF0D0D0D);
         }
 

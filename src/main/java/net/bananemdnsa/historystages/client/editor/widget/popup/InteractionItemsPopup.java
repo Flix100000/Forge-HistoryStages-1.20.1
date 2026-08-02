@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.popup;
 
 import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -50,8 +51,8 @@ public class InteractionItemsPopup {
     private static final int BTN_H      = 14;
     private static final int SCROLLBAR_W = 4;
 
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     private final Handler handler;
     /** Resolved display stacks, keyed by filter entry ID (plain item or "#tag"). */

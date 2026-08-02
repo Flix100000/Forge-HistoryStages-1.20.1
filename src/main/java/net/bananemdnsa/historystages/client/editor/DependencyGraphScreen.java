@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.graph.GraphNode;
 import net.bananemdnsa.historystages.client.editor.graph.GraphViewFilter;
 import net.bananemdnsa.historystages.client.editor.graph.NodeShapes;
@@ -62,7 +65,8 @@ public class DependencyGraphScreen extends Screen {
     private long graphBuildTime = 0L;   // start of the focus-change pop-in
     private float introScale = 1f;      // node scale during pop-in (eased, may overshoot)
     private float introAlpha = 1f;      // edge fade-in during pop-in (0..1)
-    private float hoverNodeAnim = 0f;   // eased graph-node hover-lift progress (0..1)
+    /** Eased graph-node hover-lift progress (0..1). */
+    private final Anim hoverNodeAnim = new Anim();
     private float legendAnim = 0f;      // legend body slide progress (0=closed, 1=open)
     private static final int POP_MS = 260;
     private boolean legendExpanded = false;
@@ -117,7 +121,7 @@ public class DependencyGraphScreen extends Screen {
         graphBuildTime = System.currentTimeMillis();
         introScale = 0f;
         introAlpha = 0f;
-        hoverNodeAnim = 0f;
+        hoverNodeAnim.set(0f);
     }
 
     @Override
@@ -444,7 +448,7 @@ public class DependencyGraphScreen extends Screen {
         boolean intro = introT < 1f;
         // Node under the cursor for the hover lift — only once the intro has settled.
         var hov = (!intro && mouseX >= panelWidth && mouseY >= top) ? nodeAt(mouseX, mouseY) : null;
-        hoverNodeAnim += ((hov != null ? 1f : 0f) - hoverNodeAnim) * 0.3f;
+        hoverNodeAnim.ramp(hov != null, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS);
 
         // Edges first (under nodes). Endpoints are inset to each node's boundary so the
         // arrowhead at the target is not hidden under the node.
@@ -476,7 +480,7 @@ public class DependencyGraphScreen extends Screen {
             int cx = (int) (panX + node.x * zoom);
             int cy = (int) (panY + node.y * zoom);
             // Visual scale: the pop-in while animating in, otherwise a hover lift.
-            float vs = intro ? introScale : (node == hov ? 1f + 0.18f * hoverNodeAnim : 1f);
+            float vs = intro ? introScale : (node == hov ? 1f + 0.18f * Ease.outCubic(hoverNodeAnim.value()) : 1f);
             boolean scaled = Math.abs(vs - 1f) > 0.001f;
             if (scaled) {
                 g.pose().pushPose();
@@ -492,7 +496,7 @@ public class DependencyGraphScreen extends Screen {
             // 3D entities use their own render path (pose scale doesn't apply), so scale
             // them via their radius and only draw once the pop-in has finished.
             if (node.entityId != null && !intro) {
-                int er = Math.max(3, (int) (nodeRadius(node) * (node == hov ? 1f + 0.18f * hoverNodeAnim : 1f)));
+                int er = Math.max(3, (int) (nodeRadius(node) * (node == hov ? 1f + 0.18f * Ease.outCubic(hoverNodeAnim.value()) : 1f)));
                 drawEntityIcon(g, node.entityId, cx, cy, er);
             }
         }

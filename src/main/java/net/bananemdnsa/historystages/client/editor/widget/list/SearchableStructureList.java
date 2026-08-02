@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
 import net.bananemdnsa.historystages.client.ClientStructureRegistry;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -22,8 +23,8 @@ import java.util.function.Supplier;
  */
 public class SearchableStructureList extends AbstractSearchableList<String> {
 
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     /** 0 = Structures, 1 = Tags. Mirrors the base class's own-tab index. */
     private int activeTab = 0;

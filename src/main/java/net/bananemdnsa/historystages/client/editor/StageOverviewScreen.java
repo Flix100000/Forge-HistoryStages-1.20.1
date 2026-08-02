@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
@@ -82,7 +86,7 @@ public class StageOverviewScreen extends Screen {
     /** Pixels the list scrolls per frame inside that band. */
     private static final int AUTO_SCROLL_SPEED = 5;
     /** How long the drop target keeps pulsing after a move, in milliseconds. */
-    private static final long DROP_PULSE_MS = 600;
+    private static final long DROP_PULSE_MS = Timing.DROP_PULSE_MS;
 
     private List<String> stageOrder;
     private List<String> individualStageOrder;
@@ -116,7 +120,7 @@ public class StageOverviewScreen extends Screen {
     /** True while the header menu is the one the shared context menu is showing. */
     private boolean headerMenuOpen = false;
     /** 0 = caret points down, 1 = fully flipped up. */
-    private float menuCaretProgress = 0f;
+    private final Anim menuCaret = new Anim();
 
     private record BreadcrumbHit(int x1, int x2, String path) {}
     private final List<BreadcrumbHit> breadcrumbHits = new ArrayList<>();
@@ -167,17 +171,31 @@ public class StageOverviewScreen extends Screen {
     private record DropTarget(boolean individual, String path) {}
 
     // Animation state
-    private final java.util.Map<Integer, Float> hoverProgress = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Anim> hoverProgress = new java.util.HashMap<>();
     private int lastHoveredIndex = -1;
 
     // Marquee state
     private int hoveredStageIndex = -1;
     private long stageHoverStartTime = 0;
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     // Smooth scroll
-    private float smoothScroll = 0;
+    private final Anim smoothScroll = new Anim();
+
+    /**
+     * Horizontal slide played when the browsed folder changes. Without it the whole list is
+     * swapped in one frame, which gives no sense of having moved into or out of anything —
+     * and folders are new enough that the hierarchy still has to be taught.
+     */
+    private final Anim navSlide = new Anim(1.0f);
+    /** Which way the incoming content travels: +1 when going deeper, -1 when coming back up. */
+    private int navDirection = 1;
+    /** How far the incoming list starts from its resting position, in pixels. */
+    private static final float NAV_SLIDE_PX = 26.0f;
+
+    /** Reveal of the organize-mode checkbox column, so the mode switch is legible. */
+    private final Anim organizeReveal = new Anim();
 
     public StageOverviewScreen() {
         super(Component.translatable("editor.historystages.title"));
@@ -305,10 +323,7 @@ public class StageOverviewScreen extends Screen {
     private void navigateInto(boolean individual, String path) {
         browsingIndividual = individual;
         currentPath = path;
-        scrollOffset = 0;
-        smoothScroll = 0;
-        hoverProgress.clear();
-        applyFilter();
+        afterNavigate(1);
     }
 
     /** One level up; from a tree root back to the two-section root view. */
@@ -316,10 +331,7 @@ public class StageOverviewScreen extends Screen {
     private void navigateToRoot() {
         browsingIndividual = null;
         currentPath = "";
-        scrollOffset = 0;
-        smoothScroll = 0;
-        hoverProgress.clear();
-        applyFilter();
+        afterNavigate(-1);
     }
 
     private void navigateUp() {
@@ -334,9 +346,22 @@ public class StageOverviewScreen extends Screen {
             return;
         }
         currentPath = parent;
+        afterNavigate(-1);
+    }
+
+    /**
+     * Shared tail of every navigation: resets the scroll and hover state the old level owned,
+     * and arms the slide that carries the new level in.
+     *
+     * @param direction +1 when moving deeper, -1 when moving back up. The incoming list enters
+     *                  from the side it conceptually came from, so the gesture matches the move.
+     */
+    private void afterNavigate(int direction) {
         scrollOffset = 0;
-        smoothScroll = 0;
+        smoothScroll.set(0.0f);
         hoverProgress.clear();
+        navDirection = direction;
+        navSlide.set(0.0f);
         applyFilter();
     }
 
@@ -408,10 +433,8 @@ public class StageOverviewScreen extends Screen {
         boolean hovered = mouseX >= listLeft && mouseX <= listRight
                 && mouseY >= Math.max(entryTop, listTop) && mouseY <= Math.min(entryBottom, listBottom);
 
-        float progress = hoverProgress.getOrDefault(hoverKey, 0.0f);
-        progress = hovered ? Math.min(1.0f, progress + 0.08f) : Math.max(0.0f, progress - 0.06f);
-        if (progress > 0.001f) hoverProgress.put(hoverKey, progress);
-        else hoverProgress.remove(hoverKey);
+        float progress = Ease.outCubic(hoverProgress.computeIfAbsent(hoverKey, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
         // Like the stage rows, the fill starts white and only tints towards the section's
         // accent as the hover animation runs. Using the accent directly at rest painted
@@ -425,8 +448,10 @@ public class StageOverviewScreen extends Screen {
         }
 
         int contentLeft = listLeft + contentIndent();
-        if (organizeMode) {
-            drawCheckbox(g, listLeft + 4, entryTop + 8, isFolderSelected(folder.path(), individual), accentColor);
+        float reveal = Ease.outCubic(organizeReveal.value());
+        if (reveal > 0.01f) {
+            drawCheckbox(g, listLeft + 4, entryTop + 8,
+                    isFolderSelected(folder.path(), individual), accentColor, reveal);
         }
 
         drawFolderIcon(g, contentLeft + 5, entryTop + 7, accentColor);
@@ -559,8 +584,12 @@ public class StageOverviewScreen extends Screen {
         }
 
         // Smooth scroll
-        smoothScroll += ((float) scrollOffset - smoothScroll) * 0.25f;
-        if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f) smoothScroll = (float) scrollOffset;
+        smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle((float) scrollOffset, 0.5f);
+
+        // Advanced once per frame here rather than inside contentIndent(), which is called
+        // many times per frame and from the click paths as well.
+        organizeReveal.ramp(organizeMode, Timing.REVEAL_MS, Timing.REVEAL_MS);
 
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
@@ -605,14 +634,26 @@ public class StageOverviewScreen extends Screen {
 
         guiGraphics.enableScissor(listLeft, listTop, listRight, listBottom);
 
+        // Folder navigation: the new level slides in from the side it came from, clipped by
+        // the list scissor. Hit testing deliberately ignores the offset \u2014 it is over in under
+        // two tenths of a second, and freezing input for it would cost more than it buys.
+        float navT = Ease.inOutCubic(navSlide.ramp(1.0f, Timing.NAV_SLIDE_MS));
+        boolean navigating = navT < 0.999f;
+        if (navigating) {
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate((1.0f - navT) * NAV_SLIDE_PX * navDirection, 0.0f, 0.0f);
+        }
+
         boolean overlayOpen = contextMenu != null && contextMenu.isVisible();
-        int effectiveMouseX = overlayOpen ? -1 : mouseX;
-        int effectiveMouseY = overlayOpen ? -1 : mouseY;
+        // The cursor is ignored while the list is still moving, so a row cannot light up under
+        // a pointer that is not actually on it yet.
+        int effectiveMouseX = overlayOpen || navigating ? -1 : mouseX;
+        int effectiveMouseY = overlayOpen || navigating ? -1 : mouseY;
 
         Map<String, StageEntry> stages = StageManager.getStages();
         Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
         // Single source of the row offsets \u2014 mouseClicked() builds the same record.
-        ListLayout layout = layout(listTop, (int) smoothScroll);
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
         boolean searching = !searchFilter.trim().isEmpty();
         boolean showBreadcrumb = browsingIndividual != null && !searching;
         breadcrumbY = -1;
@@ -682,14 +723,8 @@ public class StageOverviewScreen extends Screen {
             if (hovered) { currentHovered = i; currentHoveredStage = i; }
 
             // Smooth hover animation (0.0 -> 1.0)
-            float progress = hoverProgress.getOrDefault(i, 0.0f);
-            if (hovered) {
-                progress = Math.min(1.0f, progress + 0.08f);
-            } else {
-                progress = Math.max(0.0f, progress - 0.06f);
-            }
-            if (progress > 0.001f) hoverProgress.put(i, progress);
-            else hoverProgress.remove(i);
+            float progress = Ease.outCubic(hoverProgress.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
             // Animated background - subtle gold tint on hover
             int bgAlpha = (int) (0x20 + progress * 0x25);
@@ -704,8 +739,10 @@ public class StageOverviewScreen extends Screen {
                 guiGraphics.fill(listLeft, entryTop, listLeft + 2, entryBottom, (accentAlpha << 24) | 0xFFCC00);
             }
 
-            if (organizeMode) {
-                drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8, isSelected(stageId, false), 0xFFCC00);
+            float cbReveal = Ease.outCubic(organizeReveal.value());
+            if (cbReveal > 0.01f) {
+                drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8,
+                        isSelected(stageId, false), 0xFFCC00, cbReveal);
             }
 
             // Lock/unlock icon
@@ -874,14 +911,8 @@ public class StageOverviewScreen extends Screen {
 
                 if (hovered) { currentHovered = hoverKey; currentHoveredStage = hoverKey; }
 
-                float progress = hoverProgress.getOrDefault(hoverKey, 0.0f);
-                if (hovered) {
-                    progress = Math.min(1.0f, progress + 0.08f);
-                } else {
-                    progress = Math.max(0.0f, progress - 0.06f);
-                }
-                if (progress > 0.001f) hoverProgress.put(hoverKey, progress);
-                else hoverProgress.remove(hoverKey);
+                float progress = Ease.outCubic(hoverProgress.computeIfAbsent(hoverKey, k -> new Anim())
+                        .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
                 // Animated background - subtle silver tint on hover
                 int bgAlpha = (int) (0x20 + progress * 0x25);
@@ -899,8 +930,10 @@ public class StageOverviewScreen extends Screen {
                 // or unlocked.
                 String stateIcon = state == 2 ? "\u2714" : (state == 1 ? "\u25C9" : "\uD83D\uDD12");
                 int stateColor = state == 2 ? 0xFFCC00 : (state == 1 ? 0xFFAA55 : 0xBBBBBB);
-                if (organizeMode) {
-                    drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8, isSelected(stageId, true), 0xBBBBBB);
+                float cbReveal = Ease.outCubic(organizeReveal.value());
+                if (cbReveal > 0.01f) {
+                    drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8,
+                            isSelected(stageId, true), 0xBBBBBB, cbReveal);
                 }
                 guiGraphics.drawString(this.font, stateIcon, contentLeft + 5, entryTop + 6, stateColor, false);
 
@@ -995,11 +1028,17 @@ public class StageOverviewScreen extends Screen {
             } else {
                 int[] rect = targetRect(pulseTarget);
                 if (rect != null) {
-                    drawTargetOutline(guiGraphics, rect, 0xFFCC00, 1.0f - (float) age / DROP_PULSE_MS);
+                    // Swells and fades rather than fading linearly, so the confirmation reads
+                    // as a beat instead of a highlight that happens to be going away.
+                    drawTargetOutline(guiGraphics, rect, 0xFFCC00,
+                            Ease.pulse((float) age / DROP_PULSE_MS));
                 }
             }
         }
 
+        if (navigating) {
+            guiGraphics.pose().popPose();
+        }
         guiGraphics.disableScissor();
 
         // Drawn after the list scissor so the picker is never clipped; its y is already
@@ -1033,9 +1072,7 @@ public class StageOverviewScreen extends Screen {
         // The shared context menu is also used for row right-clicks, so the caret only
         // tracks it while the header opened it.
         if (!contextMenu.isVisible()) headerMenuOpen = false;
-        float caretTarget = headerMenuOpen ? 1.0f : 0.0f;
-        menuCaretProgress += (caretTarget - menuCaretProgress) * MENU_CARET_SPEED;
-        if (Math.abs(caretTarget - menuCaretProgress) < 0.01f) menuCaretProgress = caretTarget;
+        menuCaret.ramp(headerMenuOpen, Timing.POPUP_MS, Timing.POPUP_MS);
         drawMenuButtonContent(guiGraphics);
 
         guiGraphics.pose().pushPose();
@@ -1099,12 +1136,15 @@ public class StageOverviewScreen extends Screen {
 
         if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom) return false;
 
+        // The rows are mid-slide, so nothing in the list is where a hit test would put it.
+        if (navSlide.value() < 0.999f || organizeSettling()) return true;
+
         Map<String, StageEntry> stages = StageManager.getStages();
         Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
         // Same record render() uses, and fed with the same scroll value: smoothScroll lerps
         // towards scrollOffset over several frames, so hit-testing against scrollOffset would
         // aim at rows up to a third of a row away from where they are actually drawn.
-        ListLayout layout = layout(listTop, (int) smoothScroll);
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
 
         // Breadcrumb segments jump straight to an ancestor.
         if (button == 0 && browsingIndividual != null && breadcrumbY >= 0
@@ -1350,7 +1390,8 @@ public class StageOverviewScreen extends Screen {
         float halfW = this.font.width(caret) / 2.0f;
         g.pose().pushPose();
         g.pose().translate(x + halfW, y + 4.0f, 100.0f);
-        g.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(menuCaretProgress * 180.0f));
+        g.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(
+                Ease.outCubic(menuCaret.value()) * 180.0f));
         g.pose().translate(-halfW, -4.0f, 0.0f);
         g.drawString(this.font, caret, 0, 0, 0xFFCC00, false);
         g.pose().popPose();
@@ -1382,9 +1423,22 @@ public class StageOverviewScreen extends Screen {
         if (doneButton != null) doneButton.visible = on;
     }
 
-    /** Horizontal room the checkbox column takes from every row's content while the mode is on. */
+    /**
+     * Horizontal room the checkbox column takes from every row's content while the mode is on.
+     * Follows {@link #organizeReveal}, so entering and leaving organize mode pushes the rows
+     * aside instead of relaying the whole list between two frames.
+     */
     private int contentIndent() {
-        return organizeMode ? CHECKBOX_COLUMN_W : 0;
+        return Math.round(CHECKBOX_COLUMN_W * Ease.outCubic(organizeReveal.value()));
+    }
+
+    /**
+     * True while the checkbox column is still sliding. Row input is held off until it settles:
+     * the rows are drawn at an offset the hit tests do not know about, and a tick landing on
+     * the wrong row is worse than a tenth of a second of delay.
+     */
+    private boolean organizeSettling() {
+        return !organizeReveal.isAt(organizeMode ? 1.0f : 0.0f);
     }
 
     private boolean isSelected(String stageId, boolean individual) {
@@ -1481,7 +1535,7 @@ public class StageOverviewScreen extends Screen {
      * move something <em>out</em> of the browsed folder — no ancestor is ever drawn as a row.
      *
      * <p>Row positions come from {@link #layout} and {@link #rowTop} fed with
-     * {@code (int) smoothScroll}, exactly as {@link #render} and {@link #mouseClicked} do.
+     * {@code smoothScroll}, exactly as {@link #render} and {@link #mouseClicked} do.
      */
     private DropTarget dropTargetAt(double mouseX, double mouseY) {
         int listTop = HEADER_HEIGHT + 5;
@@ -1501,7 +1555,7 @@ public class StageOverviewScreen extends Screen {
 
         if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom) return null;
 
-        ListLayout layout = layout(listTop, (int) smoothScroll);
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
         for (int i = 0; i < globalFolders.size(); i++) {
             int folderTop = rowTop(layout.globalRowsY(), i);
             if (mouseY >= folderTop && mouseY <= folderTop + ENTRY_HEIGHT - 2) {
@@ -1539,7 +1593,7 @@ public class StageOverviewScreen extends Screen {
             }
         }
 
-        ListLayout layout = layout(listTop, (int) smoothScroll);
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
         List<StageFolderTree.Folder> folders = target.individual() ? individualFolders : globalFolders;
         int rowsY = target.individual() ? layout.individualRowsY() : layout.globalRowsY();
         if (target.individual() && !showIndividualSection()) return null;
@@ -1623,15 +1677,20 @@ public class StageOverviewScreen extends Screen {
     }
 
     /** Draws the organize checkbox for one row. */
-    private void drawCheckbox(GuiGraphics g, int x, int y, boolean checked, int accent) {
+    /**
+     * @param reveal 0..1 opacity, so the column fades with the same animation that slides the
+     *               row content aside instead of popping in at full strength.
+     */
+    private void drawCheckbox(GuiGraphics g, int x, int y, boolean checked, int accent, float reveal) {
         int border = checked ? (0xFF000000 | accent) : 0xFF777777;
-        g.fill(x, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, 0x40000000);
-        g.fill(x, y, x + CHECKBOX_SIZE, y + 1, border);
-        g.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, border);
-        g.fill(x, y, x + 1, y + CHECKBOX_SIZE, border);
-        g.fill(x + CHECKBOX_SIZE - 1, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, border);
+        g.fill(x, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, Fade.alpha(0x40000000, reveal));
+        g.fill(x, y, x + CHECKBOX_SIZE, y + 1, Fade.alpha(border, reveal));
+        g.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, Fade.alpha(border, reveal));
+        g.fill(x, y, x + 1, y + CHECKBOX_SIZE, Fade.alpha(border, reveal));
+        g.fill(x + CHECKBOX_SIZE - 1, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, Fade.alpha(border, reveal));
         if (checked) {
-            g.fill(x + 3, y + 3, x + CHECKBOX_SIZE - 3, y + CHECKBOX_SIZE - 3, 0xFF000000 | accent);
+            g.fill(x + 3, y + 3, x + CHECKBOX_SIZE - 3, y + CHECKBOX_SIZE - 3,
+                    Fade.alpha(0xFF000000 | accent, reveal));
         }
     }
 
@@ -1746,6 +1805,9 @@ public class StageOverviewScreen extends Screen {
             ratio = Math.max(0, Math.min(1, ratio));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScroll.set((float) scrollOffset);
         }
     }
 
