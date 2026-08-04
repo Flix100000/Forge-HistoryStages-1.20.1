@@ -35,3 +35,6 @@ docs/superpowers/
 # Unit tests are kept local: the maintainer verifies in-game, and the suite is not
 # part of what ships.
 src/test/
+
+# Word documents in docs/ are local notes, never part of the repo.
+docs/*.docx
