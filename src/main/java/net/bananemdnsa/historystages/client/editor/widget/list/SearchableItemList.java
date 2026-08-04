@@ -60,7 +60,7 @@ import java.util.function.Supplier;
  * review and deselection. The Selected tab reuses the shared SearchBar with
  * a different placeholder.
  */
-public class SearchableItemList {
+public class SearchableItemList implements PickerOverlay {
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLS = 9;
     private static final int PADDING = 6;

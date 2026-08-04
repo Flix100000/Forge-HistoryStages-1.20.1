@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.network.serverbound.DepositDependencyPacket
 import net.bananemdnsa.historystages.network.serverbound.CheckDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestStageDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveGraphConfigPacket;
 import net.bananemdnsa.historystages.network.serverbound.ToggleStageLockPacket;
 import net.bananemdnsa.historystages.network.serverbound.ToggleIndividualStageLockPacket;
 import net.bananemdnsa.historystages.network.serverbound.DeleteStagePacket;
@@ -82,6 +83,7 @@ public class PacketHandler {
         registrar.playToServer(ToggleStageLockPacket.TYPE, ToggleStageLockPacket.STREAM_CODEC, ToggleStageLockPacket::handle);
         registrar.playToServer(ToggleIndividualStageLockPacket.TYPE, ToggleIndividualStageLockPacket.STREAM_CODEC, ToggleIndividualStageLockPacket::handle);
         registrar.playToServer(SaveConfigPacket.TYPE, SaveConfigPacket.STREAM_CODEC, SaveConfigPacket::handle);
+        registrar.playToServer(SaveGraphConfigPacket.TYPE, SaveGraphConfigPacket.STREAM_CODEC, SaveGraphConfigPacket::handle);
         registrar.playToServer(CheckDependencyPacket.TYPE, CheckDependencyPacket.STREAM_CODEC, CheckDependencyPacket::handle);
         registrar.playToServer(RequestStageDependencyPacket.TYPE, RequestStageDependencyPacket.STREAM_CODEC, RequestStageDependencyPacket::handle);
         registrar.playToServer(DepositDependencyPacket.TYPE, DepositDependencyPacket.STREAM_CODEC, DepositDependencyPacket::handle);

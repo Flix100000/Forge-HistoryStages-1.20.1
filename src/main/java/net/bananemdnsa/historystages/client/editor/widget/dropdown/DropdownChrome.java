@@ -53,6 +53,29 @@ public final class DropdownChrome {
     }
 
     /**
+     * The collapsed control: frame, background, current value and caret. Shared so a dropdown
+     * and a config row that opens one cannot end up looking like two different controls.
+     *
+     * @param hover    hover progress, 0..1
+     * @param expanded whether the popup is open, which turns the frame gold
+     * @param flip     caret rotation, 0 = pointing down
+     */
+    public static void drawButton(GuiGraphics g, net.minecraft.client.gui.Font font, int x, int y,
+                                  int w, int h, String label, float hover, boolean expanded,
+                                  float flip) {
+        int border = expanded ? 0xFFFFCC00 : Fade.mix(0xFF4A4A4A, 0xFF888888, hover);
+        int bg = Fade.mix(0xFF0D0D0D, 0xFF252525, hover);
+        g.fill(x, y, x + w, y + h, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, bg);
+
+        // Clipped to the space left of the caret, so a long value cannot run into it.
+        String text = font.plainSubstrByWidth(label, Math.max(0, w - 16));
+        g.drawString(font, text, x + 5, y + (h - 8) / 2 + 1, 0xFFEEEEEE, false);
+
+        drawCaret(g, x + w - 7, y + h / 2 - 1, Fade.mix(0xFF999999, 0xFFDDDDDD, hover), flip);
+    }
+
+    /**
      * Draws the collapsed-state caret, rotated by {@code flip} (0 = pointing down, 1 = fully
      * turned up). Turning it is what ties the button to the popup: the same control changed
      * state, rather than a separate panel having appeared.

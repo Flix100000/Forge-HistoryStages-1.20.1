@@ -7,8 +7,8 @@ import org.apache.commons.lang3.tuple.Pair;
  * {@code graph.toml} — everything the Stage Graph looks like and reveals. Server-owned and
  * synced, like the common config.
  *
- * <p>Its own spec rather than another block in {@link Config.Common} because it is roughly
- * seventy keys; folded into the common file they would drown the settings around them, and the
+ * <p>Its own spec rather than another block in {@link Config.Common} because it is 94 keys;
+ * folded into the common file they would drown the settings around them, and the
  * generic sync in {@code SyncGraphConfigPacket} only works on a spec that contains nothing else.
  */
 public class GraphConfig {
@@ -45,7 +45,10 @@ public class GraphConfig {
                     .defineEnum("shape", defShape);
             size = builder.comment("Scale relative to the base node size.")
                     .defineInRange("size", 1.0, 0.25, 4.0);
-            cornerRadius = builder.comment("Corner radius in pixels. Only used by ROUNDED.")
+            cornerRadius = builder.comment("Corner radius in pixels.",
+                            "Currently has NO effect: the ROUNDED shape is drawn from a texture",
+                            "generated once at a fixed relative radius, so the corners cannot",
+                            "change per node. Kept so existing files keep loading.")
                     .defineInRange("cornerRadius", 4, 0, 16);
             border = builder.comment("Border colour, #RRGGBB.")
                     .define("border", defBorder);
@@ -75,6 +78,7 @@ public class GraphConfig {
 
         // [canvas]
         public final ModConfigSpec.EnumValue<CanvasBackground> background;
+        public final ModConfigSpec.ConfigValue<String> backgroundTexture;
         public final ModConfigSpec.IntValue gridSize;
         public final ModConfigSpec.DoubleValue startZoom;
         public final ModConfigSpec.DoubleValue minZoom;
@@ -146,6 +150,12 @@ public class GraphConfig {
             builder.comment("Canvas behaviour and background.").push("canvas");
             background = builder.comment("GRID, SOLID or TEXTURE.")
                     .defineEnum("background", CanvasBackground.GRID);
+            backgroundTexture = builder
+                    .comment("Texture tiled behind the graph when background = TEXTURE.",
+                            "A full texture path, e.g. minecraft:textures/block/polished_andesite.png.",
+                            "Blank, unparseable or missing falls back to the plain colour, so a typo",
+                            "leaves a readable canvas rather than a missing-texture chequerboard.")
+                    .define("backgroundTexture", "minecraft:textures/block/polished_andesite.png");
             gridSize = builder.comment("Pixels per grid cell at zoom 1.0.")
                     .defineInRange("gridSize", 48, 16, 160);
             startZoom = builder.defineInRange("startZoom", 1.0, 0.1, 4.0);
@@ -225,18 +235,22 @@ public class GraphConfig {
 
             builder.comment("Node appearance, per lock state and per stage collection.",
                             "A stage may override any of these individually in",
-                            "settings/graph_stages.json.")
+                            "settings/graph_stages.json.",
+                            "",
+                            "The status tick is on for UNLOCKED only. A tick means 'you have this';",
+                            "putting one on a reachable stage claims something is done when it is",
+                            "merely available next. Reachable is already distinguished by its colour.")
                     .push("style");
 
             builder.push("global");
             globalUnlocked = styleBlock(builder, "unlocked", NodeShape.ROUNDED, "#44CC99", "#2E8B62", true);
-            globalReachable = styleBlock(builder, "reachable", NodeShape.ROUNDED, "#DDBB44", "#8A7220", true);
+            globalReachable = styleBlock(builder, "reachable", NodeShape.ROUNDED, "#DDBB44", "#8A7220", false);
             globalLocked = styleBlock(builder, "locked", NodeShape.ROUNDED, "#555555", "#787878", false);
             builder.pop();
 
             builder.push("individual");
             individualUnlocked = styleBlock(builder, "unlocked", NodeShape.DIAMOND, "#44CC99", "#2E8B62", true);
-            individualReachable = styleBlock(builder, "reachable", NodeShape.DIAMOND, "#DDBB44", "#8A7220", true);
+            individualReachable = styleBlock(builder, "reachable", NodeShape.DIAMOND, "#DDBB44", "#8A7220", false);
             individualLocked = styleBlock(builder, "locked", NodeShape.DIAMOND, "#555555", "#787878", false);
             builder.pop();
 
