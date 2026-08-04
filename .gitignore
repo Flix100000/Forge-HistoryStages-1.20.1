@@ -31,3 +31,7 @@ repo
 CLAUDE.md
 docs/superpowers/
 .superpowers/
+
+# Unit tests are kept local: the maintainer verifies in-game, and the suite is not
+# part of what ships.
+src/test/

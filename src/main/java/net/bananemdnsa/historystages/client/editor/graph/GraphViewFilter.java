@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.graph;
 
-import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.data.DependencyGroup;
@@ -18,7 +18,7 @@ import java.util.Set;
  * Decides which stages and node categories a graph view may show.
  *
  * <p>The admin view uses {@link #passThrough()} and sees everything. The player view uses
- * {@link #fromConfig()}, which applies the server's {@code [graph]} settings.</p>
+ * {@link #fromConfig()}, which applies the server's {@code graph.toml} settings.</p>
  *
  * <p>This is a display filter, not a security boundary: every client already holds the full
  * stage definitions in memory. It stops a player from trivially spoiling themselves — which
@@ -27,7 +27,7 @@ import java.util.Set;
 public class GraphViewFilter {
 
     private final boolean passThrough;
-    private final Config.Common.GraphVisibility visibility;
+    private final GraphConfig.GraphVisibility visibility;
     private final boolean respectHiddenDisplay;
     private final boolean showStageElements;
     private final boolean showTriggers;
@@ -42,7 +42,7 @@ public class GraphViewFilter {
     private final Set<String> visible;
 
     private GraphViewFilter(boolean passThrough,
-                            Config.Common.GraphVisibility visibility,
+                            GraphConfig.GraphVisibility visibility,
                             boolean respectHiddenDisplay,
                             boolean showStageElements,
                             boolean showTriggers,
@@ -66,7 +66,7 @@ public class GraphViewFilter {
 
     /** Admin view: everything, ignoring all config. */
     public static GraphViewFilter passThrough() {
-        return new GraphViewFilter(true, Config.Common.GraphVisibility.ALL,
+        return new GraphViewFilter(true, GraphConfig.GraphVisibility.ALL,
                 false, true, true, true,
                 new HashMap<>(), new HashMap<>(), new HashSet<>(), new HashSet<>());
     }
@@ -85,12 +85,22 @@ public class GraphViewFilter {
             if (ClientIndividualStageCache.isStageUnlocked(id)) unlockedIndividual.add(id);
         }
 
+        // showStageElements has no single equivalent in graph.toml any more — it fanned out
+        // into the six [panel] item/xp/advancement/kill/stat/scoreboard toggles. This legacy
+        // filter still gates all detail satellites together, so it shows them if any is on.
+        boolean showStageElements = GraphConfig.GRAPH.showItems.get()
+                || GraphConfig.GRAPH.showXp.get()
+                || GraphConfig.GRAPH.showAdvancements.get()
+                || GraphConfig.GRAPH.showKills.get()
+                || GraphConfig.GRAPH.showStats.get()
+                || GraphConfig.GRAPH.showScoreboard.get();
+
         return new GraphViewFilter(false,
-                Config.COMMON.graphVisibility.get(),
-                Config.COMMON.graphRespectHiddenDisplay.get(),
-                Config.COMMON.graphShowStageElements.get(),
-                Config.COMMON.graphShowTriggers.get(),
-                Config.COMMON.graphShowIndividualStages.get(),
+                GraphConfig.GRAPH.visibilityMode.get(),
+                GraphConfig.GRAPH.respectHiddenDisplay.get(),
+                showStageElements,
+                GraphConfig.GRAPH.showTriggers.get(),
+                GraphConfig.GRAPH.showIndividualStages.get(),
                 global, individual, unlockedGlobal, unlockedIndividual);
     }
 

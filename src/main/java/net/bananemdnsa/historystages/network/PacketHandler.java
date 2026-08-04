@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.network.serverbound.ToggleStructureVizPacke
 import net.bananemdnsa.historystages.network.serverbound.RequestStructureDebugPacket;
 import net.bananemdnsa.historystages.network.serverbound.DepositDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.CheckDependencyPacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestStageDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
 import net.bananemdnsa.historystages.network.serverbound.ToggleStageLockPacket;
 import net.bananemdnsa.historystages.network.serverbound.ToggleIndividualStageLockPacket;
@@ -17,6 +18,9 @@ import net.bananemdnsa.historystages.network.serverbound.MoveFoldersPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestIndividualStatesPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestEditorDataPacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveGraphPositionsPacket;
+import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphInfoPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncLockBordersPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
@@ -26,6 +30,7 @@ import net.bananemdnsa.historystages.network.clientbound.SyncTemporaryCountsPack
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStatesPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncGraphConfigPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorSyncPacket;
 import net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket;
@@ -58,6 +63,7 @@ public class PacketHandler {
         registrar.playToClient(EditorSyncPacket.TYPE, EditorSyncPacket.STREAM_CODEC, EditorSyncPacket::handle);
         registrar.playToClient(SyncStageDefinitionsPacket.TYPE, SyncStageDefinitionsPacket.STREAM_CODEC, SyncStageDefinitionsPacket::handle);
         registrar.playToClient(SyncConfigPacket.TYPE, SyncConfigPacket.STREAM_CODEC, SyncConfigPacket::handle);
+        registrar.playToClient(SyncGraphConfigPacket.TYPE, SyncGraphConfigPacket.STREAM_CODEC, SyncGraphConfigPacket::handle);
         registrar.playToClient(SyncIndividualStagesPacket.TYPE, SyncIndividualStagesPacket.STREAM_CODEC, SyncIndividualStagesPacket::handle);
         registrar.playToClient(SyncTemporaryCountsPacket.TYPE, SyncTemporaryCountsPacket.STREAM_CODEC, SyncTemporaryCountsPacket::handle);
         registrar.playToClient(SyncIndividualStatesPacket.TYPE, SyncIndividualStatesPacket.STREAM_CODEC, SyncIndividualStatesPacket::handle);
@@ -77,10 +83,14 @@ public class PacketHandler {
         registrar.playToServer(ToggleIndividualStageLockPacket.TYPE, ToggleIndividualStageLockPacket.STREAM_CODEC, ToggleIndividualStageLockPacket::handle);
         registrar.playToServer(SaveConfigPacket.TYPE, SaveConfigPacket.STREAM_CODEC, SaveConfigPacket::handle);
         registrar.playToServer(CheckDependencyPacket.TYPE, CheckDependencyPacket.STREAM_CODEC, CheckDependencyPacket::handle);
+        registrar.playToServer(RequestStageDependencyPacket.TYPE, RequestStageDependencyPacket.STREAM_CODEC, RequestStageDependencyPacket::handle);
         registrar.playToServer(DepositDependencyPacket.TYPE, DepositDependencyPacket.STREAM_CODEC, DepositDependencyPacket::handle);
         registrar.playToServer(RequestStructureDebugPacket.TYPE, RequestStructureDebugPacket.STREAM_CODEC, RequestStructureDebugPacket::handle);
         registrar.playToServer(ToggleStructureVizPacket.TYPE, ToggleStructureVizPacket.STREAM_CODEC, ToggleStructureVizPacket::handle);
         registrar.playToServer(RequestClusterShapesPacket.TYPE, RequestClusterShapesPacket.STREAM_CODEC, RequestClusterShapesPacket::handle);
+        registrar.playToServer(SaveGraphPositionsPacket.TYPE, SaveGraphPositionsPacket.STREAM_CODEC, SaveGraphPositionsPacket::handle);
+        registrar.playToServer(RearrangeGraphPacket.TYPE, RearrangeGraphPacket.STREAM_CODEC, RearrangeGraphPacket::handle);
+        registrar.playToServer(SaveStageGraphInfoPacket.TYPE, SaveStageGraphInfoPacket.STREAM_CODEC, SaveStageGraphInfoPacket::handle);
 
         // Dependency sync (Server → Client)
         registrar.playToClient(SyncDependencyStatusPacket.TYPE, SyncDependencyStatusPacket.STREAM_CODEC, SyncDependencyStatusPacket::handle);
@@ -127,6 +137,14 @@ public class PacketHandler {
     }
 
     public static void sendConfigToAll(SyncConfigPacket packet) {
+        PacketDistributor.sendToAllPlayers(packet);
+    }
+
+    public static void sendGraphConfigToPlayer(SyncGraphConfigPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    public static void sendGraphConfigToAll(SyncGraphConfigPacket packet) {
         PacketDistributor.sendToAllPlayers(packet);
     }
 

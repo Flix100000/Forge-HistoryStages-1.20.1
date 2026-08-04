@@ -4,8 +4,11 @@ import net.bananemdnsa.historystages.network.EditorDataCache;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.client.editor.graph.StageGraphConfig;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.graph.GraphLayoutData;
+import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -24,13 +27,24 @@ import java.util.Set;
  * <p>Also carries the folder layout of both trees (stage id → folder path, and every
  * folder including empty ones), because the client never sees the config files on a
  * dedicated server — the folder tree only reaches it through this sync.
+ *
+ * <p>And both stage graph settings files, for the same reason: the positions from
+ * {@code graph_layout.json} and the per-stage descriptions and style overrides from
+ * {@code graph_stages.json}. They ride along here rather than in their own packet because this is
+ * already both the login sync and the post-admin-save broadcast, so they reach clients on both
+ * paths with no new plumbing. Each payload is the JSON that its own data class reads and writes —
+ * one serialiser for the file and the wire, rather than two that can disagree.
  */
 public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
                                          Map<String, StageEntry> individualStages,
                                          Map<String, String> stagePaths,
                                          Map<String, String> individualStagePaths,
                                          Set<String> folders,
-                                         Set<String> individualFolders) implements CustomPacketPayload {
+                                         Set<String> individualFolders,
+                                         String graphLayout,
+                                         String graphStages,
+                                         boolean graphGlobalFrozen,
+                                         boolean graphIndividualFrozen) implements CustomPacketPayload {
     private static final Gson GSON = new Gson();
     private static final java.lang.reflect.Type MAP_TYPE = new TypeToken<Map<String, StageEntry>>() {}.getType();
     private static final java.lang.reflect.Type PATH_MAP_TYPE = new TypeToken<Map<String, String>>() {}.getType();
@@ -41,7 +55,11 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
                 new HashMap<>(StageManager.getStagePaths()),
                 new HashMap<>(StageManager.getIndividualStagePaths()),
                 new HashSet<>(StageManager.getFolders()),
-                new HashSet<>(StageManager.getIndividualFolders()));
+                new HashSet<>(StageManager.getIndividualFolders()),
+                GraphLayoutData.toJson(GraphLayoutData.get()),
+                GraphStageData.toJson(GraphStageData.get()),
+                GraphLayoutData.get().globalFrozen(),
+                GraphLayoutData.get().individualFrozen());
     }
 
     public SyncStageDefinitionsPacket(Map<String, StageEntry> stages, Map<String, StageEntry> individualStages) {
@@ -49,7 +67,11 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
                 new HashMap<>(StageManager.getStagePaths()),
                 new HashMap<>(StageManager.getIndividualStagePaths()),
                 new HashSet<>(StageManager.getFolders()),
-                new HashSet<>(StageManager.getIndividualFolders()));
+                new HashSet<>(StageManager.getIndividualFolders()),
+                GraphLayoutData.toJson(GraphLayoutData.get()),
+                GraphStageData.toJson(GraphStageData.get()),
+                GraphLayoutData.get().globalFrozen(),
+                GraphLayoutData.get().individualFrozen());
     }
 
     public static final CustomPacketPayload.Type<SyncStageDefinitionsPacket> TYPE =
@@ -65,6 +87,12 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
         buffer.writeUtf(GSON.toJson(msg.individualStagePaths), 65536);
         buffer.writeUtf(GSON.toJson(msg.folders), 65536);
         buffer.writeUtf(GSON.toJson(msg.individualFolders), 65536);
+        buffer.writeUtf(msg.graphLayout != null ? msg.graphLayout : "{}", 262144);
+        buffer.writeUtf(msg.graphStages != null ? msg.graphStages : "{}", 262144);
+        // Frozen-ness cannot be read back out of the position JSON: an unfrozen tree carries
+        // computed positions too, so a non-empty section proves nothing off disk.
+        buffer.writeBoolean(msg.graphGlobalFrozen);
+        buffer.writeBoolean(msg.graphIndividualFrozen);
     }
 
     private static SyncStageDefinitionsPacket decode(FriendlyByteBuf buffer) {
@@ -80,8 +108,13 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
         if (folders == null) folders = new HashSet<>();
         Set<String> individualFolders = GSON.fromJson(buffer.readUtf(65536), FOLDER_SET_TYPE);
         if (individualFolders == null) individualFolders = new HashSet<>();
+        String graphLayout = buffer.readUtf(262144);
+        String graphStages = buffer.readUtf(262144);
+        boolean graphGlobalFrozen = buffer.readBoolean();
+        boolean graphIndividualFrozen = buffer.readBoolean();
         return new SyncStageDefinitionsPacket(stages, individualStages, stagePaths,
-                individualStagePaths, folders, individualFolders);
+                individualStagePaths, folders, individualFolders, graphLayout, graphStages,
+                graphGlobalFrozen, graphIndividualFrozen);
     }
 
     public static void handle(SyncStageDefinitionsPacket msg, IPayloadContext ctx) {
@@ -90,8 +123,16 @@ public record SyncStageDefinitionsPacket(Map<String, StageEntry> stages,
             StageManager.setIndividualStages(msg.individualStages);
             StageManager.setStagePaths(msg.stagePaths, msg.individualStagePaths);
             StageManager.setFolders(msg.folders, msg.individualFolders);
+            GraphLayoutData.Snapshot layout = GraphLayoutData.fromJson(msg.graphLayout);
+            GraphLayoutData.setFromSync(layout.global(), layout.individual(),
+                    msg.graphGlobalFrozen, msg.graphIndividualFrozen);
+            GraphStageData.set(GraphStageData.fromJson(msg.graphStages));
             StageManager.rebuildDualPhase();
             EditorDataCache.setStages(new HashMap<>(msg.stages));
+
+            // Stage definitions (and thus which node exists / which state it resolves to)
+            // just changed — every previously resolved node style is stale.
+            StageGraphConfig.invalidateCache();
             System.out.println("[HistoryStages] Received " + msg.stages.size() + " stage definitions + "
                     + msg.individualStages.size() + " individual stage definitions from server.");
 

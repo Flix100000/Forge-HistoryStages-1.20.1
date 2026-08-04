@@ -204,6 +204,14 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // The moddev plugin does not wire the Minecraft/NeoForge runtime classpath (which bundles
+    // Gson) into the test source set, so unit tests that touch Gson directly need their own copy.
+    testImplementation 'com.google.code.gson:gson:2.10.1'
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -256,5 +264,12 @@ idea {
     module {
         downloadSources = true
         downloadJavadoc = true
+    }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
     }
 }

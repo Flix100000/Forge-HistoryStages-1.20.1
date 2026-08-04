@@ -72,7 +72,8 @@ public record CheckDependencyPacket(String stageId, boolean isIndividual, BlockP
 
             DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag,
                     costReduction);
-            PacketDistributor.sendToPlayer(player, new SyncDependencyStatusPacket(packet.stageId, result));
+            PacketDistributor.sendToPlayer(player,
+                    new SyncDependencyStatusPacket(packet.stageId, packet.isIndividual, result));
         });
     }
 

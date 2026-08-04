@@ -378,7 +378,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         var result = DependencyChecker.checkAll(entry, player, level, updatedDeposited,
                                 scrollCost);
                         PacketDistributor_sendToPlayer(player,
-                                new SyncDependencyStatusPacket(stageId, result));
+                                new SyncDependencyStatusPacket(stageId, isCurrentScrollIndividual(), result));
                     }
                 }
             }

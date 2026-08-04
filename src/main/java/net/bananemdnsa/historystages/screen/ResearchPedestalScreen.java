@@ -284,7 +284,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 // Cache invalidation: if deposited NBT changed, clear and force re-request
                 CompoundTag currentDeposited = tag.getCompound("DepositedDependencies");
                 if (lastDepositedNBT == null || !lastDepositedNBT.equals(currentDeposited)) {
-                    ClientDependencyCache.remove(stageId);
+                    ClientDependencyCache.remove(stageId, StageManager.isIndividualStage(stageId));
                     lastDepositedNBT = currentDeposited.copy();
                     lastDependencyCheck = 0; // force immediate re-request
                 }
@@ -334,7 +334,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 CompoundTag scrollTag = scroll.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
                 if (scrollTag.contains("StageResearch")) {
                     String stageId = scrollTag.getString("StageResearch");
-                    DependencyResult result = ClientDependencyCache.get(stageId);
+                    DependencyResult result = ClientDependencyCache.get(stageId, StageManager.isIndividualStage(stageId));
 
                     if (result != null) {
                         int groupIdx = 0;
@@ -367,14 +367,14 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         CompoundTag tag = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
         if (!tag.contains("StageResearch")) return;
         String stageId = tag.getString("StageResearch");
+        boolean individual = StageManager.isIndividualStage(stageId);
 
-        DependencyResult result = ClientDependencyCache.get(stageId);
+        DependencyResult result = ClientDependencyCache.get(stageId, individual);
 
         // Poll server once per second to keep dep status fresh
         long now = System.currentTimeMillis();
         if (now - lastDependencyCheck > 1000) {
-            PacketHandler.sendToServer(new CheckDependencyPacket(
-                    stageId, StageManager.isIndividualStage(stageId), menu.getBlockPos()));
+            PacketHandler.sendToServer(new CheckDependencyPacket(stageId, individual, menu.getBlockPos()));
             lastDependencyCheck = now;
         }
 

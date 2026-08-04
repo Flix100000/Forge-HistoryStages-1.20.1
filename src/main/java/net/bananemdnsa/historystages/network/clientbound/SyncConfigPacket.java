@@ -88,12 +88,6 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
         values.put("msgBlockLocked", Config.COMMON.msgBlockLocked.get());
         values.put("msgEntityItemLocked", Config.COMMON.msgEntityItemLocked.get());
         values.put("msgEnchantmentLocked", Config.COMMON.msgEnchantmentLocked.get());
-        values.put("graphEnabled", Config.COMMON.graphEnabled.get().toString());
-        values.put("graphVisibility", Config.COMMON.graphVisibility.get().name());
-        values.put("graphRespectHiddenDisplay", Config.COMMON.graphRespectHiddenDisplay.get().toString());
-        values.put("graphShowStageElements", Config.COMMON.graphShowStageElements.get().toString());
-        values.put("graphShowTriggers", Config.COMMON.graphShowTriggers.get().toString());
-        values.put("graphShowIndividualStages", Config.COMMON.graphShowIndividualStages.get().toString());
         return new SyncConfigPacket(values);
     }
 

@@ -1,8 +1,9 @@
 package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.client.editor.DependencyGraphScreen;
+import net.bananemdnsa.historystages.client.editor.StageGraphScreen;
 import net.bananemdnsa.historystages.client.editor.StageOverviewScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
@@ -32,10 +33,10 @@ public class EditorButtonHandler {
             ).bounds(screenWidth - 110, 5, 100, 20).build());
         }
 
-        if (Config.COMMON.graphEnabled.get()) {
+        if (GraphConfig.GRAPH.enabled.get()) {
             event.addListener(Button.builder(
                     Component.translatable("graph.historystages.button"),
-                    btn -> mc.setScreen(DependencyGraphScreen.forPlayer(mc.screen))
+                    btn -> mc.setScreen(StageGraphScreen.forPlayer(mc.screen))
             ).bounds(screenWidth - 110, 29, 100, 20).build());
         }
     }

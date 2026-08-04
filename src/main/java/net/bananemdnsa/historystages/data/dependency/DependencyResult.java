@@ -22,6 +22,25 @@ public class DependencyResult {
         return new DependencyResult(true, new ArrayList<>());
     }
 
+    /**
+     * Copy of this result with every {@link EntryResult#canDeposit()} forced to false.
+     * Used for pedestal-free requests (e.g. from the stage graph): there is no pedestal to
+     * deposit into, so offering a deposit affordance would be worse than offering none.
+     * Fulfilment is untouched — {@code canDeposit} does not feed into it.
+     */
+    public DependencyResult withoutCanDeposit() {
+        List<GroupResult> strippedGroups = new ArrayList<>(groups.size());
+        for (GroupResult group : groups) {
+            List<EntryResult> strippedEntries = new ArrayList<>(group.getEntries().size());
+            for (EntryResult e : group.getEntries()) {
+                strippedEntries.add(new EntryResult(e.getType(), e.getId(), e.getDescription(),
+                        e.isFulfilled(), e.getCurrent(), e.getRequired(), e.getOriginalRequired(), false));
+            }
+            strippedGroups.add(new GroupResult(group.getLogic(), group.isFulfilled(), strippedEntries));
+        }
+        return new DependencyResult(fulfilled, strippedGroups);
+    }
+
     public static class GroupResult {
         private final String logic;
         private final boolean fulfilled;

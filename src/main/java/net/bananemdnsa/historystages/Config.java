@@ -282,20 +282,6 @@ public class Config {
         public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
         public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
 
-        // Stage Graph (player view only)
-        public final ModConfigSpec.BooleanValue graphEnabled;
-        public final ModConfigSpec.EnumValue<GraphVisibility> graphVisibility;
-        public final ModConfigSpec.BooleanValue graphRespectHiddenDisplay;
-        public final ModConfigSpec.BooleanValue graphShowStageElements;
-        public final ModConfigSpec.BooleanValue graphShowTriggers;
-        public final ModConfigSpec.BooleanValue graphShowIndividualStages;
-
-        public enum GraphVisibility {
-            ALL,            // every stage
-            PROGRESSIVE,    // unlocked + currently researchable + their direct neighbours
-            UNLOCKED_ONLY   // only unlocked stages
-        }
-
         public Common(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
@@ -615,46 +601,6 @@ public class Config {
                     .define("blockProjectiles", true);
 
             builder.pop(); // biome_lock
-
-            // --- STAGE GRAPH SECTION ---
-            builder.comment(
-                    "Stage Graph — the dependency graph players can open from the pause screen.",
-                    "These settings affect ONLY the player view. The admin view (opened via the",
-                    "in-game editor) always shows everything and ignores every value here."
-            ).push("graph");
-
-            graphEnabled = builder
-                    .comment("Show the 'Stage Graph' button in the pause screen for players?",
-                            "Off by default: the graph reveals how the pack is structured, so a pack",
-                            "author should switch it on deliberately rather than find it already there.",
-                            "Turning it off only removes the player button — admins can always reach the",
-                            "graph through the in-game editor. [Default: false]")
-                    .define("enabled", false);
-
-            graphVisibility = builder
-                    .comment("How much of the tree the player view reveals:",
-                            "ALL           = every stage, including standalone ones.",
-                            "PROGRESSIVE   = unlocked stages, everything currently researchable, and their direct neighbours.",
-                            "UNLOCKED_ONLY = only stages the player has already unlocked.")
-                    .defineEnum("visibility", GraphVisibility.PROGRESSIVE);
-
-            graphRespectHiddenDisplay = builder
-                    .comment("Draw stages that carry a 'hidden_display' config as anonymous '???' nodes instead of showing their name? [Default: true]")
-                    .define("respectHiddenDisplay", true);
-
-            graphShowStageElements = builder
-                    .comment("Show the detail nodes around a stage (required items, XP, kills, advancements, stats, scoreboard)? Turning this off shows only the stage skeleton — who depends on whom — without revealing contents. [Default: true]")
-                    .define("showStageElements", true);
-
-            graphShowTriggers = builder
-                    .comment("Show auto-unlock trigger nodes for AUTO/TEMPORARY stages? These reveal the condition that unlocks a stage. [Default: true]")
-                    .define("showTriggers", true);
-
-            graphShowIndividualStages = builder
-                    .comment("Show individual (per-player) stages in the graph? [Default: true]")
-                    .define("showIndividualStages", true);
-
-            builder.pop(); // graph
 
             // --- LOCK MESSAGES SECTION ---
             builder.comment(

@@ -41,7 +41,13 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public class DebugLogger {
 
-    private static final Path LOGS_PATH = FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("logs");
+    // Resolved lazily (not a static final field) so that classes calling error()/warn()/info() —
+    // which only touch the in-memory CATEGORIES map — can be loaded without FMLPaths on the
+    // classpath. That keeps pure/testable code (e.g. GraphLayoutData.fromJson) safe to unit-test
+    // without a running game.
+    private static Path logsPath() {
+        return FMLPaths.CONFIGDIR.get().resolve("historystages").resolve("logs");
+    }
     private static final int MAX_LOG_FILES = 10;
     private static final int MAX_RUNTIME_FILES = 7;
     private static final DateTimeFormatter FILE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
@@ -96,7 +102,7 @@ public class DebugLogger {
         if (CATEGORIES.isEmpty()) return;
 
         try {
-            File logsDir = LOGS_PATH.toFile();
+            File logsDir = logsPath().toFile();
             if (!logsDir.exists()) logsDir.mkdirs();
 
             cleanupOldLogs(logsDir, "debug-", MAX_LOG_FILES);
@@ -440,7 +446,7 @@ public class DebugLogger {
         runtimeFileName = "runtime-" + LocalDateTime.now().format(FILE_FORMAT) + ".log";
         headerWritten = false;
 
-        File logsDir = LOGS_PATH.toFile();
+        File logsDir = logsPath().toFile();
         if (logsDir.exists()) {
             cleanupOldLogs(logsDir, "runtime-", MAX_RUNTIME_FILES);
         }
@@ -451,7 +457,7 @@ public class DebugLogger {
         if (runtimeFileName == null) initRuntimeSession();
 
         try {
-            File logsDir = LOGS_PATH.toFile();
+            File logsDir = logsPath().toFile();
             if (!logsDir.exists()) logsDir.mkdirs();
 
             File runtimeFile = new File(logsDir, runtimeFileName);
