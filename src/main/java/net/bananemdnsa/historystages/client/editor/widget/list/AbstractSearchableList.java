@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * The select callback is exposed as {@code Consumer<String>} for API parity with the
  * pre-refactor widgets; subclasses use {@link #emitSelection(String)} to fire it.
  */
-public abstract class AbstractSearchableList<T> {
+public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     protected static final int ROW_HEIGHT = 16;
     protected static final int VISIBLE_ROWS = 10;
@@ -59,6 +59,8 @@ public abstract class AbstractSearchableList<T> {
     protected int scrollRow = 0;
     protected int maxScrollRow = 0;
     private boolean draggingScrollbar = false;
+    /** Distance from the thumb's top to the cursor when the drag started. */
+    private int scrollGrabOffset = 0;
 
     /**
      * Sub-row scroll position chasing {@link #scrollRow}. The logical scroll stays an integer
@@ -899,13 +901,11 @@ public abstract class AbstractSearchableList<T> {
             int scrollBarX = listX + listW + 2;
             int scrollBarTop = listY;
             int scrollBarBottom = listY + listH;
-            int scrollBarHeight = scrollBarBottom - scrollBarTop;
             g.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-            int thumbHeight = Math.max(10,
-                    (int) ((float) visibleRows() / (maxScrollRow + visibleRows()) * scrollBarHeight));
-            // Follows the drawn scroll, so the thumb and the rows move as one object.
-            int thumbY = scrollBarTop
-                    + Math.round(drawnScroll() / maxScrollRow * (scrollBarHeight - thumbHeight));
+            // Same helpers the press and drag paths use — the thumb has to be grabbable exactly
+            // where it is drawn. It follows the drawn scroll, so thumb and rows move as one.
+            int thumbHeight = thumbHeight();
+            int thumbY = thumbTop(scrollBarTop, thumbHeight);
 
             boolean overThumb = mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
                     && mouseY >= scrollBarTop && mouseY < scrollBarBottom;
@@ -995,6 +995,12 @@ public abstract class AbstractSearchableList<T> {
             int scrollBarX = listX + listW + 2;
             if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
                     && mouseY >= listY && mouseY < listY + visibleRows() * ROW_HEIGHT) {
+                int thumbH = thumbHeight();
+                int thumbTop = thumbTop(listY, thumbH);
+                boolean onThumb = mouseY >= thumbTop && mouseY < thumbTop + thumbH;
+                // Grabbing the thumb keeps it under the cursor; clicking the empty track brings
+                // it to the cursor, which is what a click on the track is asking for.
+                scrollGrabOffset = onThumb ? (int) (mouseY - thumbTop) : thumbH / 2;
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, listY);
                 return true;
@@ -1053,23 +1059,51 @@ public abstract class AbstractSearchableList<T> {
         return false;
     }
 
+    /** Height of the scrollbar thumb. Shared by the render, press and drag paths. */
+    private int thumbHeight() {
+        int listH = visibleRows() * ROW_HEIGHT;
+        return Math.max(10, (int) ((float) visibleRows() / (maxScrollRow + visibleRows()) * listH));
+    }
+
+    /** Top of the thumb where it was last drawn, so grabbing it lands on what the user sees. */
+    private int thumbTop(int listY, int thumbHeight) {
+        if (maxScrollRow <= 0) return listY;
+        int listH = visibleRows() * ROW_HEIGHT;
+        return listY + Math.round(drawnScroll() / maxScrollRow * (listH - thumbHeight));
+    }
+
     private void updateScrollFromMouse(double mouseY, int listY) {
         int listH = visibleRows() * ROW_HEIGHT;
-        int totalRows = maxScrollRow + visibleRows();
-        int thumbHeight = Math.max(10, (int) ((float) visibleRows() / totalRows * listH));
-        float usableH = listH - thumbHeight;
+        float usableH = listH - thumbHeight();
         if (usableH > 0) {
-            float ratio = (float) (mouseY - listY - thumbHeight / 2.0) / usableH;
+            // Offset by where the thumb was grabbed, not by half its height: centring it on the
+            // cursor makes the list jump away the moment the user touches the thumb, and on a
+            // list of a few thousand rows that jump is hundreds of entries.
+            float ratio = (float) (mouseY - listY - scrollGrabOffset) / usableH;
             ratio = Math.max(0, Math.min(1, ratio));
             scrollRow = Math.round(ratio * maxScrollRow);
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow));
         }
     }
 
+    /**
+     * Rows moved per wheel notch. One row for anything of ordinary length, growing for long
+     * lists — a thousand entries at one row per notch takes the better part of a hundred turns,
+     * which reads as the wheel not working rather than as a long list.
+     *
+     * <p>Capped at half a page: a full page per notch leaves no overlap between what was on
+     * screen and what replaces it, so the reader loses their place.
+     */
+    private int wheelStep() {
+        int totalRows = maxScrollRow + visibleRows();
+        return Math.max(1, Math.min(Math.max(1, visibleRows() / 2), totalRows / 100));
+    }
+
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (!visible) return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
-            scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) scrollY));
+            scrollRow = Math.max(0, Math.min(maxScrollRow,
+                    scrollRow - (int) scrollY * wheelStep()));
             return true;
         }
         return false;
