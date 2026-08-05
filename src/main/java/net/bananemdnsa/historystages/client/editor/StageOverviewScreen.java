@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.dialog.CreditsScreen;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
@@ -1407,6 +1408,8 @@ public class StageOverviewScreen extends Screen {
                 () -> this.minecraft.setScreen(new StageGraphScreen(this)));
         contextMenu.addEntry(Component.translatable("editor.historystages.menu.organize").getString(),
                 () -> setOrganizeMode(true));
+        contextMenu.addEntry(Component.translatable("editor.historystages.menu.credits").getString(),
+                () -> this.minecraft.setScreen(new CreditsScreen(this)));
         contextMenu.showRightAligned(menuButtonX() + MENU_BUTTON_W,
                 MENU_BUTTON_Y + MENU_BUTTON_H + 3, this.font);
     }

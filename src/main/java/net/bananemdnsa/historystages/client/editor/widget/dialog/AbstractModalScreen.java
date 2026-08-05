@@ -123,6 +123,15 @@ public abstract class AbstractModalScreen extends Screen {
         return Component.translatable("editor.historystages.cancel");
     }
 
+    /**
+     * Whether the cancel button is drawn. A dialog that only shows something has nothing to
+     * cancel, and a second button doing exactly what the first one does is noise. The confirm
+     * button centres itself when this is off; ESC still routes through {@link #onCancel()}.
+     */
+    protected boolean showCancelButton() {
+        return true;
+    }
+
     /** True when the confirm button is clickable. Override to gate on validation. */
     protected boolean canConfirm() {
         return true;
@@ -165,14 +174,16 @@ public abstract class AbstractModalScreen extends Screen {
         buildContentWidgets();
 
         int btnY = boxY + boxH - PAD - BUTTON_H;
-        int totalW = BUTTON_W * 2 + BUTTON_GAP;
-        int confirmX = boxX + boxW / 2 - totalW / 2;
-        int cancelX = confirmX + BUTTON_W + BUTTON_GAP;
+        boolean withCancel = showCancelButton();
+        int rowW = withCancel ? BUTTON_W * 2 + BUTTON_GAP : BUTTON_W;
+        int confirmX = boxX + boxW / 2 - rowW / 2;
 
         this.addRenderableWidget(StyledButton.of(confirmLabel(),
                 btn -> { if (canConfirm()) onConfirm(); }, confirmX, btnY, BUTTON_W, BUTTON_H));
-        this.addRenderableWidget(StyledButton.of(cancelLabel(),
-                btn -> onCancel(), cancelX, btnY, BUTTON_W, BUTTON_H));
+        if (withCancel) {
+            this.addRenderableWidget(StyledButton.of(cancelLabel(),
+                    btn -> onCancel(), confirmX + BUTTON_W + BUTTON_GAP, btnY, BUTTON_W, BUTTON_H));
+        }
     }
 
     /**
