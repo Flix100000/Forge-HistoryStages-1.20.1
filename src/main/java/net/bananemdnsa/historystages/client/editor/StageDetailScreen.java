@@ -309,6 +309,16 @@ public class StageDetailScreen extends Screen {
 
     public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual,
                              String targetFolder) {
+        this(parent, stageId, entry, isIndividual, targetFolder, "");
+    }
+
+    /**
+     * @param initialDisplayName display name the creation dialog already collected, {@code ""}
+     *                           when none was given. Only consulted for a stage that has no
+     *                           entry yet — an existing entry brings its own name.
+     */
+    public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual,
+                             String targetFolder, String initialDisplayName) {
         super(Component.translatable("editor.historystages.detail_title"));
         this.parent = parent;
         this.originalStageId = stageId;
@@ -320,7 +330,9 @@ public class StageDetailScreen extends Screen {
 
         StageEntry e = entry != null ? entry : new StageEntry();
         this.editStageId = stageId != null ? stageId : "";
-        this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null) ? "" : e.getDisplayName();
+        this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null)
+                ? (initialDisplayName == null ? "" : initialDisplayName)
+                : e.getDisplayName();
         this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get() : e.getResearchTime();
         this.editMinPedestalTier = e.getMinPedestalTier();
         this.editPedestalTierMode = e.getPedestalTierMode();

@@ -1994,6 +1994,8 @@ public class StageOverviewScreen extends Screen {
         private final boolean foldersOnly;
         /** Typed value carried across the widget rebuild that a kind switch triggers. */
         private String pendingName = "";
+        /** Same for the display name, which the folder kind has no field for. */
+        private String pendingDisplayName = "";
 
         // Dropdown state
         private boolean treeDropdownOpen = false;
@@ -2028,6 +2030,12 @@ public class StageOverviewScreen extends Screen {
             this.targetFolder = targetFolder;
             this.foldersOnly = foldersOnly;
             this.creatingFolder = foldersOnly;
+            // A duplicate starts out as a copy of the source, so its name is the sensible
+            // default here — the user only has to touch it when the copy should differ.
+            StageEntry source = duplicateFromId == null ? null
+                    : (individual ? StageManager.getIndividualStages() : StageManager.getStages())
+                        .get(duplicateFromId);
+            if (source != null) this.pendingDisplayName = source.getDisplayName();
         }
 
         /** The tree selector is pointless inside a tree — position already decided it. */
@@ -2063,14 +2071,22 @@ public class StageOverviewScreen extends Screen {
 
         @Override
         protected List<InputField> fields() {
-            return List.of(InputField.text("id")
+            InputField name = InputField.text("id")
                     .label(Component.translatable(creatingFolder
                             ? "editor.historystages.folder.name"
                             : "editor.historystages.field.stage_id"))
                     .maxLength(64)
                     .regex("[a-zA-Z0-9_\\-]*")
                     .initial(pendingName)
-                    .validator(this::checkId));
+                    .validator(this::checkId);
+            if (creatingFolder) return List.of(name);
+
+            // Optional here on purpose: the detail screen still refuses to save an empty
+            // display name, so leaving it blank costs nothing but a later stop there.
+            return List.of(name, InputField.text("display_name")
+                    .label(Component.translatable("editor.historystages.field.display_name"))
+                    .maxLength(128)
+                    .initial(pendingDisplayName));
         }
 
         /**
@@ -2257,6 +2273,9 @@ public class StageOverviewScreen extends Screen {
          */
         private void setCreatingFolder(boolean folder) {
             if (fieldCount() > 0) pendingName = box(0).getValue();
+            // The folder kind drops the display-name field; remember it so switching back
+            // does not throw the value away.
+            if (fieldCount() > 1) pendingDisplayName = box(1).getValue();
             creatingFolder = folder;
             this.rebuildWidgets();
         }
@@ -2281,6 +2300,8 @@ public class StageOverviewScreen extends Screen {
                 return;
             }
 
+            String displayName = values.getString("display_name");
+
             // A new stage is only written when the user saves in the detail screen, so the
             // target folder has to travel with it.
             if (duplicateFromId != null) {
@@ -2289,13 +2310,17 @@ public class StageOverviewScreen extends Screen {
                         : StageManager.getStages().get(duplicateFromId);
                 if (source != null) {
                     StageEntry copy = source.copy();
+                    // The duplicate is written straight away, so an emptied field would
+                    // persist as "Unknown Stage" — keep the source's name instead.
+                    if (!displayName.isEmpty()) copy.setDisplayName(displayName);
                     PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual, true, targetFolder));
                     this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual, targetFolder));
                 } else {
                     this.minecraft.setScreen(parent);
                 }
             } else {
-                this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual, targetFolder));
+                this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual, targetFolder,
+                        displayName));
             }
         }
     }
