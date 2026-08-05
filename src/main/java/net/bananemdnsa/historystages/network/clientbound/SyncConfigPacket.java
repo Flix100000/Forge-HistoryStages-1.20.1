@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.network.clientbound;
+import net.bananemdnsa.historystages.network.CommonConfigSync;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
 
-import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -11,7 +11,6 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Server → Client packet that syncs the server's common config values to the client.
@@ -50,45 +49,12 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
 
     /**
      * Creates a packet with all current server-side common config values.
+     * <p>
+     * The key list lives in {@link CommonConfigSync}, shared with the apply path, so a setting
+     * can no longer be saveable but unsyncable.
      */
     public static SyncConfigPacket fromServerConfig() {
-        Map<String, String> values = new HashMap<>();
-        values.put("showWelcomeMessage", Config.COMMON.showWelcomeMessage.get().toString());
-        values.put("showDebugErrors", Config.COMMON.showDebugErrors.get().toString());
-        values.put("enableRuntimeLogging", Config.COMMON.enableRuntimeLogging.get().toString());
-        values.put("lockMobLoot", Config.COMMON.lockMobLoot.get().toString());
-        values.put("lockBlockBreaking", Config.COMMON.lockBlockBreaking.get().toString());
-        values.put("lockedBlockBreakSpeedMultiplier", Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString());
-        values.put("lockItemUsage", Config.COMMON.lockItemUsage.get().toString());
-        values.put("lockEntityItems", Config.COMMON.lockEntityItems.get().toString());
-        values.put("broadcastChat", Config.COMMON.broadcastChat.get().toString());
-        values.put("unlockMessageFormat", Config.COMMON.unlockMessageFormat.get());
-        values.put("useActionbar", Config.COMMON.useActionbar.get().toString());
-        values.put("useSounds", Config.COMMON.useSounds.get().toString());
-        values.put("useToasts", Config.COMMON.useToasts.get().toString());
-        values.put("defaultStageIcon", Config.COMMON.defaultStageIcon.get());
-        values.put("researchTimeInSeconds", Config.COMMON.researchTimeInSeconds.get().toString());
-        values.put("researchBoosters", Config.COMMON.researchBoosters.get().stream().map(Object::toString).collect(Collectors.joining(";")));
-        values.put("useReplacements", Config.COMMON.useReplacements.get().toString());
-        values.put("replacementItems", Config.COMMON.replacementItems.get().stream().map(Object::toString).collect(Collectors.joining(",")));
-        values.put("replacementTags", Config.COMMON.replacementTags.get().stream().map(Object::toString).collect(Collectors.joining(",")));
-        values.put("structureCheckInterval", Config.COMMON.structureCheckInterval.get().toString());
-        values.put("structureDamageEnabled", Config.COMMON.structureDamageEnabled.get().toString());
-        values.put("structureDamageAmount", Config.COMMON.structureDamageAmount.get().toString());
-        values.put("structureDamageInterval", Config.COMMON.structureDamageInterval.get().toString());
-        values.put("structureMessageEnabled", Config.COMMON.structureMessageEnabled.get().toString());
-        values.put("structureLockMessageFormat", Config.COMMON.structureLockMessageFormat.get());
-        values.put("structureLockInChat", Config.COMMON.structureLockInChat.get().toString());
-        values.put("structureBlockRightClick", Config.COMMON.structureBlockRightClick.get().toString());
-        values.put("structureBlockLeftClick", Config.COMMON.structureBlockLeftClick.get().toString());
-        values.put("structureBlockProjectiles", Config.COMMON.structureBlockProjectiles.get().toString());
-        values.put("msgDimensionUnknown", Config.COMMON.msgDimensionUnknown.get());
-        values.put("msgMobUnknown", Config.COMMON.msgMobUnknown.get());
-        values.put("msgItemLocked", Config.COMMON.msgItemLocked.get());
-        values.put("msgBlockLocked", Config.COMMON.msgBlockLocked.get());
-        values.put("msgEntityItemLocked", Config.COMMON.msgEntityItemLocked.get());
-        values.put("msgEnchantmentLocked", Config.COMMON.msgEnchantmentLocked.get());
-        return new SyncConfigPacket(values);
+        return new SyncConfigPacket(CommonConfigSync.readAll());
     }
 
     @Override
