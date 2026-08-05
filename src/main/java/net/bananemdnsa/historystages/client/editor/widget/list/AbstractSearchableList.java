@@ -3,6 +3,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 
@@ -40,9 +41,6 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     protected static final int DEFAULT_PANEL_WIDTH = 260;
     protected static final int TAB_HEIGHT = 14;
     protected static final int TAB_PAD = 4;
-
-    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
-    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     protected final List<T> allEntries = new ArrayList<>();
     protected final List<T> filteredEntries = new ArrayList<>();
@@ -110,10 +108,8 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     private record Sel<E>(String value, E entry) {}
 
-    // Marquee state for drawRowMarqueeText
-    private int hoveredRow = -1;
-    private long hoverStartTime = 0;
-    private boolean anyRowHoveredThisFrame = false;
+    /** Hover-scroll for row labels. One per list — only the hovered row can be scrolling. */
+    private final MarqueeText marquee = new MarqueeText();
 
     protected AbstractSearchableList(String placeholder,
                                      Consumer<String> onSelect,
@@ -230,43 +226,21 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     }
 
     /**
-     * Like {@link #drawRowText} but, when the row is hovered for longer than 800ms and the
-     * text is too wide to fit, scrolls horizontally (marquee) inside a scissor rect.
+     * Like {@link #drawRowText} but, once the row has been hovered long enough and the text is
+     * too wide to fit, scrolls it horizontally (marquee) inside the row's bounds.
      */
     protected final void drawRowMarqueeText(GuiGraphics g, Font font, String text,
                                             int x, int y, int w, int h,
                                             boolean hovered, int rowIndex) {
-        int textW = font.width(text);
-        int textAvailW = w - 6;
-        int textColor = hovered ? 0xFFFFFF : 0xBBBBBB;
-        if (hovered) {
-            anyRowHoveredThisFrame = true;
-            if (hoveredRow != rowIndex) {
-                hoveredRow = rowIndex;
-                hoverStartTime = System.currentTimeMillis();
-            }
-        }
-        if (textW > textAvailW && hovered && hoveredRow == rowIndex) {
-            long elapsed = System.currentTimeMillis() - hoverStartTime;
-            if (elapsed > MARQUEE_DELAY_MS) {
-                float scrollProg = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
-                int maxMarquee = textW - textAvailW + 10;
-                float cycle = (float) maxMarquee * 2;
-                float pos = scrollProg % cycle;
-                int scrollOff = pos <= maxMarquee ? (int) pos : (int) (cycle - pos);
-                g.enableScissor(x, y, x + w, y + h);
-                g.drawString(font, text, x + 3 - scrollOff, y + 4, textColor, false);
-                g.disableScissor();
-            } else {
-                g.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...",
-                        x + 3, y + 4, textColor, false);
-            }
-        } else if (textW > textAvailW) {
-            g.drawString(font, font.plainSubstrByWidth(text, textAvailW - 6) + "...",
-                    x + 3, y + 4, textColor, false);
-        } else {
-            g.drawString(font, text, x + 3, y + 4, textColor, false);
-        }
+        // The row index alone is not a stable identity: scrolling or re-filtering puts a
+        // different entry under the same index, and the label would carry on scrolling from
+        // wherever the previous one had got to. Pairing it with the text restarts the delay
+        // whenever either changes, while keeping two same-named rows apart.
+        String key = rowIndex + "\0" + text;
+        // Animations are always on here — unlike the graph, the searchable lists have no
+        // config switch, and the rest of this class animates unconditionally too.
+        marquee.draw(g, font, key, text, x + 3, y + 4, w - 6, y, y + h,
+                hovered ? 0xFFFFFF : 0xBBBBBB, hovered, true);
     }
 
     // =============================================
@@ -818,8 +792,6 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     public void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         if (!visible) return;
 
-        anyRowHoveredThisFrame = false;
-
         // Rises the last few pixels into place, matching the context menu's entrance. Only the
         // position is animated, not the opacity: the panel is opaque and its rows are drawn on
         // top, so fading the chrome alone would show the screen through the frame.
@@ -888,7 +860,6 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         }
         g.disableScissor();
         pruneRowHover(firstRow);
-        if (!anyRowHoveredThisFrame) hoveredRow = -1;
 
         // Selected tab with nothing selected: hint in the middle rather than a blank grid.
         if (isSelectedTabActive() && selectedSnapshot.isEmpty()) {
