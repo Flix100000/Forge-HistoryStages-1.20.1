@@ -310,6 +310,7 @@
   "editor.historystages.text_override.tooltip": "Tooltip",
   "editor.historystages.text_override.reset": "Zurücksetzen",
   "editor.historystages.badge.lose_on_death": "Tod",
+  "editor.historystages.badge.dependencies": "[Abh.]",
   "editor.historystages.badge.actions": "Aktionen",
   "editor.historystages.edit.nothing_to_edit": "[HistoryStages] Für Mod '%s' gibt es nichts zu bearbeiten — keine Entitäten oder Strukturen vorhanden.",
   "editor.historystages.lock": "Sperren",

@@ -23,6 +23,7 @@ import net.bananemdnsa.historystages.network.serverbound.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.serverbound.MoveFoldersPacket;
 import net.bananemdnsa.historystages.network.serverbound.MoveStagesPacket;
 import net.bananemdnsa.historystages.network.serverbound.RenameFolderPacket;
+import net.bananemdnsa.historystages.network.EditorDataCache;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
 import net.bananemdnsa.historystages.network.serverbound.ToggleStageLockPacket;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -72,6 +74,9 @@ public class StageOverviewScreen extends Screen {
     /** How far the header caret turns per frame, as a fraction of the full flip. */
     private static final float MENU_CARET_SPEED = 0.18f;
     private static final String BREADCRUMB_SEPARATOR = " / ";
+    /** Colour code carrying the dependency badge's gold; the raw colour is the fallback. */
+    private static final String DEP_BADGE_PREFIX = "§6";
+    private static final int DEP_BADGE_COLOR = 0xFFAA55;
 
     /** Width the organize checkbox column takes away from a row's content. */
     private static final int CHECKBOX_COLUMN_W = 16;
@@ -205,14 +210,41 @@ public class StageOverviewScreen extends Screen {
     /** Re-fetch temporary unlock counts periodically so the display stays current. */
     private int tempCountRefreshTimer = 0;
 
+    /**
+     * Picker target the last request asked for, so a change can be noticed here. The
+     * dropdown has no selection callback, and it also reassigns itself when the picked
+     * player logs off — polling covers both without threading a hook through the widget.
+     */
+    private UUID lastRequestedTarget;
+
     @Override
     public void tick() {
         super.tick();
+        // A picker change is answered at once; waiting out the refresh interval would
+        // leave the previous player's counts on screen for up to a second.
+        if (playerPicker != null && !Objects.equals(playerPicker.getSelected(), lastRequestedTarget)) {
+            tempCountRefreshTimer = 0;
+            requestTemporaryCounts();
+            return;
+        }
         if (++tempCountRefreshTimer >= 20) { // ~1s
             tempCountRefreshTimer = 0;
-            PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket());
+            requestTemporaryCounts();
             PacketHandler.sendToServer(new RequestIndividualStatesPacket());
         }
+    }
+
+    /**
+     * Asks the server for the live temporary-stage state, for the global tree and for the
+     * player the picker is on. Under "@a" — and before the picker exists, on the first
+     * request out of {@link #init} — no individual data is requested: the rows have no
+     * single player to attribute it to, and the next tick asks again a second later.
+     */
+    private void requestTemporaryCounts() {
+        UUID target = playerPicker == null ? null : playerPicker.getSelected();
+        lastRequestedTarget = target;
+        PacketHandler.sendToServer(
+                new net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket(target));
     }
 
     @Override
@@ -221,7 +253,7 @@ public class StageOverviewScreen extends Screen {
         individualStageOrder = StageManager.getIndividualStageOrder();
 
         // Pull the live temporary-stage unlock counts from the server for display.
-        PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket());
+        requestTemporaryCounts();
         PacketHandler.sendToServer(new RequestIndividualStatesPacket());
 
         searchFilter = "";
@@ -752,13 +784,14 @@ public class StageOverviewScreen extends Screen {
             guiGraphics.drawString(this.font, icon, contentLeft + 5, entryTop + 6, iconColor, false);
 
             // Mode badge (pill placed to the LEFT of the lock button, vertically centered)
-            int badgeWidth = modeBadgeWidth(entry, stageId);
+            long remainingTicks = EditorDataCache.getTemporaryActiveTicks(stageId);
+            int badgeWidth = modeBadgeWidth(entry, remainingTicks);
             int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
             int badgeX = lockBtnX - badgeWidth - 6;
-            if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, stageId, badgeX, badgeY);
+            if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, remainingTicks, badgeX, badgeY);
 
             // Temporary-stage unlock count ("used/max"), placed to the LEFT of the badge.
-            String countText = temporaryCountText(entry, stageId);
+            String countText = temporaryCountText(entry, globalTemporaryCount(stageId));
             int countW = countText.isEmpty() ? 0 : this.font.width(countText) + 6;
             int countX = badgeX - countW;
             if (!countText.isEmpty()) {
@@ -806,10 +839,7 @@ public class StageOverviewScreen extends Screen {
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
             guiGraphics.drawString(this.font, info, contentLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
-            if (entry.hasDependencies()) {
-                int depBadgeX = contentLeft + 22 + this.font.width(info) + 6;
-                guiGraphics.drawString(this.font, "\u00A76[Dep]", depBadgeX, entryTop + 15, 0xFFAA55, false);
-            }
+            if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, contentLeft, entryTop + 15);
 
             // Lock/Unlock toggle button (right side) - bounds already calculated above
             if (!organizeMode) {
@@ -938,18 +968,29 @@ public class StageOverviewScreen extends Screen {
                 }
                 guiGraphics.drawString(this.font, stateIcon, contentLeft + 5, entryTop + 6, stateColor, false);
 
-                // Mode badge sits left of the lock button, same as on global rows.
-                // stageId null: per-player temporary timers aren't synced to the editor.
-                int badgeWidth = modeBadgeWidth(entry, null);
+                // Mode badge sits left of the lock button, same as on global rows. The
+                // countdown follows the picked player; under "@a" there is none to show.
+                long remainingTicks = individualTemporaryTicks(stageId);
+                int badgeWidth = modeBadgeWidth(entry, remainingTicks);
                 int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
                 int badgeX = lockBtnX - badgeWidth - 6;
-                if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, null, badgeX, badgeY);
+                if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, remainingTicks, badgeX, badgeY);
 
-                // Lose-on-death badge, left of the mode badge. Individual stages only —
+                // Temporary "used/max" count, left of the mode badge — same pairing as on
+                // the global rows, and likewise empty for every other mode.
+                String countText = temporaryCountText(entry, individualTemporaryCount(stageId));
+                int modeLeft = (badgeWidth > 0) ? badgeX : lockBtnX;
+                int countW = countText.isEmpty() ? 0 : this.font.width(countText) + 6;
+                int countX = modeLeft - countW;
+                if (!countText.isEmpty()) {
+                    guiGraphics.drawString(this.font, countText, countX + 2, badgeY + 2, 0xFFAAAAAA, false);
+                }
+
+                // Lose-on-death badge, left of the count. Individual stages only —
                 // the flag has no effect on global stages, so their rows never show it.
                 int deathWidth = deathBadgeWidth(entry);
-                int modeLeft = (badgeWidth > 0) ? badgeX : lockBtnX;
-                int deathX = modeLeft - deathWidth - 6;
+                int countLeft = countW > 0 ? countX : modeLeft;
+                int deathX = countLeft - deathWidth - 6;
                 if (deathWidth > 0) drawDeathBadge(guiGraphics, deathX, badgeY);
 
                 // Stage name with marquee. Folder suffix on search hits, same as the
@@ -961,7 +1002,7 @@ public class StageOverviewScreen extends Screen {
                 }
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
                 int nameX = contentLeft + 16;
-                int nameRightLimit = (deathWidth > 0) ? deathX : modeLeft;
+                int nameRightLimit = (deathWidth > 0) ? deathX : countLeft;
                 int nameAvailW = nameRightLimit - nameX - 6;
                 int nameW = this.font.width(displayText);
 
@@ -991,6 +1032,9 @@ public class StageOverviewScreen extends Screen {
                 String info = itemCount + " entries";
                 int infoColor = (int) (0x88 + progress * 0x33);
                 guiGraphics.drawString(this.font, info, contentLeft + 22, entryTop + 15, (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
+                // Individual stages carry dependencies just like global ones, so the marker
+                // belongs on these rows too.
+                if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, contentLeft, entryTop + 15);
 
                 // Lock/Unlock toggle button, mirroring the global rows.
                 if (!organizeMode) {
@@ -1832,17 +1876,16 @@ public class StageOverviewScreen extends Screen {
 
     private static final String MODE_BADGE_WARN = "⚠";
 
-    /** Returns the label shown inside the pill for {@code entry}'s mode. */
-    private String modeBadgeLabel(StageEntry entry) {
-        return modeBadgeLabel(entry, null);
-    }
-
     /**
-     * Returns the label shown inside the pill for {@code entry}'s mode. For an
-     * unlocked TEMPORARY stage ({@code stageId} non-null) the live countdown until
-     * auto re-lock is appended (e.g. "Temporary (2) · 4m 32s").
+     * Returns the label shown inside the pill for {@code entry}'s mode. For an unlocked
+     * TEMPORARY stage the live countdown until auto re-lock is appended (e.g.
+     * "Temporary (2) · 4m 32s").
+     *
+     * @param remainingTicks ticks until re-lock, or -1 when the stage is not running or
+     *                       its live state is unknown. Resolved by the caller, because
+     *                       global and individual rows read it from different places.
      */
-    private String modeBadgeLabel(StageEntry entry, String stageId) {
+    private String modeBadgeLabel(StageEntry entry, long remainingTicks) {
         StageMode mode = entry.getMode();
         String name = switch (mode) {
             case AUTO -> Component.translatable("editor.historystages.mode.auto").getString();
@@ -1855,9 +1898,8 @@ public class StageOverviewScreen extends Screen {
             AutoTrigger at = entry.getAutoTrigger();
             int count = at == null ? 0 : at.getTriggers().size();
             String label = name + " (" + count + ")";
-            if (mode == StageMode.TEMPORARY && stageId != null) {
-                long remaining = net.bananemdnsa.historystages.network.EditorDataCache.getTemporaryActiveTicks(stageId);
-                if (remaining > 0) label += " §6· " + formatTicksShort(remaining);
+            if (mode == StageMode.TEMPORARY && remainingTicks > 0) {
+                label += " §6· " + formatTicksShort(remainingTicks);
             }
             return label;
         }
@@ -1884,15 +1926,42 @@ public class StageOverviewScreen extends Screen {
 
     /**
      * Returns the "used/max" unlock-count label for a temporary stage (e.g. "§72/5"
-     * or "§72/∞"), or an empty string for any other mode. The used count comes from
-     * the server via {@link net.bananemdnsa.historystages.network.EditorDataCache}.
+     * or "§72/∞"), or an empty string for any other mode.
+     *
+     * @param used times the stage has been unlocked, or -1 when that is unknown — which
+     *             hides the label entirely rather than claiming a count of zero. Resolved
+     *             by the caller; see {@link #modeBadgeLabel} for why.
      */
-    private String temporaryCountText(StageEntry entry, String stageId) {
-        if (entry.getMode() != StageMode.TEMPORARY) return "";
-        int used = net.bananemdnsa.historystages.network.EditorDataCache.getTemporaryCount(stageId);
+    private String temporaryCountText(StageEntry entry, int used) {
+        if (entry.getMode() != StageMode.TEMPORARY || used < 0) return "";
         var cfg = entry.getTemporary();
         String max = (cfg == null || cfg.isUnlimited()) ? "∞" : String.valueOf(cfg.getMaxTriggers());
         return "§7" + used + "/" + max;
+    }
+
+    /**
+     * Live unlock count for a global temporary stage row.
+     *
+     * @see #individualTemporaryCount
+     */
+    private int globalTemporaryCount(String stageId) {
+        return EditorDataCache.getTemporaryCount(stageId);
+    }
+
+    /**
+     * Live unlock count for an individual temporary stage row, or -1 while the picker is
+     * on "@a". Per-player counts differ between players, so there is no honest single
+     * number to show for "everyone" — the row drops the label instead of inventing one.
+     */
+    private int individualTemporaryCount(String stageId) {
+        UUID target = playerPicker.getSelected();
+        return target == null ? -1 : EditorDataCache.getIndividualTemporaryCount(target, stageId);
+    }
+
+    /** Remaining ticks until re-lock for an individual row, or -1 under "@a". */
+    private long individualTemporaryTicks(String stageId) {
+        UUID target = playerPicker.getSelected();
+        return target == null ? -1L : EditorDataCache.getIndividualTemporaryActiveTicks(target, stageId);
     }
 
     /**
@@ -1919,13 +1988,13 @@ public class StageOverviewScreen extends Screen {
 
     /**
      * Returns the rendered width of the mode badge for {@code entry}, or {@code 0} for
-     * {@link StageMode#DEFAULT} (no badge). Pass {@code stageId} for global stages so
-     * the width accounts for the live TEMPORARY countdown; null for individual stages.
+     * {@link StageMode#DEFAULT} (no badge). Must be given the same {@code remainingTicks}
+     * the badge is drawn with, or the reserved width and the label drift apart.
      */
-    private int modeBadgeWidth(StageEntry entry, String stageId) {
+    private int modeBadgeWidth(StageEntry entry, long remainingTicks) {
         StageMode mode = entry.getMode();
         if (mode == StageMode.DEFAULT) return 0;
-        int w = this.font.width(modeBadgeLabel(entry, stageId)) + 8;
+        int w = this.font.width(modeBadgeLabel(entry, remainingTicks)) + 8;
         if (mode.usesAutoTrigger() && isAutoEmpty(entry)) {
             w += 3 + this.font.width(MODE_BADGE_WARN);
         }
@@ -1937,10 +2006,10 @@ public class StageOverviewScreen extends Screen {
      * at (x, y). No-op for {@link StageMode#DEFAULT}. AUTO badges include the configured
      * trigger count (e.g. "Auto (3)"); empty AUTO badges additionally show a warn indicator.
      */
-    private void drawModeBadge(GuiGraphics g, StageEntry entry, String stageId, int x, int y) {
+    private void drawModeBadge(GuiGraphics g, StageEntry entry, long remainingTicks, int x, int y) {
         StageMode mode = entry.getMode();
         if (mode == StageMode.DEFAULT) return;
-        String label = modeBadgeLabel(entry, stageId);
+        String label = modeBadgeLabel(entry, remainingTicks);
         int textW = this.font.width(label);
         int pillW = textW + 8;
         int pillH = 12;
@@ -1950,6 +2019,20 @@ public class StageOverviewScreen extends Screen {
         if (mode.usesAutoTrigger() && isAutoEmpty(entry)) {
             g.drawString(this.font, MODE_BADGE_WARN, x + pillW + 3, y + 2, 0xFFAA55, false);
         }
+    }
+
+    /**
+     * Marks a row whose stage is gated behind other stages. Unlike the mode and death
+     * badges this is plain text in the info line, not a pill in the right-hand column —
+     * it is a property of the stage's definition, not of its current state.
+     *
+     * @param info the info line it is placed behind, needed for its width
+     */
+    private void drawDepBadge(GuiGraphics g, String info, int contentLeft, int y) {
+        String label = DEP_BADGE_PREFIX
+                + Component.translatable("editor.historystages.badge.dependencies").getString();
+        g.drawString(this.font, label, contentLeft + 22 + this.font.width(info) + 6, y,
+                DEP_BADGE_COLOR, false);
     }
 
     /** Rendered width of the lose-on-death pill, or 0 when the stage isn't flagged. */
