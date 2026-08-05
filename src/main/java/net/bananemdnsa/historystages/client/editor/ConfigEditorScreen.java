@@ -1001,13 +1001,19 @@ public class ConfigEditorScreen extends Screen {
         return false;
     }
 
+    /**
+     * The dialog's parent is this screen, not {@link #parent}: {@code AbstractModalScreen.onCancel}
+     * navigates to whatever it was given, so passing the screen behind would make Cancel the
+     * button that discards the edits. Confirm has to navigate itself for the same reason —
+     * {@code onConfirm} only runs the callback and leaves closing to it.
+     */
     private void tryClose() {
         if (hasChanges()) {
             this.minecraft.setScreen(new ConfirmDialog(
-                    parent,
+                    this,
                     Component.translatable("editor.historystages.unsaved_warning_title"),
                     Component.translatable("editor.historystages.unsaved_warning"),
-                    () -> {}
+                    () -> this.minecraft.setScreen(parent)
             ));
         } else {
             this.minecraft.setScreen(parent);
@@ -1151,7 +1157,8 @@ public class ConfigEditorScreen extends Screen {
         public String value;
         String initialValue;
         final boolean isClient;
-        final String defaultValue;
+        /** Public so dialogs outside this package can offer a reset-to-default control. */
+        public final String defaultValue;
         /** Lang key of the hover tooltip. */
         final String descKey;
         /** Inclusive bounds for INTEGER / DOUBLE entries, mirroring Config.java's defineInRange. */
@@ -1175,6 +1182,27 @@ public class ConfigEditorScreen extends Screen {
          * an edge style and a canvas background, and German calls those two different things.
          */
         public final String enumType;
+
+        /**
+         * True while this row shows a value it does not own — the per-stage style editor draws
+         * such rows dimmed. Always false for Client, Common and Graph rows, which have no layer
+         * to inherit from.
+         */
+        public boolean inherited;
+
+        /**
+         * True when this row may be sent back to inheriting, which is what draws the clear ×.
+         * Separate from {@link #inherited} because a row can be clearable and currently set.
+         */
+        public boolean clearable;
+
+        /**
+         * True when there is no single value to show — the per-stage style editor's all-states
+         * tab, where the three state blocks it inherits from disagree. {@link ConfigRowList}
+         * then draws the "differs per state" hint instead of the control, because every control
+         * would have to invent a value to draw. Always false for Client, Common and Graph rows.
+         */
+        public boolean varies;
 
         ConfigEntry(String key, ConfigType type, String value, boolean isClient,
                     String defaultValue) {
@@ -1207,6 +1235,23 @@ public class ConfigEditorScreen extends Screen {
             this.path = path;
             this.enumConstants = enumConstants == null ? List.of() : enumConstants;
             this.enumType = enumType;
+        }
+
+        /**
+         * A row for a per-stage style override. The value is whatever applies right now; whether
+         * this stage owns it is carried by {@link #inherited}, which the caller sets.
+         *
+         * <p>Public because {@link StageStyleScreen} builds rows the config editor never sees,
+         * and the twelve-argument constructor should not have to be repeated to do it.
+         */
+        public static ConfigEntry styleRow(String key, ConfigType type, String value,
+                                           String defaultValue, String labelKey,
+                                           double min, double max,
+                                           List<String> enumConstants, String enumType) {
+            ConfigEntry entry = new ConfigEntry(key, type, value, false, defaultValue,
+                    labelKey, labelKey + ".desc", min, max, null, enumConstants, enumType);
+            entry.clearable = true;
+            return entry;
         }
     }
 

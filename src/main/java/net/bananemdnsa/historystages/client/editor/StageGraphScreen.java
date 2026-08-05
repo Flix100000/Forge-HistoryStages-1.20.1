@@ -11,6 +11,9 @@ import net.bananemdnsa.historystages.client.editor.graph.GraphSidebar;
 import net.bananemdnsa.historystages.client.editor.graph.GraphViewFilter;
 import net.bananemdnsa.historystages.client.editor.graph.StageGraphConfig;
 import net.bananemdnsa.historystages.client.editor.graph.StageGraphModel;
+import net.bananemdnsa.historystages.client.editor.graph.StageStyleClipboard;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -18,9 +21,11 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.graph.GraphLayoutData;
 import net.bananemdnsa.historystages.data.graph.GraphPos;
+import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphPositionsPacket;
+import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphStylePacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -300,6 +305,14 @@ public class StageGraphScreen extends Screen {
                 () -> openStageEditor(node));
         contextMenu.addEntry(Component.translatable("editor.historystages.graph.context.edit_info").getString(),
                 () -> this.minecraft.setScreen(new StageInfoTextScreen(this, node.stageId(), node.individual())));
+        contextMenu.addEntry(Component.translatable("editor.historystages.graph.context.edit_style").getString(),
+                () -> this.minecraft.setScreen(new StageStyleScreen(this, node.stageId(), node.individual())));
+        contextMenu.addEntry(Component.translatable("editor.historystages.graph.context.copy_style").getString(),
+                () -> copyStyle(node));
+        if (!StageStyleClipboard.isEmpty()) {
+            contextMenu.addEntry(Component.translatable("editor.historystages.graph.context.paste_style").getString(),
+                    () -> pasteStyle(node));
+        }
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
         contextMenu.show((int) mouseX, (int) mouseY, this.font);
         return true;
@@ -311,6 +324,64 @@ public class StageGraphScreen extends Screen {
         StageEntry entry = stages.get(node.stageId());
         if (entry == null) return; // stage vanished (e.g. deleted from another client) between hit and click
         this.minecraft.setScreen(new StageDetailScreen(this, node.stageId(), entry, node.individual()));
+    }
+
+    /**
+     * A node with nothing to copy leaves the clipboard alone. Overwriting it with an empty set
+     * would destroy a style copied two nodes ago and make "Paste style" disappear from the menu,
+     * with nothing on screen to explain either — so both outcomes say so with a toast.
+     */
+    private void copyStyle(StageGraphModel.Node node) {
+        GraphStageData.Entry entry =
+                GraphStageData.get().tree(node.individual()).get(node.stageId());
+        if (entry == null || !entry.hasStyles()) {
+            EditorToastHandler.show(EditorToast.Level.INFO,
+                    Component.translatable("editor.historystages.graph.style.copy.empty.title"),
+                    Component.translatable("editor.historystages.graph.style.copy.empty.message"));
+            return;
+        }
+        StageStyleClipboard.copy(entry);
+        EditorToastHandler.copiedToClipboard(node.stageId());
+    }
+
+    /**
+     * Writes the clipboard onto a node, replacing whatever it had — a paste that left half the
+     * old look in place would not be a paste.
+     *
+     * <p>Asks only when something would actually be lost. Always asking would make the case this
+     * menu exists for, bringing several nodes into line quickly, tedious; never asking means a
+     * misclick silently destroys hand-set values with no way back.
+     */
+    private void pasteStyle(StageGraphModel.Node node) {
+        GraphStageData.Entry clipboard = StageStyleClipboard.get();
+        if (clipboard == null) return;
+
+        GraphStageData.Entry existing =
+                GraphStageData.get().tree(node.individual()).get(node.stageId());
+        boolean wouldOverwrite = existing != null && !existing.copyStyles().isEmpty();
+
+        if (!wouldOverwrite) {
+            applyPaste(node, clipboard);
+            return;
+        }
+
+        this.minecraft.setScreen(new ConfirmDialog(this,
+                Component.translatable("editor.historystages.graph.style.paste.title"),
+                Component.translatable("editor.historystages.graph.style.paste.confirm"),
+                () -> {
+                    applyPaste(node, clipboard);
+                    this.minecraft.setScreen(this);
+                }));
+    }
+
+    private void applyPaste(StageGraphModel.Node node, GraphStageData.Entry clipboard) {
+        PacketHandler.sendToServer(new SaveStageGraphStylePacket(
+                node.stageId(), node.individual(), GraphStageData.entryToJson(clipboard)));
+        // Same optimistic update the style screen does, and the same reason: on a dedicated
+        // server the node would otherwise keep its old look until the broadcast returns.
+        GraphStageData.set(GraphStageData.get()
+                .withStyle(node.stageId(), node.individual(), clipboard));
+        StageGraphConfig.invalidateCache();
     }
 
     /**
