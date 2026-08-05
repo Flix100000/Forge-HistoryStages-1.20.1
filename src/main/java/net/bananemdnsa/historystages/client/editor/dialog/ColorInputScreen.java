@@ -1,6 +1,10 @@
 package net.bananemdnsa.historystages.client.editor.dialog;
 
 import net.bananemdnsa.historystages.client.editor.ConfigEditorScreen;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
@@ -18,7 +22,8 @@ import java.util.function.Consumer;
 
 /**
  * Picks a {@code #RRGGBB} colour for a config row: a hex field, a preview, a saturation/value
- * area with a hue bar beside it, and the colours already in use elsewhere in {@code graph.toml}.
+ * area with a hue bar beside it, the colours already in use elsewhere in {@code graph.toml}, and
+ * two fixed swatches — the colour the row held when the dialog opened, and the built-in default.
  *
  * <p>The hex field is still the value that leaves the dialog, but it is no longer the only
  * state. Hue, saturation and value are kept here, because two regions of the colour space are
@@ -33,6 +38,10 @@ public class ColorInputScreen extends AbstractInputScreen {
     private static final int PALETTE_H = 14;
     private static final int BLOCK_GAP = 6;
 
+    /** Gap between a fixed swatch and its label, and between one labelled pair and the next. */
+    private static final int FIXED_LABEL_GAP = 4;
+    private static final int FIXED_PAIR_GAP = 12;
+
     /** Width of the hue strip and the gap that separates it from the SV area. */
     private static final int HUE_W = 16;
     private static final int HUE_GAP = 8;
@@ -42,13 +51,16 @@ public class ColorInputScreen extends AbstractInputScreen {
      * Floor for the SV area. Minecraft allows a GUI scale down to a 240px-tall screen, and
      * {@link #CHROME_H} eats most of that; below this the area stops being usable anyway.
      */
-    private static final int SV_H_MIN = 60;
+    private static final int SV_H_MIN = 44;
     /**
-     * Everything in the dialog that is not the SV area — title, hex field, swatch, palette,
-     * button row and the paddings between them — plus a few pixels of margin. Used only to
-     * decide how much height is left over for the area.
+     * Everything in the dialog that is not the SV area, used only to decide how much height is
+     * left over for the area: title 20, padding 10, error balance 10, hex label 10 and field 20,
+     * field gap 8, preview 16, palette 14, fixed swatches 14, three block gaps 18, error line 12,
+     * padding 10, buttons 20, padding 10.
      */
-    private static final int CHROME_H = 180;
+    private static final int CHROME_H = 192;
+    /** Kept clear above and below the dialog, so it never sits flush against the screen edge. */
+    private static final int SCREEN_MARGIN = 4;
 
     /** Enough to show what a pack uses without the row wrapping. */
     private static final int PALETTE_MAX = 12;
@@ -61,8 +73,29 @@ public class ColorInputScreen extends AbstractInputScreen {
     private enum DragTarget {NONE, SV, HUE}
 
     private final String initial;
+    private final String defaultValue;
     private final Consumer<String> onDone;
     private final List<Integer> palette;
+
+    /**
+     * The two fixed swatches as {@code {x, y, rgb}}, rebuilt every frame. Their widths depend on
+     * translated label text, so laying them out twice — once to draw, once to hit-test — would
+     * be two places to keep in step; the render pass records what it drew instead.
+     */
+    private final List<int[]> fixedRects = new ArrayList<>();
+
+    /** Hover state per clickable swatch: one for each palette entry, plus the two fixed ones. */
+    private final List<Anim> paletteHover = new ArrayList<>();
+    private final Anim[] fixedHover = {new Anim(), new Anim()};
+
+    /**
+     * Cross-fade of the preview bar. {@code previewShown} is what was actually on screen last
+     * frame, so a fade interrupted by another click continues from the colour the user can see
+     * rather than snapping back to where the interrupted one started.
+     */
+    private int previewFrom;
+    private int previewShown;
+    private final Anim previewFade = new Anim(1.0f);
 
     /** Degrees 0..360, and 0..1 for the other two. */
     private float hue, sat, val;
@@ -84,18 +117,26 @@ public class ColorInputScreen extends AbstractInputScreen {
     private int extraX, extraY, extraW;
 
     public ColorInputScreen(Screen parent, ConfigEditorScreen.ConfigEntry entry) {
-        this(parent, Component.translatable(entry.labelKey), entry.value,
+        this(parent, Component.translatable(entry.labelKey), entry.value, entry.defaultValue,
                 picked -> entry.value = picked);
     }
 
-    public ColorInputScreen(Screen parent, Component title, String initial,
+    /**
+     * @param defaultValue the colour a reset would restore, offered as a fixed swatch. May be
+     *                     null or unparseable, in which case that swatch is simply not drawn.
+     */
+    public ColorInputScreen(Screen parent, Component title, String initial, String defaultValue,
                             Consumer<String> onDone) {
         super(parent, title);
         this.initial = initial == null ? "" : initial;
+        this.defaultValue = defaultValue == null ? "" : defaultValue;
         this.onDone = onDone;
         this.palette = collectPalette();
         this.lastWritten = this.initial;
         setHsvFromRgb(GraphColors.parse(this.initial, 0));
+        for (int i = 0; i < palette.size(); i++) paletteHover.add(new Anim());
+        this.previewFrom = currentRgb();
+        this.previewShown = this.previewFrom;
     }
 
     /** Distinct valid colours currently set anywhere in graph.toml, in declaration order. */
@@ -136,12 +177,13 @@ public class ColorInputScreen extends AbstractInputScreen {
      * during layout is the same one {@code renderContent} advances past.
      */
     private int svHeight() {
-        return Math.max(SV_H_MIN, Math.min(SV_H_MAX, this.height - CHROME_H));
+        return Math.max(SV_H_MIN,
+                Math.min(SV_H_MAX, this.height - CHROME_H - SCREEN_MARGIN * 2));
     }
 
     @Override
     protected int extraContentHeight() {
-        return SWATCH_H + BLOCK_GAP + svHeight() + BLOCK_GAP + PALETTE_H;
+        return SWATCH_H + BLOCK_GAP + svHeight() + BLOCK_GAP + PALETTE_H + BLOCK_GAP + PALETTE_H;
     }
 
     // ============ Colour conversion ============
@@ -217,7 +259,19 @@ public class ColorInputScreen extends AbstractInputScreen {
         String value = box(0).getValue();
         if (value.equals(lastWritten)) return;
         lastWritten = value;
-        if (GraphColors.isValid(value)) setHsvFromRgb(GraphColors.parse(value, 0));
+        if (!GraphColors.isValid(value)) return;
+        setHsvFromRgb(GraphColors.parse(value, 0));
+        beginPreviewFade();
+    }
+
+    /**
+     * Starts the preview bar fading towards the new colour. Only for changes that jump — a
+     * swatch click or typed input. A drag deliberately does not call this: the preview has to
+     * track the cursor exactly, and restarting a fade every frame would just make it lag behind.
+     */
+    private void beginPreviewFade() {
+        previewFrom = previewShown;
+        previewFade.set(0.0f);
     }
 
     // ============ Geometry ============
@@ -242,6 +296,10 @@ public class ColorInputScreen extends AbstractInputScreen {
         return svY() + svHeight() + BLOCK_GAP;
     }
 
+    private int fixedY() {
+        return paletteY() + PALETTE_H + BLOCK_GAP;
+    }
+
     // ============ Rendering ============
 
     @Override
@@ -257,9 +315,11 @@ public class ColorInputScreen extends AbstractInputScreen {
         int svH = svHeight();
         int svY = svY();
 
-        // Preview
+        // Preview, easing towards the picked colour after a jump and pinned to it during a drag
+        float fade = Ease.outCubic(previewFade.ramp(1.0f, Timing.REVEAL_MS));
+        previewShown = Fade.mix(0xFF000000 | previewFrom, 0xFF000000 | rgb, fade) & 0xFFFFFF;
         g.fill(x - 1, y - 1, x + w + 1, y + SWATCH_H + 1, FIELD_BORDER);
-        g.fill(x, y, x + w, y + SWATCH_H, 0xFF000000 | rgb);
+        g.fill(x, y, x + w, y + SWATCH_H, 0xFF000000 | previewShown);
 
         // SV area. fillGradient only interpolates vertically, so the horizontal white-to-hue
         // ramp is built one column at a time and each column fades to black on its own.
@@ -287,9 +347,62 @@ public class ColorInputScreen extends AbstractInputScreen {
         for (int i = 0; i < palette.size(); i++) {
             int px = x + i * (PALETTE_H + 2);
             if (px + PALETTE_H > x + w) break;
-            g.fill(px - 1, py - 1, px + PALETTE_H + 1, py + PALETTE_H + 1, FIELD_BORDER);
-            g.fill(px, py, px + PALETTE_H, py + PALETTE_H, 0xFF000000 | palette.get(i));
+            drawSwatch(g, px, py, palette.get(i), paletteHover.get(i), mouseX, mouseY);
         }
+
+        // The two fixed swatches: what the row held when this dialog opened, and what a reset
+        // would restore. Unlike the palette above they do not depend on the rest of graph.toml,
+        // so there is always a way back from an experiment.
+        fixedRects.clear();
+        int fx = x;
+        fx = renderFixed(g, fx, "previous", this.initial, fixedHover[0], mouseX, mouseY);
+        renderFixed(g, fx, "default", this.defaultValue, fixedHover[1], mouseX, mouseY);
+    }
+
+    /**
+     * Draws one labelled fixed swatch and records its hit box.
+     *
+     * @return the x the next swatch starts at; unchanged when the colour was unusable and
+     *         nothing was drawn, so a missing default leaves no gap.
+     */
+    private int renderFixed(GuiGraphics g, int x, String labelSuffix, String value,
+                            Anim hover, int mouseX, int mouseY) {
+        if (!GraphColors.isValid(value)) return x;
+
+        int py = fixedY();
+        int rgb = GraphColors.parse(value, 0);
+        float h = drawSwatch(g, x, py, rgb, hover, mouseX, mouseY);
+        fixedRects.add(new int[]{x, py, rgb});
+
+        Component label = Component.translatable("editor.historystages.color." + labelSuffix);
+        int textX = x + PALETTE_H + FIXED_LABEL_GAP;
+        // The label brightens with its swatch, so the pair reads as one control.
+        g.drawString(this.font, label, textX, py + 3,
+                Fade.mix(0xFF000000 | LABEL_GREY, 0xFFFFFFFF, h), false);
+        return textX + this.font.width(label) + FIXED_PAIR_GAP;
+    }
+
+    /**
+     * Draws a clickable colour swatch with its hover state: the border warms towards the
+     * editor's gold and thickens by a pixel.
+     *
+     * <p>Only the border grows. The filled square keeps its size, so the hit box the click
+     * handler tests against is the one the swatch has always had — a control that moves under
+     * the cursor as it is hovered is a control that can be missed.
+     *
+     * @return the eased hover progress, for callers that tie something else to the same state
+     */
+    private static float drawSwatch(GuiGraphics g, int x, int y, int rgb, Anim hover,
+                                    int mouseX, int mouseY) {
+        boolean hovered = mouseX >= x && mouseX < x + PALETTE_H
+                && mouseY >= y && mouseY < y + PALETTE_H;
+        float h = Ease.outCubic(hover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+        int ring = 1 + Math.round(h);
+        g.fill(x - ring, y - ring, x + PALETTE_H + ring, y + PALETTE_H + ring,
+                Fade.mix(FIELD_BORDER, ACCENT_GOLD, h));
+        g.fill(x, y, x + PALETTE_H, y + PALETTE_H, 0xFF000000 | rgb);
+        return h;
     }
 
     /** White ring inside a black one, so the cursor reads against any colour underneath it. */
@@ -319,8 +432,19 @@ public class ColorInputScreen extends AbstractInputScreen {
                 if (mx >= px && mx < px + PALETTE_H) {
                     setHsvFromRgb(palette.get(i));
                     writeField();
+                    beginPreviewFade();
                     return true;
                 }
+            }
+        }
+
+        for (int[] rect : fixedRects) {
+            if (mx >= rect[0] && mx < rect[0] + PALETTE_H
+                    && my >= rect[1] && my < rect[1] + PALETTE_H) {
+                setHsvFromRgb(rect[2]);
+                writeField();
+                beginPreviewFade();
+                return true;
             }
         }
 
@@ -369,6 +493,9 @@ public class ColorInputScreen extends AbstractInputScreen {
         } else {
             hue = svH <= 1 ? 0.0f : clamp01((my - svY) / (svH - 1)) * 360.0f;
         }
+        // Cancels any fade still running from a swatch click, so the preview snaps to the
+        // cursor for the rest of the drag instead of trailing it.
+        previewFade.set(1.0f);
         writeField();
     }
 
