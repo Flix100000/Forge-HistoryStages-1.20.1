@@ -1,11 +1,12 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.GraphConfig;
+import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.client.editor.dialog.StageInfoTextScreen;
 import net.bananemdnsa.historystages.client.editor.graph.GraphCanvas;
-import net.bananemdnsa.historystages.client.editor.graph.GraphDetailPanel;
+import net.bananemdnsa.historystages.client.editor.graph.GraphDetailScreen;
 import net.bananemdnsa.historystages.client.editor.graph.GraphLegend;
 import net.bananemdnsa.historystages.client.editor.graph.GraphSidebar;
 import net.bananemdnsa.historystages.client.editor.graph.GraphViewFilter;
@@ -24,6 +25,7 @@ import net.bananemdnsa.historystages.data.graph.GraphPos;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestStageDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphPositionsPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphStylePacket;
 import net.minecraft.client.Minecraft;
@@ -35,12 +37,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Host screen for the stage graph: composes {@link GraphSidebar}, {@link GraphCanvas} and
- * {@link GraphDetailPanel} into one view, opened either from the in-game editor or from the
- * pause screen.
+ * Host screen for the stage graph: composes {@link GraphSidebar} and {@link GraphCanvas} into
+ * one view, opened either from the in-game editor or from the pause screen. Clicking a node
+ * opens {@link GraphDetailScreen} over it.
  *
  * <p>One class with a {@link Mode} flag rather than two screen classes — two views onto the
  * same map whose rendering drifts apart is the worst outcome available here. The two modes
@@ -59,9 +63,8 @@ public class StageGraphScreen extends Screen {
      * the screen: the fixed 200/260 they started at ate well over half a 1280-wide window once
      * both were open, which is the wrong split for a view whose whole point is the map.
      */
-    private static final int SIDEBAR_W = 150;
-    private static final int PANEL_W = 190;
-    /** Neither column may take more than this share of the window. */
+    private static final int SIDEBAR_W = 165;
+    /** The sidebar may not take more than this share of the window. */
     private static final float MAX_COLUMN_SHARE = 0.22f;
 
     /** Movement below this, in pixels, still counts as a click rather than a drag. */
@@ -74,8 +77,12 @@ public class StageGraphScreen extends Screen {
     /** Combined unlock-cache version last folded into {@link #model}; see refreshOnUnlockChange. */
     private int lastUnlockVersion = Integer.MIN_VALUE;
 
-    /** Left edge of the detail panel; the canvas is clipped here while the panel is open. */
-    private int panelX;
+    /**
+     * Stages a {@link RequestStageDependencyPacket} has already gone out for while this screen
+     * has been open. The detail window is built fresh on every open and so cannot remember this
+     * itself; this screen outlives all of them, which is why the request is fired from here.
+     */
+    private final Set<String> pendingDependencyRequests = new HashSet<>();
 
     private static final int BACK_BUTTON_X = 6;
     private static final int BACK_BUTTON_Y = 2;
@@ -94,7 +101,6 @@ public class StageGraphScreen extends Screen {
     private GraphCanvas canvas;
     /** Null whenever {@code [general] showSidebar} is off — this screen owns that decision. */
     private GraphSidebar sidebar;
-    private GraphDetailPanel panel;
     /** Null whenever {@code [general] showLegend} is off — this screen owns that decision too. */
     private GraphLegend legend;
     private StageGraphModel model;
@@ -118,7 +124,7 @@ public class StageGraphScreen extends Screen {
         this.mode = mode;
     }
 
-    /** Literal text, unless a translation exists for it — mirrors {@code GraphDetailPanel.describe}. */
+    /** Literal text, unless a translation exists for it — mirrors {@code GraphDetailScreen.describe}. */
     private static Component resolveTitle() {
         String raw = GraphConfig.GRAPH.title.get();
         return I18n.exists(raw) ? Component.translatable(raw) : Component.literal(raw);
@@ -134,8 +140,7 @@ public class StageGraphScreen extends Screen {
 
         int columnCap = Math.max(90, Math.round(this.width * MAX_COLUMN_SHARE));
         boolean showSidebar = GraphConfig.GRAPH.showSidebar.get();
-        int sidebarW = showSidebar ? Math.min(SIDEBAR_W, columnCap) : 0;
-        int canvasW = Math.max(0, this.width - sidebarW);
+        int sidebarFullW = showSidebar ? Math.min(SIDEBAR_W, columnCap) : 0;
 
         // A ConfirmDialog is a full screen swap, so confirming Re-arrange or a freeze re-enters
         // this method on the very same instance. Reusing the existing canvas/sidebar (updating
@@ -143,37 +148,40 @@ public class StageGraphScreen extends Screen {
         // author's pan/zoom and sidebar scroll exactly where they left them; only the very first
         // open constructs anything.
         if (canvas == null) {
-            canvas = new GraphCanvas(model, sidebarW, contentTop, canvasW, contentHeight, editorView);
+            canvas = new GraphCanvas(model, sidebarFullW, contentTop,
+                    Math.max(0, this.width - sidebarFullW), contentHeight, editorView);
             canvas.setDragHandler(this::handleDrop);
         } else {
-            canvas.setBounds(sidebarW, contentTop, canvasW, contentHeight);
             canvas.setModel(model);
         }
 
         if (showSidebar) {
-            if (sidebar == null) sidebar = new GraphSidebar(canvas);
-            sidebar.setBounds(0, contentTop, sidebarW, contentHeight);
+            if (sidebar == null) {
+                sidebar = new GraphSidebar(canvas);
+                // A list click centres the map and marks the stage — it deliberately does not
+                // open the detail window. Paging down the list would otherwise throw a modal up
+                // and down on every single click. The window is reached through a node.
+                sidebar.setSelectHandler(canvas::highlight);
+            }
+            sidebar.setBounds(0, contentTop, sidebarFullW, contentHeight);
             sidebar.setModel(model);
         } else {
             sidebar = null;
         }
 
-        panelX = Math.max(sidebarW, this.width - Math.min(PANEL_W, columnCap));
-        int panelW = Math.max(0, this.width - panelX);
-        if (panel == null) {
-            panel = new GraphDetailPanel(panelX, contentTop, panelW, contentHeight);
-        } else {
-            panel.setBounds(panelX, contentTop, panelW, contentHeight);
-        }
-        panel.setModel(model);
+        // The sidebar owns how wide it currently draws itself — it may be collapsed to its rail,
+        // or mid-animation after a re-init — so the canvas is positioned from that, not from the
+        // configured width.
+        int sidebarW = sidebar == null ? 0 : sidebar.currentWidth();
+        canvas.setBounds(sidebarW, contentTop, Math.max(0, this.width - sidebarW), contentHeight);
 
         // Explains the map to whoever is looking at it, so it is gated only on showLegend — not
         // on editor vs. player mode, unlike the back/re-arrange buttons below. Bounded to the
-        // canvas's own area (sidebar edge to panel edge) rather than the full screen width, so it
-        // never floats over the detail panel's docked strip on the right.
+        // canvas's own area, which is now everything right of the sidebar: the detail view is a
+        // window rather than a docked strip, so nothing on the right needs keeping clear.
         if (GraphConfig.GRAPH.showLegend.get()) {
             if (legend == null) legend = new GraphLegend();
-            legend.setBounds(sidebarW, contentTop, Math.max(0, panelX - sidebarW), contentHeight);
+            legend.setBounds(sidebarW, contentTop, Math.max(0, this.width - sidebarW), contentHeight);
         } else {
             legend = null;
         }
@@ -218,7 +226,6 @@ public class StageGraphScreen extends Screen {
         model = buildModel();
         canvas.setModel(model);
         if (sidebar != null) sidebar.setModel(model);
-        panel.setModel(model);
         // Styles are resolved per lock state, so every cached one is now suspect.
         StageGraphConfig.invalidateCache();
     }
@@ -233,22 +240,24 @@ public class StageGraphScreen extends Screen {
         g.fill(0, 0, this.width, this.height, BACKGROUND_COLOR);
 
         refreshOnUnlockChange();
-        // Closing the panel by its own button means the same thing as clicking empty canvas:
-        // nothing is selected any more, so nothing should still be ringed on the map.
-        if (!panel.isOpen() && canvas.focusedKey() != null) {
-            canvas.highlight(null);
-        }
 
-        // Item icons go out on Minecraft's own, higher z layer, so anything the canvas draws
-        // underneath the panel shines through it. Clipping the canvas at the panel's edge is the
-        // fix — the panel is opaque there anyway, so nothing is lost.
-        canvas.setClipRight(panel.isOpen() ? panelX : this.width);
+        // The sidebar can be collapsed to a rail, and animates between the two widths. Its edge
+        // is where the canvas viewport starts, so both it and the legend are re-bounded every
+        // frame; setBounds only moves the viewport and leaves pan and zoom untouched, so the map
+        // holds still and simply reveals more area on the left.
+        if (sidebar != null) {
+            int sidebarW = sidebar.advanceWidth();
+            int contentHeight = Math.max(0, this.height - TOP_BAR_H);
+            canvas.setBounds(sidebarW, TOP_BAR_H, Math.max(0, this.width - sidebarW), contentHeight);
+            if (legend != null) {
+                legend.setBounds(sidebarW, TOP_BAR_H, Math.max(0, this.width - sidebarW), contentHeight);
+            }
+        }
 
         canvas.render(g, this.font, mouseX, mouseY, partialTick);
         if (sidebar != null) {
             sidebar.render(g, this.font, mouseX, mouseY);
         }
-        panel.render(g, this.font, mouseX, mouseY);
         if (legend != null) {
             legend.render(g, this.font, mouseX, mouseY);
         }
@@ -269,15 +278,12 @@ public class StageGraphScreen extends Screen {
 
     // --- Input --------------------------------------------------------------------------------
     //
-    // Routing order is context menu, panel, sidebar, legend, canvas: the context menu is rendered
-    // last (on top of everything) and must claim a click anywhere before anything under it
-    // reacts — same convention StageOverviewScreen uses. The panel is drawn on top of the
-    // sidebar/canvas and must claim a click inside its bounds before the canvas underneath ever
-    // sees it; the sidebar is a distinct fixed strip that never overlaps the panel, so its
-    // position in the order only matters relative to the canvas, which it also sits in front of.
-    // The legend floats over the canvas area only (its bounds stop short of the panel), so it is
-    // checked right before the canvas gets a turn — a header toggle or a click on its open body
-    // must never fall through to a node underneath.
+    // Routing order is context menu, sidebar, legend, canvas: the context menu is rendered last
+    // (on top of everything) and must claim a click anywhere before anything under it reacts —
+    // same convention StageOverviewScreen uses. The sidebar sits in front of the canvas, so it
+    // gets its turn first. The legend floats over the canvas area, so it is checked right before
+    // the canvas — a header toggle or a click on its open body must never fall through to a node
+    // underneath. The detail view is a separate screen and takes no part in this routing.
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
@@ -285,7 +291,6 @@ public class StageGraphScreen extends Screen {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
         }
-        if (panel.mouseClicked(mouseX, mouseY, button)) return true;
         if (sidebar != null && sidebar.mouseClicked(mouseX, mouseY, button)) return true;
         if (legend != null && legend.mouseClicked(mouseX, mouseY, button)) return true;
         if (mode == Mode.EDITOR && button == 1 && tryOpenContextMenu(mouseX, mouseY)) return true;
@@ -385,16 +390,15 @@ public class StageGraphScreen extends Screen {
     }
 
     /**
-     * Forwards the click to {@link GraphCanvas#mouseClicked}, which arms panning on empty space,
-     * then applies the resulting hit (or lack of one) to the detail panel and the canvas focus
-     * ring. Returns false untouched when the click was outside the canvas viewport, so callers
-     * never mistake an off-canvas click for one that should close the panel.
+     * Forwards the click to {@link GraphCanvas#mouseClicked}, which arms panning on empty space.
+     * Returns false untouched when the click was outside the canvas viewport, so callers never
+     * mistake an off-canvas click for one on the map.
      */
     private boolean handleCanvasClick(double mouseX, double mouseY, int button) {
         if (!canvas.mouseClicked(mouseX, mouseY, button)) return false;
-        // Selection deliberately does NOT happen here — see mouseReleased. Opening the detail
-        // panel on press means grabbing a node to move it also throws the panel open over the
-        // area you were about to drag into.
+        // Opening deliberately does NOT happen here — see mouseReleased. Opening the detail
+        // window on press means grabbing a node to move it throws a modal up over the very area
+        // you were about to drag into.
         if (button == 0) {
             pressX = mouseX;
             pressY = mouseY;
@@ -403,17 +407,40 @@ public class StageGraphScreen extends Screen {
         return true;
     }
 
+    /**
+     * Opens the detail window on a node, asking the server for its dependency data first when
+     * the cache has none.
+     *
+     * <p>The request needs no Research Pedestal and goes out at most once per stage per open
+     * screen. The window rebuilds its rows whenever the cached result changes, so a reply that
+     * lands while it is already up fills it in.
+     */
+    private void openDetail(String graphKey) {
+        StageGraphModel.Node node = model.nodes().get(graphKey);
+        if (node == null) return; // vanished between hit test and release
+
+        if (ClientDependencyCache.get(node.stageId(), node.individual()) == null
+                && pendingDependencyRequests.add(graphKey)) {
+            PacketHandler.sendToServer(new RequestStageDependencyPacket(node.stageId(), node.individual()));
+        }
+        this.minecraft.setScreen(new GraphDetailScreen(this, model, node));
+    }
+
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        // Before the canvas: a scrollbar drag starts inside the sidebar but travels well past
+        // its edges, and must not turn into a pan the moment the cursor leaves the strip.
+        if (sidebar != null && sidebar.mouseDragged(mouseY)) return true;
         if (canvas.mouseDragged(mouseX, mouseY, button, dragX, dragY)) return true;
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (sidebar != null) sidebar.mouseReleased();
         boolean handled = canvas.mouseReleased(mouseX, mouseY, button);
 
-        // A press that never turned into a drag is a click, and only then does the panel open.
+        // A press that never turned into a drag is a click, and only then does the window open.
         // The same threshold the canvas uses to promote a press into a drag, so the two agree
         // on where a click stops being a click.
         if (pressedOnCanvas && button == 0) {
@@ -422,8 +449,8 @@ public class StageGraphScreen extends Screen {
             double dy = mouseY - pressY;
             if (dx * dx + dy * dy <= (double) CLICK_SLOP * CLICK_SLOP) {
                 String hit = canvas.nodeAt(mouseX, mouseY);
-                panel.select(hit);
                 canvas.highlight(hit);
+                if (hit != null) openDetail(hit);
             }
             return true;
         }
@@ -433,7 +460,6 @@ public class StageGraphScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (panel.mouseScrolled(mouseX, mouseY, scrollY)) return true;
         if (sidebar != null && sidebar.mouseScrolled(mouseX, mouseY, scrollY)) return true;
         if (canvas.mouseScrolled(mouseX, mouseY, scrollY)) return true;
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);

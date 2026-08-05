@@ -73,6 +73,7 @@ public class GraphConfig {
         public final ModConfigSpec.BooleanValue enabled;
         public final ModConfigSpec.ConfigValue<String> title;
         public final ModConfigSpec.BooleanValue showSidebar;
+        public final ModConfigSpec.BooleanValue sidebarOpen;
         public final ModConfigSpec.BooleanValue showLegend;
         public final ModConfigSpec.BooleanValue legendOpen;
 
@@ -142,6 +143,9 @@ public class GraphConfig {
             showSidebar = builder
                     .comment("Show the searchable stage list on the left? [Default: true]")
                     .define("showSidebar", true);
+            sidebarOpen = builder
+                    .comment("Start with the sidebar expanded rather than collapsed to its rail? [Default: true]")
+                    .define("sidebarOpen", true);
             showLegend = builder.comment("Show the legend? [Default: true]").define("showLegend", true);
             legendOpen = builder.comment("Start with the legend expanded? [Default: false]")
                     .define("legendOpen", false);
