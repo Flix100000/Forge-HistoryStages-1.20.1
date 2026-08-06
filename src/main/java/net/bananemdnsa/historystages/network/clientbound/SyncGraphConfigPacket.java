@@ -15,10 +15,8 @@ import java.util.Map;
 /**
  * Server → client sync of {@code graph.toml}.
  *
- * <p>Unlike {@link SyncConfigPacket}, which keeps a hand-written list of keys, this walks the spec
- * itself. Seventy keys in a hand-maintained list is a list somebody forgets to extend — that has
- * already happened in the common config, where several keys are saved server-side and never reach
- * clients at all.
+ * <p>The values are gathered by walking the spec itself, so a key added to {@code GraphConfig}
+ * syncs without anyone remembering to list it.
  *
  * <p>Keys are the dotted toml paths ({@code style.global.unlocked.shape}), not the invented flat
  * names {@link SyncConfigPacket} uses. Flat names exist there because leaf names repeat across
@@ -66,6 +64,12 @@ public record SyncGraphConfigPacket(Map<String, String> values) implements Custo
 
         // graph.toml changed under it — every previously resolved node style is stale.
         StageGraphConfig.invalidateCache();
+
+        // An open config editor holds a snapshot of the Graph tab taken when it was built. Left
+        // alone, it would re-send those pre-sync values on its next Save and undo whichever admin
+        // saved first. Safe to call from here: unlike the common config's apply path, this one only
+        // ever runs client-side.
+        net.bananemdnsa.historystages.client.editor.ConfigEditorScreen.onGraphConfigSynced();
     }
 
     @Override
