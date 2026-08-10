@@ -71,6 +71,15 @@ public class EnumDropdown {
     }
 
     public String getValue() { return current; }
+
+    /**
+     * Sets the selection without notifying {@code onChange} — for a screen that reuses one instance
+     * across rows and has to push the row's own value in before showing it. Unknown values are
+     * ignored rather than clearing the selection.
+     */
+    public void setValue(String value) {
+        if (value != null && options.contains(value)) current = value;
+    }
     public boolean isExpanded() { return expanded; }
     public void close() { expanded = false; }
 

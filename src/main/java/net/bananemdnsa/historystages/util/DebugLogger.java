@@ -291,10 +291,11 @@ public class DebugLogger {
                     pw.println("    - " + mod);
                 }
             }
-            if (!s.getStructureBlockGeneration().isEmpty()) {
-                pw.println("  Structures (generation blocked) (" + s.getStructureBlockGeneration().size() + "):");
-                for (String struct : s.getStructureBlockGeneration()) {
-                    pw.println("    - " + struct);
+            if (!s.getStructureGenerationRules().isEmpty()) {
+                pw.println("  Structures (generation restricted) (" + s.getStructureGenerationRules().size() + "):");
+                for (net.bananemdnsa.historystages.data.lock.StructureGenerationRule rule : s.getStructureGenerationRules()) {
+                    pw.println("    - " + rule.id() + " [" + rule.phase().serialize() + ", max " + rule.max()
+                            + (rule.resetOnRelock() ? ", reset" : "") + "]");
                 }
             }
         }

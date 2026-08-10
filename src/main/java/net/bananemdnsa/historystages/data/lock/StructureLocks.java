@@ -11,16 +11,16 @@ public class StructureLocks {
     private List<String> modLinked;
 
     /**
-     * Subset of {@link #structures} that must not generate at all while the stage is locked.
-     * Worldgen is global and permanent per chunk, so this only applies to global stages.
+     * Generation restrictions for entries of {@link #structures}. Worldgen is global and permanent
+     * per chunk, so this only applies to global stages.
      */
     @SerializedName("block_generation")
-    private List<String> blockGeneration;
+    private List<StructureGenerationRule> generationRules;
 
     public StructureLocks() {
         this.structures = new ArrayList<>();
         this.modLinked = new ArrayList<>();
-        this.blockGeneration = new ArrayList<>();
+        this.generationRules = new ArrayList<>();
     }
 
     public List<String> getStructures() {
@@ -39,11 +39,20 @@ public class StructureLocks {
         this.modLinked = modLinked != null ? new ArrayList<>(modLinked) : new ArrayList<>();
     }
 
-    public List<String> getBlockGeneration() {
-        return blockGeneration != null ? blockGeneration : new ArrayList<>();
+    public List<StructureGenerationRule> getGenerationRules() {
+        return generationRules != null ? generationRules : new ArrayList<>();
     }
 
-    public void setBlockGeneration(List<String> blockGeneration) {
-        this.blockGeneration = blockGeneration != null ? new ArrayList<>(blockGeneration) : new ArrayList<>();
+    /**
+     * Rules without an id are dropped here, not just on load: the adapter writes a legacy rule as
+     * a bare string, so a null id would put a JSON {@code null} into the array and produce a file
+     * the same adapter cannot read back.
+     */
+    public void setGenerationRules(List<StructureGenerationRule> rules) {
+        this.generationRules = new ArrayList<>();
+        if (rules == null) return;
+        for (StructureGenerationRule rule : rules) {
+            if (rule != null && rule.id() != null && !rule.id().isEmpty()) this.generationRules.add(rule);
+        }
     }
 }

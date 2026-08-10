@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.StructureLocksAdapter;
 import net.bananemdnsa.historystages.data.lock.StructureLocks;
+import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.lock.BiomeLocksAdapter;
 import net.bananemdnsa.historystages.data.lock.BiomeLocks;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntryListAdapter;
@@ -215,9 +216,9 @@ public class StageEntry {
         return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
-    /** Structure entries of this stage that must not generate while the stage is locked. */
-    public List<String> getStructureBlockGeneration() {
-        return structures != null ? structures.getBlockGeneration() : new ArrayList<>();
+    /** Generation restrictions for this stage's structure entries. */
+    public List<StructureGenerationRule> getStructureGenerationRules() {
+        return structures != null ? structures.getGenerationRules() : new ArrayList<>();
     }
 
     public List<String> getBiomes() {
@@ -389,9 +390,9 @@ public class StageEntry {
         this.structures.setModLinked(modLinked);
     }
 
-    public void setStructureBlockGeneration(List<String> blockGeneration) {
+    public void setStructureGenerationRules(List<StructureGenerationRule> rules) {
         if (this.structures == null) this.structures = new StructureLocks();
-        this.structures.setBlockGeneration(blockGeneration);
+        this.structures.setGenerationRules(rules);
     }
 
     public void setBiomes(List<String> biomes) {
@@ -428,7 +429,7 @@ public class StageEntry {
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
-        copy.setStructureBlockGeneration(getStructureBlockGeneration());
+        copy.setStructureGenerationRules(getStructureGenerationRules());
         copy.setBiomes(getBiomes());
         copy.setBiomeModLinked(getBiomeModLinked());
         copy.setIcon(getIcon());
