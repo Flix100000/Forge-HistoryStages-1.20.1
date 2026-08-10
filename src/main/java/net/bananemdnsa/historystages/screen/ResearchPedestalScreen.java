@@ -29,9 +29,9 @@ import net.minecraft.world.item.component.CustomData;
 
 public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPedestalMenu> {
     private static final ResourceLocation TEXTURE =
-            ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "textures/gui/research_pedestal_gui.png");
+            ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "textures/gui/pedestal/gui_legacy.png");
     private static final ResourceLocation TEXTURE_DEP =
-            ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "textures/gui/research_pedestal_depen-gui.png");
+            ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "textures/gui/pedestal/dep_gui_legacy.png");
 
     // The dependency PNG is 512x512; the GUI sits at (113,138) with total size 271x166.
     // The base panel (without right box) is 176 wide — the right box is ~95px wide.
