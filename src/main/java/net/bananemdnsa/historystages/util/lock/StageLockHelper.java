@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * Combines global and individual stage lock checks into a single utility.
@@ -91,22 +92,50 @@ public class StageLockHelper {
     // =============================================
 
     /**
-     * Checks if a specific action is locked for an item in any locked global stage.
-     * Server-side only.
+     * Walks only the stages the index says could reference this item, skipping the ones the
+     * caller reports as unlocked. Replaces the former full scan over every stage — see
+     * {@link net.bananemdnsa.historystages.data.lock.LockRelevanceIndex} for why that mattered.
      */
-    public static boolean isActionLockedForPlayer(ItemStack stack, UUID playerUuid, String action) {
-        if (stack.isEmpty()) return false;
+    private static boolean isActionLockedInGlobalStages(ItemStack stack, String action,
+                                                        Predicate<String> stageUnlocked) {
         ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (res == null) return false;
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
-                : StageManager.getStages().entrySet()) {
-            if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
+        for (String stageId : StageManager.globalStageCandidates(itemId, modId, stack.getItem())) {
+            if (stageUnlocked.test(stageId)) continue;
+            StageEntry entry = StageManager.getStages().get(stageId);
+            if (entry == null) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, entry)) return true;
         }
         return false;
+    }
+
+    /** Individual-stage counterpart of {@link #isActionLockedInGlobalStages}. */
+    private static boolean isActionLockedInIndividualStages(ItemStack stack, String action,
+                                                            Predicate<String> stageUnlocked) {
+        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        for (String stageId : StageManager.individualStageCandidates(itemId, modId, stack.getItem())) {
+            if (stageUnlocked.test(stageId)) continue;
+            StageEntry entry = StageManager.getIndividualStages().get(stageId);
+            if (entry == null) continue;
+            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, entry)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if a specific action is locked for an item in any locked global stage.
+     * Server-side only.
+     */
+    public static boolean isActionLockedForPlayer(ItemStack stack, UUID playerUuid, String action) {
+        if (stack.isEmpty()) return false;
+        return isActionLockedInGlobalStages(stack, action, StageData.SERVER_CACHE::contains);
     }
 
     /**
@@ -116,17 +145,7 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedForServer(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
-                : StageManager.getStages().entrySet()) {
-            if (StageData.SERVER_CACHE.contains(e.getKey())) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
-        }
-        return false;
+        return isActionLockedInGlobalStages(stack, action, StageData.SERVER_CACHE::contains);
     }
 
     /**
@@ -135,19 +154,9 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedByIndividualStage(ItemStack stack, UUID playerUuid, String action) {
         if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
         Set<String> playerStages = IndividualStageData.SERVER_CACHE
                 .getOrDefault(playerUuid, Collections.emptySet());
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
-                : StageManager.getIndividualStages().entrySet()) {
-            if (playerStages.contains(e.getKey())) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
-        }
-        return false;
+        return isActionLockedInIndividualStages(stack, action, playerStages::contains);
     }
 
     // =============================================
@@ -160,17 +169,7 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedForClient(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
-                : StageManager.getStages().entrySet()) {
-            if (ClientStageCache.isStageUnlocked(e.getKey())) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
-        }
-        return false;
+        return isActionLockedInGlobalStages(stack, action, ClientStageCache::isStageUnlocked);
     }
 
     /**
@@ -179,17 +178,7 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedByIndividualStageClient(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
-        for (Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> e
-                : StageManager.getIndividualStages().entrySet()) {
-            if (ClientIndividualStageCache.isStageUnlocked(e.getKey())) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, e.getValue())) return true;
-        }
-        return false;
+        return isActionLockedInIndividualStages(stack, action, ClientIndividualStageCache::isStageUnlocked);
     }
 
     /**

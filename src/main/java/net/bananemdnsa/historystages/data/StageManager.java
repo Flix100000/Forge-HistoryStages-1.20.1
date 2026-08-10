@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
+import net.bananemdnsa.historystages.data.lock.LockRelevanceIndex;
 import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
@@ -36,6 +37,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,6 +52,15 @@ public class StageManager {
     // in that race; CHM's iterators are weakly consistent and never throw.
     private static final Map<String, StageEntry> STAGES = new ConcurrentHashMap<>();
     private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new ConcurrentHashMap<>();
+
+    // Fast-reject filter in front of the linear item scans. Rebuilt lazily, so the many
+    // mutations a load() makes cost one rebuild in total. IMPORTANT: every place that writes
+    // to STAGES/INDIVIDUAL_STAGES must call markLockIndexDirty() — a stale index would report
+    // a staged item as irrelevant and silently unlock it.
+    private static volatile LockRelevanceIndex GLOBAL_LOCK_INDEX = LockRelevanceIndex.EMPTY;
+    private static volatile LockRelevanceIndex INDIVIDUAL_LOCK_INDEX = LockRelevanceIndex.EMPTY;
+    private static volatile boolean LOCK_INDEX_DIRTY = true;
+    private static final Object LOCK_INDEX_LOCK = new Object();
 
     /**
      * Stage ID → relative folder path inside its tree ({@code ""} = tree root). The folder
@@ -131,6 +142,7 @@ public class StageManager {
     public static void load() {
         STAGES.clear();
         INDIVIDUAL_STAGES.clear();
+        markLockIndexDirty();
         DUAL_PHASE_ITEMS.clear();
         DUAL_PHASE_TAGS.clear();
         DUAL_PHASE_MODS.clear();
@@ -826,6 +838,7 @@ public class StageManager {
         }
 
         STAGES.put(stageId, entry);
+        markLockIndexDirty();
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
     }
 
@@ -1193,6 +1206,7 @@ public class StageManager {
         if (stages != null) {
             STAGES.putAll(stages);
         }
+        markLockIndexDirty();
     }
 
     public static Map<String, String> getStagePaths() { return STAGE_PATHS; }
@@ -1345,17 +1359,54 @@ public class StageManager {
         return allFoundStages;
     }
 
+    // =============================================
+    // FAST REJECT (see LockRelevanceIndex)
+    // =============================================
+
+    /** Call after every write to STAGES or INDIVIDUAL_STAGES. */
+    private static void markLockIndexDirty() {
+        LOCK_INDEX_DIRTY = true;
+    }
+
+    private static void rebuildLockIndexIfDirty() {
+        if (!LOCK_INDEX_DIRTY) return;
+        synchronized (LOCK_INDEX_LOCK) {
+            if (!LOCK_INDEX_DIRTY) return;
+            GLOBAL_LOCK_INDEX = LockRelevanceIndex.build(STAGES);
+            INDIVIDUAL_LOCK_INDEX = LockRelevanceIndex.build(INDIVIDUAL_STAGES);
+            LOCK_INDEX_DIRTY = false;
+        }
+    }
+
+    /**
+     * Global stages that could reference this item. Empty means no stage can match, so the
+     * caller can skip its scan; a returned stage still has to be checked properly.
+     */
+    public static Collection<String> globalStageCandidates(String itemId, String modId, Item item) {
+        rebuildLockIndexIfDirty();
+        return GLOBAL_LOCK_INDEX.candidateStages(itemId, modId, item);
+    }
+
+    /** Individual-stage counterpart of {@link #globalStageCandidates}. */
+    public static Collection<String> individualStageCandidates(String itemId, String modId, Item item) {
+        rebuildLockIndexIfDirty();
+        return INDIVIDUAL_LOCK_INDEX.candidateStages(itemId, modId, item);
+    }
+
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
         return getAllStagesForItemOrMod(itemId, modId, null);
     }
 
     public static List<String> getAllStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
-        List<String> allFoundStages = new ArrayList<>();
         Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+        Collection<String> candidates = globalStageCandidates(itemId, modId, item);
+        if (candidates.isEmpty()) return List.of();
 
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
+        List<String> allFoundStages = new ArrayList<>();
+
+        for (String stageName : candidates) {
+            StageEntry data = STAGES.get(stageName);
+            if (data == null) continue;
 
             boolean match = false;
             // Check Item ID (with NBT matching)
@@ -1499,6 +1550,7 @@ public class StageManager {
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             STAGES.put(stageId, entry);
+            markLockIndexDirty();
             STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
@@ -1524,6 +1576,7 @@ public class StageManager {
         File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             STAGES.remove(stageId);
+            markLockIndexDirty();
             STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Stage Delete", "Deleted stage '" + stageId + "'");
             return true;
@@ -1875,6 +1928,7 @@ public class StageManager {
         }
 
         INDIVIDUAL_STAGES.put(stageId, entry);
+        markLockIndexDirty();
         System.out.println("[HistoryStages] Individual Stage geladen: " + stageId);
     }
 
@@ -2011,6 +2065,7 @@ public class StageManager {
         if (stages != null) {
             INDIVIDUAL_STAGES.putAll(stages);
         }
+        markLockIndexDirty();
     }
 
     public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId) {
@@ -2018,12 +2073,15 @@ public class StageManager {
     }
 
     public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
-        List<String> allFoundStages = new ArrayList<>();
         Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+        Collection<String> candidates = individualStageCandidates(itemId, modId, item);
+        if (candidates.isEmpty()) return List.of();
 
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
+        List<String> allFoundStages = new ArrayList<>();
+
+        for (String stageName : candidates) {
+            StageEntry data = INDIVIDUAL_STAGES.get(stageName);
+            if (data == null) continue;
 
             boolean match = false;
             for (ItemEntry itemEntry : data.getItemEntries()) {
@@ -2119,6 +2177,7 @@ public class StageManager {
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             INDIVIDUAL_STAGES.put(stageId, entry);
+            markLockIndexDirty();
             INDIVIDUAL_STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
@@ -2141,6 +2200,7 @@ public class StageManager {
         File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             INDIVIDUAL_STAGES.remove(stageId);
+            markLockIndexDirty();
             INDIVIDUAL_STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Individual Stage Delete", "Deleted individual stage '" + stageId + "'");
             return true;

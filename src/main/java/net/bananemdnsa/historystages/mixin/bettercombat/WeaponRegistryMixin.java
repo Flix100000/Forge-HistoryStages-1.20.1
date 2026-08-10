@@ -31,7 +31,12 @@ public class WeaponRegistryMixin {
     private static void historystages$noWeaponForLocked(ItemStack stack, CallbackInfoReturnable<Object> cir) {
         if (stack.isEmpty()) return;
         if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
-        LocalPlayer player = Minecraft.getInstance().player;
+        Minecraft mc = Minecraft.getInstance();
+        // In singleplayer the integrated server runs in this same JVM and also asks Better Combat
+        // for weapon attributes. Answering from there would judge a server-side stack by the local
+        // player's stages off-thread; server-side suppression is AttributeLockMixin's job anyway.
+        if (!mc.isSameThread()) return;
+        LocalPlayer player = mc.player;
         if (player == null) return;
         if (LockGate.isActionLocked(stack, player, "attack",
                         Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)
