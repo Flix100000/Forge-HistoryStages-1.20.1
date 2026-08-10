@@ -22,8 +22,6 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.serverbound.SaveStagePacket;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -3466,8 +3464,10 @@ public class StageDetailScreen extends Screen {
         if (editDisplayName.trim().isEmpty()) { saveError = Component.translatable("editor.historystages.display_name_empty").getString(); return; }
         saveError = "";
 
-        PacketHandler.sendToServer(new SaveStagePacket(id, buildEntrySnapshot(), isIndividual, false, targetFolder));
-        hasChanges = false;
+        // Keep the edits pending when the stage is too large, so nothing is lost on a failed save.
+        if (StageSaver.send(id, buildEntrySnapshot(), isIndividual, false, targetFolder)) {
+            hasChanges = false;
+        }
     }
 
     private void openDependencyEditor() {

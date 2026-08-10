@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 import com.google.gson.Gson;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageJsonLimits;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.network.FriendlyByteBuf;
@@ -29,25 +30,25 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
             StreamCodec.of(SaveStagePacket::encode, SaveStagePacket::decode);
 
     public SaveStagePacket(String stageId, StageEntry entry) {
-        this(stageId, entry.toJson(), false, false, "");
+        this(stageId, entry.toCompactJson(), false, false, "");
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual) {
-        this(stageId, entry.toJson(), individual, false, "");
+        this(stageId, entry.toCompactJson(), individual, false, "");
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
-        this(stageId, entry.toJson(), individual, duplicate, "");
+        this(stageId, entry.toCompactJson(), individual, duplicate, "");
     }
 
     /** {@code folder} is the folder the editor was standing in; it only applies to a new stage. */
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate, String folder) {
-        this(stageId, entry.toJson(), individual, duplicate, folder == null ? "" : folder);
+        this(stageId, entry.toCompactJson(), individual, duplicate, folder == null ? "" : folder);
     }
 
     private static void encode(FriendlyByteBuf buffer, SaveStagePacket msg) {
         buffer.writeUtf(msg.stageId);
-        buffer.writeUtf(msg.stageJson, 65536);
+        buffer.writeUtf(msg.stageJson, StageJsonLimits.MAX_STAGE_JSON);
         buffer.writeBoolean(msg.individual);
         buffer.writeBoolean(msg.duplicate);
         buffer.writeUtf(msg.folder);
@@ -55,7 +56,7 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
 
     private static SaveStagePacket decode(FriendlyByteBuf buffer) {
         String stageId = buffer.readUtf();
-        String stageJson = buffer.readUtf(65536);
+        String stageJson = buffer.readUtf(StageJsonLimits.MAX_STAGE_JSON);
         boolean individual = buffer.readBoolean();
         boolean duplicate = buffer.readBoolean();
         String folder = buffer.readUtf();
