@@ -11,6 +11,9 @@ body:
 
         For small fixes (typos, one-line bugs), feel free to skip this and open a Pull Request directly.
 
+        Worth reading before you start: [CONTRIBUTING.md](https://github.com/Flix100000/History-Stages/blob/neoforge-1.21.X/CONTRIBUTING.md)
+        covers branches, development setup, code style, and translations.
+
         ---
 
         **A note on the license:**

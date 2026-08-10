@@ -11,6 +11,7 @@ body:
         - Search [existing issues](https://github.com/Flix100000/History-Stages/issues) to avoid duplicates.
         - Make sure you are using the **latest version** of History Stages.
         - If you have a general question, use [Q&A Discussions](https://github.com/Flix100000/History-Stages/discussions/new?category=q-a) instead.
+        - If players could abuse this on a server (bypassing stage locks, crashing the server), don't post it here — see [SECURITY.md](https://github.com/Flix100000/History-Stages/blob/neoforge-1.21.X/SECURITY.md).
 
   - type: checkboxes
     id: preflight
