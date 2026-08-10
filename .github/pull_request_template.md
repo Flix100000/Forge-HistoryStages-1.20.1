@@ -1,6 +1,9 @@
 <!--
 Thanks for opening a PR! Fill in what's relevant and delete the sections you don't need.
 Sections marked (required) should stay.
+
+New here? ../CONTRIBUTING.md explains which branch to target, how to build the mod,
+and what we look for in a review.
 -->
 
 ## Related Issue
