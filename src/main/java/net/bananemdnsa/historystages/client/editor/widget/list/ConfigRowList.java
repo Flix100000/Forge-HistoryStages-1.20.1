@@ -236,15 +236,6 @@ public class ConfigRowList {
                 guiGraphics.drawString(font, display, controlX, y + 8,
                         listHovered ? 0xFFCC00 : 0xDDDDDD, false);
             }
-            case MULTI_STAGE_POLICY -> {
-                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
-                String toggleText = strict ? "\u2714 STRICT" : "\u2718 LENIENT";
-                int toggleColor = strict ? 0x55FF55 : 0xFFAA55;
-                boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                if (toggleHovered) toggleColor = strict ? 0x88FF88 : 0xFFCC88;
-                guiGraphics.drawString(font, toggleText, controlX, y + 8, toggleColor, false);
-            }
             case ITEM -> {
                 // Render a 16x16 item icon + the item ID text
                 ItemStack preview = resolveItemStack(entry.value);

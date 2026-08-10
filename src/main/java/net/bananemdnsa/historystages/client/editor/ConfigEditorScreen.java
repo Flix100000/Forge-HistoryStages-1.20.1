@@ -246,8 +246,15 @@ public class ConfigEditorScreen extends Screen {
                 Config.CLIENT.hideLockedItemsInJei.get().toString(), true, "false"));
         jeiHiding.add(new ConfigEntry("hideLockedRecipesInJei", ConfigType.BOOLEAN,
                 Config.CLIENT.hideLockedRecipesInJei.get().toString(), true, "false"));
-        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.MULTI_STAGE_POLICY,
-                Config.CLIENT.lockedItemMultiStagePolicy.get().name(), true, "STRICT"));
+        // An ENUM row rather than a toggle: STRICT and LENIENT are two named policies, and
+        // cycling through them one click at a time says nothing about what the other one is.
+        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.ENUM,
+                Config.CLIENT.lockedItemMultiStagePolicy.get().name(), true, "STRICT",
+                "editor.historystages.config.lockedItemMultiStagePolicy",
+                "editor.historystages.config.lockedItemMultiStagePolicy.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(Config.Client.MultiStagePolicy.values()).map(Enum::name).toList(),
+                Config.Client.MultiStagePolicy.class.getSimpleName()));
         clientSections.add(jeiHiding);
 
         // --- COMMON CONFIG ---
@@ -975,10 +982,6 @@ public class ConfigEditorScreen extends Screen {
             case ITEM -> openItemPicker(entry);
             case BOOSTER_LIST -> this.minecraft.setScreen(new BoosterListEditorScreen(this, entry));
             case EFFECT_LIST -> this.minecraft.setScreen(new EffectListEditorScreen(this, entry));
-            case MULTI_STAGE_POLICY -> {
-                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
-                entry.value = strict ? "LENIENT" : "STRICT";
-            }
             case ENUM -> openEnumDropdown(entry, contentLeft, rowY);
             case COLOR -> this.minecraft.setScreen(new ColorInputScreen(this, entry));
             case SUBSCREEN -> this.minecraft.setScreen(
@@ -1208,7 +1211,7 @@ public class ConfigEditorScreen extends Screen {
 
     public enum ConfigType {
         BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, EFFECT_LIST,
-        MULTI_STAGE_POLICY, ENUM, COLOR, TEXTURE,
+        ENUM, COLOR, TEXTURE,
         /**
          * A string carrying {@code &} format codes, placeholders, or both. Opens the rich text
          * editor instead of the plain one. Deliberately not every STRING row: a field with
