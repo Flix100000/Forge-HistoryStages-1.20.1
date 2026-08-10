@@ -34,10 +34,6 @@ public class Config {
         public final ModConfigSpec.BooleanValue showSilverLockIcons;
         public final ModConfigSpec.BooleanValue showIndividualTooltips;
 
-        // Dependencies
-        public final ModConfigSpec.BooleanValue showDependenciesOnScroll;
-        public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
-
         // JEI Hiding (Issue #64)
         public final ModConfigSpec.BooleanValue hideLockedItemsInJei;
         public final ModConfigSpec.BooleanValue hideLockedRecipesInJei;
@@ -162,18 +158,6 @@ public class Config {
 
             builder.pop();
 
-            builder.comment("Dependency Display Settings").push("dependencies");
-
-            showDependenciesOnScroll = builder
-                    .comment("Show dependency requirements in research scroll tooltips? [Default: true]")
-                    .define("showDependenciesOnScroll", true);
-
-            hideFulfilledDependencies = builder
-                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
-                    .define("hideFulfilledDependencies", false);
-
-            builder.pop();
-
             builder.comment("JEI integration — fully hide locked items/recipes instead of using the lock overlay")
                     .push("jei_hiding");
 
@@ -228,6 +212,10 @@ public class Config {
         public final ModConfigSpec.BooleanValue useReplacements;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementItems;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementTags;
+
+        // Scroll tooltip
+        public final ModConfigSpec.ConfigValue<List<? extends String>> scrollTooltipLines;
+        public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
 
         // Individual Stages - Gameplay
         public final ModConfigSpec.BooleanValue individualLockItemPickup;
@@ -634,6 +622,30 @@ public class Config {
                     .define("enchantmentLocked", "");
 
             builder.pop(); // lock_messages
+
+            builder.comment(
+                    "Layout of the Research Scroll tooltip.",
+                    "Each entry is one line: id|enabled|spacerBefore|style|text",
+                    "  text  empty = use the built-in translation",
+                    "  style empty = use the line's built-in colour;",
+                    "        otherwise ChatFormatting names joined with '+', e.g. gray+italic",
+                    "The order of the movable ids (individual_badge, owner, info1, info2, tier,",
+                    "dependencies) is the order they render in. Unknown ids are ignored, missing",
+                    "ones fall back to their default, so an update can add lines safely.",
+                    "Easiest way to edit this is the in-game config editor.")
+                    .push("scroll_tooltip");
+
+            scrollTooltipLines = builder
+                    .comment("The tooltip lines, in render order.")
+                    .defineList("lines",
+                            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            hideFulfilledDependencies = builder
+                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
+                    .define("hideFulfilledDependencies", false);
+
+            builder.pop(); // scroll_tooltip
         }
     }
 

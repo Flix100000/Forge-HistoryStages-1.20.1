@@ -132,6 +132,11 @@ public final class CommonConfigSync {
         str("msgEntityItemLocked", Config.COMMON.msgEntityItemLocked);
         str("msgEnchantmentLocked", Config.COMMON.msgEnchantmentLocked);
 
+        // scroll_tooltip
+        list("scrollTooltipLines", Config.COMMON.scrollTooltipLines, ";",
+                net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout::rebuildFromConfig);
+        bool("hideFulfilledDependencies", Config.COMMON.hideFulfilledDependencies);
+
         verifyCoversEveryCommonValue();
     }
 

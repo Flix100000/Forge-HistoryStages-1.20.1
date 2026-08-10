@@ -20,10 +20,9 @@ import java.util.stream.Collectors;
  * The counterpart to {@link net.bananemdnsa.historystages.network.CommonConfigSync}, minus the
  * wire: client.toml belongs to the player alone and never travels between server and client. What
  * carries over is the reason that class exists — the Client tab used to apply its values through a
- * hand-written {@code switch}, and two rows ({@code showDependenciesOnScroll} and
- * {@code hideFulfilledDependencies}) were declared in the editor but never given a case, so
- * toggling them in the GUI did nothing at all. Registering a setting here is the only step, and
- * {@link #verifyCoversEveryClientValue()} shouts if a new one is forgotten.
+ * hand-written {@code switch}, and rows could be declared in the editor but never given a case, so
+ * toggling them in the GUI saved nowhere and did nothing at all. Registering a setting here is the
+ * only step, and {@link #verifyCoversEveryClientValue()} shouts if a new one is forgotten.
  * <p>
  * The keys are the field names in {@link Config.Client}, which is also what the editor's
  * {@code ConfigEntry.key} uses — the reflection check below relies on those two staying the same.
@@ -72,10 +71,6 @@ public final class ClientConfigSync {
         dbl("structureBorderDistance", Config.CLIENT.structureBorderDistance);
         bool("structureLockOverlayEnabled", Config.CLIENT.structureLockOverlayEnabled);
         dbl("structureLockOverlayOpacity", Config.CLIENT.structureLockOverlayOpacity);
-
-        // dependencies
-        bool("showDependenciesOnScroll", Config.CLIENT.showDependenciesOnScroll);
-        bool("hideFulfilledDependencies", Config.CLIENT.hideFulfilledDependencies);
 
         // jei_hiding (Issue #64)
         bool("hideLockedItemsInJei", Config.CLIENT.hideLockedItemsInJei);

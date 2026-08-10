@@ -582,8 +582,14 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     // --- Text ---------------------------------------------------------------------------------
 
     /** Literal text, unless a translation exists for it — mirrors the docked panel it replaces. */
+    /**
+     * A description is either a lang key or literal text. Literal text may carry {@code &} colour
+     * codes, the same convention as the mod's other display strings — which is what the rich text
+     * editor behind this field writes.
+     */
     private static Component describe(String raw) {
-        return I18n.exists(raw) ? Component.translatable(raw) : Component.literal(raw);
+        return I18n.exists(raw) ? Component.translatable(raw)
+                : Component.literal(raw.replace('&', '§'));
     }
 
     private String stateKey() {

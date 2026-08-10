@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
 import net.bananemdnsa.historystages.data.graph.GraphConfigEntries;
 import net.bananemdnsa.historystages.data.graph.GraphKey;
+import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphConfigPacket;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
@@ -22,6 +23,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
@@ -238,13 +240,6 @@ public class ConfigEditorScreen extends Screen {
                 Config.CLIENT.structureLockOverlayOpacity.get().toString(), true, "0.3", 0.0, 1.0));
         clientSections.add(structureVisuals);
 
-        ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
-        dependenciesClient.add(new ConfigEntry("showDependenciesOnScroll", ConfigType.BOOLEAN,
-                Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true"));
-        dependenciesClient.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
-                Config.CLIENT.hideFulfilledDependencies.get().toString(), true, "false"));
-        clientSections.add(dependenciesClient);
-
         // JEI hiding (Issue #64)
         ConfigSection jeiHiding = new ConfigSection("editor.historystages.config.jei_hiding");
         jeiHiding.add(new ConfigEntry("hideLockedItemsInJei", ConfigType.BOOLEAN,
@@ -286,7 +281,7 @@ public class ConfigEditorScreen extends Screen {
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
         notifications.add(new ConfigEntry("broadcastChat", ConfigType.BOOLEAN,
                 Config.COMMON.broadcastChat.get().toString(), false, "true"));
-        notifications.add(new ConfigEntry("unlockMessageFormat", ConfigType.STRING,
+        notifications.add(new ConfigEntry("unlockMessageFormat", ConfigType.RICH_TEXT,
                 Config.COMMON.unlockMessageFormat.get(), false,
                 "&fThe world has entered the &b{stage}&f!"));
         notifications.add(new ConfigEntry("useActionbar", ConfigType.BOOLEAN,
@@ -298,6 +293,17 @@ public class ConfigEditorScreen extends Screen {
         notifications.add(new ConfigEntry("defaultStageIcon", ConfigType.ITEM,
                 Config.COMMON.defaultStageIcon.get(), false, "historystages:research_scroll"));
         commonSections.add(notifications);
+
+        ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
+        scrollTooltip.add(new ConfigEntry("scrollTooltipLines", ConfigType.SUBSCREEN,
+                encodeScrollTooltipLines(Config.COMMON.scrollTooltipLines.get()), false,
+                String.join(";", ScrollTooltipLayout.defaultsEncoded()),
+                "editor.historystages.config.scrollTooltipLines",
+                "editor.historystages.config.scrollTooltipLines.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        scrollTooltip.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
+                Config.COMMON.hideFulfilledDependencies.get().toString(), false, "false"));
+        commonSections.add(scrollTooltip);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
         individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
@@ -318,7 +324,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.individualLockBlockInteraction.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualBroadcastChat", ConfigType.BOOLEAN,
                 Config.COMMON.individualBroadcastChat.get().toString(), false, "true"));
-        individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.STRING,
+        individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.RICH_TEXT,
                 Config.COMMON.individualUnlockMessageFormat.get(), false,
                 "&fYou have unlocked &b{stage}&f!"));
         individualCommon.add(new ConfigEntry("individualUseActionbar", ConfigType.BOOLEAN,
@@ -355,7 +361,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.structureCheckInterval.get().toString(), false, "10", 1, 200));
         structureLock.add(new ConfigEntry("structureMessageEnabled", ConfigType.BOOLEAN,
                 Config.COMMON.structureMessageEnabled.get().toString(), false, "true"));
-        structureLock.add(new ConfigEntry("structureLockMessageFormat", ConfigType.STRING,
+        structureLock.add(new ConfigEntry("structureLockMessageFormat", ConfigType.RICH_TEXT,
                 Config.COMMON.structureLockMessageFormat.get(), false,
                 "&cYou cannot enter &e{structure}&c yet!"));
         structureLock.add(new ConfigEntry("structureLockInChat", ConfigType.BOOLEAN,
@@ -386,7 +392,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.biomeClearEffectsOnLeave.get().toString(), false, "false"));
         biomeLock.add(new ConfigEntry("biomeMessageEnabled", ConfigType.BOOLEAN,
                 Config.COMMON.biomeMessageEnabled.get().toString(), false, "true"));
-        biomeLock.add(new ConfigEntry("biomeLockMessageFormat", ConfigType.STRING,
+        biomeLock.add(new ConfigEntry("biomeLockMessageFormat", ConfigType.RICH_TEXT,
                 Config.COMMON.biomeLockMessageFormat.get(), false,
                 "&cYou cannot survive in &e{biome}&c yet!"));
         biomeLock.add(new ConfigEntry("biomeLockInChat", ConfigType.BOOLEAN,
@@ -406,17 +412,17 @@ public class ConfigEditorScreen extends Screen {
         commonSections.add(biomeLock);
 
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
-        lockMessages.add(new ConfigEntry("msgDimensionUnknown", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgDimensionUnknown", ConfigType.RICH_TEXT,
                 Config.COMMON.msgDimensionUnknown.get(), false, ""));
-        lockMessages.add(new ConfigEntry("msgMobUnknown", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgMobUnknown", ConfigType.RICH_TEXT,
                 Config.COMMON.msgMobUnknown.get(), false, ""));
-        lockMessages.add(new ConfigEntry("msgItemLocked", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgItemLocked", ConfigType.RICH_TEXT,
                 Config.COMMON.msgItemLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("msgBlockLocked", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgBlockLocked", ConfigType.RICH_TEXT,
                 Config.COMMON.msgBlockLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("msgEntityItemLocked", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgEntityItemLocked", ConfigType.RICH_TEXT,
                 Config.COMMON.msgEntityItemLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("msgEnchantmentLocked", ConfigType.STRING,
+        lockMessages.add(new ConfigEntry("msgEnchantmentLocked", ConfigType.RICH_TEXT,
                 Config.COMMON.msgEnchantmentLocked.get(), false, ""));
         commonSections.add(lockMessages);
     }
@@ -963,6 +969,7 @@ public class ConfigEditorScreen extends Screen {
                 entry.value = String.valueOf(!current);
             }
             case INTEGER, DOUBLE, STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry));
+            case RICH_TEXT -> openRichTextEditor(entry);
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
@@ -974,9 +981,32 @@ public class ConfigEditorScreen extends Screen {
             }
             case ENUM -> openEnumDropdown(entry, contentLeft, rowY);
             case COLOR -> this.minecraft.setScreen(new ColorInputScreen(this, entry));
-            case SUBSCREEN -> this.minecraft.setScreen(new GraphStyleScreen(this));
+            case SUBSCREEN -> this.minecraft.setScreen(
+                    "scrollTooltipLines".equals(entry.key)
+                            ? new ScrollTooltipScreen(this, entry)
+                            : new GraphStyleScreen(this));
             case TEXTURE -> openTexturePicker(entry);
         }
+    }
+
+    /**
+     * Placeholders each rich text field accepts, straight from the config comments that document
+     * them. A field with no entry still gets the editor for its colour codes; it just shows no
+     * placeholder chips.
+     */
+    private static final Map<String, List<String>> RICH_TEXT_PLACEHOLDERS = Map.of(
+            "unlockMessageFormat", List.of("{stage}"),
+            "individualUnlockMessageFormat", List.of("{stage}", "{player}"),
+            "structureLockMessageFormat", List.of("{structure}", "{stage}"),
+            "biomeLockMessageFormat", List.of("{biome}", "{stage}"));
+
+    private void openRichTextEditor(ConfigEntry entry) {
+        this.minecraft.setScreen(new FormattedTextScreen(this,
+                Component.translatable(entry.labelKey),
+                entry.value,
+                entry.defaultValue,
+                RICH_TEXT_PLACEHOLDERS.getOrDefault(entry.key, List.of()),
+                text -> entry.value = text));
     }
 
     private void openItemPicker(ConfigEntry entry) {
@@ -1179,6 +1209,12 @@ public class ConfigEditorScreen extends Screen {
     public enum ConfigType {
         BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, EFFECT_LIST,
         MULTI_STAGE_POLICY, ENUM, COLOR, TEXTURE,
+        /**
+         * A string carrying {@code &} format codes, placeholders, or both. Opens the rich text
+         * editor instead of the plain one. Deliberately not every STRING row: a field with
+         * nothing to format is better served by a plain box than by a dialog full of buttons.
+         */
+        RICH_TEXT,
         /** A row that opens another screen instead of editing a value of its own. */
         SUBSCREEN
     }
@@ -1194,6 +1230,15 @@ public class ConfigEditorScreen extends Screen {
     /** Encode the live booster config list as the editor's internal string:
      *  "block,speed,cost,tier,mode;..." (legacy 3-token rows are accepted on read but written 5-token). */
     private static String encodeBoosterList(java.util.List<? extends String> entries) {
+        return entries.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(java.util.stream.Collectors.joining(";"));
+    }
+
+    /** Encode the live scroll tooltip config list as the editor's internal string. */
+    private static String encodeScrollTooltipLines(java.util.List<? extends String> entries) {
         return entries.stream()
                 .filter(java.util.Objects::nonNull)
                 .map(String::trim)
