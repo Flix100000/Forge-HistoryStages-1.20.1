@@ -41,8 +41,6 @@ Found a bug or have a feature request? Please open an issue on the [Issue Tracke
 
 Contributions are very welcome — bug fixes, features, translations, docs, testing, anything. Start with [CONTRIBUTING.md](CONTRIBUTING.md): it covers which branch to target, how to set up the development environment, and what a good pull request looks like. For anything beyond a small fix, open a [Contribution Offer issue](https://github.com/Flix100000/History-Stages/issues/new?template=contribution_offer.yml) first so we can coordinate before you put in the work.
 
-Everyone taking part is expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
-
 See [CONTRIBUTORS.md](CONTRIBUTORS.md) for everyone who has helped improve History Stages so far.
 
 ## License

@@ -3,8 +3,6 @@
 Thanks for taking the time to help out! Bug fixes, features, translations, documentation and testing are all
 welcome — this guide explains how to get your contribution merged with as little back and forth as possible.
 
-By participating in this project you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
-
 ## Before you start
 
 For anything beyond a small fix, **open a
