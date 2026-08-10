@@ -320,9 +320,28 @@ public class ConfigRowList {
      * a wrong translation on one of them.
      */
     public static Component enumLabel(String enumType, String constant) {
+        return Component.translatable(enumKey(enumType, constant));
+    }
+
+    /**
+     * Hover text for a single enum constant, or null when none is translated.
+     *
+     * <p>Optional by design: a constant whose label already says everything ("Grid", "Texture")
+     * needs no second sentence, and only the enums that pick between behaviours carry
+     * {@code .desc} keys. Null therefore means "no tooltip", not "missing translation" — which
+     * is why this is not part of the editor's missing-lang-key warning.</p>
+     */
+    public static String enumDescription(String enumType, String constant) {
+        String key = enumKey(enumType, constant) + ".desc";
+        return net.minecraft.client.resources.language.I18n.exists(key)
+                ? Component.translatable(key).getString()
+                : null;
+    }
+
+    private static String enumKey(String enumType, String constant) {
         String type = enumType == null ? "unknown" : enumType.toLowerCase(java.util.Locale.ROOT);
-        return Component.translatable(
-                "editor.historystages.enum." + type + "." + constant.toLowerCase(java.util.Locale.ROOT));
+        return "editor.historystages.enum." + type + "."
+                + constant.toLowerCase(java.util.Locale.ROOT);
     }
 
     private static ItemStack resolveItemStack(String id) {

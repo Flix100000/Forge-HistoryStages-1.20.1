@@ -1,12 +1,11 @@
 package net.bananemdnsa.historystages.client.editor.graph;
 
 import net.bananemdnsa.historystages.Config;
-import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
-import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.graph.GraphLayoutData;
 import net.bananemdnsa.historystages.data.graph.GraphPos;
+import net.bananemdnsa.historystages.data.graph.GraphReachability;
 import net.bananemdnsa.historystages.data.graph.NodeState;
 import net.minecraft.network.chat.Component;
 
@@ -91,8 +90,8 @@ public final class StageGraphModel {
 
             StageEntry entry = e.getValue();
             String key = StageManager.graphKey(id, individual);
-            NodeState state = resolveState(id, individual, key, prereqs);
-            boolean anonymous = filter.anonymizes(id, entry);
+            NodeState state = GraphReachability.resolve(key, prereqs, GraphUnlocks::isUnlocked);
+            boolean anonymous = filter.anonymizes(id, individual, entry);
             String label = anonymous ? hiddenLabel() : entry.getDisplayName();
             String icon = anonymous ? defaultIcon() : resolveIcon(entry);
 
@@ -109,54 +108,6 @@ public final class StageGraphModel {
             }
             nodes.put(key, new Node(id, individual, pos, state, anonymous, label, icon));
         }
-    }
-
-    /**
-     * UNLOCKED when the local player already has the stage; REACHABLE when it does not but its
-     * stage prerequisites are satisfied; LOCKED otherwise.
-     *
-     * <p>Groups are AND-connected with each other, entries inside a group follow the group's
-     * AND/OR logic. Evaluating a flattened prerequisite set instead would report a stage with a
-     * satisfied OR group as locked — which not only colours the node wrong but changes what
-     * {@code PROGRESSIVE} reveals, since reachability is what that mode is built on.
-     *
-     * <p>Item/XP/advancement requirements never enter into this: the client cannot evaluate all
-     * of them, so "you still need the iron" must not make a stage read as unreachable. A group
-     * that references no stages at all is therefore treated as satisfied.
-     */
-    private static NodeState resolveState(String id, boolean individual, String key,
-                                          Map<String, List<StageManager.StageDepGroup>> prereqs) {
-        boolean unlocked = individual
-                ? ClientIndividualStageCache.isStageUnlocked(id)
-                : ClientStageCache.isStageUnlocked(id);
-        if (unlocked) return NodeState.UNLOCKED;
-
-        for (StageManager.StageDepGroup group : prereqs.getOrDefault(key, List.of())) {
-            if (!groupSatisfied(group)) return NodeState.LOCKED;
-        }
-        return NodeState.REACHABLE;
-    }
-
-    private static boolean groupSatisfied(StageManager.StageDepGroup group) {
-        if (group.stageKeys().isEmpty()) return true;
-        if (group.or()) {
-            for (String depKey : group.stageKeys()) {
-                if (isKeyUnlocked(depKey)) return true;
-            }
-            return false;
-        }
-        for (String depKey : group.stageKeys()) {
-            if (!isKeyUnlocked(depKey)) return false;
-        }
-        return true;
-    }
-
-    private static boolean isKeyUnlocked(String graphKey) {
-        boolean dependsOnIndividual = graphKey.startsWith("i:");
-        String depId = graphKey.substring(2);
-        return dependsOnIndividual
-                ? ClientIndividualStageCache.isStageUnlocked(depId)
-                : ClientStageCache.isStageUnlocked(depId);
     }
 
     /**

@@ -225,8 +225,10 @@ public class StageManager {
      * <p>Groups are AND-connected with each other; entries inside a group follow {@link #or()}.
      * A group with no stage references at all is vacuously satisfied as far as the graph is
      * concerned — its item/XP/advancement requirements cannot be evaluated client-side.
+     * {@link #hasOtherRequirements()} records whether such unevaluatable requirements exist,
+     * which matters for OR groups; see {@code GraphReachability}.
      */
-    public record StageDepGroup(boolean or, Set<String> stageKeys) {}
+    public record StageDepGroup(boolean or, Set<String> stageKeys, boolean hasOtherRequirements) {}
 
     /**
      * Dependency groups for the stage graph, over both collections at once, with the group
@@ -257,7 +259,7 @@ public class StageManager {
                             : group.getIndividualStages()) {
                         if (dep.getStageId() != null) keys.add(graphKey(dep.getStageId(), true));
                     }
-                    collected.add(new StageDepGroup(group.isOr(), keys));
+                    collected.add(new StageDepGroup(group.isOr(), keys, group.hasNonStageRequirements()));
                 }
             }
             out.put(graphKey(entry.getKey(), individual), collected);

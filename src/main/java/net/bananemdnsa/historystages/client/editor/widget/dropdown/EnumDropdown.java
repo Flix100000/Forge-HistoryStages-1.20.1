@@ -128,6 +128,21 @@ public class EnumDropdown {
         DropdownChrome.end(g);
     }
 
+    /**
+     * The option the cursor is over inside the open popup, or null when the popup is closed or
+     * the cursor is elsewhere. Lets a screen put a per-option hover tooltip on the picker
+     * without this class having to own tooltip state — the appear delay belongs to the screen,
+     * since it has to restart when the cursor moves between unrelated elements.
+     */
+    public String hoveredOption(double mx, double my) {
+        if (!expanded) return null;
+        int[] geom = popupGeometry();
+        int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
+        if (mx < px || mx >= px + pw || my < py || my >= py + ph) return null;
+        int idx = (int) ((my - py - POPUP_PAD) / ROW_HEIGHT);
+        return (idx >= 0 && idx < options.size()) ? options.get(idx) : null;
+    }
+
     private int[] popupGeometry() {
         int pw = buttonW;
         int ph = options.size() * ROW_HEIGHT + POPUP_PAD * 2;

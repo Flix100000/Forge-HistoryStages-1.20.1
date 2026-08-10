@@ -807,8 +807,14 @@ public class ConfigEditorScreen extends Screen {
             // gold and the caret flips over while the popup is open.
             openDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
             openDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
-            // A row tooltip under an open picker is noise.
-            if (openDropdown.isExpanded()) currentHovered = null;
+            if (openDropdown.isExpanded()) {
+                // The row's own tooltip is noise under an open picker. What does help there is
+                // what the option under the cursor means — for the enums that have such texts.
+                String option = openDropdown.hoveredOption(mouseX, mouseY);
+                currentDescription = option == null ? null
+                        : ConfigRowList.enumDescription(openDropdownEnumType, option);
+                currentHovered = currentDescription == null ? null : "__enum__" + option;
+            }
         }
 
         // Item picker overlay (single-item selector for ITEM entries).
@@ -925,9 +931,13 @@ public class ConfigEditorScreen extends Screen {
      */
     private EnumDropdown openDropdown;
 
+    /** Enum type behind {@link #openDropdown}, kept for the per-option hover tooltips. */
+    private String openDropdownEnumType;
+
     /** Drops the open enum picker. Safe to call when there is none. */
     private void closeDropdown() {
         openDropdown = null;
+        openDropdownEnumType = null;
     }
 
     /**
@@ -946,6 +956,7 @@ public class ConfigEditorScreen extends Screen {
                 rowY + ConfigRowList.DROPDOWN_INSET_Y);
         dropdown.expand();
         openDropdown = dropdown;
+        openDropdownEnumType = entry.enumType;
     }
 
     /**

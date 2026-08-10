@@ -24,7 +24,7 @@ public class GraphConfig {
     public enum CanvasBackground { GRID, SOLID, TEXTURE }
 
     /** What the player view reveals. Carried over unchanged from the old {@code [graph]} block. */
-    public enum GraphVisibility { ALL, PROGRESSIVE, UNLOCKED_ONLY }
+    public enum GraphVisibility { ALL, PROGRESSIVE, PROGRESSIVE_STRICT, UNLOCKED_ONLY }
 
     /** One node appearance block; six of these exist (3 states x 2 stage collections). */
     public static class StyleBlock {
@@ -177,9 +177,11 @@ public class GraphConfig {
             builder.comment("How much of the map the PLAYER view reveals. The editor ignores this.")
                     .push("visibility");
             visibilityMode = builder
-                    .comment("ALL           = every stage, including standalone ones.",
-                            "PROGRESSIVE   = unlocked stages, everything currently researchable, and their direct neighbours.",
-                            "UNLOCKED_ONLY = only stages the player has already unlocked.",
+                    .comment("ALL                = every stage, including standalone ones.",
+                            "PROGRESSIVE        = unlocked stages plus their direct neighbours, and everything currently researchable.",
+                            "PROGRESSIVE_STRICT = the same, minus the researchable stages that hang off nothing the player owns",
+                            "                     (free-standing roots, and stages that only ask for items or XP).",
+                            "UNLOCKED_ONLY      = only stages the player has already unlocked.",
                             "A stage removed by this filter takes its edges with it — no placeholder node.")
                     .defineEnum("mode", GraphVisibility.PROGRESSIVE);
             respectHiddenDisplay = builder

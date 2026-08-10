@@ -88,6 +88,24 @@ public class DependencyGroup {
     }
 
     /**
+     * Returns true if this group demands anything other than stages — items, XP, advancements,
+     * kills, stats or scoreboard values.
+     *
+     * <p>The graph cares about this because it cannot evaluate those requirements client-side.
+     * In an OR group they act as an escape hatch: the player may well be able to satisfy the
+     * group without any of its stage references, so a locked stage ref must not make the whole
+     * group read as blocked.</p>
+     */
+    public boolean hasNonStageRequirements() {
+        return !getItems().isEmpty()
+                || !getAdvancements().isEmpty()
+                || xpLevel != null
+                || !getEntityKills().isEmpty()
+                || !getStats().isEmpty()
+                || !getScoreboard().isEmpty();
+    }
+
+    /**
      * Returns all stage IDs referenced by this group (for cycle detection).
      */
     public List<String> getReferencedStageIds() {
