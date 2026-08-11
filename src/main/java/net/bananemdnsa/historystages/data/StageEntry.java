@@ -69,6 +69,9 @@ public class StageEntry {
 
     @SerializedName("icon")
     private String icon;
+
+    @SerializedName("scroll_completion")
+    private String scrollCompletion;
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
@@ -230,6 +233,8 @@ public class StageEntry {
     }
 
     public String getIcon() { return icon != null ? icon : ""; }
+
+    public String getScrollCompletion() { return scrollCompletion != null ? scrollCompletion : ""; }
 
     public EntityLocks getEntities() {
         return entities != null ? entities : new EntityLocks();
@@ -407,6 +412,10 @@ public class StageEntry {
 
     public void setIcon(String icon) { this.icon = (icon != null && !icon.isEmpty()) ? icon : null; }
 
+    public void setScrollCompletion(String value) {
+        this.scrollCompletion = (value != null && !value.isEmpty()) ? value : null;
+    }
+
     public void setEntities(EntityLocks entities) {
         this.entities = entities != null ? entities : new EntityLocks();
     }
@@ -433,6 +442,7 @@ public class StageEntry {
         copy.setBiomes(getBiomes());
         copy.setBiomeModLinked(getBiomeModLinked());
         copy.setIcon(getIcon());
+        copy.setScrollCompletion(getScrollCompletion());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setInteractionlock(getEntities().getInteractionlock());

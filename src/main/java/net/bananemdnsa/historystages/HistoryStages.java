@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.client.LockDecorator;
 import net.bananemdnsa.historystages.commands.StageCommand;
+import net.bananemdnsa.historystages.compat.ScrollVariants;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
@@ -18,9 +19,7 @@ import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
@@ -28,7 +27,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.CustomData;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -179,21 +177,13 @@ public class HistoryStages {
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             for (var stageEntry : StageManager.getStages().entrySet()) {
                 if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                event.accept(createScrollForStage(stageEntry.getKey()));
+                event.accept(ScrollVariants.createScroll(stageEntry.getKey()));
             }
             for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
                 if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                event.accept(createScrollForStage(stageEntry.getKey()));
+                event.accept(ScrollVariants.createScroll(stageEntry.getKey()));
             }
         }
-    }
-
-    private static ItemStack createScrollForStage(String stageId) {
-        ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-        CompoundTag tag = new CompoundTag();
-        tag.putString("StageResearch", stageId);
-        book.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        return book;
     }
 
     @SubscribeEvent

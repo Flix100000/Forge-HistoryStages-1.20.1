@@ -58,6 +58,23 @@ public class ModItems {
                 }
             });
 
+    public static final DeferredHolder<Item, Item> RESEARCH_SCROLL_OPEN = ITEMS.register("research_scroll_open",
+            () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
+
+                @Override
+                public Component getName(ItemStack stack) {
+                    CustomData customData = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+                    Component name = ScrollTooltipRenderer.name(customData.copyTag());
+                    return name != null ? name : super.getName(stack);
+                }
+
+                @Override
+                public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
+                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll_open.info")
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                }
+            });
+
     public static final DeferredHolder<Item, Item> RESEARCH_PEDESTAL_ITEM = ITEMS.register("research_pedestal",
             () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL.get(), new Item.Properties()));
 

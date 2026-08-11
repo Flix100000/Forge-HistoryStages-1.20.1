@@ -49,11 +49,29 @@ public final class ScrollVariants {
     private static void addScrollsFor(Map<String, StageEntry> stages, List<ItemStack> out) {
         for (var entry : stages.entrySet()) {
             if (entry.getValue().getMode().usesAutoTrigger()) continue;
-            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-            CompoundTag nbt = new CompoundTag();
-            nbt.putString(STAGE_RESEARCH_KEY, entry.getKey());
-            scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
-            out.add(scroll);
+            out.add(createScroll(entry.getKey()));
         }
+    }
+
+    /**
+     * A scroll exactly as it is first obtained: the stage tag and nothing else. No owner,
+     * no progress, no deposits — the single definition of "fresh", used by the creative
+     * tab, the JEI/EMI variant lists and the pedestal's refill.
+     */
+    public static ItemStack createScroll(String stageId) {
+        ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
+        CompoundTag nbt = new CompoundTag();
+        nbt.putString(STAGE_RESEARCH_KEY, stageId);
+        scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+        return scroll;
+    }
+
+    /** The keepsake an {@code open} completion leaves behind, tagged with its stage. */
+    public static ItemStack createOpenScroll(String stageId) {
+        ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL_OPEN.get());
+        CompoundTag nbt = new CompoundTag();
+        nbt.putString(STAGE_RESEARCH_KEY, stageId);
+        scroll.set(DataComponents.CUSTOM_DATA, CustomData.of(nbt));
+        return scroll;
     }
 }
