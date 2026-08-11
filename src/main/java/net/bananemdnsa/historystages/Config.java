@@ -219,6 +219,10 @@ public class Config {
         public final ModConfigSpec.ConfigValue<List<? extends String>> scrollTooltipLines;
         public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
 
+        // Open scroll document
+        public final ModConfigSpec.ConfigValue<List<? extends String>> openScrollChapters;
+        public final ModConfigSpec.ConfigValue<String> openScrollLockedDisplay;
+
         // Individual Stages - Gameplay
         public final ModConfigSpec.BooleanValue individualLockItemPickup;
         public final ModConfigSpec.BooleanValue individualLockLoot;
@@ -659,6 +663,31 @@ public class Config {
                     .define("hideFulfilledDependencies", false);
 
             builder.pop(); // scroll_tooltip
+
+            builder.comment("The document an Open Scroll shows when right-clicked.",
+                            "Chapters are drawn in the order they appear below.",
+                            "Each entry is one chapter: id|enabled|mode",
+                            "  id   overview, items, creatures, world",
+                            "  mode icons or text; overview and world are always text",
+                            "Unknown ids are ignored and missing ones fall back to their default,",
+                            "so an update can add chapters safely.")
+                    .push("open_scroll");
+
+            openScrollChapters = builder
+                    .comment("The chapters, in tab order.")
+                    .defineList("chapters",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollChapters.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            openScrollLockedDisplay = builder
+                    .comment("What a reader sees for a stage they have not unlocked.",
+                            "visible  = everything readable, the scroll is just a record",
+                            "obscured = locked entries as silhouettes, names in enchanting glyphs",
+                            "[Default: obscured]")
+                    .define("lockedDisplay",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility.OBSCURED.serialize());
+
+            builder.pop(); // open_scroll
         }
     }
 
