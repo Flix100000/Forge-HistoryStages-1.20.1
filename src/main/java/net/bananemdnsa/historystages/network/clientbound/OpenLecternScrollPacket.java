@@ -1,8 +1,7 @@
 package net.bananemdnsa.historystages.network.clientbound;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.client.scroll.OpenScrollScreen;
-import net.minecraft.client.Minecraft;
+import net.bananemdnsa.historystages.client.scroll.ClientLecternScrollHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -33,8 +32,7 @@ public record OpenLecternScrollPacket(String stageId, BlockPos lecternPos)
                     buf -> new OpenLecternScrollPacket(buf.readUtf(), buf.readBlockPos()));
 
     public static void handle(OpenLecternScrollPacket msg, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> Minecraft.getInstance()
-                .setScreen(new OpenScrollScreen(msg.stageId, msg.lecternPos)));
+        ctx.enqueueWork(() -> ClientLecternScrollHandler.open(msg.stageId, msg.lecternPos));
     }
 
     @Override
