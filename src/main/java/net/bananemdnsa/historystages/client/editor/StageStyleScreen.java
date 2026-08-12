@@ -299,6 +299,7 @@ public class StageStyleScreen extends Screen {
             case INTEGER -> ConfigEditorScreen.ConfigType.INTEGER;
             case DOUBLE -> ConfigEditorScreen.ConfigType.DOUBLE;
             case STRING -> ConfigEditorScreen.ConfigType.STRING;
+            case RICH_TEXT -> ConfigEditorScreen.ConfigType.RICH_TEXT;
             case COLOR -> ConfigEditorScreen.ConfigType.COLOR;
             case ENUM -> ConfigEditorScreen.ConfigType.ENUM;
             case TEXTURE -> ConfigEditorScreen.ConfigType.TEXTURE;

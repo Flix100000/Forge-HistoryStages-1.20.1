@@ -175,7 +175,26 @@ public class FormattedTextScreen extends AbstractInputScreen {
     }
 
     private int chipRows() {
-        return placeholders.isEmpty() ? 0 : (placeholders.size() + 2) / 3;
+        if (placeholders.isEmpty()) return 0;
+        int perRow = chipsPerRow();
+        return (placeholders.size() + perRow - 1) / perRow;
+    }
+
+    /**
+     * How many chips share a row. Three where they fit, fewer when a token is too long for a
+     * third of the dialog — the chip label is drawn centred and unclipped, so a token wider than
+     * its chip runs out over its neighbours.
+     */
+    private int chipsPerRow() {
+        int w = dialogWidth() - PAD * 2;
+        int widest = 0;
+        for (String placeholder : placeholders) {
+            widest = Math.max(widest, this.font.width(placeholder));
+        }
+        int perRow = 3;
+        // The same arithmetic renderChips does, stepped down until the widest token fits.
+        while (perRow > 1 && (w - CHIP_GAP * (perRow - 1)) / perRow < widest + 8) perRow--;
+        return perRow;
     }
 
     /** Everything the content wants, whether or not the window can show it at once. */
@@ -299,7 +318,7 @@ public class FormattedTextScreen extends AbstractInputScreen {
 
     private int renderChips(GuiGraphics g, List<String> labels, String prefix,
                            int x, int y, int w, int mouseX, int mouseY) {
-        int perRow = 3;
+        int perRow = chipsPerRow();
         int chipW = (w - CHIP_GAP * (perRow - 1)) / perRow;
         int cy = y;
         for (int i = 0; i < labels.size(); i++) {

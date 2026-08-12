@@ -62,9 +62,9 @@ public final class StageStyleValidator {
                 yield ("true".equals(lower) || "false".equals(lower)) ? lower : null;
             }
             case INTEGER, DOUBLE -> inRange(key, value);
-            // No style leaf is a plain string or a texture; if one ever is, it arrives unchecked
+            // No style leaf is text or a texture; if one ever is, it arrives unchecked
             // and this arm is where to add its rule.
-            case STRING, TEXTURE -> value;
+            case STRING, RICH_TEXT, TEXTURE -> value;
         };
     }
 

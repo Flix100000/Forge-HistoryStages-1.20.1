@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.client.editor;
 import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
 import net.bananemdnsa.historystages.data.graph.GraphConfigEntries;
 import net.bananemdnsa.historystages.data.graph.GraphKey;
@@ -565,6 +566,7 @@ public class ConfigEditorScreen extends Screen {
             case INTEGER -> ConfigType.INTEGER;
             case DOUBLE -> ConfigType.DOUBLE;
             case STRING -> ConfigType.STRING;
+            case RICH_TEXT -> ConfigType.RICH_TEXT;
             case COLOR -> ConfigType.COLOR;
             case ENUM -> ConfigType.ENUM;
             case TEXTURE -> ConfigType.TEXTURE;
@@ -1102,12 +1104,17 @@ public class ConfigEditorScreen extends Screen {
      * Placeholders each rich text field accepts, straight from the config comments that document
      * them. A field with no entry still gets the editor for its colour codes; it just shows no
      * placeholder chips.
+     *
+     * <p>The graph title is the odd one out: it takes no placeholder, but it does take a lang key
+     * in place of literal text, and the mod's own key is the one an admin wants back after trying
+     * something else. Offering it as a chip beats retyping it from the config comment.
      */
     private static final Map<String, List<String>> RICH_TEXT_PLACEHOLDERS = Map.of(
             "unlockMessageFormat", List.of("{stage}"),
             "individualUnlockMessageFormat", List.of("{stage}", "{player}"),
             "structureLockMessageFormat", List.of("{structure}", "{stage}"),
-            "biomeLockMessageFormat", List.of("{biome}", "{stage}"));
+            "biomeLockMessageFormat", List.of("{biome}", "{stage}"),
+            "graph.general.title", List.of(GraphConfig.GRAPH.title.getDefault()));
 
     private void openRichTextEditor(ConfigEntry entry) {
         this.minecraft.setScreen(new FormattedTextScreen(this,

@@ -124,10 +124,15 @@ public class StageGraphScreen extends Screen {
         this.mode = mode;
     }
 
-    /** Literal text, unless a translation exists for it — mirrors {@code GraphDetailScreen.describe}. */
+    /**
+     * Literal text, unless a translation exists for it — mirrors {@code GraphDetailScreen.describe},
+     * down to the {@code &} colour codes literal text may carry. That is what the rich text editor
+     * behind this config key writes.
+     */
     private static Component resolveTitle() {
         String raw = GraphConfig.GRAPH.title.get();
-        return I18n.exists(raw) ? Component.translatable(raw) : Component.literal(raw);
+        return I18n.exists(raw) ? Component.translatable(raw)
+                : Component.literal(raw.replace('&', '§'));
     }
 
     @Override
