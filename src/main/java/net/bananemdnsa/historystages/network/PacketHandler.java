@@ -24,6 +24,7 @@ import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphInfoPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphStylePacket;
 import net.bananemdnsa.historystages.network.serverbound.PedestalControlPacket;
+import net.bananemdnsa.historystages.network.serverbound.TakeLecternScrollPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncLockBordersPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
@@ -38,6 +39,7 @@ import net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPac
 import net.bananemdnsa.historystages.network.clientbound.EditorSyncPacket;
 import net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.OpenLecternScrollPacket;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.minecraft.Util;
@@ -70,6 +72,7 @@ public class PacketHandler {
         registrar.playToClient(SyncIndividualStagesPacket.TYPE, SyncIndividualStagesPacket.STREAM_CODEC, SyncIndividualStagesPacket::handle);
         registrar.playToClient(SyncTemporaryCountsPacket.TYPE, SyncTemporaryCountsPacket.STREAM_CODEC, SyncTemporaryCountsPacket::handle);
         registrar.playToClient(SyncIndividualStatesPacket.TYPE, SyncIndividualStatesPacket.STREAM_CODEC, SyncIndividualStatesPacket::handle);
+        registrar.playToClient(OpenLecternScrollPacket.TYPE, OpenLecternScrollPacket.STREAM_CODEC, OpenLecternScrollPacket::handle);
 
         // Client → Server
         registrar.playToServer(RequestEditorDataPacket.TYPE, RequestEditorDataPacket.STREAM_CODEC, RequestEditorDataPacket::handle);
@@ -97,6 +100,7 @@ public class PacketHandler {
         registrar.playToServer(SaveStageGraphInfoPacket.TYPE, SaveStageGraphInfoPacket.STREAM_CODEC, SaveStageGraphInfoPacket::handle);
         registrar.playToServer(SaveStageGraphStylePacket.TYPE, SaveStageGraphStylePacket.STREAM_CODEC, SaveStageGraphStylePacket::handle);
         registrar.playToServer(PedestalControlPacket.TYPE, PedestalControlPacket.STREAM_CODEC, PedestalControlPacket::handle);
+        registrar.playToServer(TakeLecternScrollPacket.TYPE, TakeLecternScrollPacket.STREAM_CODEC, TakeLecternScrollPacket::handle);
 
         // Dependency sync (Server → Client)
         registrar.playToClient(SyncDependencyStatusPacket.TYPE, SyncDependencyStatusPacket.STREAM_CODEC, SyncDependencyStatusPacket::handle);

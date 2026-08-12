@@ -24,6 +24,7 @@
   "gui.historystages.open_scroll.marker.attack": "Attacking locked",
   "gui.historystages.open_scroll.marker.interaction": "Interaction locked",
   "gui.historystages.open_scroll.sheet": "Sheet %s of %s",
+  "gui.historystages.open_scroll.take": "Take Scroll",
   "gui.historystages.pedestal.start": "Start",
   "gui.historystages.pedestal.pause": "Pause",
   "gui.historystages.pedestal.research": "Research: %s",

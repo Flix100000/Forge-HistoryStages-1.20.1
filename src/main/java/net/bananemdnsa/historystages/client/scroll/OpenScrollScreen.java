@@ -25,18 +25,28 @@ import net.bananemdnsa.historystages.data.scroll.OpenScrollOverviewBlocks;
 import net.bananemdnsa.historystages.data.scroll.OpenScrollSort;
 import net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility;
 import net.bananemdnsa.historystages.data.scroll.OpenScrollWorldGroup;
+import net.bananemdnsa.historystages.network.serverbound.TakeLecternScrollPacket;
 import net.bananemdnsa.historystages.screen.OpenScrollGeometry;
 import net.bananemdnsa.historystages.screen.OpenScrollPagination;
 import net.bananemdnsa.historystages.screen.OpenScrollTabs;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.PageButton;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.network.PacketDistributor;
+import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -50,9 +60,11 @@ import java.util.Locale;
  * <p>Pure client state. Stage definitions, graph descriptions and the reader's own unlock state
  * are all on the client already, so this screen needs no menu, no block entity and no packet.
  *
- * <p>Every control here is drawn from ink and paper rather than borrowed from the config editor:
- * the chapters are words in the header, the search is a chevron on a writing rule, and the reader
- * turns sheets instead of scrolling. Nothing in this file imports a widget.
+ * <p>Everything on the parchment is drawn from ink and paper rather than borrowed from the config
+ * editor: the chapters are words in the header, the search is a chevron on a writing rule, and the
+ * reader turns sheets instead of scrolling. The chrome a book has, and only that, is vanilla's own
+ * — the page arrows, the Done button under the sheet and the page-turn sound — because a player who
+ * has closed a written book already knows how to close this.
  */
 public class OpenScrollScreen extends Screen {
 
@@ -115,6 +127,13 @@ public class OpenScrollScreen extends Screen {
     private final OpenScrollSort sort;
     private final List<OpenScrollOverviewBlockEntry> overviewBlocks;
 
+    /**
+     * The lectern this document was read from, or null when it came out of the reader's hand.
+     * Only the take button needs it, and only a lectern reader gets one.
+     */
+    @Nullable
+    private final BlockPos lecternPos;
+
     private int leftPos;
     private int topPos;
     private int activeTab;
@@ -128,6 +147,10 @@ public class OpenScrollScreen extends Screen {
      * keep it looking like ink on a rule rather than a widget.
      */
     private EditBox search;
+
+    /** Vanilla's book arrows. Hidden rather than greyed at the ends, the way the book does it. */
+    private PageButton backButton;
+    private PageButton forwardButton;
 
     /** Mirror of the box's text, kept by its responder so the content builders stay widget-free. */
     private String filter = "";
@@ -143,6 +166,14 @@ public class OpenScrollScreen extends Screen {
     private List<IconCell> cells = List.of();
     private List<TextRow> rows = List.of();
     private boolean contentStale = true;
+
+    /**
+     * What the cursor is over, collected while the content draws and rendered last.
+     *
+     * <p>Drawing it where it is found would put it under the page arrows, which are widgets and so
+     * draw after everything this screen paints itself.
+     */
+    private List<Component> hoverTooltip = List.of();
 
     /** Panel-relative positions of the chapter words, rebuilt with the content. */
     private List<OpenScrollTabs.Tab> tabs = List.of();
@@ -167,7 +198,12 @@ public class OpenScrollScreen extends Screen {
     private record TextRow(Component text, boolean heading, Component tooltip, String sortKey) {}
 
     public OpenScrollScreen(String stageId) {
+        this(stageId, null);
+    }
+
+    public OpenScrollScreen(String stageId, @Nullable BlockPos lecternPos) {
         super(Component.translatable("gui.historystages.open_scroll.title"));
+        this.lecternPos = lecternPos;
 
         boolean individual = StageManager.isIndividualStage(stageId);
         StageEntry entry = individual
@@ -238,7 +274,9 @@ public class OpenScrollScreen extends Screen {
     @Override
     protected void init() {
         this.leftPos = (this.width - OpenScrollGeometry.WIDTH) / 2;
-        this.topPos = (this.height - OpenScrollGeometry.HEIGHT) / 2;
+        // The Done button belongs to the composition, so the sheet and the button are centred as
+        // one. Centring the sheet alone would push the button off a 240px-tall screen.
+        this.topPos = Math.max(0, (this.height - OpenScrollGeometry.totalHeight()) / 2);
         if (activeTab >= chapters.size()) activeTab = 0;
         // Word widths depend on the font, which only exists once the screen is initialised.
         rebuildTabs();
@@ -256,7 +294,59 @@ public class OpenScrollScreen extends Screen {
         addRenderableWidget(search);
         updateSearchVisibility();
 
+        // playTurnSound stays off: turnTo makes the sound instead, so the scroll wheel and the
+        // arrow keys are as audible as the buttons.
+        backButton = addRenderableWidget(new PageButton(
+                leftPos + OpenScrollGeometry.pageBackwardX(),
+                topPos + OpenScrollGeometry.PAGE_BUTTON_Y,
+                false, b -> turnTo(sheet - 1), false));
+        forwardButton = addRenderableWidget(new PageButton(
+                leftPos + OpenScrollGeometry.pageForwardX(),
+                topPos + OpenScrollGeometry.PAGE_BUTTON_Y,
+                true, b -> turnTo(sheet + 1), false));
+        updatePageButtons();
+
+        // A lectern reader who may build gets the scroll back, mirroring vanilla's take-book
+        // button — and its mayBuild() gate, so adventure mode reads without looting.
+        boolean paired = lecternPos != null
+                && minecraft != null && minecraft.player != null && minecraft.player.mayBuild();
+        int buttonY = topPos + OpenScrollGeometry.HEIGHT + OpenScrollGeometry.DONE_GAP;
+        int buttonWidth = OpenScrollGeometry.buttonWidth(paired);
+
+        addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
+                .bounds(OpenScrollGeometry.buttonRowX(this.width), buttonY,
+                        buttonWidth, OpenScrollGeometry.DONE_HEIGHT)
+                .build());
+
+        if (paired) {
+            addRenderableWidget(Button.builder(
+                            Component.translatable("gui.historystages.open_scroll.take"),
+                            b -> takeScroll())
+                    .bounds(OpenScrollGeometry.secondButtonX(this.width), buttonY,
+                            buttonWidth, OpenScrollGeometry.DONE_HEIGHT)
+                    .build());
+        }
+
         contentStale = true;
+    }
+
+    /**
+     * Asks the server for the scroll and leaves. The server re-checks every condition, so a reader
+     * whose lectern was emptied meanwhile simply closes an empty-handed screen — there is no
+     * container here to invalidate the view for them.
+     */
+    private void takeScroll() {
+        if (lecternPos != null) {
+            PacketDistributor.sendToServer(new TakeLecternScrollPacket(lecternPos));
+        }
+        onClose();
+    }
+
+    /** An arrow at the end of the document points nowhere, so it leaves rather than greys out. */
+    private void updatePageButtons() {
+        if (backButton == null) return;
+        backButton.visible = footerShown && sheet > 0;
+        forwardButton.visible = footerShown && sheet < sheetCount - 1;
     }
 
     /** The overview page has nothing to search, so the box leaves rather than sitting there inert. */
@@ -469,6 +559,7 @@ public class OpenScrollScreen extends Screen {
             footerShown = result.footerShown();
         }
         if (sheet >= sheetCount) sheet = sheetCount - 1;
+        updatePageButtons();
     }
 
     /**
@@ -529,6 +620,7 @@ public class OpenScrollScreen extends Screen {
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         rebuildIfStale();
+        hoverTooltip = List.of();
         // Dimmed rather than blurred: the world keeps running behind a scroll you are only reading.
         g.fill(0, 0, this.width, this.height, backdrop);
         // One blit of the whole sheet, offset so the drawn region lands on the panel. Blitting the
@@ -548,6 +640,9 @@ public class OpenScrollScreen extends Screen {
         }
         renderFooter(g);
         super.render(g, mouseX, mouseY, partialTick);
+        if (!hoverTooltip.isEmpty()) {
+            g.renderComponentTooltip(this.font, hoverTooltip, mouseX, mouseY);
+        }
     }
 
     private void renderTabs(GuiGraphics g) {
@@ -590,8 +685,9 @@ public class OpenScrollScreen extends Screen {
                 x + OpenScrollGeometry.CONTENT_WIDTH,
                 topPos + OpenScrollGeometry.RULE_BOTTOM_Y + 1, withAlpha(inkFaint, 0x59));
 
-        String line = "‹  " + Component.translatable("gui.historystages.open_scroll.sheet",
-                sheet + 1, sheetCount).getString() + "  ›";
+        // The arrows are widgets now, so the counter is only a counter — no ink chevrons beside it.
+        Component line = Component.translatable("gui.historystages.open_scroll.sheet",
+                sheet + 1, sheetCount);
         g.drawString(this.font, line,
                 x + (OpenScrollGeometry.CONTENT_WIDTH - this.font.width(line)) / 2,
                 topPos + OpenScrollGeometry.FOOT_Y, inkFaint, false);
@@ -692,7 +788,7 @@ public class OpenScrollScreen extends Screen {
             }
         }
         if (hovered != null) {
-            g.renderComponentTooltip(this.font, hovered.tooltip(), mouseX, mouseY);
+            hoverTooltip = hovered.tooltip();
         }
     }
 
@@ -777,7 +873,7 @@ public class OpenScrollScreen extends Screen {
             y += height;
         }
         if (hovered != null) {
-            g.renderTooltip(this.font, hovered.tooltip(), mouseX, mouseY);
+            hoverTooltip = List.of(hovered.tooltip());
         }
     }
 
@@ -794,6 +890,17 @@ public class OpenScrollScreen extends Screen {
         int clamped = Math.max(0, Math.min(sheetCount - 1, target));
         if (clamped == sheet) return;
         sheet = clamped;
+        updatePageButtons();
+        playPageTurn();
+    }
+
+    /**
+     * The sound a vanilla book makes. Also played when the scroll opens: a written book is silent
+     * there, but a rolled sheet that unrolls without a sound reads as a menu popping up.
+     */
+    static void playPageTurn() {
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.BOOK_PAGE_TURN, 1.0f));
     }
 
     @Override
@@ -819,15 +926,6 @@ public class OpenScrollScreen extends Screen {
                     contentStale = true;
                     updateSearchVisibility();
                 }
-                return true;
-            }
-        }
-
-        if (footerShown) {
-            int fy = topPos + OpenScrollGeometry.FOOT_Y;
-            if (mouseY >= fy && mouseY < fy + OpenScrollGeometry.FOOT_HEIGHT) {
-                boolean left = mouseX < px + OpenScrollGeometry.CONTENT_WIDTH / 2.0;
-                turnTo(sheet + (left ? -1 : 1));
                 return true;
             }
         }
