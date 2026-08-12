@@ -6,6 +6,11 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
 import net.bananemdnsa.historystages.data.graph.GraphConfigEntries;
 import net.bananemdnsa.historystages.data.graph.GraphKey;
+import net.bananemdnsa.historystages.data.ScrollCompletion;
+import net.bananemdnsa.historystages.data.scroll.OpenScrollChapters;
+import net.bananemdnsa.historystages.data.scroll.OpenScrollOverviewBlocks;
+import net.bananemdnsa.historystages.data.scroll.OpenScrollSort;
+import net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility;
 import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphConfigPacket;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
@@ -89,6 +94,15 @@ public class ConfigEditorScreen extends Screen {
     // Config entries grouped by section
     private List<ConfigSection> clientSections;
     private List<ConfigSection> commonSections;
+
+    /**
+     * Common values that have no row of their own because another row's sub-screen edits them.
+     * Same arrangement as {@link #styleEntries}: they must still be saved, compared and refreshed,
+     * so every place that walks the sections has to walk these too — {@link #allEntries()},
+     * {@link #saveConfig()}, {@link #refreshCommonValues()} and {@link #findCommonEntry(String)}.
+     * Keeping them out of a section is what stops them from drawing a second, redundant row.
+     */
+    private final List<ConfigEntry> commonSubEntries = new ArrayList<>();
     /** graph.toml's five non-style tables, generated from the spec. */
     private List<ConfigSection> graphSections;
     /**
@@ -193,6 +207,10 @@ public class ConfigEditorScreen extends Screen {
                 Config.CLIENT.showBoosterTooltips.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showScrollTierTooltip", ConfigType.BOOLEAN,
                 Config.CLIENT.showScrollTierTooltip.get().toString(), true, "true"));
+        // The only open-scroll setting that is a matter of taste rather than a pack decision,
+        // which is why it lives on the client while the rest of them are common.
+        visuals.add(new ConfigEntry("openScrollBackdrop", ConfigType.INTEGER,
+                Config.CLIENT.openScrollBackdrop.get().toString(), true, "60", 0, 100));
         clientSections.add(visuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
@@ -259,6 +277,9 @@ public class ConfigEditorScreen extends Screen {
 
         // --- COMMON CONFIG ---
         commonSections = new ArrayList<>();
+        // Cleared with the sections: buildConfigEntries runs again on a rebuild, and appending
+        // would otherwise leave a stale duplicate that fights the live one on save.
+        commonSubEntries.clear();
 
         ConfigSection messages = new ConfigSection("editor.historystages.config.messages");
         messages.add(new ConfigEntry("showWelcomeMessage", ConfigType.BOOLEAN,
@@ -303,7 +324,7 @@ public class ConfigEditorScreen extends Screen {
 
         ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
         scrollTooltip.add(new ConfigEntry("scrollTooltipLines", ConfigType.SUBSCREEN,
-                encodeScrollTooltipLines(Config.COMMON.scrollTooltipLines.get()), false,
+                joinConfigList(Config.COMMON.scrollTooltipLines.get()), false,
                 String.join(";", ScrollTooltipLayout.defaultsEncoded()),
                 "editor.historystages.config.scrollTooltipLines",
                 "editor.historystages.config.scrollTooltipLines.desc",
@@ -311,6 +332,52 @@ public class ConfigEditorScreen extends Screen {
         scrollTooltip.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
                 Config.COMMON.hideFulfilledDependencies.get().toString(), false, "false"));
         commonSections.add(scrollTooltip);
+
+        // One row, not two: chapters and overview blocks answer the same question — what the
+        // document shows, in which order — and they were always going to open the same screen.
+        // The blocks value therefore has no row of its own and rides in commonSubEntries.
+        ConfigSection openScroll = new ConfigSection("editor.historystages.config.open_scroll");
+        openScroll.add(new ConfigEntry("openScrollChapters", ConfigType.SUBSCREEN,
+                joinConfigList(Config.COMMON.openScrollChapters.get()), false,
+                String.join(";", OpenScrollChapters.defaultsEncoded()),
+                "editor.historystages.config.openScrollDocument",
+                "editor.historystages.config.openScrollDocument.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        commonSubEntries.add(new ConfigEntry("openScrollOverviewBlocks", ConfigType.SUBSCREEN,
+                joinConfigList(Config.COMMON.openScrollOverviewBlocks.get()), false,
+                String.join(";", OpenScrollOverviewBlocks.defaultsEncoded()),
+                "editor.historystages.config.openScrollDocument",
+                "editor.historystages.config.openScrollDocument.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        openScroll.add(new ConfigEntry("openScrollLockedDisplay", ConfigType.ENUM,
+                Config.COMMON.openScrollLockedDisplay.get(), false,
+                OpenScrollVisibility.OBSCURED.serialize(),
+                "editor.historystages.config.openScrollLockedDisplay",
+                "editor.historystages.config.openScrollLockedDisplay.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(OpenScrollVisibility.values())
+                        .map(OpenScrollVisibility::serialize).toList(),
+                OpenScrollVisibility.class.getSimpleName()));
+        openScroll.add(new ConfigEntry("openScrollEntrySort", ConfigType.ENUM,
+                Config.COMMON.openScrollEntrySort.get(), false,
+                OpenScrollSort.DEFINED.serialize(),
+                "editor.historystages.config.openScrollEntrySort",
+                "editor.historystages.config.openScrollEntrySort.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(OpenScrollSort.values())
+                        .map(OpenScrollSort::serialize).toList(),
+                OpenScrollSort.class.getSimpleName()));
+        openScroll.add(new ConfigEntry("openScrollShowSearch", ConfigType.BOOLEAN,
+                Config.COMMON.openScrollShowSearch.get().toString(), false, "true"));
+        openScroll.add(new ConfigEntry("openScrollShowEntryIds", ConfigType.BOOLEAN,
+                Config.COMMON.openScrollShowEntryIds.get().toString(), false, "true"));
+        openScroll.add(new ConfigEntry("openScrollInkHeading", ConfigType.COLOR,
+                Config.COMMON.openScrollInkHeading.get(), false, "#3F2D13"));
+        openScroll.add(new ConfigEntry("openScrollInkBody", ConfigType.COLOR,
+                Config.COMMON.openScrollInkBody.get(), false, "#4A3416"));
+        openScroll.add(new ConfigEntry("openScrollInkFaint", ConfigType.COLOR,
+                Config.COMMON.openScrollInkFaint.get(), false, "#7A5A2C"));
+        commonSections.add(openScroll);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
         individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
@@ -349,6 +416,19 @@ public class ConfigEditorScreen extends Screen {
                 Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true"));
         research.add(new ConfigEntry("lockScrollWhileResearching", ConfigType.BOOLEAN,
                 Config.COMMON.lockScrollWhileResearching.get().toString(), false, "false"));
+        // An ENUM rather than a toggle: three named outcomes, and a stage may override this one
+        // with its own scroll_completion, so the row has to say which default it is overriding.
+        research.add(new ConfigEntry("defaultScrollCompletion", ConfigType.ENUM,
+                Config.COMMON.defaultScrollCompletion.get(), false,
+                ScrollCompletion.CONSUME.serialize(),
+                "editor.historystages.config.defaultScrollCompletion",
+                "editor.historystages.config.defaultScrollCompletion.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(ScrollCompletion.values())
+                        .map(ScrollCompletion::serialize).toList(),
+                ScrollCompletion.class.getSimpleName()));
+        research.add(new ConfigEntry("enableScrollResealing", ConfigType.BOOLEAN,
+                Config.COMMON.enableScrollResealing.get().toString(), false, "true"));
         research.add(new ConfigEntry("researchBoosters", ConfigType.BOOSTER_LIST,
                 encodeBoosterList(Config.COMMON.researchBoosters.get()), false, ""));
         commonSections.add(research);
@@ -540,6 +620,7 @@ public class ConfigEditorScreen extends Screen {
         if (commonSections != null) {
             for (ConfigSection section : commonSections) all.addAll(section.entries);
         }
+        all.addAll(commonSubEntries);
         all.addAll(graphEntries());
         return all;
     }
@@ -573,13 +654,22 @@ public class ConfigEditorScreen extends Screen {
         Map<String, String> fresh = CommonConfigSync.readAll();
         for (ConfigSection section : commonSections) {
             for (ConfigEntry entry : section.entries) {
-                String synced = fresh.get(entry.key);
-                if (synced == null) continue;
-                boolean untouched = entry.value.equals(entry.initialValue);
-                entry.initialValue = synced;
-                if (untouched) entry.value = synced;
+                mergeSynced(entry, fresh);
             }
         }
+        // The row-less values follow the same rule; skipping them would silently pin them to
+        // whatever they were when the screen opened.
+        for (ConfigEntry entry : commonSubEntries) {
+            mergeSynced(entry, fresh);
+        }
+    }
+
+    private static void mergeSynced(ConfigEntry entry, Map<String, String> fresh) {
+        String synced = fresh.get(entry.key);
+        if (synced == null) return;
+        boolean untouched = entry.value.equals(entry.initialValue);
+        entry.initialValue = synced;
+        if (untouched) entry.value = synced;
     }
 
     /**
@@ -995,10 +1085,15 @@ public class ConfigEditorScreen extends Screen {
             case EFFECT_LIST -> this.minecraft.setScreen(new EffectListEditorScreen(this, entry));
             case ENUM -> openEnumDropdown(entry, contentLeft, rowY);
             case COLOR -> this.minecraft.setScreen(new ColorInputScreen(this, entry));
-            case SUBSCREEN -> this.minecraft.setScreen(
-                    "scrollTooltipLines".equals(entry.key)
-                            ? new ScrollTooltipScreen(this, entry)
-                            : new GraphStyleScreen(this));
+            case SUBSCREEN -> {
+                if ("scrollTooltipLines".equals(entry.key)) {
+                    this.minecraft.setScreen(new ScrollTooltipScreen(this, entry));
+                } else if ("openScrollChapters".equals(entry.key)) {
+                    this.minecraft.setScreen(new OpenScrollDocumentScreen(this));
+                } else {
+                    this.minecraft.setScreen(new GraphStyleScreen(this));
+                }
+            }
             case TEXTURE -> openTexturePicker(entry);
         }
     }
@@ -1162,6 +1257,9 @@ public class ConfigEditorScreen extends Screen {
                 commonValues.put(entry.key, entry.value);
             }
         }
+        for (ConfigEntry entry : commonSubEntries) {
+            commonValues.put(entry.key, entry.value);
+        }
         PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
 
         // Send graph.toml to the server, keyed by toml path. The style rows come along here
@@ -1252,7 +1350,7 @@ public class ConfigEditorScreen extends Screen {
     }
 
     /** Encode the live scroll tooltip config list as the editor's internal string. */
-    private static String encodeScrollTooltipLines(java.util.List<? extends String> entries) {
+    private static String joinConfigList(java.util.List<? extends String> entries) {
         return entries.stream()
                 .filter(java.util.Objects::nonNull)
                 .map(String::trim)
@@ -1362,6 +1460,22 @@ public class ConfigEditorScreen extends Screen {
             entry.clearable = true;
             return entry;
         }
+    }
+
+    /**
+     * Package-private: {@link OpenScrollDocumentScreen} edits these entries in place rather than
+     * keeping copies, so one Save here covers them and the unsaved-changes marker stays honest.
+     */
+    ConfigEntry findCommonEntry(String key) {
+        for (ConfigSection section : commonSections) {
+            for (ConfigEntry entry : section.entries) {
+                if (entry.key.equals(key)) return entry;
+            }
+        }
+        for (ConfigEntry entry : commonSubEntries) {
+            if (entry.key.equals(key)) return entry;
+        }
+        throw new IllegalStateException("no common config entry " + key);
     }
 
     static class ConfigSection {

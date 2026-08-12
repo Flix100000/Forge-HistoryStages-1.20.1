@@ -69,6 +69,7 @@ public class HistoryStages {
         ModCreativeTabs.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.register(modEventBus);
+        net.bananemdnsa.historystages.init.ModRecipes.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
         // Hier fügen wir den Decorator hinzu:

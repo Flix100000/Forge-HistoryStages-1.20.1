@@ -81,6 +81,8 @@ public class StageDetailScreen extends Screen {
     private AutoTrigger editAutoTrigger;
     private net.bananemdnsa.historystages.data.temporary.TemporaryConfig editTemporary;
     private String editIcon;
+    /** Empty means "follow the config default", the same convention {@link #editIcon} uses. */
+    private String editScrollCompletion = "";
     private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
     private boolean editLoseOnDeath;
     private final List<String> editItems;
@@ -404,6 +406,7 @@ public class StageDetailScreen extends Screen {
         this.editBiomes = new ArrayList<>(e.getBiomes());
         this.editBiomeModLinked = new ArrayList<>(e.getBiomeModLinked());
         this.editIcon = e.getIcon();
+        this.editScrollCompletion = e.getScrollCompletion();
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editInteractionlock = new ArrayList<>();
         this.editInteractionlockActions = new HashMap<>();
@@ -3236,8 +3239,8 @@ public class StageDetailScreen extends Screen {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
                 editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary,
-                editHiddenDisplay.copy(), editLoseOnDeath, isNewStage, isIndividual,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath) -> {
+                editHiddenDisplay.copy(), editLoseOnDeath, editScrollCompletion, isNewStage, isIndividual,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath, newScrollCompletion) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -3248,6 +3251,7 @@ public class StageDetailScreen extends Screen {
                     editTemporary = newTemporary;
                     editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
                     editLoseOnDeath = newLoseOnDeath;
+                    editScrollCompletion = newScrollCompletion == null ? "" : newScrollCompletion;
                     hasChanges = true;
                     // Saving in a sub-screen persists the whole stage, so the user never has to
                     // come back here and press Save again.
@@ -3465,6 +3469,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setBiomes(editBiomes);
         newEntry.setBiomeModLinked(editBiomeModLinked);
         newEntry.setIcon(editIcon);
+        newEntry.setScrollCompletion(editScrollCompletion);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         List<net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry> interactionlockEntries = new ArrayList<>();

@@ -12,6 +12,7 @@ import mezz.jei.api.registration.IRecipeCategoryRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
 import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.runtime.IIngredientManager;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
@@ -26,7 +27,13 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.NonNullList;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.ShapelessRecipe;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -271,6 +278,24 @@ public class JEIPlugin implements IModPlugin {
                 BoosterUtil.percent(booster.speedReduction()),
                 BoosterUtil.percent(booster.costReduction()))));
         registration.addRecipes(BoosterRecipeCategory.TYPE, recipes);
+
+        // The resealing recipe is a special recipe with no declared ingredients, so JEI cannot
+        // derive it from the recipe manager — one shapeless stand-in per stage is added by hand.
+        // These are display only; the real matching still happens in ResealScrollRecipe.
+        if (net.bananemdnsa.historystages.Config.COMMON.enableScrollResealing.get()) {
+            List<RecipeHolder<CraftingRecipe>> reseal = new ArrayList<>();
+            for (String stageId : ScrollVariants.scrollableStageIds()) {
+                NonNullList<Ingredient> inputs = NonNullList.create();
+                inputs.add(Ingredient.of(ScrollVariants.createOpenScroll(stageId)));
+                inputs.add(Ingredient.of(Items.PAPER));
+                reseal.add(new RecipeHolder<>(
+                        ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID,
+                                "reseal_scroll/" + stageId.replace(':', '_')),
+                        new ShapelessRecipe("", CraftingBookCategory.MISC,
+                                ScrollVariants.createScroll(stageId), inputs)));
+            }
+            registration.addRecipes(RecipeTypes.CRAFTING, reseal);
+        }
     }
 
     @Override

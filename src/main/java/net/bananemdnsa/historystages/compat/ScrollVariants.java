@@ -46,6 +46,25 @@ public final class ScrollVariants {
         return scrolls;
     }
 
+    /**
+     * Ids of every stage that has a scroll at all, in the same order and with the same AUTO /
+     * TEMPORARY exclusion {@link #buildAllStageScrolls()} applies. Recipe-viewer plugins need the
+     * ids rather than finished stacks, because they build both the open and the sealed side.
+     */
+    public static List<String> scrollableStageIds() {
+        List<String> ids = new ArrayList<>();
+        addIdsFor(StageManager.getStages(), ids);
+        addIdsFor(StageManager.getIndividualStages(), ids);
+        return ids;
+    }
+
+    private static void addIdsFor(Map<String, StageEntry> stages, List<String> out) {
+        for (var entry : stages.entrySet()) {
+            if (entry.getValue().getMode().usesAutoTrigger()) continue;
+            out.add(entry.getKey());
+        }
+    }
+
     private static void addScrollsFor(Map<String, StageEntry> stages, List<ItemStack> out) {
         for (var entry : stages.entrySet()) {
             if (entry.getValue().getMode().usesAutoTrigger()) continue;

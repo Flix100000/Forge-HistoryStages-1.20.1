@@ -24,6 +24,14 @@ public final class OpenScrollHandler {
 
     @SubscribeEvent
     public static void onRightClick(PlayerInteractEvent.RightClickItem event) {
+        // Dist.CLIENT only decides that this class is loaded on the physical client, not which
+        // thread runs it: in single player the integrated server lives in the same JVM and fires
+        // this event again from ServerGamePacketListenerImpl. Calling setScreen from there throws
+        // inside BufferUploader.reset() *after* Minecraft has already stored the new screen but
+        // *before* it calls init() on it, leaving a screen with a null font that kills the very
+        // next frame. The guard has to come first, before anything touches a client class.
+        if (!event.getLevel().isClientSide()) return;
+
         ItemStack stack = event.getItemStack();
         if (!stack.is(ModItems.RESEARCH_SCROLL_OPEN.get())) return;
 

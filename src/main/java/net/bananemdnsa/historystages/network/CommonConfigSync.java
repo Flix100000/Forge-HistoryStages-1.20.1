@@ -138,9 +138,18 @@ public final class CommonConfigSync {
                 net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout::rebuildFromConfig);
         bool("hideFulfilledDependencies", Config.COMMON.hideFulfilledDependencies);
 
+        bool("enableScrollResealing", Config.COMMON.enableScrollResealing);
+
         // open_scroll
         list("openScrollChapters", Config.COMMON.openScrollChapters, ";", null);
         str("openScrollLockedDisplay", Config.COMMON.openScrollLockedDisplay);
+        list("openScrollOverviewBlocks", Config.COMMON.openScrollOverviewBlocks, ";", null);
+        bool("openScrollShowSearch", Config.COMMON.openScrollShowSearch);
+        bool("openScrollShowEntryIds", Config.COMMON.openScrollShowEntryIds);
+        str("openScrollEntrySort", Config.COMMON.openScrollEntrySort);
+        str("openScrollInkHeading", Config.COMMON.openScrollInkHeading);
+        str("openScrollInkBody", Config.COMMON.openScrollInkBody);
+        str("openScrollInkFaint", Config.COMMON.openScrollInkFaint);
 
         verifyCoversEveryCommonValue();
     }
