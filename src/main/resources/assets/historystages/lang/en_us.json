@@ -436,7 +436,7 @@
   "editor.historystages.auto_trigger.combine.any": "ANY",
   "editor.historystages.auto_trigger.combine.all": "ALL",
   "editor.historystages.auto_trigger.combine.tooltip": "ANY: Stage unlocks as soon as one trigger fires.\nALL: All triggers must be fulfilled.",
-  "editor.historystages.auto_trigger.add": "+ Add ▾",
+  "editor.historystages.auto_trigger.add": "+ Add",
   "editor.historystages.auto_trigger.empty": "No triggers yet. Click '+ Add' to add one.",
   "editor.historystages.auto_trigger.no_matches": "No triggers match the current search / filter.",
   "editor.historystages.auto_trigger.search": "Search triggers...",

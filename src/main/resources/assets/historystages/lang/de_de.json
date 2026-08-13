@@ -435,7 +435,7 @@
   "editor.historystages.auto_trigger.combine.any": "EINER",
   "editor.historystages.auto_trigger.combine.all": "ALLE",
   "editor.historystages.auto_trigger.combine.tooltip": "EINER: Die Stufe wird freigeschaltet, sobald ein Auslöser ausgelöst wird.\nALLE: Alle Auslöser müssen erfüllt sein.",
-  "editor.historystages.auto_trigger.add": "+ Hinzufügen ▾",
+  "editor.historystages.auto_trigger.add": "+ Hinzufügen",
   "editor.historystages.auto_trigger.empty": "Noch keine Auslöser. Klicke auf '+ Hinzufügen', um einen hinzuzufügen.",
   "editor.historystages.auto_trigger.no_matches": "Keine Auslöser entsprechen der aktuellen Suche / dem Filter.",
   "editor.historystages.auto_trigger.search": "Auslöser suchen...",

@@ -11,6 +11,7 @@ import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityL
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.StageLockFilter;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
@@ -62,6 +63,11 @@ public class AutoTriggerEditorScreen extends Screen {
     private static final int ICON_W = 18;
     private static final int TYPE_COL_W = 90;
 
+    /** Add-dropdown metrics — same as the editor's other dropdowns so the popups match. */
+    private static final int ADD_BTN_H = 18;
+    private static final int ADD_ROW_H = 18;
+    private static final int ADD_POPUP_PAD = 2;
+
     private static final TriggerType[] TYPES = TriggerType.values();
 
     private final Screen parent;
@@ -91,6 +97,9 @@ public class AutoTriggerEditorScreen extends Screen {
 
     // Inline overlays
     private boolean addDropdownOpen = false;
+    /** Reveal progress of the add popup; also drives the caret turning over. */
+    private final Anim addOpen = new Anim();
+    private final java.util.Map<Integer, Anim> addRowHover = new java.util.HashMap<>();
     private OverlayHandler currentList = null;
     private int editIndex = -1;             // -1 = adding, >=0 = replacing at this row
     private String pendingEntityId = null;  // entity picked, waiting for sub-mode choice
@@ -217,8 +226,8 @@ public class AutoTriggerEditorScreen extends Screen {
                     mx, my);
         }
 
-        // Add-dropdown popup
-        if (addDropdownOpen) renderAddDropdown(g, mx, my);
+        // Add-dropdown popup — always rendered; the reveal animation decides what is visible.
+        renderAddDropdown(g, mx, my);
 
         // Dim the rest of the screen whenever a modal overlay is active (Searchable widget,
         // sub-mode chooser, or playtime dialog). Without this the editor's title and the
@@ -285,12 +294,11 @@ public class AutoTriggerEditorScreen extends Screen {
     }
 
     private void renderAddButton(GuiGraphics g, int mx, int my) {
-        boolean hov = isOver(mx, my, addBtnX, addBtnY, addBtnW, 18);
+        boolean hov = isOver(mx, my, addBtnX, addBtnY, addBtnW, ADD_BTN_H);
         float hp = Ease.outCubic(addBtnHover.ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        g.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 18, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
-        g.fill(addBtnX, addBtnY + 17, addBtnX + addBtnW, addBtnY + 18, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
-        String label = Component.translatable("editor.historystages.auto_trigger.add").getString();
-        g.drawString(this.font, label, addBtnX + 6, addBtnY + 5, 0xFFFFFFFF, false);
+        DropdownChrome.drawButton(g, this.font, addBtnX, addBtnY, addBtnW, ADD_BTN_H,
+                Component.translatable("editor.historystages.auto_trigger.add").getString(),
+                hp, addDropdownOpen, addOpen.value());
     }
 
     private void renderList(GuiGraphics g, int mx, int my) {
@@ -456,26 +464,58 @@ public class AutoTriggerEditorScreen extends Screen {
         return "";
     }
 
-    private void renderAddDropdown(GuiGraphics g, int mx, int my) {
-        int rowH = 16;
+    /**
+     * Geometry of the add popup as {x, y, w, h}. Widened to its longest type label and flipped
+     * above the button when it would run off the bottom, so no row ends up unreachable.
+     */
+    private int[] addPopupGeometry() {
         int pw = addBtnW;
-        int ph = TYPES.length * rowH;
-        int px = addBtnX;
-        int py = addBtnY + 18 + 1;
-
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 300);
-        g.fill(px - 1, py - 1, px + pw + 1, py + ph + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + ph, 0xFF1A1A1A);
-        for (int i = 0; i < TYPES.length; i++) {
-            int rowY = py + i * rowH;
-            boolean hov = isOver(mx, my, px, rowY, pw, rowH);
-            if (hov) g.fill(px, rowY, px + pw, rowY + rowH, 0x40FFCC00);
-            g.drawString(this.font,
-                    Component.translatable("editor.historystages.auto_trigger.type." + TYPES[i].id).getString(),
-                    px + 6, rowY + 4, hov ? 0xFFFFFF : 0xCCCCCC, false);
+        for (TriggerType t : TYPES) {
+            int w = this.font.width(typeLabel(t)) + 16;
+            if (w > pw) pw = w;
         }
-        g.pose().popPose();
+        int ph = TYPES.length * ADD_ROW_H + ADD_POPUP_PAD * 2;
+        // Right-aligned with the button, which sits against the screen's right edge.
+        int px = addBtnX + addBtnW - pw;
+        int py = addBtnY + ADD_BTN_H + 2;
+        if (px + pw > this.width - 4) px = this.width - pw - 4;
+        if (px < 4) px = 4;
+        if (py + ph > this.height - 4) py = addBtnY - ph - 2;
+        if (py < 4) py = 4;
+        return new int[] { px, py, pw, ph };
+    }
+
+    private void renderAddDropdown(GuiGraphics g, int mx, int my) {
+        // A picker opened from this dropdown covers the screen at a lower depth than the popup,
+        // so snap the reveal shut instead of letting it roll up over the picker.
+        if (isOverlayActive()) {
+            addOpen.set(0.0f);
+            return;
+        }
+        // Kept rendering past the click that closed it, so the popup rolls back up instead of
+        // vanishing. addOpen drives both the reveal here and the caret in renderAddButton.
+        float t = addOpen.ramp(addDropdownOpen ? 1.0f : 0.0f, Timing.POPUP_MS);
+        if (t < 0.02f) return;
+
+        int[] geom = addPopupGeometry();
+        int px = geom[0], py = geom[1], pw = geom[2], ph = geom[3];
+
+        if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < addBtnY)) return;
+
+        for (int i = 0; i < TYPES.length; i++) {
+            int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
+            boolean hov = addDropdownOpen && isOver(mx, my, px, rowY, pw, ADD_ROW_H);
+            float rh = Ease.outCubic(addRowHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            DropdownChrome.drawRowHighlight(g, px + 1, rowY, pw - 2, ADD_ROW_H, rh);
+            g.drawString(this.font, typeLabel(TYPES[i]), px + 5 + Math.round(rh * 2.0f), rowY + 5,
+                    0xFFEEEEEE, false);
+        }
+        DropdownChrome.end(g);
+    }
+
+    private static String typeLabel(TriggerType type) {
+        return Component.translatable("editor.historystages.auto_trigger.type." + type.id).getString();
     }
 
     private void renderSubmodeChooser(GuiGraphics g, int mx, int my) {
@@ -594,7 +634,7 @@ public class AutoTriggerEditorScreen extends Screen {
             return true;
         }
         // Add button
-        if (button == 0 && isOver((int) mouseX, (int) mouseY, addBtnX, addBtnY, addBtnW, 18)) {
+        if (button == 0 && isOver((int) mouseX, (int) mouseY, addBtnX, addBtnY, addBtnW, ADD_BTN_H)) {
             addDropdownOpen = true;
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             return true;
@@ -644,15 +684,20 @@ public class AutoTriggerEditorScreen extends Screen {
     }
 
     private boolean handleAddDropdownClick(double mouseX, double mouseY, int button) {
-        int rowH = 16;
-        int pw = addBtnW;
-        int px = addBtnX;
-        int py = addBtnY + 18 + 1;
+        // Click back on the button closes rather than closing and immediately re-opening.
+        if (button == 0 && isOver((int) mouseX, (int) mouseY, addBtnX, addBtnY, addBtnW, ADD_BTN_H)) {
+            addDropdownOpen = false;
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            return true;
+        }
+        int[] geom = addPopupGeometry();
+        int px = geom[0], py = geom[1], pw = geom[2];
         for (int i = 0; i < TYPES.length; i++) {
-            int rowY = py + i * rowH;
-            if (button == 0 && isOver((int) mouseX, (int) mouseY, px, rowY, pw, rowH)) {
+            int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
+            if (button == 0 && isOver((int) mouseX, (int) mouseY, px, rowY, pw, ADD_ROW_H)) {
                 addDropdownOpen = false;
                 editIndex = -1;
+                Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 openPickerFor(TYPES[i]);
                 return true;
             }
@@ -1050,7 +1095,7 @@ public class AutoTriggerEditorScreen extends Screen {
         ).getString();
     }
 
-    /** Trigger types in the order they appear in the [+ Add] dropdown. */
+    /** Trigger types in the order they appear in the add dropdown. */
     private enum TriggerType {
         BIOME("biome"),
         STRUCTURE("structure"),
