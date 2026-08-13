@@ -60,6 +60,8 @@
   "editor.historystages.search.tab.structure_tags": "Tags",
   "editor.historystages.search.add": "Hinzufügen (%s)",
   "editor.historystages.search.add.empty": "Eintrag auswählen",
+  "editor.historystages.search.selectall": "Alle auswählen (%s)",
+  "editor.historystages.search.deselectall": "Alle abwählen (%s)",
   "editor.historystages.search.selected.placeholder": "Ausgewählte durchsuchen (%s)...",
   "editor.historystages.search.selected.empty": "Noch nichts ausgewählt",
   "editor.historystages.delete": "L\u00f6schen",
