@@ -7,6 +7,10 @@ import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -42,6 +46,10 @@ public class NbtItemEditScreen extends Screen {
     private final List<NbtProperty> properties = new ArrayList<>();
     private boolean propertiesBuilt = false;
     private double scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    /** Hover progress of the component rows, keyed by their label. */
+    private final java.util.Map<String, Anim> rowHover = new java.util.HashMap<>();
     private int maxScroll = 0;
 
     // Layout
@@ -280,6 +288,9 @@ public class NbtItemEditScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.fill(0, 0, this.width, this.height, 0xE0101010);
 
+        smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle((float) scrollOffset, 0.5f);
+
         // Header: item display (tag mode shows the tag id, no icon)
         if (tagMode) {
             g.drawString(this.font, "#" + itemId, PADDING, 14, 0xFFFFFF);
@@ -302,7 +313,7 @@ public class NbtItemEditScreen extends Screen {
         int listBottom = this.height - 40;
         g.enableScissor(0, listTop, this.width, listBottom);
 
-        int y = listTop - (int) scrollOffset;
+        int y = listTop - Math.round(smoothScroll.value());
         int contentLeft = PADDING;
         int contentRight = this.width - PADDING;
 
@@ -375,7 +386,7 @@ public class NbtItemEditScreen extends Screen {
             int barW = 6;
             int barH = listBottom - listTop;
             int thumbH = Math.max(20, (int) ((float) barH * barH / (barH + maxScroll)));
-            int thumbY = listTop + (int) ((float) scrollOffset / maxScroll * (barH - thumbH));
+            int thumbY = listTop + Math.round(smoothScroll.value() / maxScroll * (barH - thumbH));
             boolean barHovered = mouseX >= barX && mouseX < barX + barW && mouseY >= listTop && mouseY < listBottom;
             g.fill(barX, listTop, barX + barW, listBottom, 0x20FFFFFF);
             int thumbColor = draggingScrollbar ? 0xFFFFCC00 : (barHovered ? 0xC0FFCC00 : 0x80FFCC00);
@@ -529,8 +540,11 @@ public class NbtItemEditScreen extends Screen {
     private void renderAddButton(GuiGraphics g, int x, int y, String label, int mx, int my) {
         int w = this.font.width(label) + 12;
         boolean hovered = mx >= x && mx < x + w && my >= y && my < y + ROW_HEIGHT;
-        g.fill(x, y + 2, x + w, y + ROW_HEIGHT - 2, hovered ? 0x40FFCC00 : 0x20FFFFFF);
-        g.drawString(this.font, label, x + 6, y + (ROW_HEIGHT - 8) / 2, hovered ? 0xFFCC00 : 0x888888);
+        float hp = Ease.outCubic(rowHover.computeIfAbsent(label, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        g.fill(x, y + 2, x + w, y + ROW_HEIGHT - 2, Fade.mix(0x20FFFFFF, 0x40FFCC00, hp));
+        g.drawString(this.font, label, x + 6 + Math.round(hp * 2.0f), y + (ROW_HEIGHT - 8) / 2,
+                Fade.mix(0xFF888888, 0xFFFFCC00, hp));
     }
 
     // ==========================================
@@ -582,7 +596,7 @@ public class NbtItemEditScreen extends Screen {
         if (mouseY < listTop || mouseY > listBottom)
             return false;
 
-        int y = listTop - (int) scrollOffset;
+        int y = listTop - Math.round(smoothScroll.value());
         int contentLeft = PADDING;
         int contentRight = this.width - PADDING;
 
@@ -1046,6 +1060,8 @@ public class NbtItemEditScreen extends Screen {
         private final Consumer<String> onDone;
         private List<String> filteredSuggestions = new ArrayList<>();
         private int suggestionScroll = 0;
+        /** Hover progress of the suggestion rows, keyed by visible slot. */
+        private final java.util.Map<Integer, Anim> suggestionHover = new java.util.HashMap<>();
         private boolean draggingScrollbar = false;
         /** Last query the list was filtered against, so a re-filter can tell a change from a repoll. */
         private String lastFilterInput = null;
@@ -1161,8 +1177,12 @@ public class NbtItemEditScreen extends Screen {
                 boolean hovered = mouseX >= listX && mouseX < listX + listW
                         && mouseY >= itemY && mouseY < itemY + SUGGESTION_HEIGHT;
 
-                if (hovered) {
-                    g.fill(listX, itemY, listX + listW, itemY + SUGGESTION_HEIGHT, 0x40FFCC00);
+                float sh = Ease.outCubic(suggestionHover.computeIfAbsent(i, k -> new Anim())
+                        .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+                if (sh > 0.001f) {
+                    g.fill(listX, itemY, listX + listW, itemY + SUGGESTION_HEIGHT,
+                            Fade.rgba(0xFFCC00, 0.25f * sh));
+                    g.fill(listX, itemY, listX + 1, itemY + SUGGESTION_HEIGHT, Fade.rgba(0xFFCC00, sh));
                 }
 
                 // Highlight the part matching the current input

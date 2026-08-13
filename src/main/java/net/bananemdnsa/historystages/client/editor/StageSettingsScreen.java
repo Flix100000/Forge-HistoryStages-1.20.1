@@ -1,7 +1,12 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DurationUnitDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -23,7 +28,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class StageSettingsScreen extends Screen {
@@ -112,7 +119,15 @@ public class StageSettingsScreen extends Screen {
     private int maxScroll = 0;
     private int viewTop, viewBottom;
     private boolean scrollBarDragging = false;
-    private float smoothScrollOffset = 0;
+    private final Anim smoothScrollOffset = new Anim();
+
+    /** Reveal of the mode dropdown; also turns its caret over. */
+    private final Anim modeOpen = new Anim();
+    private final Anim modeHover = new Anim();
+    private final Map<Integer, Anim> modeRowHover = new HashMap<>();
+    /** Hover state of the two card toggles, which used to switch colour in one frame. */
+    private final Anim lockHintsHover = new Anim();
+    private final Anim scrollThumbHover = new Anim();
     private int renderScroll = 0;
     /** Content widgets rendered manually inside the scrolled viewport (not auto-rendered). */
     private final List<AbstractWidget> contentWidgets = new ArrayList<>();
@@ -563,7 +578,7 @@ public class StageSettingsScreen extends Screen {
             ratio = Math.max(0, Math.min(1, ratio));
             scrollY = Math.round(ratio * maxScroll);
             clampScroll();
-            smoothScrollOffset = scrollY; // snap while dragging for responsiveness
+            smoothScrollOffset.set(scrollY); // snap while dragging for responsiveness
         }
     }
 
@@ -680,9 +695,9 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
         clampScroll();
-        smoothScrollOffset += (scrollY - smoothScrollOffset) * 0.25f;
-        if (Math.abs(smoothScrollOffset - scrollY) < 0.5f) smoothScrollOffset = scrollY;
-        renderScroll = Math.round(smoothScrollOffset);
+        smoothScrollOffset.approach(scrollY, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScrollOffset.settle(scrollY, 0.5f);
+        renderScroll = Math.round(smoothScrollOffset.value());
         layoutAll();
 
         // --- Fixed title bar (above the viewport) ---
@@ -778,9 +793,11 @@ public class StageSettingsScreen extends Screen {
             int barX = this.width - 28;
             boolean barHovered = mouseX >= barX - 2 && mouseX <= barX + 7
                     && mouseY >= barY && mouseY <= barY + barHeight;
+            float th = Ease.outCubic(scrollThumbHover.ramp(scrollBarDragging || barHovered,
+                    Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
             guiGraphics.fill(barX, viewTop, barX + 5, viewBottom, 0x30FFFFFF);
-            int barColor = (scrollBarDragging || barHovered) ? 0xCCFFFFFF : 0x80FFFFFF;
-            guiGraphics.fill(barX, barY, barX + 5, barY + barHeight, barColor);
+            guiGraphics.fill(barX, barY, barX + 5, barY + barHeight,
+                    Fade.mix(0x80FFFFFF, 0xFFFFCC00, th));
         }
 
         // Fixed Back/Save buttons (the only auto-rendered widgets), outside the viewport
@@ -788,9 +805,9 @@ public class StageSettingsScreen extends Screen {
 
         // Unsaved changes animation (left of Save button)
         if (hasChanges) {
-            float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
-            pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
-            int dotAlpha = (int) (pulse * 255);
+            float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
+                    / Timing.BREATHE_PERIOD_MS;
+            int dotAlpha = (int) ((0.35f + 0.45f * Ease.breathe(phase)) * 255);
             String unsavedLabel = Component.translatable("editor.historystages.unsaved").getString();
             int unsavedW = (int) (this.font.width(unsavedLabel) * SMALL_SCALE);
             int dotX = this.width - 60 - 8 - 6;
@@ -813,9 +830,7 @@ public class StageSettingsScreen extends Screen {
                 cooldownUnitDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
             }
         }
-        if (modeDropdownOpen) {
-            renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
-        }
+        renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
         nameModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         tooltipModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
     }
@@ -860,10 +875,17 @@ public class StageSettingsScreen extends Screen {
                 labelX, lockHintsRowY + 3, 0xAAAAAA, false);
         boolean tHov = mouseX >= lockHintsToggleX && mouseX < lockHintsToggleX + lockHintsToggleW
                 && mouseY >= lockHintsRowY && mouseY < lockHintsRowY + DISP_TOGGLE_H;
+        float tp = Ease.outCubic(lockHintsHover.ramp(tHov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
         g.fill(lockHintsToggleX, lockHintsRowY, lockHintsToggleX + lockHintsToggleW, lockHintsRowY + DISP_TOGGLE_H,
-                tHov ? 0xFF3D3520 : 0xFF2A2A2A);
+                Fade.mix(0xFF2A2A2A, 0xFF3D3520, tp));
+        // Gold underline grows in with the hover, matching StyledButton's accent.
+        if (tp > 0.001f) {
+            int w = Math.round(lockHintsToggleW * tp);
+            g.fill(lockHintsToggleX, lockHintsRowY + DISP_TOGGLE_H - 1, lockHintsToggleX + w,
+                    lockHintsRowY + DISP_TOGGLE_H, Fade.rgba(0xFFCC00, tp));
+        }
         g.drawString(this.font, lockHintsValue(), lockHintsToggleX + 4, lockHintsRowY + 3,
-                tHov ? 0xFFCC00 : 0xCCCCCC, false);
+                Fade.mix(0xFFCCCCCC, 0xFFFFCC00, tp), false);
     }
 
     private String lockHintsValue() {
@@ -895,22 +917,28 @@ public class StageSettingsScreen extends Screen {
     private void renderModeDropdownButton(GuiGraphics g, int mouseX, int mouseY) {
         boolean hovered = mouseX >= modeDropdownX && mouseX <= modeDropdownX + modeDropdownW
                 && mouseY >= modeDropdownY && mouseY < modeDropdownY + FIELD_HEIGHT;
+        float hp = Ease.outCubic(modeHover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
-        int bg = hovered ? 0x40FFFFFF : 0x25FFFFFF;
-        g.fill(modeDropdownX, modeDropdownY, modeDropdownX + modeDropdownW, modeDropdownY + FIELD_HEIGHT, bg);
+        g.fill(modeDropdownX, modeDropdownY, modeDropdownX + modeDropdownW, modeDropdownY + FIELD_HEIGHT,
+                Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
         g.fill(modeDropdownX, modeDropdownY + FIELD_HEIGHT - 1,
                 modeDropdownX + modeDropdownW, modeDropdownY + FIELD_HEIGHT,
-                hovered ? 0xFFFFCC00 : 0x60FFCC00);
+                Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
 
         String label = Component.translatable(modeLabelKey(editMode)).getString();
         g.drawString(this.font, label, modeDropdownX + 6, modeDropdownY + 5, 0xFFFFFF, false);
 
-        String arrow = modeDropdownOpen ? "▲" : "▼";
-        g.drawString(this.font, arrow,
-                modeDropdownX + modeDropdownW - 10, modeDropdownY + 5, 0x999999, false);
+        // Turned by the same progress that reveals the popup, replacing the two static
+        // glyphs that used to swap in a single frame.
+        DropdownChrome.drawCaret(g, modeDropdownX + modeDropdownW - 10, modeDropdownY + 8,
+                Fade.mix(0xFF999999, 0xFFDDDDDD, hp), modeOpen.value());
     }
 
     private void renderModeDropdownPopup(GuiGraphics g, int mouseX, int mouseY) {
+        // Called every frame regardless of state so the popup can roll back up on close.
+        float t = modeOpen.ramp(modeDropdownOpen ? 1.0f : 0.0f, Timing.POPUP_MS);
+        if (t < 0.02f) return;
+
         StageMode[] modes = StageMode.values();
         int rowH = 22;
         int popupH = modes.length * rowH;
@@ -918,29 +946,29 @@ public class StageSettingsScreen extends Screen {
         int py = modeDropdownY + FIELD_HEIGHT + 1;
         int pw = modeDropdownW;
 
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 300);
-
-        // Frame
-        g.fill(px - 1, py - 1, px + pw + 1, py + popupH + 1, 0xFF555555);
-        g.fill(px, py, px + pw, py + popupH, 0xFF1A1A1A);
+        if (!DropdownChrome.begin(g, px, py, pw, popupH, t, false)) return;
 
         for (int i = 0; i < modes.length; i++) {
             StageMode m = modes[i];
             int rowY = py + i * rowH;
-            boolean hov = mouseX >= px && mouseX <= px + pw
+            boolean hov = modeDropdownOpen && mouseX >= px && mouseX <= px + pw
                     && mouseY >= rowY && mouseY < rowY + rowH;
-            if (hov) g.fill(px, rowY, px + pw, rowY + rowH, 0x30FFCC00);
+            float rh = Ease.outCubic(modeRowHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            if (rh > 0.001f) g.fill(px, rowY, px + pw, rowY + rowH, Fade.rgba(0xFFCC00, 0.19f * rh));
             if (m == editMode) g.fill(px, rowY, px + 2, rowY + rowH, 0xFFFFCC00);
 
             String name = Component.translatable(modeLabelKey(m)).getString();
             String desc = Component.translatable(modeDescKey(m)).getString();
-            int nameColor = hov ? 0xFFFFFF : (m == editMode ? 0xFFCC00 : 0xDDDDDD);
-            g.drawString(this.font, name, px + 8, rowY + 3, nameColor, false);
-            g.drawString(this.font, desc, px + 8, rowY + 13, 0x888888, false);
+            int nameColor = m == editMode
+                    ? Fade.mix(0xFFFFCC00, 0xFFFFFFFF, rh)
+                    : Fade.mix(0xFFDDDDDD, 0xFFFFFFFF, rh);
+            int textX = px + 8 + Math.round(rh * 2.0f);
+            g.drawString(this.font, name, textX, rowY + 3, nameColor, false);
+            g.drawString(this.font, desc, textX, rowY + 13, 0x888888, false);
         }
 
-        g.pose().popPose();
+        DropdownChrome.end(g);
     }
 
     @Override

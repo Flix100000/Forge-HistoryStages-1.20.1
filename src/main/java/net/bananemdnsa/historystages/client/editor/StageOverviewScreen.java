@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
@@ -48,17 +51,17 @@ public class StageOverviewScreen extends Screen {
     private ContextMenu contextMenu;
 
     // Animation state
-    private final java.util.Map<Integer, Float> hoverProgress = new java.util.HashMap<>();
+    private final java.util.Map<Integer, Anim> hoverProgress = new java.util.HashMap<>();
     private int lastHoveredIndex = -1;
 
     // Marquee state
     private int hoveredStageIndex = -1;
     private long stageHoverStartTime = 0;
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     // Smooth scroll
-    private float smoothScroll = 0;
+    private final Anim smoothScroll = new Anim();
 
     public StageOverviewScreen() {
         super(Component.translatable("editor.historystages.title"));
@@ -171,9 +174,8 @@ public class StageOverviewScreen extends Screen {
         }
 
         // Smooth scroll
-        smoothScroll += ((float) scrollOffset - smoothScroll) * 0.25f;
-        if (Math.abs(smoothScroll - (float) scrollOffset) < 0.5f)
-            smoothScroll = (float) scrollOffset;
+        smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle((float) scrollOffset, 0.5f);
 
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
@@ -203,7 +205,7 @@ public class StageOverviewScreen extends Screen {
 
         Map<String, StageEntry> stages = StageManager.getStages();
         Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
-        int y = listTop - (int) smoothScroll;
+        int y = listTop - Math.round(smoothScroll.value());
 
         int currentHovered = -1;
         int currentHoveredStage = -1;
@@ -255,16 +257,8 @@ public class StageOverviewScreen extends Screen {
             }
 
             // Smooth hover animation (0.0 -> 1.0)
-            float progress = hoverProgress.getOrDefault(i, 0.0f);
-            if (hovered) {
-                progress = Math.min(1.0f, progress + 0.08f);
-            } else {
-                progress = Math.max(0.0f, progress - 0.06f);
-            }
-            if (progress > 0.001f)
-                hoverProgress.put(i, progress);
-            else
-                hoverProgress.remove(i);
+            float progress = Ease.outCubic(hoverProgress.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
             // Animated background - subtle gold tint on hover
             int bgAlpha = (int) (0x20 + progress * 0x25);
@@ -393,16 +387,8 @@ public class StageOverviewScreen extends Screen {
                     currentHoveredStage = hoverKey;
                 }
 
-                float progress = hoverProgress.getOrDefault(hoverKey, 0.0f);
-                if (hovered) {
-                    progress = Math.min(1.0f, progress + 0.08f);
-                } else {
-                    progress = Math.max(0.0f, progress - 0.06f);
-                }
-                if (progress > 0.001f)
-                    hoverProgress.put(hoverKey, progress);
-                else
-                    hoverProgress.remove(hoverKey);
+                float progress = Ease.outCubic(hoverProgress.computeIfAbsent(hoverKey, k -> new Anim())
+                        .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
                 // Animated background - subtle silver tint on hover
                 int bgAlpha = (int) (0x20 + progress * 0x25);

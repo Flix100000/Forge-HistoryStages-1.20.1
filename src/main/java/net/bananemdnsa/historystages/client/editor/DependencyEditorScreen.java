@@ -9,6 +9,10 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.*;
 import net.bananemdnsa.historystages.client.editor.widget.list.*;
@@ -46,6 +50,11 @@ public class DependencyEditorScreen extends Screen {
     private int selectedGroup = 0;
     private int activeTab = 0;
     private double scrollOffset = 0;
+    /**
+     * Sub-pixel scroll position chasing {@link #scrollOffset}. Render and the click paths both
+     * read this, so what the cursor hits is always what the frame drew.
+     */
+    private final Anim smoothScroll = new Anim();
     private int maxScroll = 0;
     private boolean hasChanges = false;
 
@@ -87,17 +96,20 @@ public class DependencyEditorScreen extends Screen {
     private static final float SMALL_SCALE = 0.85f;
 
     // Marquee
-    private static final long CARD_MARQUEE_DELAY_MS = 800;
-    private static final float CARD_MARQUEE_SPEED = 25.0f;
+    private static final long CARD_MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float CARD_MARQUEE_SPEED = Timing.MARQUEE_SPEED;
     private int hoveredCardIndex = -1;
     private long cardHoverStartTime = 0;
 
     // Card hover animation
-    private final Map<Integer, Float> cardHoverProgress = new HashMap<>();
+    private final Map<Integer, Anim> cardHoverProgress = new HashMap<>();
 
     // Animated tab indicator
-    private float tabIndicatorX = 0;
-    private float tabIndicatorW = 0;
+    private final Anim tabIndicatorXAnim = new Anim();
+    private final Anim tabIndicatorWAnim = new Anim();
+    /** Per-tab hover progress, indexed by tab position. */
+    private final Map<Integer, Anim> tabHover = new HashMap<>();
+    private final Anim contentThumbHover = new Anim();
     private boolean tabIndicatorInit = false;
     private long tabSwitchTime = 0;
 
@@ -124,7 +136,7 @@ public class DependencyEditorScreen extends Screen {
     // Tooltip hover tracking
     private String hoveredTooltipKey = null;
     private long tooltipHoverStart = 0;
-    private static final long TOOLTIP_DELAY_MS = 400;
+    private static final long TOOLTIP_DELAY_MS = Timing.TOOLTIP_DELAY_MS;
 
     // NBT editing for item dependencies
     private final Map<Integer, JsonObject> itemNbtMap = new HashMap<>();
@@ -450,6 +462,9 @@ public class DependencyEditorScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         g.fill(0, 0, this.width, this.height, 0xE0101010);
 
+        smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle((float) scrollOffset, 0.5f);
+
         String currentTooltipKey = null;
         String currentTooltipText = null;
 
@@ -482,9 +497,9 @@ public class DependencyEditorScreen extends Screen {
 
         // Unsaved indicator (pulsing dot like StageDetailScreen)
         if (hasChanges) {
-            float pulse = (System.currentTimeMillis() % 1000) / 1000.0f;
-            pulse = 0.4f + (float) Math.sin(pulse * 3.14159f * 2) * 0.3f;
-            int dotAlpha = (int) (pulse * 255);
+            float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
+                    / Timing.BREATHE_PERIOD_MS;
+            int dotAlpha = (int) ((0.35f + 0.45f * Ease.breathe(phase)) * 255);
             int dotX = this.width / 2 - 45;
             g.fill(dotX, this.height - 12, dotX + 6, this.height - 6, (dotAlpha << 24) | 0xFFCC00);
             drawSmallText(g, t("editor.historystages.unsaved"), dotX + 9, this.height - 12, 0xFFCC00);
@@ -544,15 +559,7 @@ public class DependencyEditorScreen extends Screen {
                     && mouseY >= y && mouseY < y + 28;
 
             // Card style
-            float cardProgress = cardHoverProgress.getOrDefault(-1000 - i, 0.0f);
-            if (hovered)
-                cardProgress = Math.min(1.0f, cardProgress + 0.1f);
-            else
-                cardProgress = Math.max(0.0f, cardProgress - 0.07f);
-            if (cardProgress > 0.001f)
-                cardHoverProgress.put(-1000 - i, cardProgress);
-            else
-                cardHoverProgress.remove(-1000 - i);
+            float cardProgress = updateCardHover(-1000 - i, hovered);
 
             int borderColor = selected ? 0x60FFFFFF : (int) (0x25 + cardProgress * 0x15) << 24 | 0xFFFFFF;
             int bgColor = selected ? 0xFF2A2A2A : 0xFF1E1E1E;
@@ -628,19 +635,17 @@ public class DependencyEditorScreen extends Screen {
 
         // Animated indicator
         if (!tabIndicatorInit && tabX != null && tabX.length > 0) {
-            tabIndicatorX = tabX[activeTab] - tabScrollOffset;
-            tabIndicatorW = tabW[activeTab];
+            tabIndicatorXAnim.set(tabX[activeTab] - tabScrollOffset);
+            tabIndicatorWAnim.set(tabW[activeTab]);
             tabIndicatorInit = true;
         }
         if (tabX != null && activeTab < tabX.length) {
             float targetX = tabX[activeTab] - tabScrollOffset;
             float targetW = tabW[activeTab];
-            tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
-            tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-            if (Math.abs(tabIndicatorX - targetX) < 0.5f)
-                tabIndicatorX = targetX;
-            if (Math.abs(tabIndicatorW - targetW) < 0.5f)
-                tabIndicatorW = targetW;
+            tabIndicatorXAnim.approach(targetX, Timing.SCROLL_HALF_LIFE_MS);
+            tabIndicatorWAnim.approach(targetW, Timing.SCROLL_HALF_LIFE_MS);
+            tabIndicatorXAnim.settle(targetX, 0.5f);
+            tabIndicatorWAnim.settle(targetW, 0.5f);
         }
 
         if (hasTabScroll)
@@ -652,15 +657,18 @@ public class DependencyEditorScreen extends Screen {
             boolean hovered = !isOverlayOpen() && !contextMenu.isVisible()
                     && mouseX >= Math.max(sx, tabClipLeft) && mouseX < Math.min(sx + tabW[i], tabClipRight)
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
+            float th = Ease.outCubic(tabHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hovered && !active, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
             g.fill(sx, tabY, sx + tabW[i], tabY + TAB_HEIGHT,
-                    active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF));
+                    active ? 0x40FFCC00 : Fade.mix(0x15FFFFFF, 0x25FFFFFF, th));
             drawSmallText(g, t(tabKeys[i]), sx + TAB_PAD, tabY + 4,
-                    active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999));
+                    active ? 0xFFFFFF : Fade.mix(0xFF999999, 0xFFDDDDDD, th));
             if (hovered && i < tooltipKeys.length)
                 result = new String[] { "tab." + i, t(tooltipKeys[i]) };
         }
 
-        g.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2, (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT,
+        g.fill(Math.round(tabIndicatorXAnim.value()), tabY + TAB_HEIGHT - 2,
+                Math.round(tabIndicatorXAnim.value() + tabIndicatorWAnim.value()), tabY + TAB_HEIGHT,
                 0xFFFFCC00);
         if (hasTabScroll)
             g.disableScissor();
@@ -680,7 +688,7 @@ public class DependencyEditorScreen extends Screen {
         contentTooltip = null;
 
         g.enableScissor(rightX, contentY, rightX + rightW, contentBottom);
-        int y = contentY - (int) scrollOffset;
+        int y = contentY - Math.round(smoothScroll.value());
         int currentHoveredCard = -1;
 
         switch (activeTab) {
@@ -753,15 +761,7 @@ public class DependencyEditorScreen extends Screen {
             boolean addH = !isOverlayOpen() && !contextMenu.isVisible() && mouseX >= rightX && mouseX < addBoxRight
                     && mouseY >= addY && mouseY < addY + CARD_HEIGHT && mouseY >= contentY && mouseY < contentBottom;
 
-            float addProgress = cardHoverProgress.getOrDefault(-2, 0.0f);
-            if (addH)
-                addProgress = Math.min(1.0f, addProgress + 0.1f);
-            else
-                addProgress = Math.max(0.0f, addProgress - 0.07f);
-            if (addProgress > 0.001f)
-                cardHoverProgress.put(-2, addProgress);
-            else
-                cardHoverProgress.remove(-2);
+            float addProgress = updateCardHover(-2, addH);
 
             int addBorderAlpha = (int) (0x25 + addProgress * 0x1B);
             int addBgAlpha = (int) (0x18 + addProgress * 0x18);
@@ -781,7 +781,7 @@ public class DependencyEditorScreen extends Screen {
 
         g.disableScissor();
 
-        int contentHeight = y + CARD_HEIGHT + 10 - contentY + (int) scrollOffset;
+        int contentHeight = y + CARD_HEIGHT + 10 - contentY + Math.round(smoothScroll.value());
         maxScroll = Math.max(0, contentHeight - (contentBottom - contentY));
 
         // Scrollbar
@@ -798,12 +798,16 @@ public class DependencyEditorScreen extends Screen {
             int totalContentH = contentHeight;
             int visibleH = contentBottom - contentY;
             int thumbH = Math.max(12, (int) ((float) visibleH / totalContentH * scrollTrackH));
-            int thumbY = scrollTrackTop + (int) ((float) scrollOffset / maxScroll * (scrollTrackH - thumbH));
+            int thumbY = scrollTrackTop + Math.round(smoothScroll.value() / maxScroll * (scrollTrackH - thumbH));
 
             boolean thumbHovered = !isOverlayOpen() && !contextMenu.isVisible()
                     && mouseX >= scrollTrackX - 2 && mouseX <= scrollTrackX + SCROLLBAR_WIDTH + 2
                     && mouseY >= thumbY && mouseY <= thumbY + thumbH;
-            int thumbColor = draggingContentScrollbar ? 0xCCFFCC00 : (thumbHovered ? 0xBBCCCCCC : 0x80888888);
+            float th = Ease.outCubic(contentThumbHover.ramp(thumbHovered || draggingContentScrollbar,
+                    Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            int thumbColor = draggingContentScrollbar
+                    ? 0xCCFFCC00
+                    : Fade.mix(0x80888888, 0xBBCCCCCC, th);
             g.fill(scrollTrackX, thumbY, scrollTrackX + SCROLLBAR_WIDTH, thumbY + thumbH, thumbColor);
         }
 
@@ -859,17 +863,14 @@ public class DependencyEditorScreen extends Screen {
         }
     }
 
+    /**
+     * Eased hover progress for one card, keyed so every row in the screen shares one timing.
+     * Entries are kept rather than pruned at rest: the key space is bounded by the rows the
+     * active tab can show, and dropping an entry mid-hover would restart it from zero.
+     */
     private float updateCardHover(int cardIndex, boolean hovered) {
-        float p = cardHoverProgress.getOrDefault(cardIndex, 0.0f);
-        if (hovered)
-            p = Math.min(1.0f, p + 0.1f);
-        else
-            p = Math.max(0.0f, p - 0.07f);
-        if (p > 0.001f)
-            cardHoverProgress.put(cardIndex, p);
-        else
-            cardHoverProgress.remove(cardIndex);
-        return p;
+        return Ease.outCubic(cardHoverProgress.computeIfAbsent(cardIndex, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
     }
 
     // --- Entry renderers ---
@@ -1404,7 +1405,7 @@ public class DependencyEditorScreen extends Screen {
         int rightW = this.width - rightX - 10;
         int contentY = HEADER_HEIGHT + TAB_HEIGHT + 6;
         int contentBottom = this.height - 30;
-        int y = contentY - (int) scrollOffset;
+        int y = contentY - Math.round(smoothScroll.value());
         int cx = this.width / 2, cy = this.height / 2;
 
         switch (activeTab) {
@@ -1842,6 +1843,9 @@ public class DependencyEditorScreen extends Screen {
             ratio = Math.max(0, Math.min(1, ratio));
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+            // Snapped, not eased: while the thumb is held the list must track the
+            // cursor exactly, or the thumb drifts from where the pointer is.
+            smoothScroll.set((float) scrollOffset);
         }
     }
 

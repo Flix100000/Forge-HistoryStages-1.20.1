@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -21,7 +25,12 @@ public class StyledButton extends Button {
     /** Minimum horizontal padding kept on each side of the label when auto-growing. */
     private static final int TEXT_PAD = 6;
 
-    private float hoverProgress = 0.0f;
+    /** How long the gold flash after a press takes to fade out. */
+    private static final float PRESS_FLASH_MS = 320.0f;
+
+    private final Anim hover = new Anim();
+    /** Driven to 1 by a click and left to decay, so a press is visibly acknowledged. */
+    private final Anim press = new Anim();
 
     public StyledButton(int x, int y, int w, int h, Component text, OnPress onPress) {
         super(x, y, w, h, text, onPress, DEFAULT_NARRATION);
@@ -65,6 +74,12 @@ public class StyledButton extends Button {
     }
 
     @Override
+    public void onClick(double mouseX, double mouseY) {
+        press.set(1.0f);
+        super.onClick(mouseX, mouseY);
+    }
+
+    @Override
     public void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // Hover from the grown bounds (this.isHovered() reflects the un-grown assigned box).
         boolean hovered = this.active && overEffective(mouseX, mouseY);
@@ -74,34 +89,41 @@ public class StyledButton extends Button {
         int y = this.getY();
         int h = this.height;
 
-        // Smooth hover transition
-        if (hovered) {
-            hoverProgress = Math.min(1.0f, hoverProgress + 0.1f);
-        } else {
-            hoverProgress = Math.max(0.0f, hoverProgress - 0.08f);
+        float hp = Ease.outCubic(hover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        float flash = Ease.outCubic(press.ramp(0.0f, PRESS_FLASH_MS));
+
+        // Background — white tint at rest, warming towards gold as the cursor settles.
+        int bgAlpha = (int) (0x30 + hp * 0x20);
+        int bgG = (int) (0xFF - hp * 0x33);
+        int bgB = (int) (0xFF - hp * 0xFF);
+        guiGraphics.fill(x, y, x + w, y + h, (bgAlpha << 24) | (0xFF << 16) | (bgG << 8) | bgB);
+
+        // A press briefly washes the whole face gold, so the click registers even when the
+        // action it triggers happens somewhere else on screen.
+        if (flash > 0.001f) {
+            guiGraphics.fill(x, y, x + w, y + h, Fade.rgba(0xFFCC00, flash * 0.22f));
         }
 
-        // Animated background - lerp from white-tint to gold-tint
-        int bgAlpha = (int) (0x30 + hoverProgress * 0x20);
-        int bgR = (int) (0xFF);
-        int bgG = (int) (0xFF - hoverProgress * 0x33);
-        int bgB = (int) (0xFF - hoverProgress * 0xFF);
-        guiGraphics.fill(x, y, x + w, y + h, (bgAlpha << 24) | (bgR << 16) | (bgG << 8) | bgB);
-
-        // Animated bottom accent line - opacity transitions
-        int accentAlpha = (int) (0x60 + hoverProgress * 0x9F);
+        // Bottom accent. The full-width line carries the resting state; a brighter segment
+        // grows out from the centre on hover, which reads as the button reacting rather than
+        // just changing colour.
+        int accentAlpha = (int) (0x60 + hp * 0x50);
         guiGraphics.fill(x, y + h - 2, x + w, y + h, (accentAlpha << 24) | 0xFFCC00);
+        if (this.active && hp > 0.001f) {
+            int half = Math.round(w / 2.0f * hp);
+            int cx = x + w / 2;
+            guiGraphics.fill(cx - half, y + h - 2, cx + half, y + h, Fade.rgba(0xFFCC00, hp));
+        }
 
         // Subtle top/side borders
         guiGraphics.fill(x, y, x + w, y + 1, 0x20FFFFFF);
         guiGraphics.fill(x, y, x + 1, y + h, 0x15FFFFFF);
         guiGraphics.fill(x + w - 1, y, x + w, y + h, 0x15FFFFFF);
 
-        // Text - smooth color transition
-        int textGray = (int) (0xCC + hoverProgress * 0x33);
-        int textColor = (0xFF << 24) | (textGray << 16) | (textGray << 8) | textGray;
+        // Text — brightens with hover.
+        int textGray = (int) (0xCC + hp * 0x33);
         guiGraphics.drawCenteredString(Minecraft.getInstance().font, this.getMessage(),
-                x + w / 2, y + (h - 8) / 2, textColor);
+                x + w / 2, y + (h - 8) / 2, Fade.grey(textGray));
     }
 
     public static StyledButton of(Component text, OnPress onPress, int x, int y, int w, int h) {

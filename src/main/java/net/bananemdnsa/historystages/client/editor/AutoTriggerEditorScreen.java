@@ -26,6 +26,10 @@ import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -72,6 +76,12 @@ public class AutoTriggerEditorScreen extends Screen {
     private int addBtnX, addBtnY, addBtnW;
     private int searchY;
     private int scrollOffset = 0;
+    /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
+    private final Anim smoothScroll = new Anim();
+    private final Anim addBtnHover = new Anim();
+    /** Hover progress of the soft buttons, keyed by their left edge — stable per button. */
+    private final java.util.Map<Integer, Anim> softBtnHover = new java.util.HashMap<>();
+    private final Anim listThumbHover = new Anim();
     private boolean draggingScrollbar = false;
 
     // List search / type filter
@@ -179,6 +189,9 @@ public class AutoTriggerEditorScreen extends Screen {
     public void render(GuiGraphics g, int mx, int my, float pt) {
         g.fill(0, 0, this.width, this.height, 0xE0101010);
 
+        smoothScroll.approach(scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
+        smoothScroll.settle(scrollOffset, 0.5f);
+
         // Header
         g.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
         g.fill(10, 18, this.width - 10, 19, 0xFF555555);
@@ -273,9 +286,9 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private void renderAddButton(GuiGraphics g, int mx, int my) {
         boolean hov = isOver(mx, my, addBtnX, addBtnY, addBtnW, 18);
-        int bg = hov ? 0x40FFFFFF : 0x25FFFFFF;
-        g.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 18, bg);
-        g.fill(addBtnX, addBtnY + 17, addBtnX + addBtnW, addBtnY + 18, hov ? 0xFFFFCC00 : 0x60FFCC00);
+        float hp = Ease.outCubic(addBtnHover.ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        g.fill(addBtnX, addBtnY, addBtnX + addBtnW, addBtnY + 18, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
+        g.fill(addBtnX, addBtnY + 17, addBtnX + addBtnW, addBtnY + 18, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
         String label = Component.translatable("editor.historystages.auto_trigger.add").getString();
         g.drawString(this.font, label, addBtnX + 6, addBtnY + 5, 0xFFFFFFFF, false);
     }
@@ -296,7 +309,7 @@ public class AutoTriggerEditorScreen extends Screen {
         }
 
         g.enableScissor(listX, listY, listX + listW, listY + listH);
-        int y = listY + 4 - scrollOffset;
+        int y = listY + 4 - Math.round(smoothScroll.value());
         for (int v = 0; v < visibleIndices.size(); v++) {
             int rowTop = y + v * ROW_H;
             if (rowTop + ROW_H < listY || rowTop > listY + listH) continue;
@@ -311,7 +324,7 @@ public class AutoTriggerEditorScreen extends Screen {
         if (maxScroll > 0) {
             int sbX = listX + listW - 4;
             int thumbH = Math.max(20, (int) ((float) listH / contentH * listH));
-            int thumbY = listY + (int) ((float) scrollOffset / maxScroll * (listH - thumbH));
+            int thumbY = listY + Math.round(smoothScroll.value() / maxScroll * (listH - thumbH));
             g.fill(sbX, thumbY, sbX + 3, thumbY + thumbH, 0x80FFFFFF);
         }
     }
@@ -486,9 +499,10 @@ public class AutoTriggerEditorScreen extends Screen {
             EntitySubMode m = i == 0 ? EntitySubMode.KILL : EntitySubMode.INTERACT;
             int btnX = bx + 10 + i * (btnW + 10);
             boolean hov = isOver(mx, my, btnX, btnY, btnW, 20);
-            int bg = hov ? 0x40FFFFFF : 0x25FFFFFF;
-            g.fill(btnX, btnY, btnX + btnW, btnY + 20, bg);
-            g.fill(btnX, btnY + 19, btnX + btnW, btnY + 20, hov ? 0xFFFFCC00 : 0x60FFCC00);
+            float hp = Ease.outCubic(softBtnHover.computeIfAbsent(btnX, k -> new Anim())
+                    .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            g.fill(btnX, btnY, btnX + btnW, btnY + 20, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
+            g.fill(btnX, btnY + 19, btnX + btnW, btnY + 20, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
             String label = Component.translatable("editor.historystages.auto_trigger.entity." + m.serialize()).getString();
             g.drawString(this.font, label, btnX + (btnW - this.font.width(label)) / 2, btnY + 6,
                     0xFFFFFFFF, false);
@@ -530,9 +544,10 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private void drawDialogButton(GuiGraphics g, int mx, int my, int x, int y, int w, String label) {
         boolean hov = isOver(mx, my, x, y, w, 20);
-        int bg = hov ? 0x40FFFFFF : 0x25FFFFFF;
-        g.fill(x, y, x + w, y + 20, bg);
-        g.fill(x, y + 19, x + w, y + 20, hov ? 0xFFFFCC00 : 0x60FFCC00);
+        float hp = Ease.outCubic(softBtnHover.computeIfAbsent(x, k -> new Anim())
+                .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        g.fill(x, y, x + w, y + 20, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
+        g.fill(x, y + 19, x + w, y + 20, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
         g.drawString(this.font, label, x + (w - this.font.width(label)) / 2, y + 6, 0xFFFFFF, false);
     }
 
@@ -623,6 +638,9 @@ public class AutoTriggerEditorScreen extends Screen {
         ratio = Math.max(0, Math.min(1, ratio));
         scrollOffset = Math.round(ratio * maxScroll);
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
+        // Snapped, not eased: while the thumb is held the list must track the
+        // cursor exactly, or the thumb drifts from where the pointer is.
+        smoothScroll.set((float) scrollOffset);
     }
 
     private boolean handleAddDropdownClick(double mouseX, double mouseY, int button) {
@@ -693,7 +711,7 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private int rowAt(double mouseX, double mouseY) {
         if (mouseX < listX || mouseX > listX + listW || mouseY < listY || mouseY > listY + listH) return -1;
-        int relY = (int) mouseY - (listY + 4 - scrollOffset);
+        int relY = (int) mouseY - (listY + 4 - Math.round(smoothScroll.value()));
         int visRow = relY / ROW_H;
         if (visRow < 0 || visRow >= visibleIndices.size()) return -1;
         return visibleIndices.get(visRow);

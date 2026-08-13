@@ -1,4 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
@@ -12,6 +16,8 @@ import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +42,8 @@ public abstract class AbstractSearchableList<T> {
     protected static final int TAB_HEIGHT = 14;
     protected static final int TAB_PAD = 4;
 
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
     protected final List<T> allEntries = new ArrayList<>();
     protected final List<T> filteredEntries = new ArrayList<>();
@@ -55,11 +61,26 @@ public abstract class AbstractSearchableList<T> {
     protected int maxScrollRow = 0;
     private boolean draggingScrollbar = false;
 
+    /**
+     * Sub-row scroll position chasing {@link #scrollRow}. The logical scroll stays an integer
+     * so paging and clamping keep working on whole rows; this is what actually gets drawn, so
+     * a mouse-wheel notch glides instead of jumping a row.
+     */
+    private final Anim scrollAnim = new Anim();
+    /** Per-row hover progress, keyed by entry index. Pruned once a row is back at rest. */
+    private final Map<Integer, Anim> rowHover = new HashMap<>();
+    /** Scrollbar thumb hover/drag highlight. */
+    private final Anim thumbHover = new Anim();
+    /** Panel fade-in, so an overlay does not slam onto the screen behind it. */
+    private final Anim panelOpen = new Anim();
+
     /** Index into {@link #allTabLabels()} — own tabs first, Selected tab last. */
     private int currentTab = 0;
-    private float tabIndicatorX = 0;
-    private float tabIndicatorW = 0;
+    private final Anim tabIndicatorXAnim = new Anim();
+    private final Anim tabIndicatorWAnim = new Anim();
     private boolean tabIndicatorInit = false;
+    /** Per-tab hover progress, indexed by tab position. */
+    private final Map<Integer, Anim> tabHover = new HashMap<>();
 
     private static final int ADD_BTN_W = 100;
     private static final int ADD_BTN_H = 20;
@@ -84,7 +105,7 @@ public abstract class AbstractSearchableList<T> {
     private final List<Sel<T>> selectedSnapshot = new ArrayList<>();
     /** {@link #selectedSnapshot} filtered by the current query. */
     private final List<Sel<T>> selectedView = new ArrayList<>();
-    private float addHoverProgress = 0.0f;
+    private final Anim addHover = new Anim();
 
     private record Sel<E>(String value, E entry) {}
 
@@ -277,8 +298,20 @@ public abstract class AbstractSearchableList<T> {
 
         this.visible = true;
         this.scrollRow = 0;
+        resetListAnim();
+        panelOpen.set(0.0f);
         searchBar.setFocused(true);
         searchBar.setText(""); // triggers applyFilter against fresh allEntries
+    }
+
+    /**
+     * Drops the scroll and hover animations onto their resting values. Called whenever the row
+     * set is replaced: the indices now mean different entries, so animating from the old state
+     * would show the new list gliding away from something that is no longer there.
+     */
+    private void resetListAnim() {
+        scrollAnim.set(0.0f);
+        rowHover.clear();
     }
 
     public void hide() {
@@ -308,6 +341,7 @@ public abstract class AbstractSearchableList<T> {
 
     private void applyFilter(String filter) {
         this.scrollRow = 0;
+        resetListAnim();
         filteredEntries.clear();
         String q = filter == null ? "" : filter;
         for (T entry : allEntries) {
@@ -372,6 +406,7 @@ public abstract class AbstractSearchableList<T> {
         allEntries.clear();
         allEntries.addAll(loadEntries());
         scrollRow = 0;
+        resetListAnim();
         // re-fire the current filter via setText (always fires onChange)
         searchBar.setText(searchBar.getText() == null ? "" : searchBar.getText());
     }
@@ -561,30 +596,33 @@ public abstract class AbstractSearchableList<T> {
 
         int activeIdx = Math.min(currentTab, n - 1);
         if (!tabIndicatorInit) {
-            tabIndicatorX = tabXs[activeIdx];
-            tabIndicatorW = tabWs[activeIdx];
+            tabIndicatorXAnim.set(tabXs[activeIdx]);
+            tabIndicatorWAnim.set(tabWs[activeIdx]);
             tabIndicatorInit = true;
         }
 
-        float targetX = tabXs[activeIdx];
-        float targetW = tabWs[activeIdx];
-        tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
-        tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
-        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
-        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+        // The underline slides between tabs rather than jumping, which is what tells the eye
+        // the two tabs are the same control in different states.
+        float indicatorX = tabIndicatorXAnim.approach(tabXs[activeIdx], Timing.SCROLL_HALF_LIFE_MS);
+        float indicatorW = tabIndicatorWAnim.approach(tabWs[activeIdx], Timing.SCROLL_HALF_LIFE_MS);
+        tabIndicatorXAnim.settle(tabXs[activeIdx], 0.5f);
+        tabIndicatorWAnim.settle(tabWs[activeIdx], 0.5f);
 
         for (int i = 0; i < n; i++) {
             boolean active = (i == activeIdx);
             boolean hovered = mouseX >= tabXs[i] && mouseX < tabXs[i] + tabWs[i]
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
-            int bg = active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF);
+            float hp = Ease.outCubic(tabHover.computeIfAbsent(i, k -> new Anim())
+                    .ramp(hovered && !active, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+
+            int bg = active ? 0x40FFCC00 : Fade.mix(0x15FFFFFF, 0x25FFFFFF, hp);
             g.fill(tabXs[i], tabY, tabXs[i] + tabWs[i], tabY + TAB_HEIGHT, bg);
-            int textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
+            int textColor = active ? 0xFFFFFF : Fade.mix(0xFF999999, 0xFFDDDDDD, hp);
             g.drawString(font, labels.get(i), tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
         }
 
-        g.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2,
-                (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+        g.fill(Math.round(indicatorX), tabY + TAB_HEIGHT - 2,
+                Math.round(indicatorX + indicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
         g.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1,
                 0xFF555555);
     }
@@ -641,22 +679,46 @@ public abstract class AbstractSearchableList<T> {
      * language the item and entity pickers use. The subclass's {@link #renderRow} draws only
      * the contents on top, so it needs no knowledge of selection state.
      */
-    private void drawRowBackground(GuiGraphics g, int x, int y, int w, boolean hovered, RowState state) {
+    private void drawRowBackground(GuiGraphics g, int x, int y, int w, float hover, RowState state) {
         if (state == RowState.NORMAL) {
-            g.fill(x, y, x + w, y + ROW_HEIGHT, hovered ? 0xFF353535 : 0xFF252525);
+            g.fill(x, y, x + w, y + ROW_HEIGHT, Fade.mix(0xFF252525, 0xFF353535, hover));
+            // Gold edge that grows in from the left, so a hovered row is identifiable at a
+            // glance even where several rows sit at similar brightness.
+            if (hover > 0.001f) {
+                g.fill(x, y, x + 1, y + ROW_HEIGHT, Fade.rgba(0xFFCC00, hover * 0.8f));
+            }
             return;
         }
         int border;
         int bg;
         if (state == RowState.SELECTED) {
-            border = hovered ? 0xFFFF8800 : 0xFFFFCC00;
-            bg = hovered ? 0xFF553A10 : 0xFF2A2510;
+            border = Fade.mix(0xFFFFCC00, 0xFFFF8800, hover);
+            bg = Fade.mix(0xFF2A2510, 0xFF553A10, hover);
         } else {
-            border = hovered ? 0xFF884444 : 0xFF552020;
-            bg = hovered ? 0xFF3A1A1A : 0xFF1A0D0D;
+            border = Fade.mix(0xFF552020, 0xFF884444, hover);
+            bg = Fade.mix(0xFF1A0D0D, 0xFF3A1A1A, hover);
         }
         g.fill(x, y, x + w, y + ROW_HEIGHT, border);
         g.fill(x + 1, y + 1, x + w - 1, y + ROW_HEIGHT - 1, bg);
+    }
+
+    /**
+     * Scroll position the last frame actually drew at. Clicks resolve against this rather than
+     * {@link #scrollRow} so that during a scroll animation the player hits the row they can
+     * see, not the one the logical scroll has already moved to.
+     */
+    private float drawnScroll() {
+        return scrollAnim.value();
+    }
+
+    /** Index of the first (possibly partly clipped) row drawn at {@link #drawnScroll()}. */
+    private int firstDrawnRow() {
+        return (int) Math.floor(drawnScroll());
+    }
+
+    /** Pixels the drawn rows are shifted up by, i.e. how far into the first row we are. */
+    private int drawnPixelOffset() {
+        return Math.round((drawnScroll() - firstDrawnRow()) * ROW_HEIGHT);
     }
 
     private int addButtonX() {
@@ -680,14 +742,12 @@ public abstract class AbstractSearchableList<T> {
         int x = addButtonX();
         int y = addButtonY();
         boolean hovered = canConfirm() && isAddButtonAt(mouseX, mouseY);
-        addHoverProgress = hovered ? Math.min(1.0f, addHoverProgress + 0.1f)
-                : Math.max(0.0f, addHoverProgress - 0.08f);
+        float hp = Ease.outCubic(addHover.ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
         if (canConfirm()) {
             String label = Component.translatable("editor.historystages.search.add",
                     selected.size()).getString();
-            SearchPanelChrome.renderStyledButton(g, font, x, y, ADD_BTN_W, ADD_BTN_H, label,
-                    addHoverProgress);
+            SearchPanelChrome.renderStyledButton(g, font, x, y, ADD_BTN_W, ADD_BTN_H, label, hp);
         } else {
             g.fill(x, y, x + ADD_BTN_W, y + ADD_BTN_H, 0x20FFFFFF);
             g.fill(x, y, x + ADD_BTN_W, y + 1, 0x10FFFFFF);
@@ -759,6 +819,13 @@ public abstract class AbstractSearchableList<T> {
 
         anyRowHoveredThisFrame = false;
 
+        // Rises the last few pixels into place, matching the context menu's entrance. Only the
+        // position is animated, not the opacity: the panel is opaque and its rows are drawn on
+        // top, so fading the chrome alone would show the screen through the frame.
+        float open = Ease.outCubic(panelOpen.ramp(1.0f, Timing.POPUP_MS));
+        g.pose().pushPose();
+        g.pose().translate(0.0f, (1.0f - open) * 5.0f, 0.0f);
+
         g.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         g.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
@@ -776,40 +843,55 @@ public abstract class AbstractSearchableList<T> {
 
         boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
 
-        for (int i = 0; i < visibleRows(); i++) {
-            int index = scrollRow + i;
-            int rowY = listY + i * ROW_HEIGHT;
+        // Sub-row scroll: the wheel still moves whole rows, but the rows glide there.
+        scrollAnim.approach(scrollRow, Timing.SCROLL_HALF_LIFE_MS);
+        scrollAnim.settle(scrollRow, 0.01f);
+        int firstRow = firstDrawnRow();
+        int pixelOffset = drawnPixelOffset();
+        int listH = visibleRows() * ROW_HEIGHT;
+
+        // One extra row is drawn so the partly-scrolled row at the bottom edge has content;
+        // the scissor is what stops both edge rows from spilling out of the panel.
+        g.enableScissor(listX, listY, listX + listW, listY + listH);
+        for (int i = 0; i <= visibleRows(); i++) {
+            int index = firstRow + i;
+            int rowY = listY + i * ROW_HEIGHT - pixelOffset;
 
             boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
-                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
+                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT
+                    && mouseY >= listY && mouseY < listY + listH;
 
-            if (index >= visibleCount()) {
+            if (index < 0 || index >= visibleCount()) {
                 // Empty slots don't react to hover — there's nothing there to point at.
-                drawRowBackground(g, listX, rowY, listW, false, RowState.NORMAL);
+                drawRowBackground(g, listX, rowY, listW, 0.0f, RowState.NORMAL);
                 continue;
             }
+
+            float hp = Ease.outCubic(rowHover.computeIfAbsent(index, k -> new Anim())
+                    .ramp(rowHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
             if (isSelectedTabActive()) {
                 Sel<T> ref = selectedView.get(index);
                 boolean stillSelected = selected.containsKey(ref.value());
-                drawRowBackground(g, listX, rowY, listW, rowHovered,
+                drawRowBackground(g, listX, rowY, listW, hp,
                         stillSelected ? RowState.SELECTED : RowState.DESELECTED);
                 renderSelectedRow(g, font, ref.value(), ref.entry(),
                         listX, rowY, listW, ROW_HEIGHT, rowHovered, index);
             } else {
                 T entry = filteredEntries.get(index);
                 boolean isSelected = multiSelect && selected.containsKey(selectionValueOf(entry));
-                drawRowBackground(g, listX, rowY, listW, rowHovered,
+                drawRowBackground(g, listX, rowY, listW, hp,
                         isSelected ? RowState.SELECTED : RowState.NORMAL);
                 renderRow(g, font, entry, listX, rowY, listW, ROW_HEIGHT, rowHovered, index);
             }
         }
+        g.disableScissor();
+        pruneRowHover(firstRow);
         if (!anyRowHoveredThisFrame) hoveredRow = -1;
 
         // Selected tab with nothing selected: hint in the middle rather than a blank grid.
         if (isSelectedTabActive() && selectedSnapshot.isEmpty()) {
             String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
-            int listH = visibleRows() * ROW_HEIGHT;
             g.drawString(font, hint, listX + (listW - font.width(hint)) / 2,
                     listY + (listH - 8) / 2, 0xFF888888, false);
         }
@@ -817,18 +899,45 @@ public abstract class AbstractSearchableList<T> {
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
             int scrollBarTop = listY;
-            int scrollBarBottom = listY + visibleRows() * ROW_HEIGHT;
+            int scrollBarBottom = listY + listH;
             int scrollBarHeight = scrollBarBottom - scrollBarTop;
             g.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
             int thumbHeight = Math.max(10,
                     (int) ((float) visibleRows() / (maxScrollRow + visibleRows()) * scrollBarHeight));
-            int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
-            g.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+            // Follows the drawn scroll, so the thumb and the rows move as one object.
+            int thumbY = scrollBarTop
+                    + Math.round(drawnScroll() / maxScrollRow * (scrollBarHeight - thumbHeight));
+
+            boolean overThumb = mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
+                    && mouseY >= scrollBarTop && mouseY < scrollBarBottom;
+            float th = Ease.outCubic(thumbHover.ramp(overThumb || draggingScrollbar,
+                    Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+            g.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight,
+                    Fade.mix(0xFF888888, 0xFFFFCC00, th));
         }
 
         if (multiSelect) renderAddButton(g, font, mouseX, mouseY);
 
         afterRender(g, font, mouseX, mouseY);
+
+        g.pose().popPose();
+    }
+
+    /**
+     * Drops hover state for rows that have settled and are far from view. Without this the map
+     * would keep one entry per row the cursor ever touched, for the lifetime of the panel.
+     */
+    private void pruneRowHover(int firstRow) {
+        int keepFrom = firstRow - visibleRows();
+        int keepTo = firstRow + visibleRows() * 2;
+        Iterator<Map.Entry<Integer, Anim>> it = rowHover.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, Anim> e = it.next();
+            int idx = e.getKey();
+            if ((idx < keepFrom || idx > keepTo) && e.getValue().isAt(0.0f)) {
+                it.remove();
+            }
+        }
     }
 
     // =============================================
@@ -893,11 +1002,18 @@ public abstract class AbstractSearchableList<T> {
             }
         }
 
-        for (int i = 0; i < visibleRows(); i++) {
-            int index = scrollRow + i;
-            int rowY = listY + i * ROW_HEIGHT;
-            if (index < visibleCount() && mouseX >= listX && mouseX < listX + listW
-                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
+        // Resolved against the positions the last frame drew at, so a click during a scroll
+        // animation selects the row under the cursor rather than the one the logical scroll
+        // has already advanced to.
+        int firstRow = firstDrawnRow();
+        int pixelOffset = drawnPixelOffset();
+        int listH = visibleRows() * ROW_HEIGHT;
+        for (int i = 0; i <= visibleRows(); i++) {
+            int index = firstRow + i;
+            int rowY = listY + i * ROW_HEIGHT - pixelOffset;
+            if (index >= 0 && index < visibleCount() && mouseX >= listX && mouseX < listX + listW
+                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT
+                    && mouseY >= listY && mouseY < listY + listH) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 if (isSelectedTabActive()) {

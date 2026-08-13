@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget.dialog;
 
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -39,12 +43,21 @@ public abstract class AbstractModalScreen extends Screen {
     protected static final int BUTTON_W = 100;
     protected static final int BUTTON_GAP = 10;
 
+    /** Scale the box starts at while opening. Small enough to read as a lift, not a zoom. */
+    private static final float OPEN_SCALE_FROM = 0.94f;
+
     protected final Screen parent;
 
     /** Box geometry, recomputed in {@link #init}. */
     protected int boxX, boxY, boxW, boxH;
     /** Top of the content area handed to {@link #renderContent}. */
     protected int contentY;
+
+    /**
+     * Backdrop fade and box scale-in. Not reset by {@link #init}, so a window resize does not
+     * replay the intro; these dialogs are always constructed fresh when shown.
+     */
+    private final Anim open = new Anim();
 
     protected AbstractModalScreen(Screen parent, Component title) {
         super(title);
@@ -171,16 +184,29 @@ public abstract class AbstractModalScreen extends Screen {
             g.flush();
         }
 
+        float t = Ease.outCubic(open.ramp(1.0f, Timing.MODAL_MS));
+
         // Everything from here up is lifted above the depth the parent's items render at, so
         // the backdrop actually covers them instead of losing the depth test to them.
         g.pose().pushPose();
         g.pose().translate(0, 0, DIALOG_Z);
 
-        g.fill(0, 0, this.width, this.height, backdropColor());
+        // Backdrop fades in unscaled — it covers the screen, so scaling it would show seams.
+        g.fill(0, 0, this.width, this.height, Fade.alpha(backdropColor(), t));
 
-        g.fill(boxX - 1, boxY - 1, boxX + boxW + 1, boxY + boxH + 1, FRAME_OUTER);
-        g.fill(boxX, boxY, boxX + boxW, boxY + boxH, FRAME_INNER);
-        g.fill(boxX, boxY, boxX + boxW, boxY + 2, ACCENT_GOLD);
+        // The box itself lifts towards the viewer while it fades. Scaling about its own centre
+        // keeps it anchored where it will come to rest.
+        float scale = Ease.lerp(OPEN_SCALE_FROM, 1.0f, t);
+        float cx = boxX + boxW / 2.0f;
+        float cy = boxY + boxH / 2.0f;
+        g.pose().pushPose();
+        g.pose().translate(cx, cy, 0.0f);
+        g.pose().scale(scale, scale, 1.0f);
+        g.pose().translate(-cx, -cy, 0.0f);
+
+        g.fill(boxX - 1, boxY - 1, boxX + boxW + 1, boxY + boxH + 1, Fade.alpha(FRAME_OUTER, t));
+        g.fill(boxX, boxY, boxX + boxW, boxY + boxH, Fade.alpha(FRAME_INNER, t));
+        g.fill(boxX, boxY, boxX + boxW, boxY + 2, Fade.alpha(ACCENT_GOLD, t));
 
         g.drawCenteredString(this.font, this.title, boxX + boxW / 2, boxY + 8, TITLE_GOLD);
 
@@ -194,9 +220,25 @@ public abstract class AbstractModalScreen extends Screen {
 
         g.flush();
         g.pose().popPose();
+        g.pose().popPose();
+    }
+
+    /**
+     * True once the intro has finished. Input is ignored until then: while the box is still
+     * scaling, the widgets are drawn away from the coordinates they hit-test against, so an
+     * early click would land on the wrong control — and on a confirm dialog that matters.
+     */
+    protected final boolean isOpenSettled() {
+        return open.isAt(1.0f);
     }
 
     // ============ Input ============
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!isOpenSettled()) return true;
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {

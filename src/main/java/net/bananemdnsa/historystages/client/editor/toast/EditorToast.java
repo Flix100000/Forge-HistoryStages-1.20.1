@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.toast;
 
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Fade;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.toast.DismissibleToast;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -37,7 +40,7 @@ public class EditorToast implements Toast, DismissibleToast {
     private static final int BASE_HEIGHT = 28;
     private static final int DISPLAY_TIME = 2800;
     /** Quick fade-out when the toast is clicked away — short on purpose; you want it gone. */
-    private static final long DISMISS_FADE_MS = 140L;
+    private static final long DISMISS_FADE_MS = (long) Timing.TOAST_DISMISS_MS;
 
     private final Component title;
     private final Component message;
@@ -57,12 +60,6 @@ public class EditorToast implements Toast, DismissibleToast {
         if (dismissAtMs < 0L) {
             dismissAtMs = Util.getMillis();
         }
-    }
-
-    /** Scales the alpha channel of an ARGB color by {@code factor} (clamped to 0..1). */
-    private static int scaleAlpha(int argb, float factor) {
-        int alpha = Math.round(((argb >>> 24) & 0xFF) * Math.max(0.0F, Math.min(1.0F, factor)));
-        return (alpha << 24) | (argb & 0x00FFFFFF);
     }
 
     @Override
@@ -111,30 +108,32 @@ public class EditorToast implements Toast, DismissibleToast {
             if (elapsed >= DISMISS_FADE_MS) {
                 return Visibility.HIDE;
             }
-            fade = 1.0F - (float) elapsed / (float) DISMISS_FADE_MS;
+            // Eased so the toast thins out quickly and then clears, rather than
+            // dimming at a constant rate the eye reads as a stall.
+            fade = 1.0F - Ease.outCubic((float) elapsed / (float) DISMISS_FADE_MS);
         }
 
         int w = WIDTH;
         int h = computedHeight;
 
         // Background — translucent dark, matches editor chrome
-        g.fill(0, 0, w, h, scaleAlpha(0x99151515, fade));
+        g.fill(0, 0, w, h, Fade.alpha(0x99151515, fade));
 
         // Top + side hairlines (StyledButton pattern)
-        g.fill(0, 0, w, 1, scaleAlpha(0x20FFFFFF, fade));
-        g.fill(0, 0, 1, h, scaleAlpha(0x15FFFFFF, fade));
-        g.fill(w - 1, 0, w, h, scaleAlpha(0x15FFFFFF, fade));
+        g.fill(0, 0, w, 1, Fade.alpha(0x20FFFFFF, fade));
+        g.fill(0, 0, 1, h, Fade.alpha(0x15FFFFFF, fade));
+        g.fill(w - 1, 0, w, h, Fade.alpha(0x15FFFFFF, fade));
 
         // Bottom accent — level-colored, 2px like StyledButton
-        g.fill(0, h - 2, w, h, scaleAlpha(level.accentColor, fade));
+        g.fill(0, h - 2, w, h, Fade.alpha(level.accentColor, fade));
 
         // Title
-        g.drawString(font, title, 8, 6, scaleAlpha(level.titleColor, fade), false);
+        g.drawString(font, title, 8, 6, Fade.alpha(level.titleColor, fade), false);
 
         // Message body (wrapped)
         int y = 18;
         for (FormattedCharSequence line : wrappedMessage) {
-            g.drawString(font, line, 8, y, scaleAlpha(0xFFDDDDDD, fade), false);
+            g.drawString(font, line, 8, y, Fade.alpha(0xFFDDDDDD, fade), false);
             y += 10;
         }
 
