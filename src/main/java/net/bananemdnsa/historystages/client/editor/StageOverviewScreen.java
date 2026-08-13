@@ -2,6 +2,9 @@ package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
@@ -804,70 +807,183 @@ public class StageOverviewScreen extends Screen {
     /**
      * Dialog screen that asks for a Stage ID before creating/duplicating a stage.
      */
-    static class StageIdInputScreen extends Screen {
+    static class StageIdInputScreen extends AbstractInputScreen {
         private final StageOverviewScreen parent;
         private final String duplicateFromId;
         private boolean individual;
-        private EditBox idField;
-        private String errorMessage = "";
 
         // Dropdown state
         private boolean dropdownOpen = false;
         private int dropdownX, dropdownY, dropdownW;
 
+        private static final int DROPDOWN_W = 80;
+        private static final int DROPDOWN_H = 16;
+        private static final int OPTION_H = 16;
+        /** Right margin of the dropdown against the dialog's edge, on the title row. */
+        private static final int TITLE_ROW_INSET_X = 8;
+        /** Vertical inset that centres the 16px button in the 20px title row. */
+        private static final int TITLE_ROW_INSET_Y = 2;
+        /** Gap between the dropdown button and the popup below it. */
+        private static final int POPUP_OFFSET_Y = 18;
+
         protected StageIdInputScreen(StageOverviewScreen parent, String duplicateFromId, boolean individual) {
-            super(Component.translatable("editor.historystages.new_stage"));
+            super(parent, Component.translatable("editor.historystages.new_stage"));
             this.parent = parent;
             this.duplicateFromId = duplicateFromId;
             this.individual = individual;
         }
 
         @Override
-        protected void init() {
-            int boxW = 300;
-            int boxH = 130;
-            int boxX = (this.width - boxW) / 2;
-            int boxY = (this.height - boxH) / 2 - 10;
+        protected int dialogWidth() { return 300; }
 
-            int fieldX = boxX + 50;
-            int fieldW = boxW - 100;
-            int fieldY = boxY + 48;
+        /** The stage list stays visible behind the dim, as it did before the dialog refactor. */
+        @Override
+        protected boolean renderParentBehind() { return true; }
 
-            idField = new EditBox(this.font, fieldX, fieldY, fieldW, 20,
-                    Component.translatable("editor.historystages.field.stage_id"));
-            idField.setMaxLength(64);
-            idField.setFocused(true);
-            idField.setFilter(s -> s.matches("[a-zA-Z0-9_\\-]*"));
-            idField.setResponder(val -> errorMessage = "");
-            this.addRenderableWidget(idField);
-            this.setFocused(idField);
-
-            String confirmLabel = duplicateFromId != null
-                    ? Component.translatable("editor.historystages.duplicate").getString()
-                    : Component.translatable("editor.historystages.confirm").getString();
-
-            int btnY = fieldY + 28;
-            this.addRenderableWidget(StyledButton.of(Component.literal(confirmLabel),
-                    btn -> confirmId(), fieldX, btnY, (fieldW - 10) / 2, 20));
-            this.addRenderableWidget(StyledButton.of(Component.translatable("editor.historystages.cancel"),
-                    btn -> this.minecraft.setScreen(parent), fieldX + (fieldW + 10) / 2, btnY, (fieldW - 10) / 2, 20));
+        @Override
+        protected Component confirmLabel() {
+            return Component.translatable(duplicateFromId != null
+                    ? "editor.historystages.duplicate" : "editor.historystages.confirm");
         }
 
-        private void confirmId() {
-            String id = idField.getValue().trim();
-            if (id.isEmpty()) {
-                errorMessage = Component.translatable("editor.historystages.id_empty").getString();
-                return;
-            }
-            if (!id.matches("[a-zA-Z0-9_\\-]+")) {
-                errorMessage = Component.translatable("editor.historystages.id_invalid").getString();
-                return;
-            }
+        @Override
+        protected List<InputField> fields() {
+            return List.of(InputField.text("id")
+                    .label(Component.translatable("editor.historystages.field.stage_id"))
+                    .maxLength(64)
+                    .regex("[a-zA-Z0-9_\\-]*")
+                    .validator(this::checkId));
+        }
+
+        /** Emptiness, charset and collision checks, in the order the user is likely to hit them. */
+        private Component checkId(String id) {
+            if (id.isEmpty()) return Component.translatable("editor.historystages.id_empty");
+            if (!id.matches("[a-zA-Z0-9_\\-]+")) return Component.translatable("editor.historystages.id_invalid");
             if (StageManager.getStages().containsKey(id) || StageManager.getIndividualStages().containsKey(id)) {
-                errorMessage = Component.translatable("editor.historystages.id_exists").getString();
-                return;
+                return Component.translatable("editor.historystages.id_exists");
+            }
+            return null;
+        }
+
+        /**
+         * The dropdown sits on the title row rather than in the content column, so it reserves
+         * no vertical space of its own.
+         */
+        @Override
+        protected int extraContentHeight() { return 0; }
+
+        private boolean inDropdownButton(double mx, double my) {
+            return mx >= dropdownX && mx <= dropdownX + dropdownW
+                    && my >= dropdownY && my < dropdownY + DROPDOWN_H;
+        }
+
+        private boolean inOption(double mx, double my, int optY) {
+            return mx >= dropdownX && mx <= dropdownX + dropdownW
+                    && my >= optY && my < optY + OPTION_H;
+        }
+
+        private static void playClick() {
+            Minecraft.getInstance().getSoundManager().play(
+                    SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        }
+
+        @Override
+        protected void renderExtraContent(GuiGraphics g, int x, int y, int w, int mouseX, int mouseY) {
+            // Deliberately ignores the content column and anchors to the dialog's top-right, on
+            // the title row, where this dropdown lived before the refactor.
+            dropdownW = DROPDOWN_W;
+            dropdownX = boxX + boxW - dropdownW - TITLE_ROW_INSET_X;
+            dropdownY = boxY + TITLE_ROW_INSET_Y;
+
+            Component typeLabel = Component.translatable(individual
+                    ? "editor.historystages.stage_type.individual"
+                    : "editor.historystages.stage_type.global");
+            int typeColor = individual ? 0xBBBBBB : 0xFFCC00;
+            boolean dropHovered = inDropdownButton(mouseX, mouseY);
+
+            // Dropdown button
+            int dropBg = dropHovered ? 0x40FFFFFF : 0x25FFFFFF;
+            g.fill(dropdownX, dropdownY, dropdownX + dropdownW, dropdownY + DROPDOWN_H, dropBg);
+            g.fill(dropdownX, dropdownY + DROPDOWN_H - 2, dropdownX + dropdownW, dropdownY + DROPDOWN_H,
+                    dropHovered ? (typeColor | 0xFF000000) : 0x60FFFFFF);
+            g.drawString(this.font, typeLabel, dropdownX + 4, dropdownY + 4, typeColor, false);
+            // Arrow indicator
+            String arrow = dropdownOpen ? "\u25B2" : "\u25BC";
+            g.drawString(this.font, arrow, dropdownX + dropdownW - 10, dropdownY + 4, 0x999999, false);
+
+            if (!dropdownOpen) return;
+
+            // The popup is an overlay: it overflows extraContentHeight() and must beat both the
+            // error line and the widgets drawn after renderContent, hence the z translate.
+            g.pose().pushPose();
+            g.pose().translate(0, 0, 300);
+            int optY = dropdownY + POPUP_OFFSET_Y;
+
+            // Background
+            g.fill(dropdownX - 1, optY - 1, dropdownX + dropdownW + 1, optY + OPTION_H * 2 + 1, 0xFF333333);
+            g.fill(dropdownX, optY, dropdownX + dropdownW, optY + OPTION_H * 2, 0xFF1A1A1A);
+
+            // "Global" option
+            boolean globalHov = inOption(mouseX, mouseY, optY);
+            if (globalHov) g.fill(dropdownX, optY, dropdownX + dropdownW, optY + OPTION_H, 0x30FFCC00);
+            if (!individual) g.fill(dropdownX, optY, dropdownX + 2, optY + OPTION_H, 0xFFFFCC00);
+            g.drawString(this.font, Component.translatable("editor.historystages.stage_type.global"),
+                    dropdownX + 6, optY + 4,
+                    globalHov ? 0xFFFFFF : (!individual ? 0xFFCC00 : 0xAAAAAA), false);
+
+            // "Individual" option
+            int indOptY = optY + OPTION_H;
+            boolean indHov = inOption(mouseX, mouseY, indOptY);
+            if (indHov) g.fill(dropdownX, indOptY, dropdownX + dropdownW, indOptY + OPTION_H, 0x30BBBBBB);
+            if (individual) g.fill(dropdownX, indOptY, dropdownX + 2, indOptY + OPTION_H, 0xFFBBBBBB);
+            g.drawString(this.font, Component.translatable("editor.historystages.stage_type.individual"),
+                    dropdownX + 6, indOptY + 4,
+                    indHov ? 0xFFFFFF : (individual ? 0xBBBBBB : 0xAAAAAA), false);
+
+            g.pose().popPose();
+        }
+
+        @Override
+        protected boolean extraContentMouseClicked(double mx, double my, int button) {
+            if (button != 0) return false;
+            // Options first: while open, the popup swallows every left click.
+            if (dropdownOpen) {
+                int globalY = dropdownY + POPUP_OFFSET_Y;
+                if (inOption(mx, my, globalY)) {
+                    individual = false;
+                    dropdownOpen = false;
+                    playClick();
+                    return true;
+                }
+                int indY = globalY + OPTION_H;
+                if (inOption(mx, my, indY)) {
+                    individual = true;
+                    dropdownOpen = false;
+                    playClick();
+                    return true;
+                }
+                // Click outside the popup just closes it
+                dropdownOpen = false;
+                return true;
             }
 
+            if (inDropdownButton(mx, my)) {
+                dropdownOpen = true;
+                playClick();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        protected boolean extraContentKeyPressed(int keyCode) {
+            if (dropdownOpen && keyCode == 256) { dropdownOpen = false; return true; }
+            return false;
+        }
+
+        @Override
+        protected void onConfirm(InputValues values) {
+            String id = values.getString("id");
             if (duplicateFromId != null) {
                 StageEntry source = individual
                         ? StageManager.getIndividualStages().get(duplicateFromId)
@@ -882,157 +998,6 @@ public class StageOverviewScreen extends Screen {
             } else {
                 this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual));
             }
-        }
-
-        @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (dropdownOpen && keyCode == 256) {
-                dropdownOpen = false;
-                return true;
-            }
-            if (keyCode == 257) {
-                confirmId();
-                return true;
-            }
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
-
-        @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (button == 0) {
-                // Check dropdown item clicks first (when open)
-                if (dropdownOpen) {
-                    int optH = 16;
-                    // "Global" option
-                    int globalY = dropdownY + 18;
-                    if (mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                            && mouseY >= globalY && mouseY < globalY + optH) {
-                        individual = false;
-                        dropdownOpen = false;
-                        Minecraft.getInstance().getSoundManager().play(
-                                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                        return true;
-                    }
-                    // "Individual" option
-                    int indY = globalY + optH;
-                    if (mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                            && mouseY >= indY && mouseY < indY + optH) {
-                        individual = true;
-                        dropdownOpen = false;
-                        Minecraft.getInstance().getSoundManager().play(
-                                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                        return true;
-                    }
-                    // Click outside dropdown closes it
-                    dropdownOpen = false;
-                    return true;
-                }
-
-                // Check dropdown button click
-                if (mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                        && mouseY >= dropdownY && mouseY < dropdownY + 16) {
-                    dropdownOpen = !dropdownOpen;
-                    Minecraft.getInstance().getSoundManager().play(
-                            SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    return true;
-                }
-            }
-            return super.mouseClicked(mouseX, mouseY, button);
-        }
-
-        @Override
-        public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-            // Render parent screen behind overlay
-            if (parent != null) {
-                parent.render(guiGraphics, -1, -1, partialTick);
-            }
-
-            // Semi-transparent overlay
-            guiGraphics.fill(0, 0, this.width, this.height, 0xC0000000);
-
-            int boxW = 300;
-            int boxH = 130;
-            int boxX = (this.width - boxW) / 2;
-            int boxY = (this.height - boxH) / 2 - 10;
-            guiGraphics.fill(boxX, boxY, boxX + boxW, boxY + boxH, 0xFF2D2D2D);
-            guiGraphics.fill(boxX + 1, boxY + 1, boxX + boxW - 1, boxY + boxH - 1, 0xFF1A1A1A);
-
-            String title = duplicateFromId != null
-                    ? Component.translatable("editor.historystages.duplicate").getString() + " \u2014 "
-                            + duplicateFromId
-                    : Component.translatable("editor.historystages.new_stage").getString();
-            guiGraphics.drawCenteredString(this.font, title, this.width / 2, boxY + 6, 0xFFFFFF);
-
-            // Type dropdown (top-right of dialog box)
-            dropdownW = 80;
-            dropdownX = boxX + boxW - dropdownW - 8;
-            dropdownY = boxY + 4;
-
-            String typeLabel = individual ? "Individual" : "Global";
-            int typeColor = individual ? 0xBBBBBB : 0xFFCC00;
-            boolean dropHovered = mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                    && mouseY >= dropdownY && mouseY < dropdownY + 16;
-
-            // Dropdown button
-            int dropBg = dropHovered ? 0x40FFFFFF : 0x25FFFFFF;
-            guiGraphics.fill(dropdownX, dropdownY, dropdownX + dropdownW, dropdownY + 16, dropBg);
-            guiGraphics.fill(dropdownX, dropdownY + 14, dropdownX + dropdownW, dropdownY + 16,
-                    dropHovered ? (typeColor | 0xFF000000) : 0x60FFFFFF);
-            guiGraphics.drawString(this.font, typeLabel, dropdownX + 4, dropdownY + 4, typeColor, false);
-            // Arrow indicator
-            String arrow = dropdownOpen ? "\u25B2" : "\u25BC";
-            guiGraphics.drawString(this.font, arrow, dropdownX + dropdownW - 10, dropdownY + 4, 0x999999, false);
-
-            // Stage ID label above the text field
-            int fieldX = boxX + 50;
-            int fieldY = boxY + 48;
-            guiGraphics.drawString(this.font, Component.translatable("editor.historystages.field.stage_id").getString(),
-                    fieldX, fieldY - 12, 0xAAAAAA, false);
-
-            if (!errorMessage.isEmpty()) {
-                guiGraphics.drawCenteredString(this.font, errorMessage, this.width / 2, boxY + boxH - 16, 0xFF5555);
-            }
-
-            super.render(guiGraphics, mouseX, mouseY, partialTick);
-
-            // Render dropdown options on top of everything
-            if (dropdownOpen) {
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(0, 0, 300);
-                int optY = dropdownY + 18;
-                int optH = 16;
-                // Background
-                guiGraphics.fill(dropdownX - 1, optY - 1, dropdownX + dropdownW + 1, optY + optH * 2 + 1, 0xFF333333);
-                guiGraphics.fill(dropdownX, optY, dropdownX + dropdownW, optY + optH * 2, 0xFF1A1A1A);
-
-                // "Global" option
-                boolean globalHov = mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                        && mouseY >= optY && mouseY < optY + optH;
-                if (globalHov)
-                    guiGraphics.fill(dropdownX, optY, dropdownX + dropdownW, optY + optH, 0x30FFCC00);
-                if (!individual)
-                    guiGraphics.fill(dropdownX, optY, dropdownX + 2, optY + optH, 0xFFFFCC00);
-                guiGraphics.drawString(this.font, "Global", dropdownX + 6, optY + 4,
-                        globalHov ? 0xFFFFFF : (!individual ? 0xFFCC00 : 0xAAAAAA), false);
-
-                // "Individual" option
-                int indOptY = optY + optH;
-                boolean indHov = mouseX >= dropdownX && mouseX <= dropdownX + dropdownW
-                        && mouseY >= indOptY && mouseY < indOptY + optH;
-                if (indHov)
-                    guiGraphics.fill(dropdownX, indOptY, dropdownX + dropdownW, indOptY + optH, 0x30BBBBBB);
-                if (individual)
-                    guiGraphics.fill(dropdownX, indOptY, dropdownX + 2, indOptY + optH, 0xFFBBBBBB);
-                guiGraphics.drawString(this.font, "Individual", dropdownX + 6, indOptY + 4,
-                        indHov ? 0xFFFFFF : (individual ? 0xBBBBBB : 0xAAAAAA), false);
-
-                guiGraphics.pose().popPose();
-            }
-        }
-
-        @Override
-        public void onClose() {
-            this.minecraft.setScreen(parent);
         }
     }
 }
