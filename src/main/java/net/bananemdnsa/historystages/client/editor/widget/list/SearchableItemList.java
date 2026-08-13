@@ -160,7 +160,7 @@ public class SearchableItemList {
         this.selectedInventorySlots.clear();
         this.nbtSelectedInventorySlots.clear();
         this.tabIndicatorInit = false;
-        searchBar.setPlaceholder("Search items...");
+        searchBar.setPlaceholder(Component.translatable("editor.historystages.search_items").getString());
         searchBar.setText("");
         recalcPanelSize();
     }
@@ -1083,9 +1083,10 @@ public class SearchableItemList {
             selectedView.clear();
         }
         if (newTab == TAB_SELECTED) {
-            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+            searchBar.setPlaceholder(Component.translatable(
+                    "editor.historystages.search.selected.placeholder", totalSelectionCount()).getString());
         } else {
-            searchBar.setPlaceholder("Search items...");
+            searchBar.setPlaceholder(Component.translatable("editor.historystages.search_items").getString());
         }
         searchBar.setText("");
         if (currentTab == TAB_SELECTED) {
