@@ -214,6 +214,7 @@ public class DependencyEditorScreen extends Screen {
             }
         }, false, () -> hasGroup() ? currentGroup().getStages() : java.util.Collections.emptyList());
         globalStageSearch.setExcludeStageId(currentStageId);
+        globalStageSearch.setMultiSelect(true);
         individualStageSearch = new SearchableStageList(id -> {
             if (hasGroup()) {
                 currentGroup().getIndividualStages().add(new IndividualStageDep(id, "all_online"));
@@ -222,12 +223,14 @@ public class DependencyEditorScreen extends Screen {
         }, true, () -> hasGroup()
                 ? currentGroup().getIndividualStages().stream().map(IndividualStageDep::getStageId).toList()
                 : java.util.Collections.emptyList());
+        individualStageSearch.setMultiSelect(true);
         advancementSearch = new SearchableAdvancementList(id -> {
             if (hasGroup()) {
                 currentGroup().getAdvancements().add(id);
                 hasChanges = true;
             }
         }, () -> hasGroup() ? currentGroup().getAdvancements() : java.util.Collections.emptyList());
+        advancementSearch.setMultiSelect(true);
         statSearch = new SearchableStatList(id -> {
             if (hasGroup()) {
                 currentGroup().getStats().add(new StatDep(id, 1));
@@ -236,6 +239,7 @@ public class DependencyEditorScreen extends Screen {
         }, () -> hasGroup()
                 ? currentGroup().getStats().stream().map(StatDep::getStatId).toList()
                 : java.util.Collections.emptyList());
+        statSearch.setMultiSelect(true);
 
         contextMenu = new ContextMenu();
         computeTabLayout();

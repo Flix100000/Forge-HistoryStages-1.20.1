@@ -628,6 +628,7 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         }, () -> editTags);
+        tagSearch.setMultiSelect(true);
 
         dimensionSearch = new SearchableDimensionList(dimId -> {
             if (!editDimensions.contains(dimId))
@@ -635,6 +636,7 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         }, () -> editDimensions);
+        dimensionSearch.setMultiSelect(true);
 
         structureSearch = new SearchableStructureList(structId -> {
             if (!editStructures.contains(structId))
@@ -642,6 +644,7 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
             updateMaxScroll();
         }, () -> editStructures);
+        structureSearch.setMultiSelect(true);
 
         recipeSearch = new SearchableRecipeList(recipeId -> {
             showRecipePreview(recipeId, () -> {

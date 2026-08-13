@@ -787,11 +787,11 @@ public class AutoTriggerEditorScreen extends Screen {
     private void openEditFor(int idx, TriggerCondition t) {
         editIndex = idx;
         if (t instanceof BiomeTrigger) {
-            showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null);
+            showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null, false);
         } else if (t instanceof StructureTrigger) {
-            showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE);
+            showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE, true);
         } else if (t instanceof DimensionTrigger) {
-            showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION);
+            showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION, true);
         } else if (t instanceof ItemTrigger) {
             showItem(new SearchableItemList(id -> placeTrigger(new ItemTrigger(id))));
         } else if (t instanceof BlockPlaceTrigger) {
@@ -799,7 +799,7 @@ public class AutoTriggerEditorScreen extends Screen {
         } else if (t instanceof BlockBreakTrigger) {
             showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
         } else if (t instanceof AdvancementTrigger) {
-            showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null);
+            showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
         } else if (t instanceof EntityTrigger) {
             showEntity(new SearchableEntityList(id -> pendingEntityId = id));
         } else if (t instanceof PlaytimeTrigger p) {
@@ -809,19 +809,20 @@ public class AutoTriggerEditorScreen extends Screen {
 
     private void openPickerFor(TriggerType type) {
         switch (type) {
-            case BIOME -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null);
-            case STRUCTURE -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE);
-            case DIMENSION -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION);
+            case BIOME -> showAbstract(new SearchableBiomeList(id -> placeTrigger(new BiomeTrigger(id))), null, false);
+            case STRUCTURE -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE, true);
+            case DIMENSION -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION, true);
             case ITEM -> showItem(new SearchableItemList(id -> placeTrigger(new ItemTrigger(id))));
             case ENTITY -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case BLOCK_PLACE -> showItem(new SearchableItemList(id -> placeTrigger(new BlockPlaceTrigger(id))));
             case BLOCK_BREAK -> showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
-            case ADVANCEMENT -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null);
+            case ADVANCEMENT -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case PLAYTIME -> openPlaytimeDialog(-1, 1);
         }
     }
 
-    private void showAbstract(AbstractSearchableList<String> list, TriggerType type) {
+    private void showAbstract(AbstractSearchableList<String> list, TriggerType type, boolean multi) {
+        list.setMultiSelect(multi);
         // Wire the "Hide stage-locked" filter for trigger types that have a meaningful
         // lock source on the stage (dimension / structure). Biome and advancement have
         // no direct lock list, so we don't add a filter there.

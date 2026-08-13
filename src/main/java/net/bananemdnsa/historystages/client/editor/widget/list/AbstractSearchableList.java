@@ -1,16 +1,20 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -29,6 +33,8 @@ public abstract class AbstractSearchableList<T> {
     protected static final int VISIBLE_ROWS = 10;
     protected static final int PADDING = 6;
     protected static final int DEFAULT_PANEL_WIDTH = 260;
+    protected static final int TAB_HEIGHT = 14;
+    protected static final int TAB_PAD = 4;
 
     private static final long MARQUEE_DELAY_MS = 800;
     private static final float MARQUEE_SPEED = 25.0f;
@@ -48,6 +54,37 @@ public abstract class AbstractSearchableList<T> {
     protected int scrollRow = 0;
     protected int maxScrollRow = 0;
     private boolean draggingScrollbar = false;
+
+    /** Index into {@link #allTabLabels()} — own tabs first, Selected tab last. */
+    private int currentTab = 0;
+    private float tabIndicatorX = 0;
+    private float tabIndicatorW = 0;
+    private boolean tabIndicatorInit = false;
+
+    private static final int ADD_BTN_W = 100;
+    private static final int ADD_BTN_H = 20;
+
+    private boolean multiSelect = false;
+    /**
+     * Selected entries, keyed by the value {@link #selectionValueOf} returned at click time.
+     * The key is frozen deliberately: a subclass may derive the value from mutable state
+     * (SearchableStructureList prefixes tag rows with "#" based on its active tab), so
+     * recomputing it at confirm time would emit the wrong value after a tab switch. The
+     * entry is kept alongside so the Selected tab can render rows that are no longer in
+     * {@link #filteredEntries}. LinkedHashMap, not HashMap — emission follows click order.
+     */
+    private final LinkedHashMap<String, T> selected = new LinkedHashMap<>();
+    /**
+     * Frozen copy of {@link #selected} taken when the Selected tab is entered. Deselecting
+     * mutates {@link #selected} but leaves this alone, so rows don't shift under the cursor
+     * and a misclick can be undone. Cleared on tab exit, rebuilt on next entry.
+     */
+    private final List<Sel<T>> selectedSnapshot = new ArrayList<>();
+    /** {@link #selectedSnapshot} filtered by the current query. */
+    private final List<Sel<T>> selectedView = new ArrayList<>();
+    private float addHoverProgress = 0.0f;
+
+    private record Sel<E>(String value, E entry) {}
 
     // Marquee state for drawRowMarqueeText
     private int hoveredRow = -1;
@@ -95,29 +132,47 @@ public abstract class AbstractSearchableList<T> {
     protected abstract void renderRow(GuiGraphics g, Font font, T entry,
                                       int x, int y, int w, int h, boolean hovered, int rowIndex);
 
+    /**
+     * Renders a row on the Selected tab. {@code value} is the selection value frozen at
+     * click time; {@code entry} is the entry it came from. Defaults to {@link #renderRow}.
+     * Override when the row's display text depends on state that has since moved on — e.g.
+     * SearchableStructureList decides the "#" prefix from its active tab, which is not the
+     * tab being shown here.
+     */
+    protected void renderSelectedRow(GuiGraphics g, Font font, String value, T entry,
+                                     int x, int y, int w, int h, boolean hovered, int rowIndex) {
+        renderRow(g, font, entry, x, y, w, h, hovered, rowIndex);
+    }
+
     /** Overridable panel width — default 260, override for wider or narrower lists. */
     protected int getPanelWidth() {
         return DEFAULT_PANEL_WIDTH;
     }
 
     /**
-     * Additional vertical space reserved above the search bar — used by widgets that
-     * render their own tab bar or header. Default 0 (no inset).
+     * Label for the subclass's single tab. Only rendered when a tab bar is shown at all
+     * (i.e. multi-select is on, or the subclass declares several tabs via
+     * {@link #ownTabLabels()}).
      */
-    protected int getTopInsetHeight() {
-        return 0;
-    }
-
-    /** Renders the top inset area. Default no-op. Called before the search bar. */
-    protected void renderTopInset(GuiGraphics g, Font font, int mouseX, int mouseY) {
+    protected String primaryTabLabel() {
+        return Component.translatable("editor.historystages.search.tab.all").getString();
     }
 
     /**
-     * Hook for handling clicks inside the top inset area (e.g. tab clicks).
-     * Default returns false (no handling). When true, the click is consumed.
+     * The subclass's own tabs, left to right. Default is a single tab labelled
+     * {@link #primaryTabLabel()}. The Selected tab is appended by the base class and must
+     * not be included here.
      */
-    protected boolean onTopInsetClick(double mouseX, double mouseY) {
-        return false;
+    protected List<String> ownTabLabels() {
+        return List.of(primaryTabLabel());
+    }
+
+    /**
+     * Called when the user switches to one of the subclass's own tabs. {@code index} is an
+     * index into {@link #ownTabLabels()}. Implementations typically swap their data source
+     * and call {@link #reloadEntries()}. Not called for the Selected tab.
+     */
+    protected void onOwnTabChanged(int index) {
     }
 
     /** Returns the value passed to {@code onSelect.accept(...)} when a row is clicked. */
@@ -195,10 +250,23 @@ public abstract class AbstractSearchableList<T> {
     // =============================================
 
     public void show(int centerX, int centerY, int parentWidth) {
+        selected.clear();
+        selectedSnapshot.clear();
+        selectedView.clear();
+        // The Selected tab is gone with the selection, so currentTab may point past the end.
+        // Reset to the first own tab and tell the subclass — otherwise its own tab state (e.g.
+        // StructureList's activeTab) keeps pointing at the tab it was on before, and it would
+        // load entries the tab bar no longer highlights. A valid own tab is deliberately kept.
+        if (currentTab >= ownTabLabels().size()) {
+            currentTab = 0;
+            onOwnTabChanged(currentTab);
+        }
         allEntries.clear();
         allEntries.addAll(loadEntries());
+        tabIndicatorInit = false;
         panelW = getPanelWidth();
-        panelH = getTopInsetHeight() + SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4;
+        panelH = getTabBarHeight() + SearchBar.HEIGHT + PADDING * 2 + VISIBLE_ROWS * ROW_HEIGHT + PADDING + 4
+                + (multiSelect ? ADD_BTN_H + PADDING : 0);
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
         if (panelX < 4) panelX = 4;
@@ -222,6 +290,19 @@ public abstract class AbstractSearchableList<T> {
         searchBar.setText(filter);
     }
 
+    protected final void setPlaceholder(String placeholder) {
+        searchBar.setPlaceholder(placeholder);
+    }
+
+    /**
+     * Turns on multi-select: rows toggle instead of firing immediately, and an "Add (n)"
+     * button confirms. On confirm the select callback fires once per selected entry, in
+     * click order — every call site that enables this must tolerate n callback invocations.
+     */
+    public void setMultiSelect(boolean multi) {
+        this.multiSelect = multi;
+    }
+
     private void applyFilter(String filter) {
         this.scrollRow = 0;
         filteredEntries.clear();
@@ -233,6 +314,7 @@ public abstract class AbstractSearchableList<T> {
                 filteredEntries.add(entry);
             }
         }
+        if (isSelectedTabActive()) applySelectedFilter();
         updateMaxScroll();
     }
 
@@ -272,7 +354,7 @@ public abstract class AbstractSearchableList<T> {
     }
 
     private void updateMaxScroll() {
-        maxScrollRow = Math.max(0, filteredEntries.size() - VISIBLE_ROWS);
+        maxScrollRow = Math.max(0, visibleCount() - VISIBLE_ROWS);
     }
 
     protected final void emitSelection(String value) {
@@ -292,8 +374,251 @@ public abstract class AbstractSearchableList<T> {
     }
 
     // =============================================
+    // Tabs
+    // =============================================
+
+    /**
+     * The tab bar is shown from the moment multi-select is on — not only once something is
+     * selected. If it appeared with the Selected tab, the panel would grow taller mid-click
+     * and shift out from under the cursor.
+     */
+    private boolean tabBarVisible() {
+        return multiSelect || ownTabLabels().size() > 1;
+    }
+
+    protected final int getTabBarHeight() {
+        return tabBarVisible() ? TAB_HEIGHT + 4 : 0;
+    }
+
+    private List<String> allTabLabels() {
+        List<String> labels = new ArrayList<>(ownTabLabels());
+        if (showSelectedTab()) {
+            labels.add(Component.translatable("editor.historystages.search.tab.selected",
+                    selected.size()).getString());
+        }
+        return labels;
+    }
+
+    private boolean isSelectedTabActive() {
+        return showSelectedTab() && currentTab == ownTabLabels().size();
+    }
+
+    /**
+     * The Selected tab is present for the whole lifetime of a multi-select panel, empty or
+     * not. Showing it only once something is selected would resize the tab bar mid-click.
+     */
+    private boolean showSelectedTab() {
+        return multiSelect;
+    }
+
+    private void rebuildSelectedSnapshot() {
+        selectedSnapshot.clear();
+        for (Map.Entry<String, T> e : selected.entrySet()) {
+            selectedSnapshot.add(new Sel<>(e.getKey(), e.getValue()));
+        }
+        applySelectedFilter();
+    }
+
+    private void applySelectedFilter() {
+        selectedView.clear();
+        String q = searchBar.getText() == null ? "" : searchBar.getText();
+        for (Sel<T> ref : selectedSnapshot) {
+            if (q.isEmpty() || matchesQuery(ref.entry(), q)) selectedView.add(ref);
+        }
+    }
+
+    private void toggleSelection(String value, T entry) {
+        if (selected.containsKey(value)) {
+            selected.remove(value);
+        } else {
+            selected.put(value, entry);
+        }
+    }
+
+    /** Row count of whichever list the active tab renders. */
+    private int visibleCount() {
+        return isSelectedTabActive() ? selectedView.size() : filteredEntries.size();
+    }
+
+    private int getTabAt(double mouseX, double mouseY) {
+        if (!tabBarVisible()) return -1;
+        Font font = Minecraft.getInstance().font;
+        int tabY = panelY + PADDING;
+        List<String> labels = allTabLabels();
+        int x = panelX + PADDING;
+        for (int i = 0; i < labels.size(); i++) {
+            int w = font.width(labels.get(i)) + TAB_PAD * 2;
+            if (mouseX >= x && mouseX < x + w && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
+                return i;
+            }
+            x += w + 2;
+        }
+        return -1;
+    }
+
+    private void renderTabs(GuiGraphics g, Font font, int mouseX, int mouseY) {
+        if (!tabBarVisible()) return;
+        int tabY = panelY + PADDING;
+        List<String> labels = allTabLabels();
+        int n = labels.size();
+        int[] tabXs = new int[n];
+        int[] tabWs = new int[n];
+
+        int x = panelX + PADDING;
+        for (int i = 0; i < n; i++) {
+            tabWs[i] = font.width(labels.get(i)) + TAB_PAD * 2;
+            tabXs[i] = x;
+            x += tabWs[i] + 2;
+        }
+
+        int activeIdx = Math.min(currentTab, n - 1);
+        if (!tabIndicatorInit) {
+            tabIndicatorX = tabXs[activeIdx];
+            tabIndicatorW = tabWs[activeIdx];
+            tabIndicatorInit = true;
+        }
+
+        float targetX = tabXs[activeIdx];
+        float targetW = tabWs[activeIdx];
+        tabIndicatorX += (targetX - tabIndicatorX) * 0.18f;
+        tabIndicatorW += (targetW - tabIndicatorW) * 0.18f;
+        if (Math.abs(tabIndicatorX - targetX) < 0.5f) tabIndicatorX = targetX;
+        if (Math.abs(tabIndicatorW - targetW) < 0.5f) tabIndicatorW = targetW;
+
+        for (int i = 0; i < n; i++) {
+            boolean active = (i == activeIdx);
+            boolean hovered = mouseX >= tabXs[i] && mouseX < tabXs[i] + tabWs[i]
+                    && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
+            int bg = active ? 0x40FFCC00 : (hovered ? 0x25FFFFFF : 0x15FFFFFF);
+            g.fill(tabXs[i], tabY, tabXs[i] + tabWs[i], tabY + TAB_HEIGHT, bg);
+            int textColor = active ? 0xFFFFFF : (hovered ? 0xDDDDDD : 0x999999);
+            g.drawString(font, labels.get(i), tabXs[i] + TAB_PAD, tabY + 3, textColor, false);
+        }
+
+        g.fill((int) tabIndicatorX, tabY + TAB_HEIGHT - 2,
+                (int) (tabIndicatorX + tabIndicatorW), tabY + TAB_HEIGHT, 0xFFFFCC00);
+        g.fill(panelX + PADDING, tabY + TAB_HEIGHT, panelX + panelW - PADDING, tabY + TAB_HEIGHT + 1,
+                0xFF555555);
+    }
+
+    private void switchTab(int newTab) {
+        boolean leavingSelectedTab = isSelectedTabActive();
+        currentTab = newTab;
+        searchBar.filters().close();
+        searchBar.setFocused(true);
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        scrollRow = 0;
+        if (leavingSelectedTab && !isSelectedTabActive()) {
+            selectedSnapshot.clear();
+            selectedView.clear();
+        }
+        if (isSelectedTabActive()) {
+            searchBar.setPlaceholder(Component.translatable(
+                    "editor.historystages.search.selected.placeholder", selected.size()).getString());
+            rebuildSelectedSnapshot();
+        } else {
+            onOwnTabChanged(newTab);
+        }
+        searchBar.setText(""); // always fires applyFilter
+        updateMaxScroll();
+    }
+
+    private int searchTopY() {
+        return panelY + PADDING + getTabBarHeight();
+    }
+
+    /** Y of the first list row. */
+    protected final int listTopY() {
+        return searchTopY() + SearchBar.HEIGHT + PADDING;
+    }
+
+    private int listLeftX() {
+        return panelX + PADDING;
+    }
+
+    private int listInnerW() {
+        return panelW - PADDING * 2 - 8;
+    }
+
+    // =============================================
     // Rendering
     // =============================================
+
+    protected enum RowState { NORMAL, SELECTED, DESELECTED }
+
+    /**
+     * Paints the row background. Selected rows get an accent border and a warm fill,
+     * deselected ones (Selected tab only) a red border and dark red fill — the same colour
+     * language the item and entity pickers use. The subclass's {@link #renderRow} draws only
+     * the contents on top, so it needs no knowledge of selection state.
+     */
+    private void drawRowBackground(GuiGraphics g, int x, int y, int w, boolean hovered, RowState state) {
+        if (state == RowState.NORMAL) {
+            g.fill(x, y, x + w, y + ROW_HEIGHT, hovered ? 0xFF353535 : 0xFF252525);
+            return;
+        }
+        int border;
+        int bg;
+        if (state == RowState.SELECTED) {
+            border = hovered ? 0xFFFF8800 : 0xFFFFCC00;
+            bg = hovered ? 0xFF553A10 : 0xFF2A2510;
+        } else {
+            border = hovered ? 0xFF884444 : 0xFF552020;
+            bg = hovered ? 0xFF3A1A1A : 0xFF1A0D0D;
+        }
+        g.fill(x, y, x + w, y + ROW_HEIGHT, border);
+        g.fill(x + 1, y + 1, x + w - 1, y + ROW_HEIGHT - 1, bg);
+    }
+
+    private int addButtonX() {
+        return panelX + (panelW - ADD_BTN_W) / 2;
+    }
+
+    private int addButtonY() {
+        return panelY + panelH - PADDING - ADD_BTN_H;
+    }
+
+    private boolean isAddButtonAt(double mouseX, double mouseY) {
+        return mouseX >= addButtonX() && mouseX < addButtonX() + ADD_BTN_W
+                && mouseY >= addButtonY() && mouseY < addButtonY() + ADD_BTN_H;
+    }
+
+    private boolean canConfirm() {
+        return multiSelect && !selected.isEmpty();
+    }
+
+    private void renderAddButton(GuiGraphics g, Font font, int mouseX, int mouseY) {
+        int x = addButtonX();
+        int y = addButtonY();
+        boolean hovered = canConfirm() && isAddButtonAt(mouseX, mouseY);
+        addHoverProgress = hovered ? Math.min(1.0f, addHoverProgress + 0.1f)
+                : Math.max(0.0f, addHoverProgress - 0.08f);
+
+        if (canConfirm()) {
+            String label = Component.translatable("editor.historystages.search.add",
+                    selected.size()).getString();
+            SearchPanelChrome.renderStyledButton(g, font, x, y, ADD_BTN_W, ADD_BTN_H, label,
+                    addHoverProgress);
+        } else {
+            g.fill(x, y, x + ADD_BTN_W, y + ADD_BTN_H, 0x20FFFFFF);
+            g.fill(x, y, x + ADD_BTN_W, y + 1, 0x10FFFFFF);
+            String label = Component.translatable("editor.historystages.search.add.empty").getString();
+            g.drawString(font, label, x + (ADD_BTN_W - font.width(label)) / 2,
+                    y + (ADD_BTN_H - 8) / 2, 0xFF666666, false);
+        }
+    }
+
+    private boolean confirmAndAdd() {
+        if (!canConfirm()) return false;
+        Minecraft.getInstance().getSoundManager()
+                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        for (String value : new ArrayList<>(selected.keySet())) {
+            emitSelection(value);
+        }
+        hide();
+        return true;
+    }
 
     public void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
         if (!visible) return;
@@ -303,10 +628,10 @@ public abstract class AbstractSearchableList<T> {
         g.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         g.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
-        renderTopInset(g, font, mouseX, mouseY);
+        renderTabs(g, font, mouseX, mouseY);
 
         int searchX = panelX + PADDING;
-        int searchY = panelY + PADDING + getTopInsetHeight();
+        int searchY = searchTopY();
         searchBar.setPosition(searchX, searchY, panelW - PADDING * 2);
         searchBar.render(g, font, mouseX, mouseY);
 
@@ -322,15 +647,37 @@ public abstract class AbstractSearchableList<T> {
 
             boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            g.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
-                    rowHovered ? 0xFF353535 : 0xFF252525);
 
-            if (index < filteredEntries.size()) {
-                renderRow(g, font, filteredEntries.get(index),
+            if (index >= visibleCount()) {
+                // Empty slots don't react to hover — there's nothing there to point at.
+                drawRowBackground(g, listX, rowY, listW, false, RowState.NORMAL);
+                continue;
+            }
+
+            if (isSelectedTabActive()) {
+                Sel<T> ref = selectedView.get(index);
+                boolean stillSelected = selected.containsKey(ref.value());
+                drawRowBackground(g, listX, rowY, listW, rowHovered,
+                        stillSelected ? RowState.SELECTED : RowState.DESELECTED);
+                renderSelectedRow(g, font, ref.value(), ref.entry(),
                         listX, rowY, listW, ROW_HEIGHT, rowHovered, index);
+            } else {
+                T entry = filteredEntries.get(index);
+                boolean isSelected = multiSelect && selected.containsKey(selectionValueOf(entry));
+                drawRowBackground(g, listX, rowY, listW, rowHovered,
+                        isSelected ? RowState.SELECTED : RowState.NORMAL);
+                renderRow(g, font, entry, listX, rowY, listW, ROW_HEIGHT, rowHovered, index);
             }
         }
         if (!anyRowHoveredThisFrame) hoveredRow = -1;
+
+        // Selected tab with nothing selected: hint in the middle rather than a blank grid.
+        if (isSelectedTabActive() && selectedSnapshot.isEmpty()) {
+            String hint = Component.translatable("editor.historystages.search.selected.empty").getString();
+            int listH = VISIBLE_ROWS * ROW_HEIGHT;
+            g.drawString(font, hint, listX + (listW - font.width(hint)) / 2,
+                    listY + (listH - 8) / 2, 0xFF888888, false);
+        }
 
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -343,6 +690,8 @@ public abstract class AbstractSearchableList<T> {
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             g.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
         }
+
+        if (multiSelect) renderAddButton(g, font, mouseX, mouseY);
 
         afterRender(g, font, mouseX, mouseY);
     }
@@ -359,12 +708,20 @@ public abstract class AbstractSearchableList<T> {
             return true;
         }
 
-        if (onTopInsetClick(mouseX, mouseY)) return true;
+        int clickedTab = getTabAt(mouseX, mouseY);
+        if (clickedTab >= 0) {
+            if (clickedTab != currentTab) switchTab(clickedTab);
+            return true;
+        }
 
-        int searchY = panelY + PADDING + getTopInsetHeight();
-        int listX = panelX + PADDING;
-        int listY = searchY + SearchBar.HEIGHT + PADDING;
-        int listW = panelW - PADDING * 2 - 8;
+        if (multiSelect && isAddButtonAt(mouseX, mouseY)) {
+            confirmAndAdd();
+            return true;
+        }
+
+        int listX = listLeftX();
+        int listY = listTopY();
+        int listW = listInnerW();
 
         if (maxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -379,11 +736,25 @@ public abstract class AbstractSearchableList<T> {
         for (int i = 0; i < VISIBLE_ROWS; i++) {
             int index = scrollRow + i;
             int rowY = listY + i * ROW_HEIGHT;
-            if (index < filteredEntries.size() && mouseX >= listX && mouseX < listX + listW
+            if (index < visibleCount() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                emitSelection(selectionValueOf(filteredEntries.get(index)));
+                if (isSelectedTabActive()) {
+                    // Toggle against the live selection; the snapshot stays put on purpose.
+                    Sel<T> ref = selectedView.get(index);
+                    toggleSelection(ref.value(), ref.entry());
+                    searchBar.setPlaceholder(Component.translatable(
+                            "editor.historystages.search.selected.placeholder",
+                            selected.size()).getString());
+                    return true;
+                }
+                T entry = filteredEntries.get(index);
+                if (multiSelect) {
+                    toggleSelection(selectionValueOf(entry), entry);
+                    return true;
+                }
+                emitSelection(selectionValueOf(entry));
                 hide();
                 return true;
             }
@@ -394,8 +765,7 @@ public abstract class AbstractSearchableList<T> {
 
     public boolean mouseDragged(double mouseX, double mouseY) {
         if (!visible || !draggingScrollbar) return false;
-        int searchY = panelY + PADDING + getTopInsetHeight();
-        int listY = searchY + SearchBar.HEIGHT + PADDING;
+        int listY = listTopY();
         updateScrollFromMouse(mouseY, listY);
         return true;
     }
@@ -433,6 +803,10 @@ public abstract class AbstractSearchableList<T> {
     public boolean keyPressed(int keyCode) {
         if (!visible) return false;
         if (searchBar.keyPressed(keyCode)) return true;
+        if (keyCode == 257 && canConfirm()) { // Enter
+            confirmAndAdd();
+            return true;
+        }
         if (keyCode == 256) {
             hide();
             return true;
