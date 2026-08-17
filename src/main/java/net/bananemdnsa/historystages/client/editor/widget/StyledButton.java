@@ -93,7 +93,9 @@ public class StyledButton extends Button {
         float flash = Ease.outCubic(press.ramp(0.0f, PRESS_FLASH_MS));
 
         // Background — white tint at rest, warming towards gold as the cursor settles.
-        int bgAlpha = (int) (0x30 + hp * 0x20);
+        // A disabled button (active = false) keeps only a faint trace of the fill, so it
+        // still reads as a button — just one that is not clickable right now.
+        int bgAlpha = this.active ? (int) (0x30 + hp * 0x20) : 0x15;
         int bgG = (int) (0xFF - hp * 0x33);
         int bgB = (int) (0xFF - hp * 0xFF);
         guiGraphics.fill(x, y, x + w, y + h, (bgAlpha << 24) | (0xFF << 16) | (bgG << 8) | bgB);
@@ -106,8 +108,8 @@ public class StyledButton extends Button {
 
         // Bottom accent. The full-width line carries the resting state; a brighter segment
         // grows out from the centre on hover, which reads as the button reacting rather than
-        // just changing colour.
-        int accentAlpha = (int) (0x60 + hp * 0x50);
+        // just changing colour. Disabled keeps only a faint trace of it.
+        int accentAlpha = this.active ? (int) (0x60 + hp * 0x50) : 0x25;
         guiGraphics.fill(x, y + h - 2, x + w, y + h, (accentAlpha << 24) | 0xFFCC00);
         if (this.active && hp > 0.001f) {
             int half = Math.round(w / 2.0f * hp);
@@ -120,8 +122,8 @@ public class StyledButton extends Button {
         guiGraphics.fill(x, y, x + 1, y + h, 0x15FFFFFF);
         guiGraphics.fill(x + w - 1, y, x + w, y + h, 0x15FFFFFF);
 
-        // Text — brightens with hover.
-        int textGray = (int) (0xCC + hp * 0x33);
+        // Text — brightens with hover, greyed out while inactive.
+        int textGray = this.active ? (int) (0xCC + hp * 0x33) : 0x66;
         guiGraphics.drawCenteredString(Minecraft.getInstance().font, this.getMessage(),
                 x + w / 2, y + (h - 8) / 2, Fade.grey(textGray));
     }

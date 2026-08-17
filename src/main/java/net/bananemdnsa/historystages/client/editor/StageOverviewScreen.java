@@ -20,6 +20,8 @@ import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.network.CreateFolderPacket;
 import net.bananemdnsa.historystages.network.DeleteFolderPacket;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
+import net.bananemdnsa.historystages.network.MoveFoldersPacket;
+import net.bananemdnsa.historystages.network.MoveStagesPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.RenameFolderPacket;
 import net.bananemdnsa.historystages.network.ToggleIndividualStageLockPacket;
@@ -36,10 +38,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 public class StageOverviewScreen extends Screen {
@@ -56,7 +60,33 @@ public class StageOverviewScreen extends Screen {
     private static final int INDIVIDUAL_FOLDER_HOVER_KEY = 30000;
     /** Width of the three bars marking a folder row, in pixels. */
     private static final int FOLDER_ICON_WIDTH = 7;
+    /** Header menu button in the top-right corner. Its height matches the search bar's. */
+    private static final int MENU_BUTTON_W = 30;
+    private static final int MENU_BUTTON_H = 18;
+    private static final int MENU_BUTTON_Y = 5;
+    /** Gap between the gear and the caret, which are centred in the button as one pair. */
+    private static final int MENU_ICON_GAP = 2;
+    /** Right edge of the bottom-bar button row, past which the organize status text starts. */
+    private static final int BOTTOM_BAR_END = 260;
+    /** Left edge of the row list. Shared so the checkbox hit test cannot drift from the drawing. */
+    private static final int LIST_LEFT = 20;
     private static final String BREADCRUMB_SEPARATOR = " / ";
+
+    /** Width the organize checkbox column takes away from a row's content. */
+    private static final int CHECKBOX_COLUMN_W = 16;
+    /** Edge length of the checkbox itself. */
+    private static final int CHECKBOX_SIZE = 10;
+    /**
+     * How far the cursor has to travel from the press before it counts as a drag. Below it
+     * the press stays a click, so ticking a box never turns into an accidental move.
+     */
+    private static final int DRAG_THRESHOLD = 4;
+    /** Band at the list's top and bottom edge that scrolls the list while a drag hovers it. */
+    private static final int AUTO_SCROLL_EDGE = 22;
+    /** Pixels the list scrolls per frame inside that band. */
+    private static final int AUTO_SCROLL_SPEED = 5;
+    /** How long the drop target keeps pulsing after a move, in milliseconds. */
+    private static final long DROP_PULSE_MS = Timing.DROP_PULSE_MS;
 
     private List<String> stageOrder;
     private List<String> individualStageOrder;
@@ -87,11 +117,63 @@ public class StageOverviewScreen extends Screen {
     private List<StageFolderTree.Folder> globalFolders = new ArrayList<>();
     private List<StageFolderTree.Folder> individualFolders = new ArrayList<>();
     private StyledButton backButton;
+    /** True while the header menu is the one the shared context menu is showing. */
+    private boolean headerMenuOpen = false;
+    /** 0 = caret points down, 1 = fully flipped up. */
+    private final Anim menuCaret = new Anim();
 
     private record BreadcrumbHit(int x1, int x2, String path) {}
     private final List<BreadcrumbHit> breadcrumbHits = new ArrayList<>();
     /** Screen y of the breadcrumb row, recorded during render for hit-testing. */
     private int breadcrumbY = -1;
+
+    // --- Organize mode ---
+    /** While on, rows are ticked and dragged instead of opened. */
+    private boolean organizeMode = false;
+    private StyledButton doneButton;
+    /**
+     * 0..1 progress of the checkbox column sliding open/closed, chasing {@link #organizeMode}.
+     * Drives {@link #contentIndent()} so the rows push aside instead of jumping in one frame.
+     */
+    private final Anim organizeReveal = new Anim();
+    /**
+     * Ticked stage IDs, insertion-ordered so the drag ghost and the packet list stay stable.
+     * They all belong to {@link #selectionIndividual}'s tree: a stage cannot move between
+     * trees, so a mixed selection could never be dropped anywhere as a whole.
+     */
+    private final Set<String> selectedStages = new LinkedHashSet<>();
+    /** Ticked folder paths, in the same tree and with the same ordering rationale. */
+    private final Set<String> selectedFolders = new LinkedHashSet<>();
+    /** Tree the current selection lives in; meaningless while the selection is empty. */
+    private boolean selectionIndividual = false;
+
+    /** A press landed on a row and may still become a drag. */
+    private boolean dragArmed = false;
+    /** The press has passed {@link #DRAG_THRESHOLD} and is now a real drag. */
+    private boolean dragStarted = false;
+    private double pressX, pressY;
+    /** Tree the armed/running drag belongs to. */
+    private boolean dragIndividual = false;
+    /** Folder paths the drag carries — the whole selection, or just the pressed row. */
+    private final List<String> dragFolders = new ArrayList<>();
+    /** Stage IDs the drag carries — the whole selection, or just the pressed row. */
+    private final List<String> dragStages = new ArrayList<>();
+    /** The stage row the press landed on, so a press that never became a drag can tick it. */
+    private String pressedStageId = null;
+    /** The folder row the press landed on: a press that never became a drag enters it. */
+    private String pressedFolderPath = null;
+    /** True when the press landed in the checkbox column, which ticks instead of entering. */
+    private boolean pressedCheckbox = false;
+
+    /** Where a drop would land this frame, and whether it would be accepted. */
+    private DropTarget activeDropTarget = null;
+    private boolean activeDropValid = false;
+    /** Target of the last completed move, highlighted for {@link #DROP_PULSE_MS}. */
+    private DropTarget pulseTarget = null;
+    private long pulseStart = 0;
+
+    /** A folder the drag can be dropped into, identified the same way everywhere: tree + path. */
+    private record DropTarget(boolean individual, String path) {}
 
     // Animation state
     private final java.util.Map<Integer, Anim> hoverProgress = new java.util.HashMap<>();
@@ -173,30 +255,33 @@ public class StageOverviewScreen extends Screen {
         this.addRenderableWidget(searchBox);
 
         this.addRenderableWidget(StyledButton.of(
-                Component.translatable("editor.historystages.new_stage"),
+                Component.translatable("editor.historystages.new_stage_or_folder"),
                 btn -> openStageIdInputDialog(null, false),
-                10, this.height - 30, 100, 20));
+                10, this.height - 30, 120, 20));
 
         backButton = StyledButton.of(
                 Component.translatable("editor.historystages.back"),
                 btn -> navigateUp(),
-                115, this.height - 30, 60, 20);
+                135, this.height - 30, 60, 20);
         this.addRenderableWidget(backButton);
 
-        this.addRenderableWidget(StyledButton.of(
-                Component.literal("\u2699"),
-                btn -> this.minecraft.setScreen(new ConfigEditorScreen(this)),
-                this.width - 30, 5, 20, 20));
+        // Only visible while organize mode is on; init() also runs on a resize, so the buttons
+        // have to be restored into whatever state the mode is already in.
+        doneButton = StyledButton.of(
+                Component.translatable("editor.historystages.organize.done"),
+                btn -> setOrganizeMode(false),
+                200, this.height - 30, 60, 20);
+        doneButton.visible = organizeMode;
+        this.addRenderableWidget(doneButton);
 
+        // One menu replaces the separate config, graph and credits buttons: the header only
+        // has room for a couple of them, and more entries are coming. The button carries no
+        // label \u2014 gear and caret are drawn together in render(), so they stay centred as a
+        // pair and the caret can animate.
         this.addRenderableWidget(StyledButton.of(
-                Component.translatable("editor.historystages.depgraph.button"),
-                btn -> this.minecraft.setScreen(new DependencyGraphScreen(this)),
-                this.width - 110, 5, 75, 20));
-
-        this.addRenderableWidget(StyledButton.of(
-                Component.translatable("editor.historystages.menu.credits"),
-                btn -> this.minecraft.setScreen(new CreditsScreen(this)),
-                this.width - 175, 5, 60, 20));
+                Component.empty(),
+                btn -> openHeaderMenu(),
+                menuButtonX(), MENU_BUTTON_Y, MENU_BUTTON_W, MENU_BUTTON_H));
 
         playerPicker = new PlayerPickerDropdown(120);
         contextMenu = new ContextMenu();
@@ -352,7 +437,7 @@ public class StageOverviewScreen extends Screen {
      * row so the list reads as one thing; no lock button and no mode badge, because a
      * folder has neither.
      */
-    private void drawFolderRow(GuiGraphics g, StageFolderTree.Folder folder, int hoverKey,
+    private void drawFolderRow(GuiGraphics g, StageFolderTree.Folder folder, boolean individual, int hoverKey,
                                int entryTop, int listLeft, int listRight, int listTop, int listBottom,
                                int mouseX, int mouseY, int accentColor) {
         int entryBottom = entryTop + ENTRY_HEIGHT - 2;
@@ -374,14 +459,19 @@ public class StageOverviewScreen extends Screen {
                     (((int) (progress * 0xFF)) << 24) | (accentColor & 0xFFFFFF));
         }
 
-        drawFolderIcon(g, listLeft + 5, entryTop + 7, accentColor);
-        g.drawString(this.font, folder.name(), listLeft + 16, entryTop + 4,
+        int contentLeft = listLeft + contentIndent();
+        if (organizeMode) {
+            drawCheckbox(g, listLeft + 4, entryTop + 8, isFolderSelected(folder.path(), individual), accentColor);
+        }
+
+        drawFolderIcon(g, contentLeft + 5, entryTop + 7, accentColor);
+        g.drawString(this.font, folder.name(), contentLeft + 16, entryTop + 4,
                 progress > 0.01f ? 0xFFFFFF : 0xEEEEEE, false);
 
         String info = Component.translatable("editor.historystages.folder.stage_count",
                 folder.stageCount()).getString();
         int infoColor = (int) (0x88 + progress * 0x33);
-        g.drawString(this.font, info, listLeft + 22, entryTop + 15,
+        g.drawString(this.font, info, contentLeft + 22, entryTop + 15,
                 (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
     }
 
@@ -488,12 +578,23 @@ public class StageOverviewScreen extends Screen {
                 browsingIndividual = null;
                 currentPath = "";
             }
+            // A ticked stage another admin deleted would otherwise ride along in the next
+            // move packet and turn a move that worked into a failure toast.
+            if (!selectedStages.isEmpty()) {
+                selectedStages.retainAll(selectionIndividual
+                        ? StageManager.getIndividualStages().keySet()
+                        : StageManager.getStages().keySet());
+            }
+            selectedFolders.removeIf(path -> !StageFolderTree.exists(selectionIndividual, path));
             applyFilter();
         }
 
         // Smooth scroll
         smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
         smoothScroll.settle((float) scrollOffset, 0.5f);
+
+        // Checkbox column sliding open/closed as organize mode toggles.
+        organizeReveal.ramp(organizeMode, Timing.REVEAL_MS, Timing.REVEAL_MS);
 
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
@@ -512,8 +613,29 @@ public class StageOverviewScreen extends Screen {
 
         int listTop = HEADER_HEIGHT + 5;
         int listBottom = this.height - 40;
-        int listLeft = 20;
+        int listLeft = LIST_LEFT;
         int listRight = this.width - 20;
+
+        // Auto-scroll while a drag hovers the list's edges — without it every target below
+        // the fold is unreachable, because the cursor is busy holding the drag.
+        if (dragStarted && maxScroll > 0 && mouseX >= listLeft && mouseX <= listRight) {
+            if (mouseY >= listTop - AUTO_SCROLL_EDGE && mouseY < listTop + AUTO_SCROLL_EDGE) {
+                scrollOffset = Math.max(0, scrollOffset - AUTO_SCROLL_SPEED);
+            } else if (mouseY > listBottom - AUTO_SCROLL_EDGE && mouseY <= listBottom + AUTO_SCROLL_EDGE) {
+                scrollOffset = Math.min(maxScroll, scrollOffset + AUTO_SCROLL_SPEED);
+            }
+        }
+
+        // Resolved once per frame so the highlight and the drop itself agree on the target.
+        // The breadcrumb geometry it reads is the one the previous frame recorded, exactly
+        // like the breadcrumb click path.
+        if (dragStarted) {
+            activeDropTarget = dropTargetAt(mouseX, mouseY);
+            activeDropValid = canDropOn(activeDropTarget);
+        } else {
+            activeDropTarget = null;
+            activeDropValid = false;
+        }
 
         guiGraphics.enableScissor(listLeft, listTop, listRight, listBottom);
 
@@ -558,7 +680,7 @@ public class StageOverviewScreen extends Screen {
         for (int i = 0; i < globalFolders.size(); i++) {
             int entryTop = rowTop(layout.globalRowsY(), i);
             if (entryTop + ENTRY_HEIGHT - 2 < listTop || entryTop > listBottom) continue;
-            drawFolderRow(guiGraphics, globalFolders.get(i), GLOBAL_FOLDER_HOVER_KEY + i, entryTop,
+            drawFolderRow(guiGraphics, globalFolders.get(i), false, GLOBAL_FOLDER_HOVER_KEY + i, entryTop,
                     listLeft, listRight, listTop, listBottom, effectiveMouseX, effectiveMouseY, 0xFFCC00);
         }
 
@@ -580,11 +702,15 @@ public class StageOverviewScreen extends Screen {
             String lockLabel = Component
                     .translatable(unlocked ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
             int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
-            int lockBtnX = listRight - lockBtnW - 10;
+            // Organize mode hides the button — the row's click means "tick" there, so leaving
+            // it would be a mis-click hazard — and the content simply extends to the list edge.
+            int lockBtnX = organizeMode ? listRight - 10 : listRight - lockBtnW - 10;
             int lockBtnY = entryTop + 5;
             int lockBtnH = 16;
-            boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
+            boolean onLockBtn = !organizeMode
+                    && effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
                     && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
+            int contentLeft = listLeft + contentIndent();
 
             boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
                     && effectiveMouseY >= Math.max(entryTop, listTop)
@@ -613,10 +739,14 @@ public class StageOverviewScreen extends Screen {
                 guiGraphics.fill(listLeft, entryTop, listLeft + 2, entryBottom, (accentAlpha << 24) | 0xFFCC00);
             }
 
+            if (organizeMode) {
+                drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8, isSelected(stageId, false), 0xFFCC00);
+            }
+
             // Lock/unlock icon
             String icon = unlocked ? "\u2714" : "\uD83D\uDD12";
             int iconColor = unlocked ? 0xFFCC00 : 0x888888;
-            guiGraphics.drawString(this.font, icon, listLeft + 5, entryTop + 6, iconColor, false);
+            guiGraphics.drawString(this.font, icon, contentLeft + 5, entryTop + 6, iconColor, false);
 
             // Mode badge (pill placed to the LEFT of the lock button, vertically centered)
             long remainingTicks = net.bananemdnsa.historystages.network.EditorDataCache.getTemporaryActiveTicks(stageId);
@@ -642,7 +772,7 @@ public class StageOverviewScreen extends Screen {
                 displayText += " \u00A78" + folder + "/";
             }
             int nameColor = progress > 0.01f ? 0xFFFFFF : 0xEEEEEE;
-            int nameX = listLeft + 16;
+            int nameX = contentLeft + 16;
             int nameRightLimit = countW > 0 ? countX : ((badgeWidth > 0) ? badgeX : lockBtnX);
             int nameAvailW = nameRightLimit - nameX - 6;
             int nameW = this.font.width(displayText);
@@ -674,24 +804,26 @@ public class StageOverviewScreen extends Screen {
                     + entry.getBiomes().size();
             String info = itemCount + " entries";
             int infoColor = (int) (0x88 + progress * 0x33);
-            guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15,
+            guiGraphics.drawString(this.font, info, contentLeft + 22, entryTop + 15,
                     (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
 
-            if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, listLeft, entryTop + 15);
+            if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, contentLeft, entryTop + 15);
 
             // Lock/Unlock toggle button (right side) - bounds already calculated above
-            boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
+            if (!organizeMode) {
+                boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
 
-            int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
-            guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
-            // Bottom accent (gold, like StyledButton)
-            int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
-            guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
+                int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
+                guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
+                // Bottom accent (gold, like StyledButton)
+                int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
+                guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
 
-            int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
-            int textW = this.font.width(lockLabel);
-            guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor,
-                    false);
+                int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
+                int textW = this.font.width(lockLabel);
+                guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - textW) / 2, lockBtnY + 4, lockTextColor,
+                        false);
+            }
         }
 
         // --- Individual Stages Section ---
@@ -703,10 +835,12 @@ public class StageOverviewScreen extends Screen {
 
             // The picker sticks inside the viewport while any part of the individual
             // section is on screen, so scrolling the header away does not take the
-            // target selector with it.
+            // target selector with it. Organize mode hides it: it targets the per-row
+            // Lock/Unlock buttons, which are gone there, and it would sit as a clickable
+            // overlay on rows whose click now means "tick this box".
             int sectionBottom = sectionY + SECTION_HEADER_HEIGHT
                     + (individualFolders.size() + filteredIndividualStageOrder.size()) * ENTRY_HEIGHT;
-            pickerVisible = sectionBottom > listTop && sectionY < listBottom;
+            pickerVisible = !organizeMode && sectionBottom > listTop && sectionY < listBottom;
             int pickerX = listRight - playerPicker.getWidth();
             int pickerY = Math.max(listTop + 1,
                     Math.min(sectionY + 2, listBottom - PlayerPickerDropdown.BUTTON_HEIGHT - 1));
@@ -740,7 +874,7 @@ public class StageOverviewScreen extends Screen {
             for (int i = 0; i < individualFolders.size(); i++) {
                 int folderTop = rowTop(indY, i);
                 if (folderTop + ENTRY_HEIGHT - 2 < listTop || folderTop > listBottom) continue;
-                drawFolderRow(guiGraphics, individualFolders.get(i), INDIVIDUAL_FOLDER_HOVER_KEY + i, folderTop,
+                drawFolderRow(guiGraphics, individualFolders.get(i), true, INDIVIDUAL_FOLDER_HOVER_KEY + i, folderTop,
                         listLeft, listRight, listTop, listBottom, effectiveMouseX, effectiveMouseY, 0xBBBBBB);
             }
 
@@ -766,11 +900,13 @@ public class StageOverviewScreen extends Screen {
                 String lockLabel = Component.translatable(
                         state == 2 ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
                 int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
-                int lockBtnX = listRight - lockBtnW - 10;
+                int lockBtnX = organizeMode ? listRight - 10 : listRight - lockBtnW - 10;
                 int lockBtnH = 16;
                 int lockBtnY = entryTop + 5;
-                boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
+                boolean onLockBtn = !organizeMode
+                        && effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
                         && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
+                int contentLeft = listLeft + contentIndent();
 
                 boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
                         && effectiveMouseY >= Math.max(entryTop, listTop)
@@ -801,7 +937,10 @@ public class StageOverviewScreen extends Screen {
                 // or unlocked.
                 String stateIcon = state == 2 ? "\u2714" : (state == 1 ? "\u25C9" : "\uD83D\uDD12");
                 int stateColor = state == 2 ? 0xFFCC00 : (state == 1 ? 0xFFAA55 : 0xBBBBBB);
-                guiGraphics.drawString(this.font, stateIcon, listLeft + 5, entryTop + 6, stateColor, false);
+                if (organizeMode) {
+                    drawCheckbox(guiGraphics, listLeft + 4, entryTop + 8, isSelected(stageId, true), 0xBBBBBB);
+                }
+                guiGraphics.drawString(this.font, stateIcon, contentLeft + 5, entryTop + 6, stateColor, false);
 
                 // Mode badge sits left of the lock button, same as on global rows. The
                 // countdown follows the picked player; under "@a" there is none to show.
@@ -836,7 +975,7 @@ public class StageOverviewScreen extends Screen {
                     displayText += " \u00A78" + folder + "/";
                 }
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
-                int nameX = listLeft + 16;
+                int nameX = contentLeft + 16;
                 int nameRightLimit = (deathWidth > 0) ? deathX : countLeft;
                 int nameAvailW = nameRightLimit - nameX - 6;
                 int nameW = this.font.width(displayText);
@@ -868,23 +1007,25 @@ public class StageOverviewScreen extends Screen {
                         + entry.getBiomes().size();
                 String info = itemCount + " entries";
                 int infoColor = (int) (0x88 + progress * 0x33);
-                guiGraphics.drawString(this.font, info, listLeft + 22, entryTop + 15,
+                guiGraphics.drawString(this.font, info, contentLeft + 22, entryTop + 15,
                         (0xFF << 24) | (infoColor << 16) | (infoColor << 8) | infoColor, false);
 
                 // Individual stages carry dependencies just like global ones, so the marker
                 // belongs on these rows too.
-                if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, listLeft, entryTop + 15);
+                if (entry.hasDependencies()) drawDepBadge(guiGraphics, info, contentLeft, entryTop + 15);
 
                 // Lock/Unlock toggle button, mirroring the global rows.
-                boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
-                int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
-                guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
-                int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
-                guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
-                int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
-                int lockTextW = this.font.width(lockLabel);
-                guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - lockTextW) / 2,
-                        lockBtnY + 4, lockTextColor, false);
+                if (!organizeMode) {
+                    boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
+                    int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
+                    guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
+                    int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
+                    guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
+                    int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
+                    int lockTextW = this.font.width(lockLabel);
+                    guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - lockTextW) / 2,
+                            lockBtnY + 4, lockTextColor, false);
+                }
             }
         }
 
@@ -894,6 +1035,28 @@ public class StageOverviewScreen extends Screen {
         if (currentHoveredStage != hoveredStageIndex) {
             hoveredStageIndex = currentHoveredStage;
             stageHoverStartTime = System.currentTimeMillis();
+        }
+
+        // Drop marker and post-drop pulse, both drawn from targetRect() so they sit on the
+        // very row the hit test resolved. Still inside the list scissor, so a target scrolled
+        // out of view is clipped away instead of painting over the header.
+        if (activeDropTarget != null) {
+            int[] rect = targetRect(activeDropTarget);
+            if (rect != null) drawTargetOutline(guiGraphics, rect, activeDropValid ? 0xFFCC00 : 0xFF5555, 1.0f);
+        }
+        if (pulseTarget != null) {
+            long age = System.currentTimeMillis() - pulseStart;
+            if (age >= DROP_PULSE_MS) {
+                pulseTarget = null;
+            } else {
+                int[] rect = targetRect(pulseTarget);
+                if (rect != null) {
+                    // Swells and fades rather than fading linearly, so the confirmation reads
+                    // as a beat instead of a highlight that happens to be going away.
+                    drawTargetOutline(guiGraphics, rect, 0xFFCC00,
+                            Ease.pulse((float) age / DROP_PULSE_MS));
+                }
+            }
         }
 
         guiGraphics.disableScissor();
@@ -912,7 +1075,27 @@ public class StageOverviewScreen extends Screen {
             guiGraphics.fill(listRight + 2, scrollBarY, listRight + 5, scrollBarY + scrollBarHeight, 0x80FFFFFF);
         }
 
+        // Organize status line, right of the bottom-bar buttons: how much is ticked, and what
+        // to do with it.
+        if (organizeMode) {
+            String selectedText = Component.translatable("editor.historystages.organize.selected",
+                    selectionSize()).getString();
+            String hintText = Component.translatable("editor.historystages.organize.hint").getString();
+            // Left-aligned right after the button row, but pushed back inside the window if a
+            // long translation would otherwise run off the right edge.
+            int statusW = Math.max(this.font.width(selectedText), this.font.width(hintText));
+            int statusX = Math.min(BOTTOM_BAR_END + 10, Math.max(10, this.width - 10 - statusW));
+            guiGraphics.drawString(this.font, selectedText, statusX, this.height - 29, 0xFFCC00, false);
+            guiGraphics.drawString(this.font, hintText, statusX, this.height - 18, 0x888888, false);
+        }
+
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+        // The shared context menu is also used for row right-clicks, so the caret only
+        // tracks it while the header opened it.
+        if (!contextMenu.isVisible()) headerMenuOpen = false;
+        menuCaret.ramp(headerMenuOpen, Timing.POPUP_MS, Timing.POPUP_MS);
+        drawMenuButtonContent(guiGraphics);
 
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(0, 0, 200);
@@ -921,6 +1104,22 @@ public class StageOverviewScreen extends Screen {
 
         if (pickerVisible) {
             playerPicker.renderPopup(guiGraphics, this.font, effectiveMouseX, effectiveMouseY);
+        }
+
+        // Drag ghost, drawn last so nothing can cover what the cursor is carrying.
+        if (dragStarted) {
+            String ghost = dragGhostLabel();
+            if (!ghost.isEmpty()) {
+                int ghostW = this.font.width(ghost) + 8;
+                int ghostX = Math.min(mouseX + 8, this.width - ghostW - 2);
+                int ghostY = Math.min(mouseY + 8, this.height - 16);
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(0, 0, 400);
+                guiGraphics.fill(ghostX, ghostY, ghostX + ghostW, ghostY + 14, 0xE0101010);
+                guiGraphics.fill(ghostX, ghostY + 13, ghostX + ghostW, ghostY + 14, 0xFFFFCC00);
+                guiGraphics.drawString(this.font, ghost, ghostX + 4, ghostY + 3, 0xFFFFFF, false);
+                guiGraphics.pose().popPose();
+            }
         }
     }
 
@@ -948,7 +1147,7 @@ public class StageOverviewScreen extends Screen {
 
         int listTop = HEADER_HEIGHT + 5;
         int listBottom = this.height - 40;
-        int listLeft = 20;
+        int listLeft = LIST_LEFT;
         int listRight = this.width - 20;
 
         if (maxScroll > 0 && mouseX >= listRight + 1 && mouseX <= listRight + 6
@@ -960,6 +1159,10 @@ public class StageOverviewScreen extends Screen {
 
         if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom)
             return false;
+
+        // The checkbox column is mid-slide, so the row content is not where a hit test would
+        // put it — swallow the click rather than risk it resolving against the wrong row.
+        if (organizeSettling()) return true;
 
         Map<String, StageEntry> stages = StageManager.getStages();
         Map<String, StageEntry> individualStages = StageManager.getIndividualStages();
@@ -991,6 +1194,11 @@ public class StageOverviewScreen extends Screen {
         for (int i = 0; i < globalFolders.size(); i++) {
             int folderTop = rowTop(layout.globalRowsY(), i);
             if (mouseY >= folderTop && mouseY <= folderTop + ENTRY_HEIGHT - 2) {
+                // Only the left button belongs to organize mode; a right click keeps opening
+                // the row's own menu, which is where deleting a single entry lives.
+                if (organizeMode && button == 0) {
+                    return organizeFolderPressed(globalFolders.get(i), false, button, mouseX, mouseY);
+                }
                 return folderRowClicked(globalFolders.get(i), false, button, mouseX, mouseY);
             }
         }
@@ -1006,6 +1214,8 @@ public class StageOverviewScreen extends Screen {
             int entryBottom = entryTop + ENTRY_HEIGHT - 2;
 
             if (mouseY >= entryTop && mouseY <= entryBottom) {
+                if (organizeMode && button == 0) return organizeStagePressed(stageId, false, button, mouseX, mouseY);
+
                 // Check lock/unlock button click
                 boolean unlocked = ClientStageCache.isStageUnlocked(stageId);
                 String lockLabel = Component
@@ -1025,12 +1235,17 @@ public class StageOverviewScreen extends Screen {
                 // Right-click context menu
                 if (button == 1) {
                     contextMenu = new ContextMenu();
-                    contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
-                        this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, false));
-                    });
-                    contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(), () -> {
-                        openStageIdInputDialog(stageId, false);
-                    });
+                    // Organize mode is for structuring, not authoring: a left click ticks the
+                    // row, so nothing in its menu may open the stage editor. Duplicate ends
+                    // there too, so it goes with Edit and only Delete remains.
+                    if (!organizeMode) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
+                            this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, false));
+                        });
+                        contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(), () -> {
+                            openStageIdInputDialog(stageId, false);
+                        });
+                    }
                     contextMenu.addEntry(Component.translatable("editor.historystages.delete").getString(), () -> {
                         Screen self = this;
                         this.minecraft.setScreen(new ConfirmDialog(this,
@@ -1065,6 +1280,9 @@ public class StageOverviewScreen extends Screen {
             for (int i = 0; i < individualFolders.size(); i++) {
                 int folderTop = rowTop(indY, i);
                 if (mouseY >= folderTop && mouseY <= folderTop + ENTRY_HEIGHT - 2) {
+                    if (organizeMode && button == 0) {
+                        return organizeFolderPressed(individualFolders.get(i), true, button, mouseX, mouseY);
+                    }
                     return folderRowClicked(individualFolders.get(i), true, button, mouseX, mouseY);
                 }
             }
@@ -1079,6 +1297,8 @@ public class StageOverviewScreen extends Screen {
                 int entryBottom = entryTop + ENTRY_HEIGHT - 2;
 
                 if (mouseY >= entryTop && mouseY <= entryBottom) {
+                    if (organizeMode && button == 0) return organizeStagePressed(stageId, true, button, mouseX, mouseY);
+
                     int state = individualState(stageId);
                     String lockLabelClick = Component.translatable(
                             state == 2 ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
@@ -1096,13 +1316,15 @@ public class StageOverviewScreen extends Screen {
 
                     if (button == 1) {
                         contextMenu = new ContextMenu();
-                        contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
-                            this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, true));
-                        });
-                        contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(),
-                                () -> {
-                                    openStageIdInputDialog(stageId, true);
-                                });
+                        if (!organizeMode) {
+                            contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
+                                this.minecraft.setScreen(new StageDetailScreen(this, stageId, entry, true));
+                            });
+                            contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(),
+                                    () -> {
+                                        openStageIdInputDialog(stageId, true);
+                                    });
+                        }
                         contextMenu.addEntry(Component.translatable("editor.historystages.delete").getString(), () -> {
                             Screen self = this;
                             this.minecraft.setScreen(new ConfirmDialog(this,
@@ -1175,6 +1397,359 @@ public class StageOverviewScreen extends Screen {
         return true;
     }
 
+    private int menuButtonX() {
+        return this.width - MENU_BUTTON_W - 10;
+    }
+
+    /**
+     * Draws the gear and the caret as one pair, centred in the menu button. They used to be
+     * placed independently — the gear centred by the button, the caret at a fixed offset from
+     * the screen edge — which left the two looking unrelated.
+     */
+    private void drawMenuButtonContent(GuiGraphics g) {
+        String gear = "⚙";
+        int gearW = this.font.width(gear);
+        int caretW = this.font.width("▾");
+        int pairW = gearW + MENU_ICON_GAP + caretW;
+        int startX = menuButtonX() + (MENU_BUTTON_W - pairW) / 2;
+        int textY = MENU_BUTTON_Y + (MENU_BUTTON_H - 8) / 2;
+
+        g.drawString(this.font, gear, startX, textY, 0xCCCCCC, false);
+        drawMenuCaret(g, startX + gearW + MENU_ICON_GAP, textY);
+    }
+
+    /**
+     * Flips the header caret between ▾ and ▴ over a few frames. Drawn on top of the
+     * button rather than as its label, because a label cannot be rotated.
+     */
+    private void drawMenuCaret(GuiGraphics g, int x, int y) {
+        String caret = "▾";
+        float halfW = this.font.width(caret) / 2.0f;
+        g.pose().pushPose();
+        g.pose().translate(x + halfW, y + 4.0f, 100.0f);
+        g.pose().mulPose(com.mojang.math.Axis.ZP.rotationDegrees(Ease.outCubic(menuCaret.value()) * 180.0f));
+        g.pose().translate(-halfW, -4.0f, 0.0f);
+        g.drawString(this.font, caret, 0, 0, 0xFFCC00, false);
+        g.pose().popPose();
+    }
+
+    /** Drops the header menu open under its button, right-aligned with it. */
+    private void openHeaderMenu() {
+        headerMenuOpen = true;
+        contextMenu = new ContextMenu();
+        contextMenu.addEntry(Component.translatable("editor.historystages.config_title").getString(),
+                () -> this.minecraft.setScreen(new ConfigEditorScreen(this)));
+        contextMenu.addEntry(Component.translatable("editor.historystages.depgraph.button").getString(),
+                () -> this.minecraft.setScreen(new DependencyGraphScreen(this)));
+        contextMenu.addEntry(Component.translatable("editor.historystages.menu.organize").getString(),
+                () -> setOrganizeMode(true));
+        contextMenu.addEntry(Component.translatable("editor.historystages.menu.credits").getString(),
+                () -> this.minecraft.setScreen(new CreditsScreen(this)));
+        contextMenu.showRightAligned(menuButtonX() + MENU_BUTTON_W,
+                MENU_BUTTON_Y + MENU_BUTTON_H + 3, this.font);
+    }
+
+    /**
+     * Turns organize mode on or off. Leaving drops the selection and any running drag —
+     * a selection that survived the mode would be invisible and still act on the next entry.
+     */
+    private void setOrganizeMode(boolean on) {
+        organizeMode = on;
+        clearSelection();
+        clearDrag();
+        pulseTarget = null;
+        if (doneButton != null) doneButton.visible = on;
+    }
+
+    /**
+     * Horizontal room the checkbox column takes from every row's content while the mode is on.
+     * Follows {@link #organizeReveal}, so entering and leaving organize mode pushes the rows
+     * aside instead of relaying the whole list between two frames.
+     */
+    private int contentIndent() {
+        return Math.round(CHECKBOX_COLUMN_W * Ease.outCubic(organizeReveal.value()));
+    }
+
+    /**
+     * True while the checkbox column is still sliding. Row input is held off until it settles:
+     * the rows are drawn at an offset the hit tests do not know about, and a tick landing on
+     * the wrong row is worse than a tenth of a second of delay.
+     */
+    private boolean organizeSettling() {
+        return !organizeReveal.isAt(organizeMode ? 1.0f : 0.0f);
+    }
+
+    private boolean isSelected(String stageId, boolean individual) {
+        return selectionIndividual == individual && selectedStages.contains(stageId);
+    }
+
+    private boolean isFolderSelected(String path, boolean individual) {
+        return selectionIndividual == individual && selectedFolders.contains(path);
+    }
+
+    /** Everything ticked, stages and folders together. */
+    private int selectionSize() {
+        return selectedStages.size() + selectedFolders.size();
+    }
+
+    private void clearSelection() {
+        selectedStages.clear();
+        selectedFolders.clear();
+    }
+
+    /**
+     * Drops the whole selection when the click comes from the other tree. The selection is
+     * confined to one tree: dropping a mixed selection into a folder would move part of it
+     * across trees, which the loader does not support.
+     */
+    private void enterSelectionTree(boolean individual) {
+        if (selectionSize() > 0 && selectionIndividual != individual) clearSelection();
+        selectionIndividual = individual;
+    }
+
+    private void toggleSelection(String stageId, boolean individual) {
+        enterSelectionTree(individual);
+        if (!selectedStages.remove(stageId)) selectedStages.add(stageId);
+        Minecraft.getInstance().getSoundManager().play(
+                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    }
+
+    private void toggleFolderSelection(String path, boolean individual) {
+        enterSelectionTree(individual);
+        if (!selectedFolders.remove(path)) selectedFolders.add(path);
+        Minecraft.getInstance().getSoundManager().play(
+                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+    }
+
+    /**
+     * Records a press on a row without acting on it yet: only the release decides whether it
+     * was a click or a drag.
+     *
+     * <p>A press on a ticked stage carries the whole selection, a press on any other row
+     * carries just that row and leaves the selection alone — dragging something the user did
+     * not tick must not silently redefine what is ticked.
+     */
+    private void armDrag(boolean individual, String folderPath, String stageId,
+                         boolean onCheckbox, double mouseX, double mouseY) {
+        dragArmed = true;
+        dragStarted = false;
+        pressX = mouseX;
+        pressY = mouseY;
+        dragIndividual = individual;
+        pressedFolderPath = folderPath;
+        pressedStageId = stageId;
+        pressedCheckbox = onCheckbox;
+        dragStages.clear();
+        dragFolders.clear();
+
+        boolean pressedIsSelected = stageId != null
+                ? isSelected(stageId, individual)
+                : isFolderSelected(folderPath, individual);
+        if (pressedIsSelected) {
+            dragStages.addAll(selectedStages);
+            dragFolders.addAll(selectedFolders);
+        } else if (stageId != null) {
+            dragStages.add(stageId);
+        } else {
+            dragFolders.add(folderPath);
+        }
+    }
+
+    private void clearDrag() {
+        dragArmed = false;
+        dragStarted = false;
+        pressedFolderPath = null;
+        pressedStageId = null;
+        pressedCheckbox = false;
+        dragStages.clear();
+        dragFolders.clear();
+        activeDropTarget = null;
+        activeDropValid = false;
+    }
+
+    /**
+     * The folder under the cursor a drag could be dropped on: a folder row at the current
+     * level, or a breadcrumb segment. The breadcrumb matters because it is the only way to
+     * move something <em>out</em> of the browsed folder — no ancestor is ever drawn as a row.
+     *
+     * <p>Row positions come from {@link #layout} and {@link #rowTop} fed with
+     * {@code Math.round(smoothScroll.value())}, exactly as {@link #render} and
+     * {@link #mouseClicked} do.
+     */
+    private DropTarget dropTargetAt(double mouseX, double mouseY) {
+        int listTop = HEADER_HEIGHT + 5;
+        int listBottom = this.height - 40;
+        int listLeft = LIST_LEFT;
+        int listRight = this.width - 20;
+
+        // Breadcrumb hits are recorded while drawing, same as the breadcrumb click path uses.
+        if (browsingIndividual != null && breadcrumbY >= 0
+                && mouseY >= breadcrumbY - 2 && mouseY <= breadcrumbY + 12) {
+            for (BreadcrumbHit hit : breadcrumbHits) {
+                if (mouseX >= hit.x1() - 2 && mouseX <= hit.x2() + 2) {
+                    return new DropTarget(browsingIndividual, hit.path());
+                }
+            }
+        }
+
+        if (mouseX < listLeft || mouseX > listRight || mouseY < listTop || mouseY > listBottom) return null;
+
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
+        for (int i = 0; i < globalFolders.size(); i++) {
+            int folderTop = rowTop(layout.globalRowsY(), i);
+            if (mouseY >= folderTop && mouseY <= folderTop + ENTRY_HEIGHT - 2) {
+                return new DropTarget(false, globalFolders.get(i).path());
+            }
+        }
+        if (showIndividualSection()) {
+            int indY = layout.individualRowsY();
+            for (int i = 0; i < individualFolders.size(); i++) {
+                int folderTop = rowTop(indY, i);
+                if (mouseY >= folderTop && mouseY <= folderTop + ENTRY_HEIGHT - 2) {
+                    return new DropTarget(true, individualFolders.get(i).path());
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Screen rectangle of a drop target as {@code {x1, y1, x2, y2}}, or null when it is not
+     * on screen right now. Shares {@link #layout} / {@link #rowTop} with everything else, so
+     * the highlight cannot drift away from the row the hit test picked.
+     */
+    private int[] targetRect(DropTarget target) {
+        if (target == null) return null;
+        int listTop = HEADER_HEIGHT + 5;
+        int listLeft = LIST_LEFT;
+        int listRight = this.width - 20;
+
+        if (browsingIndividual != null && target.individual() == browsingIndividual && breadcrumbY >= 0) {
+            for (BreadcrumbHit hit : breadcrumbHits) {
+                if (hit.path().equals(target.path())) {
+                    return new int[]{hit.x1() - 2, breadcrumbY - 2, hit.x2() + 2, breadcrumbY + 11};
+                }
+            }
+        }
+
+        ListLayout layout = layout(listTop, Math.round(smoothScroll.value()));
+        List<StageFolderTree.Folder> folders = target.individual() ? individualFolders : globalFolders;
+        int rowsY = target.individual() ? layout.individualRowsY() : layout.globalRowsY();
+        if (target.individual() && !showIndividualSection()) return null;
+        for (int i = 0; i < folders.size(); i++) {
+            if (!folders.get(i).path().equals(target.path())) continue;
+            int folderTop = rowTop(rowsY, i);
+            return new int[]{listLeft, folderTop, listRight, folderTop + ENTRY_HEIGHT - 2};
+        }
+        return null;
+    }
+
+    /**
+     * Whether the running drag may be dropped on {@code target}. Refusals are shown rather
+     * than swallowed, so the user learns the rule instead of watching a drop do nothing.
+     */
+    private boolean canDropOn(DropTarget target) {
+        if (target == null) return false;
+        // A stage file cannot change trees: individual stages do not support the same
+        // categories, and the loader strips what does not belong.
+        if (target.individual() != dragIndividual) return false;
+
+        // A folder cannot move into itself or into anything below it — it would disappear
+        // into its own subtree. One offending folder in the drag refuses the whole drop.
+        for (String folder : dragFolders) {
+            if (target.path().equals(folder)) return false;
+            if (target.path().startsWith(folder + "/")) return false;
+        }
+
+        // At least one item has to actually change folder, otherwise the drop is a no-op.
+        for (String folder : dragFolders) {
+            if (!StagePaths.parent(folder).equals(target.path())) return true;
+        }
+        for (String stageId : dragStages) {
+            if (!StageManager.getStageFolder(stageId, dragIndividual).equals(target.path())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Sends the move as one packet — never one per stage — and drops the selection, which has
+     * done its job once the move is on its way. The list itself is not touched: the server
+     * reloads and broadcasts, and the folder-signature check in {@link #render} picks it up.
+     */
+    private void performDrop(DropTarget target) {
+        if (dragFolders.isEmpty() && dragStages.isEmpty()) return;
+
+        if (!dragFolders.isEmpty()) {
+            PacketHandler.sendToServer(new MoveFoldersPacket(dragIndividual, new ArrayList<>(dragFolders), target.path()));
+        }
+        if (!dragStages.isEmpty()) {
+            PacketHandler.sendToServer(new MoveStagesPacket(dragIndividual, new ArrayList<>(dragStages), target.path()));
+        }
+        Minecraft.getInstance().getSoundManager().play(
+                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        clearSelection();
+        pulseTarget = target;
+        pulseStart = System.currentTimeMillis();
+    }
+
+    /** Left press on a stage row while organize mode is on; only the release acts on it. */
+    private boolean organizeStagePressed(String stageId, boolean individual, int button,
+                                         double mouseX, double mouseY) {
+        armDrag(individual, null, stageId, false, mouseX, mouseY);
+        return true;
+    }
+
+    /**
+     * Press on a folder row while organize mode is on; the release decides drag vs. tick vs.
+     * navigate.
+     *
+     * <p>A folder row differs from a stage row on purpose: a stage row has no competing
+     * action, so a click anywhere on it ticks. A folder still has to be enterable — walking
+     * into a folder is how the user reaches a drop target — so only the checkbox column ticks
+     * and the rest of the row keeps navigating.
+     */
+    private boolean organizeFolderPressed(StageFolderTree.Folder folder, boolean individual, int button,
+                                          double mouseX, double mouseY) {
+        boolean onCheckbox = mouseX < LIST_LEFT + CHECKBOX_COLUMN_W;
+        armDrag(individual, folder.path(), null, onCheckbox, mouseX, mouseY);
+        return true;
+    }
+
+    /** Draws the organize checkbox for one row. */
+    private void drawCheckbox(GuiGraphics g, int x, int y, boolean checked, int accent) {
+        int border = checked ? (0xFF000000 | accent) : 0xFF777777;
+        g.fill(x, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, 0x40000000);
+        g.fill(x, y, x + CHECKBOX_SIZE, y + 1, border);
+        g.fill(x, y + CHECKBOX_SIZE - 1, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, border);
+        g.fill(x, y, x + 1, y + CHECKBOX_SIZE, border);
+        g.fill(x + CHECKBOX_SIZE - 1, y, x + CHECKBOX_SIZE, y + CHECKBOX_SIZE, border);
+        if (checked) {
+            g.fill(x + 3, y + 3, x + CHECKBOX_SIZE - 3, y + CHECKBOX_SIZE - 3, 0xFF000000 | accent);
+        }
+    }
+
+    /** Tinted box plus border marking a drop target — gold when accepted, red when refused. */
+    private void drawTargetOutline(GuiGraphics g, int[] rect, int color, float strength) {
+        int alpha = (int) (0xFF * Math.max(0.0f, Math.min(1.0f, strength)));
+        if (alpha < 4) return;
+        int rgb = color & 0xFFFFFF;
+        g.fill(rect[0], rect[1], rect[2], rect[3], ((alpha / 5) << 24) | rgb);
+        g.fill(rect[0], rect[1], rect[2], rect[1] + 1, (alpha << 24) | rgb);
+        g.fill(rect[0], rect[3] - 1, rect[2], rect[3], (alpha << 24) | rgb);
+        g.fill(rect[0], rect[1], rect[0] + 1, rect[3], (alpha << 24) | rgb);
+        g.fill(rect[2] - 1, rect[1], rect[2], rect[3], (alpha << 24) | rgb);
+    }
+
+    /** Label carried by the drag ghost: the row's name, or the count for a multi-drag. */
+    private String dragGhostLabel() {
+        int total = dragStages.size() + dragFolders.size();
+        if (total == 0) return "";
+        if (total == 1) {
+            return dragStages.isEmpty() ? StagePaths.name(dragFolders.get(0)) : dragStages.get(0);
+        }
+        return Component.translatable("editor.historystages.organize.selected", total).getString();
+    }
+
     /**
      * Opens the create/duplicate dialog for the position the user is standing in. Inside a
      * tree the tree is decided by that position, so the dialog hides its tree selector.
@@ -1192,12 +1767,14 @@ public class StageOverviewScreen extends Screen {
             // hidden for duplicates, so the dialog shows none. The copy lands next to
             // its source.
             this.minecraft.setScreen(new StageIdInputScreen(this, duplicateFromId, individual,
-                    true, StageManager.getStageFolder(duplicateFromId, individual)));
+                    true, StageManager.getStageFolder(duplicateFromId, individual), false));
             return;
         }
         boolean treeFixed = browsingIndividual != null;
+        // Organize mode is for structuring what exists, so the dialog only creates folders
+        // there — the target to sort into — and the kind selector goes away with the choice.
         this.minecraft.setScreen(new StageIdInputScreen(this, duplicateFromId,
-                treeFixed ? browsingIndividual : individual, treeFixed, currentPath));
+                treeFixed ? browsingIndividual : individual, treeFixed, currentPath, organizeMode));
     }
 
     @Override
@@ -1215,6 +1792,20 @@ public class StageOverviewScreen extends Screen {
             updateScrollFromMouse(mouseY, listTop, listBottom);
             return true;
         }
+        if (dragArmed && button == 0) {
+            if (!dragStarted) {
+                double dx = mouseX - pressX;
+                double dy = mouseY - pressY;
+                // A search shows neither folder rows nor the breadcrumb, so a drag started
+                // there could never be dropped on anything; the press stays a click that
+                // ticks the box.
+                if (searchFilter.trim().isEmpty()
+                        && dx * dx + dy * dy > (double) DRAG_THRESHOLD * DRAG_THRESHOLD) {
+                    dragStarted = true;
+                }
+            }
+            return true;
+        }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
@@ -1224,6 +1815,29 @@ public class StageOverviewScreen extends Screen {
             draggingScrollbar = false;
             return true;
         }
+
+        if (dragArmed && button == 0) {
+            if (dragStarted) {
+                DropTarget target = dropTargetAt(mouseX, mouseY);
+                if (canDropOn(target)) performDrop(target);
+            } else if (pressedStageId != null) {
+                // Never became a drag, so the press was a plain click: a stage row ticks
+                // wherever it was hit.
+                toggleSelection(pressedStageId, dragIndividual);
+            } else if (pressedFolderPath != null) {
+                // A folder ticks only from the checkbox column; anywhere else it opens.
+                if (pressedCheckbox) {
+                    toggleFolderSelection(pressedFolderPath, dragIndividual);
+                } else {
+                    Minecraft.getInstance().getSoundManager().play(
+                            SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    navigateInto(dragIndividual, pressedFolderPath);
+                }
+            }
+            clearDrag();
+            return true;
+        }
+
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
@@ -1471,6 +2085,8 @@ public class StageOverviewScreen extends Screen {
         private final boolean treeFixed;
         /** What is being created — a stage or a folder. */
         private boolean creatingFolder = false;
+        /** Organize mode creates folders only, so the kind is fixed and its selector hidden. */
+        private final boolean foldersOnly;
         /** Typed value carried across the widget rebuild that a kind switch triggers. */
         private String pendingName = "";
         /**
@@ -1502,13 +2118,16 @@ public class StageOverviewScreen extends Screen {
         private static final int KIND_COLOR = 0xFFCC00;
 
         protected StageIdInputScreen(StageOverviewScreen parent, String duplicateFromId,
-                                     boolean individual, boolean treeFixed, String targetFolder) {
+                                     boolean individual, boolean treeFixed, String targetFolder,
+                                     boolean foldersOnly) {
             super(parent, Component.translatable("editor.historystages.new_stage"));
             this.parent = parent;
             this.duplicateFromId = duplicateFromId;
             this.individual = individual;
             this.treeFixed = treeFixed;
             this.targetFolder = targetFolder;
+            this.foldersOnly = foldersOnly;
+            this.creatingFolder = foldersOnly;
             // A duplicate starts out as a copy of the source, so its name is the sensible
             // default here — the user only has to touch it when the copy should differ.
             StageEntry source = duplicateFromId == null ? null
@@ -1521,7 +2140,7 @@ public class StageOverviewScreen extends Screen {
         private boolean showTreeDropdown() { return !treeFixed; }
 
         /** Duplicating a stage is always a stage, so the kind selector is hidden then. */
-        private boolean showKindDropdown() { return duplicateFromId == null; }
+        private boolean showKindDropdown() { return duplicateFromId == null && !foldersOnly; }
 
         @Override
         protected int dialogWidth() { return 300; }

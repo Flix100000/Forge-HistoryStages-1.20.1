@@ -94,6 +94,12 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, DeleteFolderPacket.class,
                                 DeleteFolderPacket::encode,
                                 DeleteFolderPacket::decode, DeleteFolderPacket::handle);
+                INSTANCE.registerMessage(id++, MoveStagesPacket.class,
+                                MoveStagesPacket::encode,
+                                MoveStagesPacket::decode, MoveStagesPacket::handle);
+                INSTANCE.registerMessage(id++, MoveFoldersPacket.class,
+                                MoveFoldersPacket::encode,
+                                MoveFoldersPacket::decode, MoveFoldersPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.
