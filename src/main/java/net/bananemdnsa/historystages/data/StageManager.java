@@ -484,9 +484,10 @@ public class StageManager {
             return false;
         });
 
-        // --- Validate per-entry interaction action filters ---
+        // --- Validate per-entry interaction action + item filters ---
         for (EntityInteractionLockEntry inEntry : entry.getEntities().getInteractionlock()) {
             validateInteractionActions(inEntry.getLockActions(), stageId, inEntry.getId());
+            validateInteractionItems(inEntry.getLockItems(), stageId, inEntry.getId());
         }
 
         // --- Entities (spawnlock) ---
@@ -856,6 +857,33 @@ public class StageManager {
         }
     }
 
+    /**
+     * Validates a per-entry interaction item filter. Entries are plain item IDs or "#tag" refs;
+     * invalid ones are dropped so a typo cannot silently widen or narrow the lock.
+     */
+    private static void validateInteractionItems(List<ItemEntry> items, String stageId, String entryId) {
+        if (items == null || items.isEmpty()) return;
+        items.removeIf(item -> {
+            String itemId = item.getId();
+            String check = (itemId != null && itemId.startsWith("#")) ? itemId.substring(1) : itemId;
+            if (!ResourceLocation.isValidResourceLocation(check)) {
+                addMessage(MessageLevel.WARN, "Interaction item filter '" + itemId + "' on '" + entryId + "' invalid format (Stage: " + stageId + "). Removed.");
+                DebugLogger.warn("Invalid Interaction Items",
+                        "Interaction item filter '" + itemId + "' on '" + entryId + "' is not a valid ResourceLocation (Stage: " + stageId + "). Removed.");
+                return true;
+            }
+            return false;
+        });
+
+        Set<String> seen = new HashSet<>();
+        for (ItemEntry item : items) {
+            if (!seen.add(item.getId()) && !item.hasNbt()) {
+                DebugLogger.info("Duplicates",
+                        "Duplicate interaction item filter '" + item.getId() + "' on '" + entryId + "' (Stage: " + stageId + ").");
+            }
+        }
+    }
+
     /** Validates per-entry unlock_sources lists (internal representation = locked sources). */
     private static void validateLockSources(List<String> sources, String stageId, String entryId) {
         if (sources == null || sources.isEmpty()) return;
@@ -939,6 +967,7 @@ public class StageManager {
                     addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Stage: " + stageId + ", interactionlock).");
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Stage: " + stageId + ", interactionlock). Typo or missing mod?");
                 }
+                validateInteractionItemsAgainstRegistry(inEntry, stageId, "Stage");
             }
             for (EntitySpawnLockEntry spEntry : entry.getEntities().getSpawnlock()) {
                 String entityId = spEntry.getId();
@@ -991,6 +1020,26 @@ public class StageManager {
                     addMessage(MessageLevel.WARN, "Entity '" + entityId + "' does not exist in registry (Individual Stage: " + indId + ", interactionlock).");
                     DebugLogger.warn("Unknown Entities", "Entity '" + entityId + "' does not exist in the entity registry (Individual Stage: " + indId + ", interactionlock). Typo or missing mod?");
                 }
+                validateInteractionItemsAgainstRegistry(inEntry, indId, "Individual Stage");
+            }
+        }
+    }
+
+    /**
+     * Registry check for an interaction entry's item filter. Only plain item IDs are checked —
+     * "#tag" refs cannot be resolved reliably here (tags load later), same as structure tags.
+     */
+    private static void validateInteractionItemsAgainstRegistry(EntityInteractionLockEntry inEntry, String stageId, String label) {
+        if (!inEntry.hasLockItems()) return;
+        for (ItemEntry item : inEntry.getLockItems()) {
+            String itemId = item.getId();
+            if (itemId == null || itemId.startsWith("#")) continue;
+            if (!ResourceLocation.isValidResourceLocation(itemId)) continue;
+            if (!ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemId))) {
+                addMessage(MessageLevel.WARN, "Interaction item filter '" + itemId + "' on '" + inEntry.getId()
+                        + "' does not exist in registry (" + label + ": " + stageId + ").");
+                DebugLogger.warn("Unknown Interaction Items", "Interaction item filter '" + itemId + "' on '" + inEntry.getId()
+                        + "' does not exist in the item registry (" + label + ": " + stageId + "). Typo or missing mod?");
             }
         }
     }
@@ -1059,11 +1108,11 @@ public class StageManager {
      * A stage blocks the action if it has an interactionlock entry for the entity whose action
      * filter covers this action (no filter = all actions blocked).
      */
-    public static List<String> getAllStagesForInteractionLockedEntity(String entityId, String action) {
+    public static List<String> getAllStagesForInteractionLockedEntity(String entityId, String action, ItemStack held) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
             for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
-                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action)) {
+                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action) && inEntry.matchesItem(held)) {
                     allFoundStages.add(entry.getKey());
                     break;
                 }
@@ -1637,6 +1686,7 @@ public class StageManager {
         });
         for (EntityInteractionLockEntry inEntry : entry.getEntities().getInteractionlock()) {
             validateInteractionActions(inEntry.getLockActions(), stageId, inEntry.getId());
+            validateInteractionItems(inEntry.getLockItems(), stageId, inEntry.getId());
         }
 
         // --- Lock actions: validate per-entry unlock_actions lists ---
@@ -1850,11 +1900,11 @@ public class StageManager {
         return allFoundStages;
     }
 
-    public static List<String> getAllIndividualStagesForInteractionLockedEntity(String entityId, String action) {
+    public static List<String> getAllIndividualStagesForInteractionLockedEntity(String entityId, String action, ItemStack held) {
         List<String> allFoundStages = new ArrayList<>();
         for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
             for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
-                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action)) {
+                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action) && inEntry.matchesItem(held)) {
                     allFoundStages.add(entry.getKey());
                     break;
                 }

@@ -1,9 +1,11 @@
 package net.bananemdnsa.historystages.data.lock;
 
 import com.google.gson.*;
+import com.google.gson.internal.Streams;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
+import net.bananemdnsa.historystages.data.ItemEntry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,16 +39,37 @@ public class EntityInteractionLockEntryListAdapter extends TypeAdapter<List<Enti
                     if (!locked.contains(action)) unlockedActions.add(action);
                 }
             }
-            if (unlockedActions.isEmpty()) {
+            boolean hasActionFilter = !unlockedActions.isEmpty();
+            boolean hasItemFilter = entry.hasLockItems();
+
+            if (!hasActionFilter && !hasItemFilter) {
                 out.value(entry.getId());
                 continue;
             }
             out.beginObject();
             out.name("id").value(entry.getId());
-            out.name("unlock_actions");
-            out.beginArray();
-            for (String action : unlockedActions) out.value(action);
-            out.endArray();
+            if (hasActionFilter) {
+                out.name("unlock_actions");
+                out.beginArray();
+                for (String action : unlockedActions) out.value(action);
+                out.endArray();
+            }
+            if (hasItemFilter) {
+                out.name("lock_items");
+                out.beginArray();
+                for (ItemEntry item : entry.getLockItems()) {
+                    if (!item.hasNbt()) {
+                        out.value(item.getId());
+                    } else {
+                        out.beginObject();
+                        out.name("id").value(item.getId());
+                        out.name("nbt");
+                        Streams.write(item.getNbt(), out);
+                        out.endObject();
+                    }
+                }
+                out.endArray();
+            }
             out.endObject();
         }
         out.endArray();
@@ -82,7 +105,21 @@ public class EntityInteractionLockEntryListAdapter extends TypeAdapter<List<Enti
                         lockActions.add(el.getAsString());
                     }
                 }
-                entries.add(new EntityInteractionLockEntry(id, lockActions));
+                List<ItemEntry> lockItems = null;
+                if (obj.has("lock_items") && obj.get("lock_items").isJsonArray()) {
+                    lockItems = new ArrayList<>();
+                    for (JsonElement el : obj.getAsJsonArray("lock_items")) {
+                        if (el.isJsonPrimitive()) {
+                            lockItems.add(new ItemEntry(el.getAsString()));
+                        } else if (el.isJsonObject()) {
+                            JsonObject itemObj = el.getAsJsonObject();
+                            String itemId = itemObj.has("id") ? itemObj.get("id").getAsString() : "";
+                            JsonObject nbt = itemObj.has("nbt") ? itemObj.getAsJsonObject("nbt") : null;
+                            lockItems.add(new ItemEntry(itemId, nbt));
+                        }
+                    }
+                }
+                entries.add(new EntityInteractionLockEntry(id, lockActions, lockItems));
             }
         }
         in.endArray();

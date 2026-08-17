@@ -76,8 +76,8 @@ public class InteractionLockHandler {
         String entityId = entityType.toString();
         String action = classifyAction(target, held);
 
-        List<String> globalStageIds = StageManager.getAllStagesForInteractionLockedEntity(entityId, action);
-        List<String> individualStageIds = StageManager.getAllIndividualStagesForInteractionLockedEntity(entityId, action);
+        List<String> globalStageIds = StageManager.getAllStagesForInteractionLockedEntity(entityId, action, held);
+        List<String> individualStageIds = StageManager.getAllIndividualStagesForInteractionLockedEntity(entityId, action, held);
         if (globalStageIds.isEmpty() && individualStageIds.isEmpty()) return;
 
         boolean isClient = interactor.level().isClientSide();

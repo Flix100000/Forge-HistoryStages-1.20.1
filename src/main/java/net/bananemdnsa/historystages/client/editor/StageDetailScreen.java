@@ -103,6 +103,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editAttacklock;
     private final List<String> editInteractionlock;
     private final Map<String, List<String>> editInteractionlockActions;
+    private final Map<String, List<net.bananemdnsa.historystages.data.ItemEntry>> editInteractionlockItems;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
     private final Map<String, List<String>> editSpawnlockDimensions;
@@ -133,6 +134,11 @@ public class StageDetailScreen extends Screen {
     private ModStructureSelectionPopup modStructurePopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup dimFilterPopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup interactionActionsPopup;
+    private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionItemsPopup interactionItemsPopup;
+    private SearchableItemList filterItemSearch;
+    private SearchableTagList filterTagSearch;
+    /** Entity whose interaction item filter is being edited; survives the NBT sub-screen round trip. */
+    private String interactionItemsTarget = null;
     private GenerationLimitPopup generationLimitPopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
@@ -382,10 +388,16 @@ public class StageDetailScreen extends Screen {
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editInteractionlock = new ArrayList<>();
         this.editInteractionlockActions = new HashMap<>();
+        this.editInteractionlockItems = new HashMap<>();
         for (net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry ie : e.getEntities().getInteractionlock()) {
             this.editInteractionlock.add(ie.getId());
             if (ie.hasLockActions()) {
                 this.editInteractionlockActions.put(ie.getId(), new ArrayList<>(ie.getLockActions()));
+            }
+            if (ie.hasLockItems()) {
+                List<net.bananemdnsa.historystages.data.ItemEntry> copy = new ArrayList<>(ie.getLockItems().size());
+                for (net.bananemdnsa.historystages.data.ItemEntry fi : ie.getLockItems()) copy.add(fi.copy());
+                this.editInteractionlockItems.put(ie.getId(), copy);
             }
         }
         this.editSpawnlock = new ArrayList<>();
@@ -604,6 +616,7 @@ public class StageDetailScreen extends Screen {
                         .removeIf(id -> {
                             if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                 editInteractionlockActions.remove(id);
+                                editInteractionlockItems.remove(id);
                                 return true;
                             }
                             return false;
@@ -655,6 +668,45 @@ public class StageDetailScreen extends Screen {
             }
             hasChanges = true;
         });
+
+        interactionItemsPopup = new net.bananemdnsa.historystages.client.editor.widget.popup.InteractionItemsPopup(
+                new net.bananemdnsa.historystages.client.editor.widget.popup.InteractionItemsPopup.Handler() {
+            @Override
+            public List<net.bananemdnsa.historystages.data.ItemEntry> items(String entityId) {
+                return editInteractionlockItems.get(entityId);
+            }
+
+            @Override
+            public void openRowMenu(String entityId, int index, int mouseX, int mouseY) {
+                openInteractionItemMenu(entityId, index, mouseX, mouseY);
+            }
+
+            @Override
+            public void addItem(String entityId) {
+                interactionItemsTarget = entityId;
+                filterItemSearch.setFilter("");
+                filterItemSearch.show(StageDetailScreen.this.width / 2, StageDetailScreen.this.height / 2,
+                        StageDetailScreen.this.width);
+            }
+
+            @Override
+            public void addTag(String entityId) {
+                interactionItemsTarget = entityId;
+                filterTagSearch.setFilter("");
+                filterTagSearch.show(StageDetailScreen.this.width / 2, StageDetailScreen.this.height / 2,
+                        StageDetailScreen.this.width);
+            }
+        });
+
+        filterItemSearch = new SearchableItemList(itemId -> {
+            addInteractionFilterEntry(itemId);
+        }, () -> interactionFilterIds());
+        filterItemSearch.setMultiSelect(true);
+
+        filterTagSearch = new SearchableTagList(tagId -> {
+            addInteractionFilterEntry("#" + tagId);
+        }, () -> interactionFilterTagIds());
+        filterTagSearch.setMultiSelect(true);
 
         modSearch = new SearchableModList(modId -> {
             if (!editMods.contains(modId))
@@ -716,6 +768,11 @@ public class StageDetailScreen extends Screen {
         recipeSearch.setKeepVisibleOnSelect(true);
 
         contextMenu = new ContextMenu();
+        // Returning from the NBT sub-screen re-runs init(); restore the item filter popup so the
+        // round trip doesn't dump the user back on the bare tab.
+        if (interactionItemsTarget != null) {
+            interactionItemsPopup.show(interactionItemsTarget);
+        }
         updateMaxScroll();
     }
 
@@ -726,6 +783,7 @@ public class StageDetailScreen extends Screen {
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
                 || interactionActionsPopup.isVisible()
+                || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
@@ -1304,6 +1362,20 @@ public class StageDetailScreen extends Screen {
                     }
                 }
 
+                // Item-filter badge for interactionlock entries restricted to specific held items
+                if (activeTab == 8) {
+                    List<net.bananemdnsa.historystages.data.ItemEntry> itemFilter =
+                            editInteractionlockItems.get(list.get(i));
+                    if (itemFilter != null && !itemFilter.isEmpty()) {
+                        String label = Component.translatable("editor.historystages.badge.items").getString();
+                        String itemBadge = "[" + label + ": " + itemFilter.size() + "]";
+                        int iBadgeW = this.font.width(itemBadge) + 4;
+                        guiGraphics.drawString(this.font, itemBadge, contentRight - badgeW - iBadgeW, cardY + 7,
+                                0xCCAA66, false);
+                        badgeW += iBadgeW;
+                    }
+                }
+
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
                         || (activeTab == 9 && editStructureModLinked.contains(list.get(i)))) {
@@ -1506,7 +1578,11 @@ public class StageDetailScreen extends Screen {
         dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        // Lifted above the popups it can be opened from, so it never gets drawn under their content.
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 200);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
+        guiGraphics.pose().popPose();
         modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
         modStructurePopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (recipePopupVisible)
@@ -1516,6 +1592,13 @@ public class StageDetailScreen extends Screen {
         if (spawnSourcesPopupVisible)
             renderSpawnSourcesPopup(guiGraphics, mouseX, mouseY);
         interactionActionsPopup.render(guiGraphics, this.font, mouseX, mouseY);
+        // Skip the popup while one of its pickers is up: text is batched and flushed after the
+        // picker's panel fills, so drawing it underneath makes it bleed through the picker.
+        if (!filterItemSearch.isVisible() && !filterTagSearch.isVisible()) {
+            interactionItemsPopup.render(guiGraphics, this.font, mouseX, mouseY);
+        }
+        filterItemSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        filterTagSearch.render(guiGraphics, this.font, mouseX, mouseY);
         if (overridePopupVisible)
             renderOverridePopup(guiGraphics, mouseX, mouseY);
         dimFilterPopup.render(guiGraphics, this.font, mouseX, mouseY);
@@ -2701,6 +2784,20 @@ public class StageDetailScreen extends Screen {
         if (interactionActionsPopup.isVisible()) {
             return interactionActionsPopup.mouseClicked(mouseX, mouseY);
         }
+        if (filterItemSearch.isVisible()) {
+            if (filterItemSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (filterTagSearch.isVisible()) {
+            if (filterTagSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (interactionItemsPopup.isVisible()) {
+            boolean handled = interactionItemsPopup.mouseClicked(mouseX, mouseY, button);
+            // Closing the popup drops the edit context so a later init() doesn't re-open it.
+            if (!interactionItemsPopup.isVisible()) interactionItemsTarget = null;
+            return handled;
+        }
         if (overridePopupVisible) {
             return handleOverridePopupClick(mouseX, mouseY, button);
         }
@@ -2915,6 +3012,11 @@ public class StageDetailScreen extends Screen {
                     if (tabIdx == 8) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.interaction_actions").getString(),
                                 () -> interactionActionsPopup.show(entryValue, editInteractionlockActions.get(entryValue)));
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.interaction_items").getString(),
+                                () -> {
+                                    interactionItemsTarget = entryValue;
+                                    interactionItemsPopup.show(entryValue);
+                                });
                     }
                     // World generation is global and baked into the chunk, so an individual
                     // (per-player) stage has no coherent answer — no settings offered there.
@@ -2996,9 +3098,10 @@ public class StageDetailScreen extends Screen {
                             editSpawnlockSources.remove(removedValue);
                             editSpawnlockDimensions.remove(removedValue);
                         }
-                        // When removing an interactionlock entry, drop its action filter (keyed by entity ID)
+                        // When removing an interactionlock entry, drop its action + item filters (keyed by entity ID)
                         if (tabIdx == 8 && removedValue != null) {
                             editInteractionlockActions.remove(removedValue);
+                            editInteractionlockItems.remove(removedValue);
                         }
                         // When removing a mod exception, shift NBT indices
                         if (tabIdx == 3) {
@@ -3027,6 +3130,7 @@ public class StageDetailScreen extends Screen {
                             editInteractionlock.removeIf(id -> {
                                 if (id.startsWith(prefix) && editModLinked.contains(id)) {
                                     editInteractionlockActions.remove(id);
+                                    editInteractionlockItems.remove(id);
                                     return true;
                                 }
                                 return false;
@@ -3095,6 +3199,91 @@ public class StageDetailScreen extends Screen {
             structureSearch.setFilter("");
             structureSearch.show(this.width / 2, this.height / 2, cw);
         }
+    }
+
+    /** Appends an entry (plain item ID or "#tag") to the interaction item filter being edited. */
+    private void addInteractionFilterEntry(String id) {
+        if (interactionItemsTarget == null) return;
+        List<net.bananemdnsa.historystages.data.ItemEntry> list =
+                editInteractionlockItems.computeIfAbsent(interactionItemsTarget, k -> new ArrayList<>());
+        for (net.bananemdnsa.historystages.data.ItemEntry e : list) {
+            if (e.getId().equals(id) && !e.hasNbt()) return; // already listed without an NBT criterion
+        }
+        list.add(new net.bananemdnsa.historystages.data.ItemEntry(id));
+        hasChanges = true;
+    }
+
+    /** Plain item IDs currently in the edited filter — drives the item picker's selected state. */
+    private List<String> interactionFilterIds() {
+        List<String> ids = new ArrayList<>();
+        if (interactionItemsTarget == null) return ids;
+        List<net.bananemdnsa.historystages.data.ItemEntry> list = editInteractionlockItems.get(interactionItemsTarget);
+        if (list == null) return ids;
+        for (net.bananemdnsa.historystages.data.ItemEntry e : list) {
+            if (!e.getId().startsWith("#")) ids.add(e.getId());
+        }
+        return ids;
+    }
+
+    /** Tag IDs (without the "#" prefix) currently in the edited filter — for the tag picker. */
+    private List<String> interactionFilterTagIds() {
+        List<String> ids = new ArrayList<>();
+        if (interactionItemsTarget == null) return ids;
+        List<net.bananemdnsa.historystages.data.ItemEntry> list = editInteractionlockItems.get(interactionItemsTarget);
+        if (list == null) return ids;
+        for (net.bananemdnsa.historystages.data.ItemEntry e : list) {
+            if (e.getId().startsWith("#")) ids.add(e.getId().substring(1));
+        }
+        return ids;
+    }
+
+    /** Right-click menu for one interaction item filter row: NBT, copy, duplicate, remove. */
+    private void openInteractionItemMenu(String entityId, int index, int mouseX, int mouseY) {
+        List<net.bananemdnsa.historystages.data.ItemEntry> list = editInteractionlockItems.get(entityId);
+        if (list == null || index < 0 || index >= list.size()) return;
+        final String entryId = list.get(index).getId();
+
+        contextMenu = new ContextMenu();
+        contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
+                () -> openInteractionItemNbtScreen(entityId, index));
+        contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> {
+            Minecraft.getInstance().keyboardHandler.setClipboard(entryId);
+            EditorToastHandler.copiedToClipboard(entryId);
+        });
+        contextMenu.addEntry(Component.translatable("editor.historystages.duplicate").getString(), () -> {
+            List<net.bananemdnsa.historystages.data.ItemEntry> target = editInteractionlockItems.get(entityId);
+            if (target == null || index >= target.size()) return;
+            target.add(index + 1, target.get(index).copy());
+            hasChanges = true;
+        });
+        contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
+            List<net.bananemdnsa.historystages.data.ItemEntry> target = editInteractionlockItems.get(entityId);
+            if (target == null || index >= target.size()) return;
+            target.remove(index);
+            if (target.isEmpty()) editInteractionlockItems.remove(entityId);
+            interactionItemsPopup.clampScroll();
+            hasChanges = true;
+        });
+        contextMenu.show(mouseX, mouseY, this.font);
+    }
+
+    /**
+     * Opens the shared NBT editor for one interaction filter entry. The editor screen replaces this
+     * one, so {@link #interactionItemsTarget} keeps the popup's context and init() re-opens it.
+     */
+    private void openInteractionItemNbtScreen(String entityId, int index) {
+        List<net.bananemdnsa.historystages.data.ItemEntry> list = editInteractionlockItems.get(entityId);
+        if (list == null || index < 0 || index >= list.size()) return;
+        net.bananemdnsa.historystages.data.ItemEntry entry = list.get(index);
+        interactionItemsTarget = entityId;
+        this.minecraft.setScreen(new NbtItemEditScreen(this, entry.getId(), entry.getNbt(), nbt -> {
+            List<net.bananemdnsa.historystages.data.ItemEntry> target = editInteractionlockItems.get(entityId);
+            if (target == null || index >= target.size()) return;
+            target.set(index, new net.bananemdnsa.historystages.data.ItemEntry(entry.getId(),
+                    (nbt != null && nbt.size() > 0) ? nbt : null));
+            hasChanges = true;
+            saveStage();
+        }));
     }
 
     private void openNbtEditScreen(int entryIdx, String itemId) {
@@ -3179,6 +3368,12 @@ public class StageDetailScreen extends Screen {
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY))
             return true;
+        if (filterItemSearch.isVisible() && filterItemSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (filterTagSearch.isVisible() && filterTagSearch.mouseDragged(mouseX, mouseY))
+            return true;
+        if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseDragged(mouseX, mouseY))
+            return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
             return true;
         if (scrollBarDragging) {
@@ -3211,6 +3406,12 @@ public class StageDetailScreen extends Screen {
         if (structureSearch.isVisible() && structureSearch.mouseReleased())
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
+            return true;
+        if (filterItemSearch.isVisible() && filterItemSearch.mouseReleased())
+            return true;
+        if (filterTagSearch.isVisible() && filterTagSearch.mouseReleased())
+            return true;
+        if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseReleased())
             return true;
         if (scrollBarDragging) {
             scrollBarDragging = false;
@@ -3280,6 +3481,12 @@ public class StageDetailScreen extends Screen {
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
+        if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (filterTagSearch.isVisible() && filterTagSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseScrolled(mouseX, mouseY, delta))
+            return true;
 
         // Tab area mouse scroll
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
@@ -3310,6 +3517,15 @@ public class StageDetailScreen extends Screen {
             return true;
         if (interactionActionsPopup.isVisible() && interactionActionsPopup.keyPressed(keyCode))
             return true;
+        if (filterItemSearch.isVisible() && filterItemSearch.keyPressed(keyCode))
+            return true;
+        if (filterTagSearch.isVisible() && filterTagSearch.keyPressed(keyCode))
+            return true;
+        if (interactionItemsPopup.isVisible()) {
+            boolean handled = interactionItemsPopup.keyPressed(keyCode);
+            if (!interactionItemsPopup.isVisible()) interactionItemsTarget = null;
+            if (handled) return true;
+        }
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
             return true;
@@ -3376,6 +3592,10 @@ public class StageDetailScreen extends Screen {
         if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c))
             return true;
         if (structureSearch.isVisible() && structureSearch.charTyped(c))
+            return true;
+        if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c))
+            return true;
+        if (filterTagSearch.isVisible() && filterTagSearch.charTyped(c))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.charTyped(c))
             return true;
@@ -3644,7 +3864,7 @@ public class StageDetailScreen extends Screen {
         List<net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry> interactionlockEntries = new ArrayList<>();
         for (String entityId : editInteractionlock) {
             interactionlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry(
-                    entityId, editInteractionlockActions.get(entityId)));
+                    entityId, editInteractionlockActions.get(entityId), editInteractionlockItems.get(entityId)));
         }
         locks.setInteractionlock(interactionlockEntries);
         List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
