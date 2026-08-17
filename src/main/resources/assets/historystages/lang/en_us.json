@@ -145,6 +145,7 @@
   "editor.historystages.text_override.tooltip": "Tooltip",
   "editor.historystages.text_override.reset": "Reset",
   "editor.historystages.badge.lose_on_death": "Death",
+  "editor.historystages.badge.dependencies": "[Dep]",
   "editor.historystages.badge.actions": "Actions",
   "editor.historystages.edit.nothing_to_edit": "[HistoryStages] Nothing to edit for mod '%s' — no entities or structures available.",
   "editor.historystages.lock": "Lock",
