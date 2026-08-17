@@ -52,7 +52,9 @@ public abstract class RecipeLayoutMixin {
         // 1. Check by recipe ID
         if (recipe instanceof Recipe<?> vanillaRecipe) {
             ResourceLocation recipeId = vanillaRecipe.getId();
-            if (recipeId != null && StageManager.isRecipeIdLocked(recipeId.toString(), true)) {
+            if (recipeId != null
+                    && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
+                        || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
                 return true;
             }
         }
@@ -66,7 +68,8 @@ public abstract class RecipeLayoutMixin {
             for (var slot : outputSlots) {
                 Optional<ItemStack> displayed = slot.getDisplayedItemStack();
                 if (displayed.isPresent() && !displayed.get().isEmpty()) {
-                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")) {
+                    if (StageLockHelper.isActionLockedForClient(displayed.get(), "recipe")
+                            || StageLockHelper.isActionLockedByIndividualStageClient(displayed.get(), "recipe")) {
                         return true;
                     }
                 }
