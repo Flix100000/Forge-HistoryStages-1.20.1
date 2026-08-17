@@ -548,6 +548,8 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        syncPickerState();
+
         smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
         smoothScroll.settle((float) scrollOffset, 0.5f);
 
@@ -669,11 +671,17 @@ public class ConfigEditorScreen extends Screen {
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()) {
+        // Item picker overlay (single-item selector for ITEM entries).
+        // Lifted above everything drawn so far: text is batched and flushed after the picker's
+        // panel fills, so the config rows and button labels underneath would otherwise bleed
+        // through it. Same treatment the stage editor gives its own pickers.
+        if (itemPickerOverlay != null) {
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(0, 0, 200);
             itemPickerOverlay.render(guiGraphics, this.font, mouseX, mouseY);
             guiGraphics.pose().popPose();
+            // A config-row tooltip drawn on top of the picker makes no sense.
+            currentHovered = null;
         }
 
         // Tooltip rendering (after everything else, including super)
@@ -856,10 +864,14 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()) {
-            if (itemPickerOverlay.mouseClicked(mouseX, mouseY))
-                return true;
+        // Item picker overlay
+        syncPickerState();
+        if (itemPickerOverlay != null) {
+            boolean consumed = itemPickerOverlay.mouseClicked(mouseX, mouseY);
+            syncPickerState();
+            return consumed || closePicker();
         }
+
         // Check tab clicks
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             for (int i = 0; i < TAB_KEYS.length; i++) {
@@ -918,14 +930,25 @@ public class ConfigEditorScreen extends Screen {
         return false;
     }
 
-    // Item list overlay for ITEM_LIST config entries
-    private SearchableItemList itemListOverlay;
-    private ConfigEntry editingItemListEntry;
-    private List<String> editingItemList;
-
     // Single-item picker overlay for ITEM config entries
     private SearchableItemList itemPickerOverlay;
     private ConfigEntry pickingItemEntry;
+
+    /**
+     * Drops the picker reference once it has hidden itself. Clicking outside the panel makes the
+     * list hide and still report the click as consumed, so without this the screen would keep a
+     * non-null but invisible overlay and never lift the dim layer again.
+     */
+    private void syncPickerState() {
+        if (itemPickerOverlay != null && !itemPickerOverlay.isVisible()) closePicker();
+    }
+
+    /** Closes the picker and reports the interaction as consumed. */
+    private boolean closePicker() {
+        itemPickerOverlay = null;
+        pickingItemEntry = null;
+        return true;
+    }
 
     private ItemStack resolveItemStack(String id) {
         if (id != null && !id.isEmpty()) {
@@ -973,8 +996,8 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible()
-                && itemPickerOverlay.mouseScrolled(mouseX, mouseY, delta))
+        syncPickerState();
+        if (itemPickerOverlay != null && itemPickerOverlay.mouseScrolled(mouseX, mouseY, delta))
             return true;
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
         return true;
@@ -1017,8 +1040,13 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.keyPressed(keyCode))
-            return true;
+        syncPickerState();
+        if (itemPickerOverlay != null) {
+            if (keyCode == 256) return closePicker();
+            boolean consumed = itemPickerOverlay.keyPressed(keyCode);
+            syncPickerState();
+            return consumed;
+        }
         if (keyCode == 256) { // ESC
             tryClose();
             return true;
@@ -1028,8 +1056,9 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean charTyped(char c, int modifiers) {
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.charTyped(c))
-            return true;
+        syncPickerState();
+        if (itemPickerOverlay != null)
+            return itemPickerOverlay.charTyped(c);
         return super.charTyped(c, modifiers);
     }
 
