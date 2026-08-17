@@ -797,6 +797,8 @@ public class StageOverviewScreen extends Screen {
         private final StageOverviewScreen parent;
         private final String duplicateFromId;
         private boolean individual;
+        /** Prefilled from the source when duplicating; otherwise left for the user to type. */
+        private String pendingDisplayName = "";
 
         // Dropdown state
         private boolean dropdownOpen = false;
@@ -817,6 +819,12 @@ public class StageOverviewScreen extends Screen {
             this.parent = parent;
             this.duplicateFromId = duplicateFromId;
             this.individual = individual;
+            // A duplicate starts out as a copy of the source, so its name is the sensible
+            // default here — the user only has to touch it when the copy should differ.
+            StageEntry source = duplicateFromId == null ? null
+                    : (individual ? StageManager.getIndividualStages() : StageManager.getStages())
+                        .get(duplicateFromId);
+            if (source != null) this.pendingDisplayName = source.getDisplayName();
         }
 
         @Override
@@ -834,11 +842,17 @@ public class StageOverviewScreen extends Screen {
 
         @Override
         protected List<InputField> fields() {
+            // Optional here on purpose: the detail screen still refuses to save an empty
+            // display name, so leaving it blank costs nothing but a later stop there.
             return List.of(InputField.text("id")
                     .label(Component.translatable("editor.historystages.field.stage_id"))
                     .maxLength(64)
                     .regex("[a-zA-Z0-9_\\-]*")
-                    .validator(this::checkId));
+                    .validator(this::checkId),
+                    InputField.text("display_name")
+                    .label(Component.translatable("editor.historystages.field.display_name"))
+                    .maxLength(128)
+                    .initial(pendingDisplayName));
         }
 
         /** Emptiness, charset and collision checks, in the order the user is likely to hit them. */
@@ -970,19 +984,23 @@ public class StageOverviewScreen extends Screen {
         @Override
         protected void onConfirm(InputValues values) {
             String id = values.getString("id");
+            String displayName = values.getString("display_name");
             if (duplicateFromId != null) {
                 StageEntry source = individual
                         ? StageManager.getIndividualStages().get(duplicateFromId)
                         : StageManager.getStages().get(duplicateFromId);
                 if (source != null) {
                     StageEntry copy = source.copy();
+                    // The duplicate is written straight away, so an emptied field would
+                    // persist as "Unknown Stage" — keep the source's name instead.
+                    if (!displayName.isEmpty()) copy.setDisplayName(displayName);
                     PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual, true));
                     this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
                 } else {
                     this.minecraft.setScreen(parent);
                 }
             } else {
-                this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual));
+                this.minecraft.setScreen(new StageDetailScreen(parent, id, null, individual, displayName));
             }
         }
     }
