@@ -95,6 +95,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editDimensions;
     private final List<String> editStructures;
     private final List<String> editStructureModLinked;
+    private final List<String> editStructureBlockGeneration;
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
@@ -366,6 +367,7 @@ public class StageDetailScreen extends Screen {
         this.editDimensions = new ArrayList<>(e.getDimensions());
         this.editStructures = new ArrayList<>(e.getStructures());
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
+        this.editStructureBlockGeneration = new ArrayList<>(e.getStructureBlockGeneration());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
@@ -1231,6 +1233,15 @@ public class StageDetailScreen extends Screen {
                     String badge = "\u00A77[mod]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
+                }
+
+                // Marks structure entries that are also kept out of world generation
+                if (activeTab == 8 && editStructureBlockGeneration.contains(list.get(i))) {
+                    String genBadge = Component.translatable("editor.historystages.badge.no_gen").getString();
+                    int gBadgeW = this.font.width(genBadge) + 4;
+                    guiGraphics.drawString(this.font, genBadge, contentRight - badgeW - gBadgeW, cardY + 7,
+                            0xCC7766, false);
+                    badgeW += gBadgeW;
                 }
 
                 // Text with marquee for truncated entries
@@ -2807,6 +2818,22 @@ public class StageDetailScreen extends Screen {
                                 () -> dimFilterPopup.show(entryValue, editSpawnlockDimensions.get(entryValue),
                                         this.width / 2, this.height / 2));
                     }
+                    // World generation is global and baked into the chunk, so an individual
+                    // (per-player) stage has no coherent answer — no toggle offered there.
+                    if (tabIdx == 8 && !isIndividual) {
+                        boolean blocked = editStructureBlockGeneration.contains(entryValue);
+                        contextMenu.addEntry(Component.translatable(blocked
+                                        ? "editor.historystages.context.allow_generation"
+                                        : "editor.historystages.context.block_generation").getString(),
+                                () -> {
+                                    if (blocked) {
+                                        editStructureBlockGeneration.remove(entryValue);
+                                    } else {
+                                        editStructureBlockGeneration.add(entryValue);
+                                    }
+                                    hasChanges = true;
+                                });
+                    }
                     if (tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
                                 () -> {
@@ -2907,6 +2934,7 @@ public class StageDetailScreen extends Screen {
                             editModLinked.removeIf(id -> id.startsWith(prefix));
                             editStructures.removeIf(id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
                             editStructureModLinked.removeIf(id -> id.startsWith(prefix));
+                            editStructureBlockGeneration.removeIf(id -> id.startsWith(prefix));
                             // Remove mod exceptions belonging to this mod
                             for (int j = editModExceptions.size() - 1; j >= 0; j--) {
                                 if (editModExceptions.get(j).startsWith(prefix)) {
@@ -3499,6 +3527,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setDimensions(editDimensions);
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
+        newEntry.setStructureBlockGeneration(editStructureBlockGeneration);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();

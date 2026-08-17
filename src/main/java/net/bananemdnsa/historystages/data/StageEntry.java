@@ -244,6 +244,11 @@ public class StageEntry {
         return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
+    /** Structure entries of this stage that must not generate while the stage is locked. */
+    public List<String> getStructureBlockGeneration() {
+        return structures != null ? structures.getBlockGeneration() : new ArrayList<>();
+    }
+
     public EntityLocks getEntities() {
         return entities != null ? entities : new EntityLocks();
     }
@@ -372,6 +377,11 @@ public class StageEntry {
         this.structures.setModLinked(modLinked);
     }
 
+    public void setStructureBlockGeneration(List<String> blockGeneration) {
+        if (this.structures == null) this.structures = new StructureLocks();
+        this.structures.setBlockGeneration(blockGeneration);
+    }
+
     public void setEntities(EntityLocks entities) {
         this.entities = entities != null ? entities : new EntityLocks();
     }
@@ -395,6 +405,7 @@ public class StageEntry {
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
+        copy.setStructureBlockGeneration(getStructureBlockGeneration());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());

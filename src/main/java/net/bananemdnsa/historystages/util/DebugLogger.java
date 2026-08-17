@@ -281,6 +281,9 @@ public class DebugLogger {
         if (!structures.isEmpty()) {
             printList(pw, "Structures", structures);
             if (!structureModLinked.isEmpty()) printList(pw, "  Structures (mod-linked)", structureModLinked);
+            List<String> structureBlockGeneration = s.getStructureBlockGeneration();
+            if (!structureBlockGeneration.isEmpty())
+                printList(pw, "  Structures (generation blocked)", structureBlockGeneration);
         }
         if (!attacklock.isEmpty()) {
             printList(pw, "Entities — Attacklock", attacklock);
