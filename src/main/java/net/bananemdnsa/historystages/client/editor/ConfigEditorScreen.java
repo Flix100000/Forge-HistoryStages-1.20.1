@@ -978,14 +978,20 @@ public class ConfigEditorScreen extends Screen {
         return false;
     }
 
+    /**
+     * The dialog's parent is this screen, not {@link #parent}: {@code AbstractModalScreen.onCancel}
+     * navigates to whatever it was given, so passing the screen behind would make Cancel the
+     * button that discards the edits. Confirm has to navigate itself for the same reason —
+     * {@code onConfirm} only runs the callback and leaves closing to it.
+     */
     private void tryClose() {
         if (hasChanges()) {
             this.minecraft.setScreen(new ConfirmDialog(
-                    parent,
+                    this,
                     Component.translatable("editor.historystages.unsaved_warning_title"),
                     Component.translatable("editor.historystages.unsaved_warning"),
-                    () -> {
-                    }));
+                    () -> this.minecraft.setScreen(parent)
+            ));
         } else {
             this.minecraft.setScreen(parent);
         }
