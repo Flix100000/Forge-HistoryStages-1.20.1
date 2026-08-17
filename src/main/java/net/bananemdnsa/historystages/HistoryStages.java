@@ -342,7 +342,7 @@ public class HistoryStages {
     }
 
     /** Resolves a stage id to its temporary config, checking global then individual stages. */
-    private static net.bananemdnsa.historystages.data.temporary.TemporaryConfig resolveTemporaryConfig(String stageId) {
+    public static net.bananemdnsa.historystages.data.temporary.TemporaryConfig resolveTemporaryConfig(String stageId) {
         var entry = net.bananemdnsa.historystages.data.StageManager.getStages().get(stageId);
         if (entry == null) {
             entry = net.bananemdnsa.historystages.data.StageManager.getIndividualStages().get(stageId);

@@ -223,6 +223,29 @@ public class TemporaryStageData extends SavedData {
     }
 
     /**
+     * Ends a running individual timer ahead of schedule, applying the same
+     * bookkeeping {@link #tickIndividual} performs on natural expiry: the active
+     * timer is dropped and the configured cooldown starts (unless the stage has
+     * used up its quota). The unlock count is deliberately left alone — the
+     * unlock was spent, and ending it early does not refund it.
+     *
+     * <p>Re-locking the stage itself is the caller's job; this only touches
+     * timer state. No running timer means this is a no-op, so callers that
+     * don't know the stage's mode can call it unconditionally.</p>
+     */
+    public void expireIndividualEarly(UUID player, String stageId, TempConfigLookup lookup) {
+        Map<String, Long> active = playerActive.get(player);
+        if (active == null || active.remove(stageId) == null) return;
+        if (active.isEmpty()) playerActive.remove(player);
+
+        long cd = cooldownIfMoreUnlocksLeft(lookup, stageId, getIndividualCount(player, stageId));
+        if (cd > 0) {
+            playerCooldown.computeIfAbsent(player, p -> new ConcurrentHashMap<>()).put(stageId, cd);
+        }
+        setDirty();
+    }
+
+    /**
      * Returns the cooldown ticks to apply after a re-lock, or 0 if the stage has
      * exhausted its unlock quota (no point cooling down a stage that can never
      * trigger again) or has no cooldown configured.

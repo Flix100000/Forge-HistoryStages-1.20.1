@@ -74,6 +74,10 @@ public class StageEntry {
     @SerializedName("hidden_display")
     private HiddenDisplayConfig hiddenDisplay;
 
+    /** Individual stages only: revoke the stage as soon as the player dies. Absent = off. */
+    @SerializedName("lose_on_death")
+    private Boolean loseOnDeath;
+
     public StageEntry() {
         this.items = new ArrayList<>();
         this.tags = new ArrayList<>();
@@ -267,6 +271,16 @@ public class StageEntry {
         this.hiddenDisplay = (config != null && !config.isNoop()) ? config : null;
     }
 
+    /** True if this (individual) stage is revoked when its owner dies. */
+    public boolean isLoseOnDeath() {
+        return loseOnDeath != null && loseOnDeath;
+    }
+
+    /** Stores null when off so the key stays out of stages that don't use it. */
+    public void setLoseOnDeath(boolean lose) {
+        this.loseOnDeath = lose ? Boolean.TRUE : null;
+    }
+
     public boolean hasDependencies() {
         if (dependencies == null || dependencies.isEmpty()) return false;
         return dependencies.stream().anyMatch(g -> !g.isEmpty());
@@ -417,6 +431,7 @@ public class StageEntry {
         copy.autoTrigger = (this.autoTrigger != null) ? this.autoTrigger.copy() : null;
         copy.temporary = (this.temporary != null) ? this.temporary.copy() : null;
         copy.hiddenDisplay = (this.hiddenDisplay != null) ? this.hiddenDisplay.copy() : null;
+        copy.loseOnDeath = this.loseOnDeath;
         return copy;
     }
 
