@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntryListAdapter;
+import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.lock.StructureLocks;
 import net.bananemdnsa.historystages.data.lock.StructureLocksAdapter;
 
@@ -244,9 +245,9 @@ public class StageEntry {
         return structures != null ? structures.getModLinked() : new ArrayList<>();
     }
 
-    /** Structure entries of this stage that must not generate while the stage is locked. */
-    public List<String> getStructureBlockGeneration() {
-        return structures != null ? structures.getBlockGeneration() : new ArrayList<>();
+    /** Generation restrictions for this stage's structure entries. */
+    public List<StructureGenerationRule> getStructureGenerationRules() {
+        return structures != null ? structures.getGenerationRules() : new ArrayList<>();
     }
 
     public EntityLocks getEntities() {
@@ -377,9 +378,9 @@ public class StageEntry {
         this.structures.setModLinked(modLinked);
     }
 
-    public void setStructureBlockGeneration(List<String> blockGeneration) {
+    public void setStructureGenerationRules(List<StructureGenerationRule> rules) {
         if (this.structures == null) this.structures = new StructureLocks();
-        this.structures.setBlockGeneration(blockGeneration);
+        this.structures.setGenerationRules(rules);
     }
 
     public void setEntities(EntityLocks entities) {
@@ -405,7 +406,7 @@ public class StageEntry {
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
-        copy.setStructureBlockGeneration(getStructureBlockGeneration());
+        copy.setStructureGenerationRules(getStructureGenerationRules());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());

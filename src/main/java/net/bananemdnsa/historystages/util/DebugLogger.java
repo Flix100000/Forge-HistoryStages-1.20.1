@@ -281,9 +281,15 @@ public class DebugLogger {
         if (!structures.isEmpty()) {
             printList(pw, "Structures", structures);
             if (!structureModLinked.isEmpty()) printList(pw, "  Structures (mod-linked)", structureModLinked);
-            List<String> structureBlockGeneration = s.getStructureBlockGeneration();
-            if (!structureBlockGeneration.isEmpty())
-                printList(pw, "  Structures (generation blocked)", structureBlockGeneration);
+            List<net.bananemdnsa.historystages.data.lock.StructureGenerationRule> generationRules =
+                    s.getStructureGenerationRules();
+            if (!generationRules.isEmpty()) {
+                pw.println("  Structures (generation restricted) (" + generationRules.size() + "):");
+                for (net.bananemdnsa.historystages.data.lock.StructureGenerationRule rule : generationRules) {
+                    pw.println("    - " + rule.id() + " [" + rule.phase().serialize() + ", max " + rule.max()
+                            + (rule.resetOnRelock() ? ", reset" : "") + "]");
+                }
+            }
         }
         if (!attacklock.isEmpty()) {
             printList(pw, "Entities — Attacklock", attacklock);

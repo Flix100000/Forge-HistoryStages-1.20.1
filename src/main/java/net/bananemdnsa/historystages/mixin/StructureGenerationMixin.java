@@ -16,8 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Keeps structures belonging to a locked stage out of the world entirely, for stages that opted
- * into it via {@code block_generation}.
+ * Keeps structures belonging to a locked stage out of the world, entirely or beyond a configured
+ * count, for stages that opted into it via {@code block_generation}.
  *
  * <p>Forge has no hook for this: structure modifiers only reach a structure's spawn overrides,
  * and there is no structure-placement event. Hence the mixin.
@@ -31,6 +31,10 @@ public class StructureGenerationMixin {
     /**
      * Placement itself. Returning false is exactly what vanilla does when a structure fails to
      * find a valid spot, so nothing downstream has to know the difference.
+     *
+     * <p>The slot is only reserved here, not booked: vanilla calls this method far more often than
+     * it places anything, and counting every attempt would drain the budget within a few chunks
+     * without a single structure being built.
      */
     @Inject(method = "tryGenerateStructure", at = @At("HEAD"), cancellable = true)
     private void historystages$blockLockedStructure(
@@ -45,8 +49,33 @@ public class StructureGenerationMixin {
             net.minecraft.core.SectionPos sectionPos,
             CallbackInfoReturnable<Boolean> cir) {
         if (!StructureGenerationGate.isActive()) return;
-        if (StructureGenerationGate.isBlocked(entry.structure())) {
+        if (!StructureGenerationGate.tryReserve(entry.structure())) {
             cir.setReturnValue(false);
+        }
+    }
+
+    /**
+     * Turns the reservation from the HEAD injection into a booking, or gives it back.
+     *
+     * <p>Cancelling here is not an option: by the time vanilla returns true it has already
+     * registered the structure start, so the decision has to stay at HEAD.
+     */
+    @Inject(method = "tryGenerateStructure", at = @At("RETURN"))
+    private void historystages$settleReservation(
+            StructureSet.StructureSelectionEntry entry,
+            net.minecraft.world.level.StructureManager structureManager,
+            net.minecraft.core.RegistryAccess registryAccess,
+            net.minecraft.world.level.levelgen.RandomState random,
+            net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager templateManager,
+            long seed,
+            net.minecraft.world.level.chunk.ChunkAccess chunk,
+            net.minecraft.world.level.ChunkPos chunkPos,
+            net.minecraft.core.SectionPos sectionPos,
+            CallbackInfoReturnable<Boolean> cir) {
+        if (Boolean.TRUE.equals(cir.getReturnValue())) {
+            StructureGenerationGate.commitReservation();
+        } else {
+            StructureGenerationGate.releaseReservation();
         }
     }
 

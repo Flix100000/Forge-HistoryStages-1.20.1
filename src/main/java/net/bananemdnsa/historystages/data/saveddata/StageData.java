@@ -66,6 +66,9 @@ public class StageData extends SavedData {
                     .computeIfAbsent(StageData::load, StageData::new, DATA_NAME);
 
             refreshCache(data.unlockedStages);
+            // The generation counters have no level of their own and worldgen threads must not
+            // reach into data storage, so they are primed from here.
+            StructureGenerationCountData.get(serverLevel);
 
             return data;
         }
@@ -76,6 +79,9 @@ public class StageData extends SavedData {
         if (!unlockedStages.contains(stage)) {
             unlockedStages.add(stage);
             SERVER_CACHE.add(stage); // CACHE AKTUALISIEREN
+            // Before the rebuild: the reset lookup needs the snapshot that still describes the
+            // phase being left behind.
+            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.onStageLockChanged(stage, true);
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             setDirty();
         }
@@ -84,6 +90,8 @@ public class StageData extends SavedData {
     public void removeStage(String stage) {
         if (unlockedStages.remove(stage)) {
             SERVER_CACHE.remove(stage); // AUS CACHE ENTFERNEN
+            // Before the rebuild, for the same reason as in addStage.
+            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.onStageLockChanged(stage, false);
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             setDirty();
         }

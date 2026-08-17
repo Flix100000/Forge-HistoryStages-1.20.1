@@ -14,7 +14,10 @@ import net.bananemdnsa.historystages.client.editor.widget.list.SearchableModList
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.GenerationLimitPopup;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
+import net.bananemdnsa.historystages.data.lock.GenerationPhase;
+import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.Config;
@@ -95,7 +98,7 @@ public class StageDetailScreen extends Screen {
     private final List<String> editDimensions;
     private final List<String> editStructures;
     private final List<String> editStructureModLinked;
-    private final List<String> editStructureBlockGeneration;
+    private final List<StructureGenerationRule> editStructureGenerationRules;
     private final List<String> editAttacklock;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
@@ -126,6 +129,7 @@ public class StageDetailScreen extends Screen {
     private ModEntitySelectionPopup modEntityPopup;
     private ModStructureSelectionPopup modStructurePopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup dimFilterPopup;
+    private GenerationLimitPopup generationLimitPopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
     // When non-null, the entity/structure popups are in "edit mode" for this mod:
@@ -367,7 +371,7 @@ public class StageDetailScreen extends Screen {
         this.editDimensions = new ArrayList<>(e.getDimensions());
         this.editStructures = new ArrayList<>(e.getStructures());
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
-        this.editStructureBlockGeneration = new ArrayList<>(e.getStructureBlockGeneration());
+        this.editStructureGenerationRules = new ArrayList<>(e.getStructureGenerationRules());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
@@ -563,6 +567,8 @@ public class StageDetailScreen extends Screen {
             hasChanges = true;
         });
 
+        generationLimitPopup = new GenerationLimitPopup(this::applyGenerationRule);
+
         modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
             // In edit mode, drop the previous mod-linked entity locks for this mod first
             // so unchecked rows are actually removed.
@@ -681,9 +687,24 @@ public class StageDetailScreen extends Screen {
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
-                || dimFilterPopup.isVisible()
+                || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
+    }
+
+    /** The generation rule stored for a structure entry, or null while it generates unrestricted. */
+    private StructureGenerationRule generationRuleFor(String structureId) {
+        for (StructureGenerationRule rule : editStructureGenerationRules) {
+            if (rule.id().equals(structureId)) return rule;
+        }
+        return null;
+    }
+
+    /** Callback of the generation dialog; a null rule means the entry goes back to unrestricted. */
+    private void applyGenerationRule(String structureId, StructureGenerationRule rule) {
+        editStructureGenerationRules.removeIf(r -> r.id().equals(structureId));
+        if (rule != null) editStructureGenerationRules.add(rule);
+        hasChanges = true;
     }
 
     private ItemStack resolveIconPreview() {
@@ -1235,13 +1256,22 @@ public class StageDetailScreen extends Screen {
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
                 }
 
-                // Marks structure entries that are also kept out of world generation
-                if (activeTab == 8 && editStructureBlockGeneration.contains(list.get(i))) {
-                    String genBadge = Component.translatable("editor.historystages.badge.no_gen").getString();
-                    int gBadgeW = this.font.width(genBadge) + 4;
-                    guiGraphics.drawString(this.font, genBadge, contentRight - badgeW - gBadgeW, cardY + 7,
-                            0xCC7766, false);
-                    badgeW += gBadgeW;
+                // Marks structure entries whose world generation is restricted
+                if (activeTab == 8) {
+                    StructureGenerationRule genRule = generationRuleFor(list.get(i));
+                    if (genRule != null) {
+                        String genBadge = genRule.max() == 0
+                                ? Component.translatable("editor.historystages.badge.no_gen").getString()
+                                : Component.translatable(
+                                        genRule.phase() == GenerationPhase.WHILE_LOCKED
+                                                ? "editor.historystages.badge.gen_limit"
+                                                : "editor.historystages.badge.gen_after",
+                                        genRule.max()).getString();
+                        int gBadgeW = this.font.width(genBadge) + 4;
+                        guiGraphics.drawString(this.font, genBadge, contentRight - badgeW - gBadgeW, cardY + 7,
+                                0xCC7766, false);
+                        badgeW += gBadgeW;
+                    }
                 }
 
                 // Text with marquee for truncated entries
@@ -1432,6 +1462,7 @@ public class StageDetailScreen extends Screen {
         if (overridePopupVisible)
             renderOverridePopup(guiGraphics, mouseX, mouseY);
         dimFilterPopup.render(guiGraphics, this.font, mouseX, mouseY);
+        generationLimitPopup.render(guiGraphics, this.font, mouseX, mouseY);
         guiGraphics.pose().popPose();
 
         // Merge pending tooltips from widgets (set during their renderWidget pass)
@@ -2616,6 +2647,9 @@ public class StageDetailScreen extends Screen {
         if (dimFilterPopup.isVisible()) {
             return dimFilterPopup.mouseClicked(mouseX, mouseY);
         }
+        if (generationLimitPopup.isVisible()) {
+            return generationLimitPopup.mouseClicked(mouseX, mouseY);
+        }
         if (recipePopupVisible) {
             int btnW = 76, btnH = 18, btnPad = 14;
             if (recipePopupAddMode) {
@@ -2819,20 +2853,11 @@ public class StageDetailScreen extends Screen {
                                         this.width / 2, this.height / 2));
                     }
                     // World generation is global and baked into the chunk, so an individual
-                    // (per-player) stage has no coherent answer — no toggle offered there.
+                    // (per-player) stage has no coherent answer — no settings offered there.
                     if (tabIdx == 8 && !isIndividual) {
-                        boolean blocked = editStructureBlockGeneration.contains(entryValue);
-                        contextMenu.addEntry(Component.translatable(blocked
-                                        ? "editor.historystages.context.allow_generation"
-                                        : "editor.historystages.context.block_generation").getString(),
-                                () -> {
-                                    if (blocked) {
-                                        editStructureBlockGeneration.remove(entryValue);
-                                    } else {
-                                        editStructureBlockGeneration.add(entryValue);
-                                    }
-                                    hasChanges = true;
-                                });
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.generation").getString(),
+                                () -> generationLimitPopup.show(entryValue, generationRuleFor(entryValue),
+                                        this.width / 2, this.height / 2));
                     }
                     if (tabIdx == 2) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
@@ -2934,7 +2959,7 @@ public class StageDetailScreen extends Screen {
                             editModLinked.removeIf(id -> id.startsWith(prefix));
                             editStructures.removeIf(id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
                             editStructureModLinked.removeIf(id -> id.startsWith(prefix));
-                            editStructureBlockGeneration.removeIf(id -> id.startsWith(prefix));
+                            editStructureGenerationRules.removeIf(r -> r.id().startsWith(prefix));
                             // Remove mod exceptions belonging to this mod
                             for (int j = editModExceptions.size() - 1; j >= 0; j--) {
                                 if (editModExceptions.get(j).startsWith(prefix)) {
@@ -3139,6 +3164,9 @@ public class StageDetailScreen extends Screen {
         if (dimFilterPopup.isVisible()) {
             return dimFilterPopup.mouseScrolled(mouseX, mouseY, delta);
         }
+        // The generation dialog has nothing to scroll, but swallowing the wheel keeps the entry
+        // list behind it from moving while it is open.
+        if (generationLimitPopup.isVisible()) return true;
         // Scroll inside category search dropdown
         if (categoryDropdownVisible && !categoryDropdownSuggestions.isEmpty()) {
             int total = categoryDropdownSuggestions.size();
@@ -3201,6 +3229,8 @@ public class StageDetailScreen extends Screen {
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.keyPressed(keyCode))
             return true;
+        if (generationLimitPopup.isVisible() && generationLimitPopup.keyPressed(keyCode))
+            return true;
         if (dimFilterPopup.isVisible() && dimFilterPopup.keyPressed(keyCode))
             return true;
         if (recipePopupVisible && keyCode == 256) {
@@ -3252,6 +3282,8 @@ public class StageDetailScreen extends Screen {
             if (overrideTooltipField.isFocused() && overrideTooltipField.charTyped(c, modifiers)) return true;
             return true;
         }
+        if (generationLimitPopup.isVisible() && generationLimitPopup.charTyped(c))
+            return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.charTyped(c))
             return true;
         if (itemSearch.isVisible() && itemSearch.charTyped(c))
@@ -3527,7 +3559,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setDimensions(editDimensions);
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
-        newEntry.setStructureBlockGeneration(editStructureBlockGeneration);
+        newEntry.setStructureGenerationRules(editStructureGenerationRules);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
