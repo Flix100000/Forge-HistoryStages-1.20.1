@@ -5,12 +5,9 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class SaveConfigPacket {
     private final Map<String, String> configValues;
@@ -62,94 +59,16 @@ public class SaveConfigPacket {
         ctx.get().setPacketHandled(true);
     }
 
+    /**
+     * Applies wire values to the common config. Runs on the server when an admin saves the editor,
+     * and on the client when the server syncs back.
+     * <p>
+     * The per-key handling lives in {@link CommonConfigSync}, which also produces the synced map —
+     * one list for both directions. Before that, this was a switch and the sync packet was a
+     * separate list of puts; keys kept being added here and forgotten there, so admins could change
+     * a setting the server saved but no client ever heard about.
+     */
     public static void applyCommonConfig(Map<String, String> values) {
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            String key = entry.getKey();
-            String value = entry.getValue();
-
-            switch (key) {
-                case "showWelcomeMessage" -> Config.COMMON.showWelcomeMessage.set(Boolean.parseBoolean(value));
-                case "showDebugErrors" -> Config.COMMON.showDebugErrors.set(Boolean.parseBoolean(value));
-                case "enableRuntimeLogging" -> Config.COMMON.enableRuntimeLogging.set(Boolean.parseBoolean(value));
-                case "lockMobLoot" -> Config.COMMON.lockMobLoot.set(Boolean.parseBoolean(value));
-                case "lockBlockBreaking" -> Config.COMMON.lockBlockBreaking.set(Boolean.parseBoolean(value));
-                case "lockedBlockBreakSpeedMultiplier" -> {
-                    try { Config.COMMON.lockedBlockBreakSpeedMultiplier.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "lockItemUsage" -> Config.COMMON.lockItemUsage.set(Boolean.parseBoolean(value));
-                case "lockEntityItems" -> Config.COMMON.lockEntityItems.set(Boolean.parseBoolean(value));
-                case "lockBlockInteraction" -> Config.COMMON.lockBlockInteraction.set(Boolean.parseBoolean(value));
-                case "broadcastChat" -> Config.COMMON.broadcastChat.set(Boolean.parseBoolean(value));
-                case "unlockMessageFormat" -> Config.COMMON.unlockMessageFormat.set(value);
-                case "useActionbar" -> Config.COMMON.useActionbar.set(Boolean.parseBoolean(value));
-                case "useSounds" -> Config.COMMON.useSounds.set(Boolean.parseBoolean(value));
-                case "useToasts" -> Config.COMMON.useToasts.set(Boolean.parseBoolean(value));
-                case "defaultStageIcon" -> Config.COMMON.defaultStageIcon.set(value);
-                case "researchTimeInSeconds" -> {
-                    try { Config.COMMON.researchTimeInSeconds.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "showDependencyScreenInPedestal" -> Config.COMMON.showDependencyScreenInPedestal.set(Boolean.parseBoolean(value));
-                case "lockScrollWhileResearching" -> Config.COMMON.lockScrollWhileResearching.set(Boolean.parseBoolean(value));
-                case "researchBoosters" -> {
-                    List<String> boosterList = Arrays.stream(value.split(";"))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .collect(Collectors.toList());
-                    Config.COMMON.researchBoosters.set(boosterList);
-                    // Rebuild the in-memory registry so changes apply immediately.
-                    net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(boosterList);
-                }
-                case "useReplacements" -> Config.COMMON.useReplacements.set(Boolean.parseBoolean(value));
-                case "replacementItems" -> {
-                    List<String> itemList = Arrays.stream(value.split(","))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .collect(Collectors.toList());
-                    Config.COMMON.replacementItems.set(itemList);
-                }
-                case "replacementTags" -> {
-                    List<String> tagList = Arrays.stream(value.split(","))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .collect(Collectors.toList());
-                    Config.COMMON.replacementTags.set(tagList);
-                }
-                case "individualLockItemPickup" -> Config.COMMON.individualLockItemPickup.set(Boolean.parseBoolean(value));
-                case "individualDropOnRevoke" -> Config.COMMON.individualDropOnRevoke.set(Boolean.parseBoolean(value));
-                case "individualLockBlockBreaking" -> Config.COMMON.individualLockBlockBreaking.set(Boolean.parseBoolean(value));
-                case "individualLockedBlockBreakSpeedMultiplier" -> {
-                    try { Config.COMMON.individualLockedBlockBreakSpeedMultiplier.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "individualLockItemUsage" -> Config.COMMON.individualLockItemUsage.set(Boolean.parseBoolean(value));
-                case "individualLockBlockInteraction" -> Config.COMMON.individualLockBlockInteraction.set(Boolean.parseBoolean(value));
-                case "individualBroadcastChat" -> Config.COMMON.individualBroadcastChat.set(Boolean.parseBoolean(value));
-                case "individualUnlockMessageFormat" -> Config.COMMON.individualUnlockMessageFormat.set(value);
-                case "individualUseActionbar" -> Config.COMMON.individualUseActionbar.set(Boolean.parseBoolean(value));
-                case "individualUseSounds" -> Config.COMMON.individualUseSounds.set(Boolean.parseBoolean(value));
-                case "individualUseToasts" -> Config.COMMON.individualUseToasts.set(Boolean.parseBoolean(value));
-                case "structureCheckInterval" -> {
-                    try { Config.COMMON.structureCheckInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "structureDamageEnabled" -> Config.COMMON.structureDamageEnabled.set(Boolean.parseBoolean(value));
-                case "structureDamageAmount" -> {
-                    try { Config.COMMON.structureDamageAmount.set(Double.parseDouble(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "structureDamageInterval" -> {
-                    try { Config.COMMON.structureDamageInterval.set(Integer.parseInt(value)); } catch (NumberFormatException ignored) {}
-                }
-                case "structureMessageEnabled" -> Config.COMMON.structureMessageEnabled.set(Boolean.parseBoolean(value));
-                case "structureLockMessageFormat" -> Config.COMMON.structureLockMessageFormat.set(value);
-                case "structureLockInChat" -> Config.COMMON.structureLockInChat.set(Boolean.parseBoolean(value));
-                case "structureBlockRightClick" -> Config.COMMON.structureBlockRightClick.set(Boolean.parseBoolean(value));
-                case "structureBlockLeftClick" -> Config.COMMON.structureBlockLeftClick.set(Boolean.parseBoolean(value));
-                case "structureBlockProjectiles" -> Config.COMMON.structureBlockProjectiles.set(Boolean.parseBoolean(value));
-                case "msgDimensionUnknown" -> Config.COMMON.msgDimensionUnknown.set(value);
-                case "msgMobUnknown" -> Config.COMMON.msgMobUnknown.set(value);
-                case "msgItemLocked" -> Config.COMMON.msgItemLocked.set(value);
-                case "msgBlockLocked" -> Config.COMMON.msgBlockLocked.set(value);
-                case "msgEntityItemLocked" -> Config.COMMON.msgEntityItemLocked.set(value);
-                case "msgEnchantmentLocked" -> Config.COMMON.msgEnchantmentLocked.set(value);
-            }
-        }
+        CommonConfigSync.applyAll(values);
     }
 }
