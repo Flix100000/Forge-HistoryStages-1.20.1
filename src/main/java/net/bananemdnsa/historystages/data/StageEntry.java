@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 public class StageEntry {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson COMPACT_GSON = new GsonBuilder().create();
 
     @SerializedName("display_name")
     private String displayName;
@@ -407,7 +408,17 @@ public class StageEntry {
         return copy;
     }
 
+    /** Pretty-printed form, used for the stage files on disk so they stay hand-editable. */
     public String toJson() {
         return GSON.toJson(this);
+    }
+
+    /**
+     * Same data as {@link #toJson()} but without indentation or line breaks. Used when a stage
+     * travels over the network: the pretty-printed form is close to twice the size, which is
+     * what pushes big stages over the string size limit of the save packet.
+     */
+    public String toCompactJson() {
+        return COMPACT_GSON.toJson(this);
     }
 }

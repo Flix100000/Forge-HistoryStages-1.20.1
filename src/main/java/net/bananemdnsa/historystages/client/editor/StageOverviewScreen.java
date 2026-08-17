@@ -15,7 +15,6 @@ import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.SaveStagePacket;
 import net.bananemdnsa.historystages.network.ToggleStageLockPacket;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.minecraft.client.Minecraft;
@@ -1000,8 +999,13 @@ public class StageOverviewScreen extends Screen {
                     // The duplicate is written straight away, so an emptied field would
                     // persist as "Unknown Stage" — keep the source's name instead.
                     if (!displayName.isEmpty()) copy.setDisplayName(displayName);
-                    PacketHandler.sendToServer(new SaveStagePacket(id, copy, individual, true));
-                    this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
+                    // A stage edited on disk can be larger than the packet allows; in that case
+                    // nothing was written, so do not open a detail screen for it.
+                    if (StageSaver.send(id, copy, individual, true)) {
+                        this.minecraft.setScreen(new StageDetailScreen(parent, id, copy, individual));
+                    } else {
+                        this.minecraft.setScreen(parent);
+                    }
                 } else {
                     this.minecraft.setScreen(parent);
                 }

@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.network;
 
 import com.google.gson.Gson;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.StageJsonLimits;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.network.FriendlyByteBuf;
@@ -28,13 +29,11 @@ public class SaveStagePacket {
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
-        this.stageId = stageId;
-        this.stageJson = entry.toJson();
-        this.individual = individual;
-        this.duplicate = duplicate;
+        this(stageId, entry.toCompactJson(), individual, duplicate);
     }
 
-    private SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate) {
+    /** {@code stageJson} must already be the compact form — see {@link StageEntry#toCompactJson()}. */
+    public SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate) {
         this.stageId = stageId;
         this.stageJson = stageJson;
         this.individual = individual;
@@ -43,14 +42,14 @@ public class SaveStagePacket {
 
     public static void encode(SaveStagePacket msg, FriendlyByteBuf buffer) {
         buffer.writeUtf(msg.stageId);
-        buffer.writeUtf(msg.stageJson, 65536);
+        buffer.writeUtf(msg.stageJson, StageJsonLimits.MAX_STAGE_JSON);
         buffer.writeBoolean(msg.individual);
         buffer.writeBoolean(msg.duplicate);
     }
 
     public static SaveStagePacket decode(FriendlyByteBuf buffer) {
         String stageId = buffer.readUtf();
-        String stageJson = buffer.readUtf(65536);
+        String stageJson = buffer.readUtf(StageJsonLimits.MAX_STAGE_JSON);
         boolean individual = buffer.readBoolean();
         boolean duplicate = buffer.readBoolean();
         return new SaveStagePacket(stageId, stageJson, individual, duplicate);

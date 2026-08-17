@@ -37,6 +37,8 @@
   "editor.historystages.toast.individual_stage_saved.title": "Individuelle Stufe gespeichert",
   "editor.historystages.toast.stage_save_failed.title": "Speichern fehlgeschlagen",
   "editor.historystages.toast.stage_save_failed.message": "'%s' konnte nicht gespeichert werden.",
+  "editor.historystages.toast.stage_too_large.title": "Stage zu groß",
+  "editor.historystages.toast.stage_too_large.message": "'%s' hat zu viele Einträge zum Speichern. Teile sie in mehrere Stages auf oder nutze Item-Tags.",
   "editor.historystages.toast.stage_deleted.title": "Stufe gelöscht",
   "editor.historystages.toast.stage_deleted.message": "'%s' gelöscht.",
   "editor.historystages.toast.individual_stage_deleted.title": "Individuelle Stufe gelöscht",
