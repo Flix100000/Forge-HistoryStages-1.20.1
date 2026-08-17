@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
+import net.bananemdnsa.historystages.network.CommonConfigSync;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SaveConfigPacket;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
@@ -35,6 +36,16 @@ import java.util.List;
 import java.util.Map;
 
 public class ConfigEditorScreen extends Screen {
+    /**
+     * The editor the incoming config sync should refresh, if one is open. Weak on purpose: nothing
+     * here owns the screen's lifecycle, and clearing it reliably would mean hooking every path that
+     * navigates away — including the dialogs that keep this screen as their parent and hand control
+     * back to it. Letting it go stale is harmless; a refresh on a discarded instance mutates fields
+     * nobody reads.
+     */
+    private static java.lang.ref.WeakReference<ConfigEditorScreen> active =
+            new java.lang.ref.WeakReference<>(null);
+
     private final Screen parent;
 
     // Tab state: 0 = Client, 1 = Common
@@ -91,8 +102,13 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     protected void init() {
+        // Build once per instance, not once per init(): init() also runs on every window resize,
+        // and rebuilding there would throw away whatever the admin has typed but not saved yet.
+        // Staying stale is instead handled by onCommonConfigSynced().
         if (clientSections == null)
             buildConfigEntries();
+
+        active = new java.lang.ref.WeakReference<>(this);
 
         // Compute tab positions
         tabY = 30;
@@ -1131,50 +1147,38 @@ public class ConfigEditorScreen extends Screen {
     }
 
     private void applyClientConfig(Map<String, String> values) {
-        for (Map.Entry<String, String> e : values.entrySet()) {
-            String key = e.getKey();
-            String value = e.getValue();
-            switch (key) {
-                case "showTooltips" -> Config.CLIENT.showTooltips.set(Boolean.parseBoolean(value));
-                case "showStageName" -> Config.CLIENT.showStageName.set(Boolean.parseBoolean(value));
-                case "showAllUntilComplete" -> Config.CLIENT.showAllUntilComplete.set(Boolean.parseBoolean(value));
-                case "showLockIcons" -> Config.CLIENT.showLockIcons.set(Boolean.parseBoolean(value));
-                case "showBoosterTooltips" -> Config.CLIENT.showBoosterTooltips.set(Boolean.parseBoolean(value));
-                case "showScrollTierTooltip" -> Config.CLIENT.showScrollTierTooltip.set(Boolean.parseBoolean(value));
-                case "structureBorderEnabled" -> Config.CLIENT.structureBorderEnabled.set(Boolean.parseBoolean(value));
-                case "structureBorderDistance" ->
-                        Config.CLIENT.structureBorderDistance.set(Double.parseDouble(value));
-                case "structureLockOverlayEnabled" -> Config.CLIENT.structureLockOverlayEnabled.set(Boolean.parseBoolean(value));
-                case "structureLockOverlayOpacity" ->
-                        Config.CLIENT.structureLockOverlayOpacity.set(Double.parseDouble(value));
-                case "dimUseActionbar" -> Config.CLIENT.dimUseActionbar.set(Boolean.parseBoolean(value));
-                case "dimShowChat" -> Config.CLIENT.dimShowChat.set(Boolean.parseBoolean(value));
-                case "dimShowStagesInChat" -> Config.CLIENT.dimShowStagesInChat.set(Boolean.parseBoolean(value));
-                case "jadeShowInfo" -> Config.CLIENT.jadeShowInfo.set(Boolean.parseBoolean(value));
-                case "jadeStageName" -> Config.CLIENT.jadeStageName.set(Boolean.parseBoolean(value));
-                case "jadeShowAllUntilComplete" ->
-                    Config.CLIENT.jadeShowAllUntilComplete.set(Boolean.parseBoolean(value));
-                case "mobUseActionbar" -> Config.CLIENT.mobUseActionbar.set(Boolean.parseBoolean(value));
-                case "mobShowChat" -> Config.CLIENT.mobShowChat.set(Boolean.parseBoolean(value));
-                case "mobShowStagesInChat" -> Config.CLIENT.mobShowStagesInChat.set(Boolean.parseBoolean(value));
-                case "showSilverLockIcons" -> Config.CLIENT.showSilverLockIcons.set(Boolean.parseBoolean(value));
-                case "showIndividualTooltips" -> Config.CLIENT.showIndividualTooltips.set(Boolean.parseBoolean(value));
-                case "showDependenciesOnScroll" ->
-                    Config.CLIENT.showDependenciesOnScroll.set(Boolean.parseBoolean(value));
-                case "hideFulfilledDependencies" ->
-                    Config.CLIENT.hideFulfilledDependencies.set(Boolean.parseBoolean(value));
-                case "hideLockedItemsInJei" ->
-                    Config.CLIENT.hideLockedItemsInJei.set(Boolean.parseBoolean(value));
-                case "hideLockedRecipesInJei" ->
-                    Config.CLIENT.hideLockedRecipesInJei.set(Boolean.parseBoolean(value));
-                case "lockedItemMultiStagePolicy" -> {
-                    try {
-                        Config.CLIENT.lockedItemMultiStagePolicy.set(
-                                Config.Client.MultiStagePolicy.valueOf(value.trim().toUpperCase()));
-                    } catch (IllegalArgumentException ignored) {
-                        // Invalid value, keep current — user typo, no-op
-                    }
-                }
+        ClientConfigSync.applyAll(values);
+        Config.CLIENT_SPEC.save();
+    }
+
+    /**
+     * Called when the server pushed new common config values, so an editor that is already open
+     * does not sit on a snapshot taken before another admin's save.
+     * <p>
+     * Save sends every common row, not just the edited ones, so without this a second admin who
+     * changes one unrelated setting would push their whole stale snapshot back and quietly undo the
+     * first admin's work.
+     */
+    public static void onCommonConfigSynced() {
+        ConfigEditorScreen screen = active.get();
+        if (screen != null && screen.commonSections != null) screen.refreshCommonValues();
+    }
+
+    /**
+     * Merges the freshly synced values into the common rows. Rows the admin has not touched follow
+     * the server; rows they have edited keep the edit and only get a new baseline, so the change
+     * still counts as unsaved and still goes out on the next Save. Overwriting those too would
+     * trade one admin losing work for the other.
+     */
+    private void refreshCommonValues() {
+        Map<String, String> fresh = CommonConfigSync.readAll();
+        for (ConfigSection section : commonSections) {
+            for (ConfigEntry entry : section.entries) {
+                String synced = fresh.get(entry.key);
+                if (synced == null) continue;
+                boolean untouched = entry.value.equals(entry.initialValue);
+                entry.initialValue = synced;
+                if (untouched) entry.value = synced;
             }
         }
     }

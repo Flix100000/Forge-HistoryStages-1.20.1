@@ -39,6 +39,16 @@ public class SyncConfigPacket {
         ctx.get().enqueueWork(() -> {
             // Apply server's config values on the client
             SaveConfigPacket.applyCommonConfig(msg.configValues);
+
+            // An open config editor holds a snapshot of the Common tab taken when it was built.
+            // Left alone, it would re-send those pre-sync values on its next Save and undo
+            // whichever admin saved first. The screen is client-only, so it is reached through
+            // DistExecutor rather than named here — a packet class is loaded on the dedicated
+            // server too.
+            net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                    net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    () -> () -> net.bananemdnsa.historystages.client.editor.ConfigEditorScreen
+                            .onCommonConfigSynced());
         });
         ctx.get().setPacketHandled(true);
     }
