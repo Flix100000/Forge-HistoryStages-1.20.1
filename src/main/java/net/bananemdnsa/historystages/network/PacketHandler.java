@@ -75,6 +75,16 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, SyncTemporaryCountsPacket.class,
                                 SyncTemporaryCountsPacket::encode,
                                 SyncTemporaryCountsPacket::decode, SyncTemporaryCountsPacket::handle);
+                INSTANCE.registerMessage(id++, RequestIndividualStatesPacket.class,
+                                RequestIndividualStatesPacket::encode,
+                                RequestIndividualStatesPacket::decode, RequestIndividualStatesPacket::handle);
+                INSTANCE.registerMessage(id++, SyncIndividualStatesPacket.class,
+                                SyncIndividualStatesPacket::encode,
+                                SyncIndividualStatesPacket::decode, SyncIndividualStatesPacket::handle);
+                INSTANCE.registerMessage(id++, ToggleIndividualStageLockPacket.class,
+                                ToggleIndividualStageLockPacket::encode,
+                                ToggleIndividualStageLockPacket::decode,
+                                ToggleIndividualStageLockPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.

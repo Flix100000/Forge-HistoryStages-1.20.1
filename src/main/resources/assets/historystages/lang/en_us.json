@@ -613,5 +613,8 @@
   "editor.historystages.depgraph.trigger.structure": "Structure",
   "editor.historystages.depgraph.trigger.dimension": "Dimension",
   "editor.historystages.depgraph.trigger.advancement": "Advancement",
-  "editor.historystages.depgraph.trigger.playtime": "Playtime"
+  "editor.historystages.depgraph.trigger.playtime": "Playtime",
+  "editor.historystages.player_picker.all": "@a (All players)",
+  "editor.historystages.player_picker.all_short": "@a",
+  "editor.historystages.player_picker.search": "Search player..."
 }

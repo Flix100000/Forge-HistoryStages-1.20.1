@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.client;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.client.cache.ClientPlayerStageCache;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -20,6 +21,7 @@ public class ClientDisconnectHandler {
         // Reload local stage definitions so singleplayer works correctly after leaving a server
         StageManager.load();
         ClientIndividualStageCache.clear();
+        ClientPlayerStageCache.clear();
         System.out.println("[HistoryStages] Client disconnected — reloaded local stage definitions.");
     }
 }

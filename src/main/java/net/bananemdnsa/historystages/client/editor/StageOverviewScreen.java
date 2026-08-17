@@ -9,13 +9,16 @@ import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.PlayerPickerDropdown;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.network.DeleteStagePacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.ToggleIndividualStageLockPacket;
 import net.bananemdnsa.historystages.network.ToggleStageLockPacket;
+import net.bananemdnsa.historystages.client.cache.ClientPlayerStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -29,6 +32,8 @@ import net.minecraft.sounds.SoundEvents;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 public class StageOverviewScreen extends Screen {
 
@@ -49,6 +54,10 @@ public class StageOverviewScreen extends Screen {
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
     private ContextMenu contextMenu;
+    /** Target selector for the individual-stage section; null selection means "@a". */
+    private PlayerPickerDropdown playerPicker;
+    /** Where the picker was last drawn, so hit-testing matches what the user sees. */
+    private boolean pickerVisible = false;
 
     // Animation state
     private final java.util.Map<Integer, Anim> hoverProgress = new java.util.HashMap<>();
@@ -76,6 +85,7 @@ public class StageOverviewScreen extends Screen {
         if (++tempCountRefreshTimer >= 20) { // ~1s
             tempCountRefreshTimer = 0;
             PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
+            PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestIndividualStatesPacket());
         }
     }
 
@@ -86,6 +96,7 @@ public class StageOverviewScreen extends Screen {
 
         // Pull the live temporary-stage unlock counts from the server for display.
         PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestTemporaryCountsPacket());
+        PacketHandler.sendToServer(new net.bananemdnsa.historystages.network.RequestIndividualStatesPacket());
 
         searchFilter = "";
         int searchW = 120;
@@ -120,6 +131,7 @@ public class StageOverviewScreen extends Screen {
                 btn -> this.minecraft.setScreen(new CreditsScreen(this)),
                 this.width - 175, 5, 60, 20));
 
+        playerPicker = new PlayerPickerDropdown(120);
         contextMenu = new ContextMenu();
         applyFilter();
     }
@@ -353,12 +365,30 @@ public class StageOverviewScreen extends Screen {
         }
 
         // --- Individual Stages Section ---
-        if (!filteredIndividualStageOrder.isEmpty()) {
+        if (filteredIndividualStageOrder.isEmpty()) {
+            pickerVisible = false;
+            playerPicker.close();
+        } else {
             int sectionY = y + filteredStageOrder.size() * ENTRY_HEIGHT; // y already includes global header offset
+
+            // The picker sticks inside the viewport while any part of the individual
+            // section is on screen, so scrolling the header away does not take the
+            // target selector with it.
+            int sectionBottom = sectionY + SECTION_HEADER_HEIGHT
+                    + filteredIndividualStageOrder.size() * ENTRY_HEIGHT;
+            pickerVisible = sectionBottom > listTop && sectionY < listBottom;
+            int pickerX = listRight - playerPicker.getWidth();
+            int pickerY = Math.max(listTop + 1,
+                    Math.min(sectionY + 2, listBottom - PlayerPickerDropdown.BUTTON_HEIGHT - 1));
+            if (pickerVisible) {
+                playerPicker.setPosition(pickerX, pickerY);
+            } else {
+                playerPicker.close();
+            }
 
             // Section header
             if (sectionY + SECTION_HEADER_HEIGHT > listTop && sectionY < listBottom) {
-                guiGraphics.fill(listLeft, sectionY + 8, listRight, sectionY + 9, 0xFF555555);
+                guiGraphics.fill(listLeft, sectionY + 8, pickerX - 5, sectionY + 9, 0xFF555555);
                 String sectionLabel = "\u00A78Individual Stages (" + filteredIndividualStageOrder.size() + ")";
                 int labelW = this.font.width(sectionLabel);
                 int labelX = listLeft + 5;
@@ -383,9 +413,22 @@ public class StageOverviewScreen extends Screen {
                 // global)
                 int hoverKey = 10000 + i;
 
+                // Lock button bounds are needed before the hover test so the row does not
+                // light up while the cursor is on the button — same as the global rows.
+                int state = individualState(stageId);
+                String lockLabel = Component.translatable(
+                        state == 2 ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
+                int lockBtnW = Math.max(50, this.font.width(lockLabel) + 12);
+                int lockBtnX = listRight - lockBtnW - 10;
+                int lockBtnH = 16;
+                int lockBtnY = entryTop + 5;
+                boolean onLockBtn = effectiveMouseX >= lockBtnX && effectiveMouseX <= lockBtnX + lockBtnW
+                        && effectiveMouseY >= lockBtnY && effectiveMouseY <= lockBtnY + lockBtnH;
+
                 boolean hovered = effectiveMouseX >= listLeft && effectiveMouseX <= listRight
                         && effectiveMouseY >= Math.max(entryTop, listTop)
-                        && effectiveMouseY <= Math.min(entryBottom, listBottom);
+                        && effectiveMouseY <= Math.min(entryBottom, listBottom)
+                        && !onLockBtn;
 
                 if (hovered) {
                     currentHovered = hoverKey;
@@ -407,23 +450,24 @@ public class StageOverviewScreen extends Screen {
                     guiGraphics.fill(listLeft, entryTop, listLeft + 2, entryBottom, (accentAlpha << 24) | 0xBBBBBB);
                 }
 
-                // Silver lock icon (individual stages are per-player, no global unlock state)
-                guiGraphics.drawString(this.font, "\uD83D\uDD12", listLeft + 5, entryTop + 6, 0xBBBBBB, false);
+                // Status icon for the picker target: locked, partially unlocked (@a only),
+                // or unlocked.
+                String stateIcon = state == 2 ? "\u2714" : (state == 1 ? "\u25C9" : "\uD83D\uDD12");
+                int stateColor = state == 2 ? 0xFFCC00 : (state == 1 ? 0xFFAA55 : 0xBBBBBB);
+                guiGraphics.drawString(this.font, stateIcon, listLeft + 5, entryTop + 6, stateColor, false);
 
-                // Mode badge (pill placed at the right edge of the row, vertically centered).
-                // Individual stages don't have a lock toggle button, so the badge sits where the
-                // button would be for global stages \u2014 keeps the visual alignment consistent.
+                // Mode badge sits left of the lock button, same as on global rows.
                 // stageId null: per-player temporary timers aren't synced to the editor.
                 int badgeWidth = modeBadgeWidth(entry, null);
                 int badgeY = entryTop + (ENTRY_HEIGHT - 12) / 2 - 1;
-                int badgeX = listRight - badgeWidth - 10;
+                int badgeX = lockBtnX - badgeWidth - 6;
                 if (badgeWidth > 0) drawModeBadge(guiGraphics, entry, null, badgeX, badgeY);
 
                 // Stage name with marquee
                 String displayText = entry.getDisplayName() + " \u00A78(" + stageId + ")";
                 int nameColor = progress > 0.01f ? 0xDDDDDD : 0xBBBBBB;
                 int nameX = listLeft + 16;
-                int nameRightLimit = (badgeWidth > 0) ? badgeX : listRight;
+                int nameRightLimit = (badgeWidth > 0) ? badgeX : lockBtnX;
                 int nameAvailW = nameRightLimit - nameX - 6;
                 int nameW = this.font.width(displayText);
 
@@ -460,6 +504,17 @@ public class StageOverviewScreen extends Screen {
                     int depBadgeX = listLeft + 22 + this.font.width(info) + 6;
                     guiGraphics.drawString(this.font, "\u00A76[Dep]", depBadgeX, entryTop + 15, 0xFFAA55, false);
                 }
+
+                // Lock/Unlock toggle button, mirroring the global rows.
+                boolean lockBtnHovered = onLockBtn && mouseY >= listTop && mouseY <= listBottom;
+                int lockBg = lockBtnHovered ? 0x50FFCC00 : 0x25FFFFFF;
+                guiGraphics.fill(lockBtnX, lockBtnY, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockBg);
+                int lockAccent = lockBtnHovered ? 0xFFFFCC00 : 0x60FFCC00;
+                guiGraphics.fill(lockBtnX, lockBtnY + lockBtnH - 1, lockBtnX + lockBtnW, lockBtnY + lockBtnH, lockAccent);
+                int lockTextColor = lockBtnHovered ? 0xFFFFFF : 0xCCCCCC;
+                int lockTextW = this.font.width(lockLabel);
+                guiGraphics.drawString(this.font, lockLabel, lockBtnX + (lockBtnW - lockTextW) / 2,
+                        lockBtnY + 4, lockTextColor, false);
             }
         }
 
@@ -472,6 +527,12 @@ public class StageOverviewScreen extends Screen {
         }
 
         guiGraphics.disableScissor();
+
+        // Drawn after the list scissor so the picker is never clipped; its y is already
+        // clamped into the viewport.
+        if (pickerVisible) {
+            playerPicker.renderButton(guiGraphics, this.font, effectiveMouseX, effectiveMouseY);
+        }
 
         if (maxScroll > 0) {
             int scrollBarHeight = Math.max(20, (int) ((float) (listBottom - listTop)
@@ -487,10 +548,21 @@ public class StageOverviewScreen extends Screen {
         guiGraphics.pose().translate(0, 0, 200);
         contextMenu.render(guiGraphics, this.font, mouseX, mouseY);
         guiGraphics.pose().popPose();
+
+        if (pickerVisible) {
+            playerPicker.renderPopup(guiGraphics, this.font, effectiveMouseX, effectiveMouseY);
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // The context menu renders above the picker, so it also gets the click first —
+        // otherwise the picker would swallow clicks aimed at a menu entry drawn on top of it.
+        if (pickerVisible && !contextMenu.isVisible() && playerPicker.mouseClicked(mouseX, mouseY)) {
+            searchBox.setFocused(false);
+            return true;
+        }
+
         // Unfocus search box when clicking outside it
         if (searchBox.isFocused() && !(mouseX >= 10 && mouseX <= 130 && mouseY >= 5 && mouseY <= 24)) {
             searchBox.setFocused(false);
@@ -598,6 +670,21 @@ public class StageOverviewScreen extends Screen {
                 int entryBottom = entryTop + ENTRY_HEIGHT - 2;
 
                 if (mouseY >= entryTop && mouseY <= entryBottom) {
+                    int state = individualState(stageId);
+                    String lockLabelClick = Component.translatable(
+                            state == 2 ? "editor.historystages.lock" : "editor.historystages.unlock").getString();
+                    int lockBtnWClick = Math.max(50, this.font.width(lockLabelClick) + 12);
+                    int lockBtnX = listRight - lockBtnWClick - 10;
+                    int lockBtnY = entryTop + 5;
+                    if (button == 0 && mouseX >= lockBtnX && mouseX <= lockBtnX + lockBtnWClick
+                            && mouseY >= lockBtnY && mouseY <= lockBtnY + 16) {
+                        Minecraft.getInstance().getSoundManager()
+                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                        PacketHandler.sendToServer(new ToggleIndividualStageLockPacket(
+                                stageId, Optional.ofNullable(playerPicker.getSelected()), state != 2));
+                        return true;
+                    }
+
                     if (button == 1) {
                         contextMenu = new ContextMenu();
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(), () -> {
@@ -643,6 +730,7 @@ public class StageOverviewScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (pickerVisible && playerPicker.mouseScrolled(mouseX, mouseY, delta)) return true;
         scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 10));
         return true;
     }
@@ -678,6 +766,40 @@ public class StageOverviewScreen extends Screen {
             scrollOffset = Math.round(ratio * maxScroll);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset));
         }
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (playerPicker != null && playerPicker.isExpanded() && playerPicker.keyPressed(keyCode)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (playerPicker != null && playerPicker.charTyped(codePoint)) return true;
+        return super.charTyped(codePoint, modifiers);
+    }
+
+    /**
+     * Lock state of an individual stage for the current picker target:
+     * 0 = target does not have it, 1 = some but not all online players have it
+     * (only reachable under "@a"), 2 = the target — or every online player — has it.
+     */
+    private int individualState(String stageId) {
+        UUID selected = playerPicker.getSelected();
+        if (selected != null) {
+            return ClientPlayerStageCache.hasStage(selected, stageId) ? 2 : 0;
+        }
+        var connection = this.minecraft.getConnection();
+        if (connection == null) return 0;
+        int total = 0;
+        int have = 0;
+        for (var info : connection.getOnlinePlayers()) {
+            total++;
+            if (ClientPlayerStageCache.hasStage(info.getProfile().getId(), stageId)) have++;
+        }
+        if (total == 0 || have == 0) return 0;
+        return have == total ? 2 : 1;
     }
 
     @Override
