@@ -1240,6 +1240,8 @@ public class ConfigEditorScreen extends Screen {
         private final ConfigEntry entry;
         private final List<String> items;
         private SearchableItemList itemOverlay;
+        private net.minecraft.client.gui.components.Button backButton;
+        private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
         /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
         private final Anim smoothScroll = new Anim();
@@ -1267,12 +1269,13 @@ public class ConfigEditorScreen extends Screen {
         @Override
         protected void init() {
             // Back button
-            this.addRenderableWidget(StyledButton.of(
+            backButton = StyledButton.of(
                     Component.translatable("editor.historystages.back"),
-                    btn -> saveAndClose(), 10, this.height - 30, 60, 20));
+                    btn -> saveAndClose(), 10, this.height - 30, 60, 20);
+            this.addRenderableWidget(backButton);
 
             // Add button
-            this.addRenderableWidget(StyledButton.of(
+            addButton = StyledButton.of(
                     Component.translatable("editor.historystages.add"),
                     btn -> {
                         itemOverlay = new SearchableItemList(itemId -> {
@@ -1284,7 +1287,8 @@ public class ConfigEditorScreen extends Screen {
                         }, () -> items);
                         itemOverlay.setMultiSelect(true);
                         itemOverlay.show(this.width / 2, this.height / 2, this.width);
-                    }, this.width / 2 - 50, this.height - 30, 100, 20));
+                    }, this.width / 2 - 50, this.height - 30, 100, 20);
+            this.addRenderableWidget(addButton);
 
             updateMaxScroll();
         }
@@ -1303,20 +1307,46 @@ public class ConfigEditorScreen extends Screen {
             this.minecraft.setScreen(parent);
         }
 
+        /**
+         * Drops the picker reference once it has hidden itself. Clicking outside the panel
+         * makes the list hide and still report the click as consumed, so without this the
+         * screen would keep a non-null but invisible overlay — leaving the dim layer up and
+         * the header hidden for good.
+         */
+        private void syncOverlayState() {
+            if (itemOverlay != null && !itemOverlay.isVisible()) itemOverlay = null;
+        }
+
+        /** Closes the picker and reports the click as consumed. */
+        private boolean clearOverlay() {
+            itemOverlay = null;
+            return true;
+        }
+
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            syncOverlayState();
             smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
             smoothScroll.settle((float) scrollOffset, 0.5f);
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
-            // Title
-            guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+            // Skip the header while the picker is up so it doesn't bleed through the dim
+            // layer. The footer buttons need the same treatment: vanilla batches text and
+            // flushes it late, so their labels would draw on top of the panel even though
+            // the panel is painted after them.
+            boolean overlayOpen = itemOverlay != null;
+            if (backButton != null) backButton.visible = !overlayOpen;
+            if (addButton != null) addButton.visible = !overlayOpen;
+            if (!overlayOpen) {
+                // Title
+                guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 
-            // Subtitle
-            guiGraphics.drawCenteredString(this.font, items.size() + " items", this.width / 2, 25, 0x999999);
+                // Subtitle
+                guiGraphics.drawCenteredString(this.font, items.size() + " items", this.width / 2, 25, 0x999999);
 
-            // Separator
-            guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+                // Separator
+                guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+            }
 
             int listBottom = this.height - 40;
             int contentLeft = 40;
@@ -1387,12 +1417,12 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            syncOverlayState();
             if (itemOverlay != null) {
-                if (itemOverlay.mouseClicked(mouseX, mouseY))
-                    return true;
+                boolean consumed = itemOverlay.mouseClicked(mouseX, mouseY);
+                syncOverlayState();
                 // Click outside overlay closes it
-                itemOverlay = null;
-                return true;
+                return consumed || clearOverlay();
             }
 
             if (super.mouseClicked(mouseX, mouseY, button))
@@ -1460,6 +1490,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+            syncOverlayState();
             if (itemOverlay != null)
                 return itemOverlay.mouseScrolled(mouseX, mouseY, delta);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
@@ -1468,12 +1499,12 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            syncOverlayState();
             if (itemOverlay != null) {
-                if (keyCode == 256) {
-                    itemOverlay = null;
-                    return true;
-                }
-                return itemOverlay.keyPressed(keyCode);
+                if (keyCode == 256) return clearOverlay();
+                boolean consumed = itemOverlay.keyPressed(keyCode);
+                syncOverlayState();
+                return consumed;
             }
             if (keyCode == 256) {
                 saveAndClose();
@@ -1484,6 +1515,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean charTyped(char c, int modifiers) {
+            syncOverlayState();
             if (itemOverlay != null)
                 return itemOverlay.charTyped(c);
             return super.charTyped(c, modifiers);
@@ -1510,6 +1542,8 @@ public class ConfigEditorScreen extends Screen {
         private final ConfigEntry entry;
         private final List<String> tags;
         private SearchableTagList tagOverlay;
+        private net.minecraft.client.gui.components.Button backButton;
+        private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
         /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
         private final Anim smoothScroll = new Anim();
@@ -1537,12 +1571,13 @@ public class ConfigEditorScreen extends Screen {
         @Override
         protected void init() {
             // Back button
-            this.addRenderableWidget(StyledButton.of(
+            backButton = StyledButton.of(
                     Component.translatable("editor.historystages.back"),
-                    btn -> saveAndClose(), 10, this.height - 30, 60, 20));
+                    btn -> saveAndClose(), 10, this.height - 30, 60, 20);
+            this.addRenderableWidget(backButton);
 
             // Add button
-            this.addRenderableWidget(StyledButton.of(
+            addButton = StyledButton.of(
                     Component.translatable("editor.historystages.add"),
                     btn -> {
                         tagOverlay = new SearchableTagList(tagId -> {
@@ -1554,7 +1589,8 @@ public class ConfigEditorScreen extends Screen {
                         }, () -> tags);
                         tagOverlay.setMultiSelect(true);
                         tagOverlay.show(this.width / 2, this.height / 2, this.width);
-                    }, this.width / 2 - 50, this.height - 30, 100, 20));
+                    }, this.width / 2 - 50, this.height - 30, 100, 20);
+            this.addRenderableWidget(addButton);
 
             updateMaxScroll();
         }
@@ -1573,20 +1609,46 @@ public class ConfigEditorScreen extends Screen {
             this.minecraft.setScreen(parent);
         }
 
+        /**
+         * Drops the picker reference once it has hidden itself. Clicking outside the panel
+         * makes the list hide and still report the click as consumed, so without this the
+         * screen would keep a non-null but invisible overlay — leaving the dim layer up and
+         * the header hidden for good.
+         */
+        private void syncOverlayState() {
+            if (tagOverlay != null && !tagOverlay.isVisible()) tagOverlay = null;
+        }
+
+        /** Closes the picker and reports the click as consumed. */
+        private boolean clearOverlay() {
+            tagOverlay = null;
+            return true;
+        }
+
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            syncOverlayState();
             smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
             smoothScroll.settle((float) scrollOffset, 0.5f);
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
-            // Title
-            guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
+            // Skip the header while the picker is up so it doesn't bleed through the dim
+            // layer. The footer buttons need the same treatment: vanilla batches text and
+            // flushes it late, so their labels would draw on top of the panel even though
+            // the panel is painted after them.
+            boolean overlayOpen = tagOverlay != null;
+            if (backButton != null) backButton.visible = !overlayOpen;
+            if (addButton != null) addButton.visible = !overlayOpen;
+            if (!overlayOpen) {
+                // Title
+                guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
 
-            // Subtitle
-            guiGraphics.drawCenteredString(this.font, tags.size() + " tags", this.width / 2, 25, 0x999999);
+                // Subtitle
+                guiGraphics.drawCenteredString(this.font, tags.size() + " tags", this.width / 2, 25, 0x999999);
 
-            // Separator
-            guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+                // Separator
+                guiGraphics.fill(30, LIST_TOP - 4, this.width - 30, LIST_TOP - 3, 0xFF555555);
+            }
 
             int listBottom = this.height - 40;
             int contentLeft = 40;
@@ -1651,11 +1713,11 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            syncOverlayState();
             if (tagOverlay != null) {
-                if (tagOverlay.mouseClicked(mouseX, mouseY))
-                    return true;
-                tagOverlay = null;
-                return true;
+                boolean consumed = tagOverlay.mouseClicked(mouseX, mouseY);
+                syncOverlayState();
+                return consumed || clearOverlay();
             }
 
             if (super.mouseClicked(mouseX, mouseY, button))
@@ -1722,6 +1784,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+            syncOverlayState();
             if (tagOverlay != null)
                 return tagOverlay.mouseScrolled(mouseX, mouseY, delta);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
@@ -1730,12 +1793,12 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            syncOverlayState();
             if (tagOverlay != null) {
-                if (keyCode == 256) {
-                    tagOverlay = null;
-                    return true;
-                }
-                return tagOverlay.keyPressed(keyCode);
+                if (keyCode == 256) return clearOverlay();
+                boolean consumed = tagOverlay.keyPressed(keyCode);
+                syncOverlayState();
+                return consumed;
             }
             if (keyCode == 256) {
                 saveAndClose();
@@ -1746,6 +1809,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean charTyped(char c, int modifiers) {
+            syncOverlayState();
             if (tagOverlay != null)
                 return tagOverlay.charTyped(c);
             return super.charTyped(c, modifiers);
@@ -2179,6 +2243,8 @@ public class ConfigEditorScreen extends Screen {
         private final ConfigEntry entry;
         private final List<BoosterRow> rows = new ArrayList<>();
         private SearchableItemList itemOverlay;
+        private net.minecraft.client.gui.components.Button backButton;
+        private net.minecraft.client.gui.components.Button addButton;
         private double scrollOffset = 0;
         /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
         private final Anim smoothScroll = new Anim();
@@ -2237,17 +2303,35 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         protected void init() {
-            this.addRenderableWidget(StyledButton.of(
+            backButton = StyledButton.of(
                     Component.translatable("editor.historystages.back"),
-                    btn -> saveAndClose(), 10, this.height - 30, 60, 20));
+                    btn -> saveAndClose(), 10, this.height - 30, 60, 20);
+            this.addRenderableWidget(backButton);
 
-            this.addRenderableWidget(StyledButton.of(
+            addButton = StyledButton.of(
                     Component.translatable("editor.historystages.add"),
                     btn -> openPicker(),
-                    this.width / 2 - 50, this.height - 30, 100, 20));
+                    this.width / 2 - 50, this.height - 30, 100, 20);
+            this.addRenderableWidget(addButton);
 
             rebuildEditBoxes();
             updateMaxScroll();
+        }
+
+        /**
+         * Drops the picker reference once it has hidden itself. Clicking outside the panel
+         * makes the list hide and still report the click as consumed, so without this the
+         * screen would keep a non-null but invisible overlay — leaving the dim layer up and
+         * the header hidden for good.
+         */
+        private void syncOverlayState() {
+            if (itemOverlay != null && !itemOverlay.isVisible()) itemOverlay = null;
+        }
+
+        /** Closes the picker and reports the click as consumed. */
+        private boolean clearOverlay() {
+            itemOverlay = null;
+            return true;
         }
 
         /**
@@ -2356,10 +2440,17 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+            syncOverlayState();
             smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
             smoothScroll.settle((float) scrollOffset, 0.5f);
             guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
             boolean overlayOpen = itemOverlay != null;
+            // Skip the title/subtitle/separators while the picker is up so they don't bleed
+            // through the dim layer above the picker panel. The footer buttons need the same
+            // treatment: vanilla batches text and flushes it late, so their labels would draw
+            // on top of the panel even though the panel is painted after them.
+            if (backButton != null) backButton.visible = !overlayOpen;
+            if (addButton != null) addButton.visible = !overlayOpen;
             if (!overlayOpen) {
                 guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, 0xFFFFFF);
                 guiGraphics.drawCenteredString(this.font, rows.size() + " boosters", this.width / 2, 25, 0x999999);
@@ -2453,10 +2544,11 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            syncOverlayState();
             if (itemOverlay != null) {
-                if (itemOverlay.mouseClicked(mouseX, mouseY)) return true;
-                itemOverlay = null;
-                return true;
+                boolean consumed = itemOverlay.mouseClicked(mouseX, mouseY);
+                syncOverlayState();
+                return consumed || clearOverlay();
             }
 
             int listBottom = this.height - 40;
@@ -2518,6 +2610,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+            syncOverlayState();
             if (itemOverlay != null) return itemOverlay.mouseScrolled(mouseX, mouseY, delta);
             scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - delta * 16));
             return true;
@@ -2525,9 +2618,12 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            syncOverlayState();
             if (itemOverlay != null) {
-                if (keyCode == 256) { itemOverlay = null; return true; }
-                return itemOverlay.keyPressed(keyCode);
+                if (keyCode == 256) return clearOverlay();
+                boolean consumed = itemOverlay.keyPressed(keyCode);
+                syncOverlayState();
+                return consumed;
             }
             if (keyCode == 256) { saveAndClose(); return true; }
             return super.keyPressed(keyCode, scanCode, modifiers);
@@ -2535,6 +2631,7 @@ public class ConfigEditorScreen extends Screen {
 
         @Override
         public boolean charTyped(char c, int modifiers) {
+            syncOverlayState();
             if (itemOverlay != null) return itemOverlay.charTyped(c);
             return super.charTyped(c, modifiers);
         }
