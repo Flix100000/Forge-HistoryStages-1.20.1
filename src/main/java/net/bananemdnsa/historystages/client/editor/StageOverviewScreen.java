@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.dialog.CreditsScreen;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
@@ -114,6 +115,11 @@ public class StageOverviewScreen extends Screen {
                 Component.translatable("editor.historystages.depgraph.button"),
                 btn -> this.minecraft.setScreen(new DependencyGraphScreen(this)),
                 this.width - 110, 5, 75, 20));
+
+        this.addRenderableWidget(StyledButton.of(
+                Component.translatable("editor.historystages.menu.credits"),
+                btn -> this.minecraft.setScreen(new CreditsScreen(this)),
+                this.width - 175, 5, 60, 20));
 
         contextMenu = new ContextMenu();
         applyFilter();
