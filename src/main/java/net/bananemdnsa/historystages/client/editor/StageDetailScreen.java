@@ -5,11 +5,12 @@ import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntitySelectionPopup;
-import net.bananemdnsa.historystages.client.editor.widget.popup.ModStructureSelectionPopup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntrySelectionPopup;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableModList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
@@ -100,6 +101,8 @@ public class StageDetailScreen extends Screen {
     private final List<String> editStructures;
     private final List<String> editStructureModLinked;
     private final List<StructureGenerationRule> editStructureGenerationRules;
+    private final List<String> editBiomes;
+    private final List<String> editBiomeModLinked;
     private final List<String> editAttacklock;
     private final List<String> editInteractionlock;
     private final Map<String, List<String>> editInteractionlockActions;
@@ -128,10 +131,12 @@ public class StageDetailScreen extends Screen {
     private SearchableTagList tagSearch;
     private SearchableDimensionList dimensionSearch;
     private SearchableStructureList structureSearch;
+    private SearchableBiomeList biomeSearch;
     private SearchableRecipeList recipeSearch;
     private ContextMenu contextMenu;
     private ModEntitySelectionPopup modEntityPopup;
-    private ModStructureSelectionPopup modStructurePopup;
+    private ModEntrySelectionPopup modStructurePopup;
+    private ModEntrySelectionPopup modBiomePopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup dimFilterPopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup interactionActionsPopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionItemsPopup interactionItemsPopup;
@@ -252,7 +257,8 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tab.attack",
             "editor.historystages.tab.spawn",
             "editor.historystages.tab.interaction",
-            "editor.historystages.tab.structures"
+            "editor.historystages.tab.structures",
+            "editor.historystages.tab.biomes"
     };
 
     // Tooltip descriptions for tabs
@@ -266,7 +272,8 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tooltip.attack",
             "editor.historystages.tooltip.spawn",
             "editor.historystages.tooltip.interaction",
-            "editor.historystages.tooltip.structures"
+            "editor.historystages.tooltip.structures",
+            "editor.historystages.tooltip.biomes"
     };
 
     // Tab layout (computed in init)
@@ -385,6 +392,8 @@ public class StageDetailScreen extends Screen {
         this.editStructures = new ArrayList<>(e.getStructures());
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
         this.editStructureGenerationRules = new ArrayList<>(e.getStructureGenerationRules());
+        this.editBiomes = new ArrayList<>(e.getBiomes());
+        this.editBiomeModLinked = new ArrayList<>(e.getBiomeModLinked());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
         this.editInteractionlock = new ArrayList<>();
         this.editInteractionlockActions = new HashMap<>();
@@ -562,7 +571,10 @@ public class StageDetailScreen extends Screen {
 
         modExceptionSearch = createModExceptionSearch();
 
-        modStructurePopup = new ModStructureSelectionPopup(selectedIds -> {
+        modStructurePopup = new ModEntrySelectionPopup(
+                Component.translatable("editor.historystages.popup.kind.structures"),
+                net.bananemdnsa.historystages.client.ClientStructureRegistry::get,
+                selectedIds -> {
             // In edit mode, drop the previous mod-linked structures for this mod first so
             // unchecked rows are actually removed.
             if (editingModId != null) {
@@ -578,6 +590,30 @@ public class StageDetailScreen extends Screen {
                     editStructures.add(id);
                 if (!editStructureModLinked.contains(id))
                     editStructureModLinked.add(id);
+            }
+            if (!selectedIds.isEmpty())
+                hasChanges = true;
+            updateMaxScroll();
+            showModBiomePopup();
+        });
+
+        modBiomePopup = new ModEntrySelectionPopup(
+                Component.translatable("editor.historystages.popup.kind.biomes"),
+                StageDetailScreen::allKnownBiomeIds,
+                selectedIds -> {
+            if (editingModId != null) {
+                String prefix = editingModId + ":";
+                boolean removedAny = editBiomes.removeIf(
+                        id -> id.startsWith(prefix) && editBiomeModLinked.contains(id));
+                boolean removedLink = editBiomeModLinked.removeIf(id -> id.startsWith(prefix));
+                if (removedAny || removedLink)
+                    hasChanges = true;
+            }
+            for (String id : selectedIds) {
+                if (!editBiomes.contains(id))
+                    editBiomes.add(id);
+                if (!editBiomeModLinked.contains(id))
+                    editBiomeModLinked.add(id);
             }
             if (!selectedIds.isEmpty())
                 hasChanges = true;
@@ -646,18 +682,10 @@ public class StageDetailScreen extends Screen {
             if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty() || !interactionlockIds.isEmpty())
                 hasChanges = true;
             updateMaxScroll();
-            if (pendingModId != null)
-                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2,
-                        editStructures);
-            else
-                editingModId = null;
+            showModStructurePopup();
         }, () -> {
             // Skip pressed: leave entity locks untouched, but still chain to structure popup
-            if (pendingModId != null)
-                modStructurePopup.showForMod(pendingModId, pendingModDisplayName, this.width / 2, this.height / 2,
-                        editStructures);
-            else
-                editingModId = null;
+            showModStructurePopup();
         });
 
         interactionActionsPopup = new net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup((entityId, blocked) -> {
@@ -720,8 +748,7 @@ public class StageDetailScreen extends Screen {
             if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
                     editAttacklock, editInteractionlock)) {
                 // No entities — go straight to structure popup
-                modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
-                        editStructures);
+                showModStructurePopup();
             }
         }, () -> editMods);
 
@@ -757,6 +784,14 @@ public class StageDetailScreen extends Screen {
         }, () -> editStructures);
         structureSearch.setMultiSelect(true);
 
+        biomeSearch = new SearchableBiomeList(biomeId -> {
+            if (!editBiomes.contains(biomeId))
+                editBiomes.add(biomeId);
+            hasChanges = true;
+            updateMaxScroll();
+        }, () -> editBiomes, true);
+        biomeSearch.setMultiSelect(true);
+
         recipeSearch = new SearchableRecipeList(recipeId -> {
             showRecipePreview(recipeId, () -> {
                 if (!editRecipes.contains(recipeId))
@@ -776,17 +811,58 @@ public class StageDetailScreen extends Screen {
         updateMaxScroll();
     }
 
+    /**
+     * Second step of the mod-lock chain (entities → structures → biomes). Skips straight to the
+     * biome step when the mod contributes no structures.
+     *
+     * @return false when neither this step nor the biome step had anything to show
+     */
+    private boolean showModStructurePopup() {
+        if (pendingModId == null) {
+            editingModId = null;
+            return false;
+        }
+        if (modStructurePopup.showForMod(pendingModId, pendingModDisplayName,
+                this.width / 2, this.height / 2, editStructures)) {
+            return true;
+        }
+        return showModBiomePopup();
+    }
+
+    /** Final step of the mod-lock chain. Clears the edit marker when there is nothing to show. */
+    private boolean showModBiomePopup() {
+        if (pendingModId != null && modBiomePopup.showForMod(pendingModId, pendingModDisplayName,
+                this.width / 2, this.height / 2, editBiomes)) {
+            return true;
+        }
+        editingModId = null;
+        return false;
+    }
+
+    /** All biome IDs from the client's (datapack-driven) registry; empty outside a world. */
+    private static Collection<String> allKnownBiomeIds() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return List.of();
+        List<String> ids = new ArrayList<>();
+        for (net.minecraft.resources.ResourceLocation key : mc.level.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.BIOME).keySet()) {
+            ids.add(key.toString());
+        }
+        return ids;
+    }
+
     private boolean isAnyOverlayVisible() {
         return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
                 || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
+                || biomeSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
                 || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
-                || modEntityPopup.isVisible() || modStructurePopup.isVisible();
+                || modEntityPopup.isVisible() || modStructurePopup.isVisible() || modBiomePopup.isVisible();
     }
 
     /** The generation rule stored for a structure entry, or null while it generates unrestricted. */
@@ -990,6 +1066,7 @@ public class StageDetailScreen extends Screen {
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
             case 9 -> editStructures;
+            case 10 -> editBiomes;
             default -> new ArrayList<>();
         };
     }
@@ -1205,6 +1282,7 @@ public class StageDetailScreen extends Screen {
                                 case 6 -> StageManager.getDualPhaseAttacklock();
                                 case 8 -> StageManager.getDualPhaseInteractionlock();
                                 case 9 -> StageManager.getDualPhaseStructures();
+                                case 10 -> StageManager.getDualPhaseBiomes();
                                 default -> null;
                             }
                             : switch (activeTab) {
@@ -1215,6 +1293,7 @@ public class StageDetailScreen extends Screen {
                                 case 6 -> StageManager.getDualPhaseAttacklockInd();
                                 case 8 -> StageManager.getDualPhaseInteractionlockInd();
                                 case 9 -> StageManager.getDualPhaseStructuresInd();
+                                case 10 -> StageManager.getDualPhaseBiomesInd();
                                 default -> null;
                             };
                     if (dualMap != null) {
@@ -1378,7 +1457,8 @@ public class StageDetailScreen extends Screen {
 
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
-                        || (activeTab == 9 && editStructureModLinked.contains(list.get(i)))) {
+                        || (activeTab == 9 && editStructureModLinked.contains(list.get(i)))
+                        || (activeTab == 10 && editBiomeModLinked.contains(list.get(i)))) {
                     String badge = "\u00A77[mod]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
@@ -1577,6 +1657,7 @@ public class StageDetailScreen extends Screen {
         tagSearch.render(guiGraphics, this.font, mouseX, mouseY);
         dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        biomeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         // Lifted above the popups it can be opened from, so it never gets drawn under their content.
         guiGraphics.pose().pushPose();
@@ -1585,6 +1666,7 @@ public class StageDetailScreen extends Screen {
         guiGraphics.pose().popPose();
         modEntityPopup.render(guiGraphics, this.font, mouseX, mouseY);
         modStructurePopup.render(guiGraphics, this.font, mouseX, mouseY);
+        modBiomePopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (recipePopupVisible)
             renderRecipePopup(guiGraphics, mouseX, mouseY);
         if (lockActionsPopupVisible)
@@ -2775,6 +2857,9 @@ public class StageDetailScreen extends Screen {
         if (modStructurePopup.isVisible()) {
             return modStructurePopup.mouseClicked(mouseX, mouseY);
         }
+        if (modBiomePopup.isVisible()) {
+            return modBiomePopup.mouseClicked(mouseX, mouseY);
+        }
         if (lockActionsPopupVisible) {
             return handleLockActionsPopupClick(mouseX, mouseY, button);
         }
@@ -2867,6 +2952,10 @@ public class StageDetailScreen extends Screen {
         }
         if (structureSearch.isVisible()) {
             if (structureSearch.mouseClicked(mouseX, mouseY))
+                return true;
+        }
+        if (biomeSearch.isVisible()) {
+            if (biomeSearch.mouseClicked(mouseX, mouseY))
                 return true;
         }
         if (recipeSearch.isVisible()) {
@@ -3034,20 +3123,15 @@ public class StageDetailScreen extends Screen {
                                     boolean entityShown = modEntityPopup.showForMod(pendingModId,
                                             pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
                                             editAttacklock, editInteractionlock);
-                                    if (!entityShown) {
-                                        boolean structShown = modStructurePopup.showForMod(pendingModId,
-                                                pendingModDisplayName, this.width / 2, this.height / 2,
-                                                editStructures);
-                                        if (!structShown) {
-                                            // Nothing to edit for this mod — surface the reason instead of
-                                            // silently doing nothing.
-                                            net.minecraft.client.gui.Gui gui = Minecraft.getInstance().gui;
-                                            if (gui != null)
-                                                gui.getChat().addMessage(Component.translatable(
-                                                        "editor.historystages.edit.nothing_to_edit",
-                                                        pendingModDisplayName));
-                                            editingModId = null;
-                                        }
+                                    if (!entityShown && !showModStructurePopup()) {
+                                        // Nothing to edit for this mod — surface the reason instead of
+                                        // silently doing nothing.
+                                        net.minecraft.client.gui.Gui gui = Minecraft.getInstance().gui;
+                                        if (gui != null)
+                                            gui.getChat().addMessage(Component.translatable(
+                                                    "editor.historystages.edit.nothing_to_edit",
+                                                    pendingModDisplayName));
+                                        editingModId = null;
                                     }
                                 });
                     }
@@ -3139,6 +3223,8 @@ public class StageDetailScreen extends Screen {
                             editStructures.removeIf(id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
                             editStructureModLinked.removeIf(id -> id.startsWith(prefix));
                             editStructureGenerationRules.removeIf(r -> r.id().startsWith(prefix));
+                            editBiomes.removeIf(id -> id.startsWith(prefix) && editBiomeModLinked.contains(id));
+                            editBiomeModLinked.removeIf(id -> id.startsWith(prefix));
                             // Remove mod exceptions belonging to this mod
                             for (int j = editModExceptions.size() - 1; j >= 0; j--) {
                                 if (editModExceptions.get(j).startsWith(prefix)) {
@@ -3198,6 +3284,9 @@ public class StageDetailScreen extends Screen {
         } else if (activeTab == 9) {
             structureSearch.setFilter("");
             structureSearch.show(this.width / 2, this.height / 2, cw);
+        } else if (activeTab == 10) {
+            biomeSearch.setFilter("");
+            biomeSearch.show(this.width / 2, this.height / 2, cw);
         }
     }
 
@@ -3366,6 +3455,8 @@ public class StageDetailScreen extends Screen {
             return true;
         if (structureSearch.isVisible() && structureSearch.mouseDragged(mouseX, mouseY))
             return true;
+        if (biomeSearch.isVisible() && biomeSearch.mouseDragged(mouseX, mouseY))
+            return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseDragged(mouseX, mouseY))
@@ -3373,6 +3464,8 @@ public class StageDetailScreen extends Screen {
         if (filterTagSearch.isVisible() && filterTagSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseDragged(mouseX, mouseY))
+            return true;
+        if (modBiomePopup.isVisible() && modBiomePopup.mouseDragged(mouseX, mouseY))
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
             return true;
@@ -3386,6 +3479,8 @@ public class StageDetailScreen extends Screen {
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseReleased())
+            return true;
+        if (modBiomePopup.isVisible() && modBiomePopup.mouseReleased())
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseReleased())
             return true;
@@ -3404,6 +3499,8 @@ public class StageDetailScreen extends Screen {
         if (dimensionSearch.isVisible() && dimensionSearch.mouseReleased())
             return true;
         if (structureSearch.isVisible() && structureSearch.mouseReleased())
+            return true;
+        if (biomeSearch.isVisible() && biomeSearch.mouseReleased())
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
             return true;
@@ -3459,6 +3556,8 @@ public class StageDetailScreen extends Screen {
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseScrolled(mouseX, mouseY, delta))
             return true;
+        if (modBiomePopup.isVisible() && modBiomePopup.mouseScrolled(mouseX, mouseY, delta))
+            return true;
         if (recipePopupVisible) {
             recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
             return true;
@@ -3478,6 +3577,8 @@ public class StageDetailScreen extends Screen {
         if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (structureSearch.isVisible() && structureSearch.mouseScrolled(mouseX, mouseY, delta))
+            return true;
+        if (biomeSearch.isVisible() && biomeSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, delta))
             return true;
@@ -3510,6 +3611,8 @@ public class StageDetailScreen extends Screen {
         if (modEntityPopup.isVisible() && modEntityPopup.keyPressed(keyCode))
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.keyPressed(keyCode))
+            return true;
+        if (modBiomePopup.isVisible() && modBiomePopup.keyPressed(keyCode))
             return true;
         if (generationLimitPopup.isVisible() && generationLimitPopup.keyPressed(keyCode))
             return true;
@@ -3545,6 +3648,8 @@ public class StageDetailScreen extends Screen {
         if (dimensionSearch.isVisible() && dimensionSearch.keyPressed(keyCode))
             return true;
         if (structureSearch.isVisible() && structureSearch.keyPressed(keyCode))
+            return true;
+        if (biomeSearch.isVisible() && biomeSearch.keyPressed(keyCode))
             return true;
         if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode))
             return true;
@@ -3592,6 +3697,8 @@ public class StageDetailScreen extends Screen {
         if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c))
             return true;
         if (structureSearch.isVisible() && structureSearch.charTyped(c))
+            return true;
+        if (biomeSearch.isVisible() && biomeSearch.charTyped(c))
             return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c))
             return true;
@@ -3859,6 +3966,8 @@ public class StageDetailScreen extends Screen {
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
         newEntry.setStructureGenerationRules(editStructureGenerationRules);
+        newEntry.setBiomes(editBiomes);
+        newEntry.setBiomeModLinked(editBiomeModLinked);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
         List<net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry> interactionlockEntries = new ArrayList<>();

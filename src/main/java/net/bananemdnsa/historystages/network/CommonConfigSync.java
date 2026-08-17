@@ -107,6 +107,22 @@ public final class CommonConfigSync {
         bool("structureBlockLeftClick", Config.COMMON.structureBlockLeftClick);
         bool("structureBlockProjectiles", Config.COMMON.structureBlockProjectiles);
 
+        // biome_lock
+        integer("biomeCheckInterval", Config.COMMON.biomeCheckInterval);
+        bool("biomeEffectsEnabled", Config.COMMON.biomeEffectsEnabled);
+        list("biomeEffects", Config.COMMON.biomeEffects, ";",
+                net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry::rebuildFromConfig);
+        bool("biomeClearEffectsOnLeave", Config.COMMON.biomeClearEffectsOnLeave);
+        bool("biomeMessageEnabled", Config.COMMON.biomeMessageEnabled);
+        str("biomeLockMessageFormat", Config.COMMON.biomeLockMessageFormat);
+        bool("biomeLockInChat", Config.COMMON.biomeLockInChat);
+        bool("biomeDamageEnabled", Config.COMMON.biomeDamageEnabled);
+        dbl("biomeDamageAmount", Config.COMMON.biomeDamageAmount);
+        integer("biomeDamageInterval", Config.COMMON.biomeDamageInterval);
+        bool("biomeBlockRightClick", Config.COMMON.biomeBlockRightClick);
+        bool("biomeBlockLeftClick", Config.COMMON.biomeBlockLeftClick);
+        bool("biomeBlockProjectiles", Config.COMMON.biomeBlockProjectiles);
+
         // lock_messages
         str("msgDimensionUnknown", Config.COMMON.msgDimensionUnknown);
         str("msgMobUnknown", Config.COMMON.msgMobUnknown);

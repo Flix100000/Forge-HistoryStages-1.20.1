@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data;
 
+import net.bananemdnsa.historystages.data.lock.BiomeLocks;
+import net.bananemdnsa.historystages.data.lock.BiomeLocksAdapter;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntryListAdapter;
@@ -68,6 +70,9 @@ public class StageEntry {
     @JsonAdapter(StructureLocksAdapter.class)
     private StructureLocks structures;
 
+    @JsonAdapter(BiomeLocksAdapter.class)
+    private BiomeLocks biomes;
+
     private EntityLocks entities;
     private List<DependencyGroup> dependencies;
 
@@ -87,6 +92,7 @@ public class StageEntry {
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
         this.structures = new StructureLocks();
+        this.biomes = new BiomeLocks();
         this.entities = new EntityLocks();
     }
 
@@ -254,6 +260,14 @@ public class StageEntry {
         return structures != null ? structures.getGenerationRules() : new ArrayList<>();
     }
 
+    public List<String> getBiomes() {
+        return biomes != null ? biomes.getBiomes() : new ArrayList<>();
+    }
+
+    public List<String> getBiomeModLinked() {
+        return biomes != null ? biomes.getModLinked() : new ArrayList<>();
+    }
+
     public EntityLocks getEntities() {
         return entities != null ? entities : new EntityLocks();
     }
@@ -397,6 +411,16 @@ public class StageEntry {
         this.structures.setGenerationRules(rules);
     }
 
+    public void setBiomes(List<String> biomes) {
+        if (this.biomes == null) this.biomes = new BiomeLocks();
+        this.biomes.setBiomes(biomes);
+    }
+
+    public void setBiomeModLinked(List<String> modLinked) {
+        if (this.biomes == null) this.biomes = new BiomeLocks();
+        this.biomes.setModLinked(modLinked);
+    }
+
     public void setEntities(EntityLocks entities) {
         this.entities = entities != null ? entities : new EntityLocks();
     }
@@ -421,6 +445,8 @@ public class StageEntry {
         copy.setStructures(getStructures());
         copy.setStructureModLinked(getStructureModLinked());
         copy.setStructureGenerationRules(getStructureGenerationRules());
+        copy.setBiomes(getBiomes());
+        copy.setBiomeModLinked(getBiomeModLinked());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
         locksCopy.setInteractionlock(getEntities().getInteractionlock());

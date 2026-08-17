@@ -56,6 +56,7 @@ public class ToggleStageLockPacket {
             // tracked player to recompute on the next tick so the force-field /
             // screen overlay appear immediately when a stage gets locked again.
             net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
+            net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 

@@ -128,7 +128,7 @@ public class DebugLogger {
 
             // Count totals across all stages
             int totalItems = 0, totalTags = 0, totalMods = 0, totalModExceptions = 0;
-            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0;
+            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0, totalBiomes = 0;
             int totalAttacklock = 0, totalSpawnlock = 0;
             for (StageEntry entry : stages.values()) {
                 totalItems += entry.getItemEntries().size();
@@ -138,6 +138,7 @@ public class DebugLogger {
                 totalRecipes += entry.getRecipes().size();
                 totalDimensions += entry.getDimensions().size();
                 totalStructures += entry.getStructures().size();
+                totalBiomes += entry.getBiomes().size();
                 totalAttacklock += entry.getEntities().getAttacklock().size();
                 totalSpawnlock += entry.getEntities().getSpawnlock().size();
             }
@@ -161,7 +162,7 @@ public class DebugLogger {
                 pw.println();
                 pw.println("  Total entries across global stages:");
                 pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods + "  |  Mod Exceptions: " + totalModExceptions);
-                pw.println("    Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions + "  |  Structures: " + totalStructures);
+                pw.println("    Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions + "  |  Structures: " + totalStructures + "  |  Biomes: " + totalBiomes);
                 pw.println("    Entities (attacklock): " + totalAttacklock + "  |  Entities (spawnlock): " + totalSpawnlock);
                 pw.println();
 
@@ -257,6 +258,8 @@ public class DebugLogger {
         EntityLocks ent = s.getEntities();
         List<String> structures = s.getStructures();
         List<String> structureModLinked = s.getStructureModLinked();
+        List<String> biomes = s.getBiomes();
+        List<String> biomeModLinked = s.getBiomeModLinked();
         List<String> modExceptions = s.getAllModExceptionIds();
         List<String> attacklock = ent.getAttacklock();
         List<String> spawnlock = ent.getSpawnlockIds();
@@ -264,7 +267,7 @@ public class DebugLogger {
 
         int entryCount = s.getItemEntries().size() + s.getTagEntries().size() + s.getModEntries().size()
                 + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
-                + structures.size() + attacklock.size() + spawnlock.size();
+                + structures.size() + biomes.size() + attacklock.size() + spawnlock.size();
 
         pw.println("--- " + id + " (" + s.getDisplayName() + ") "
                 + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
@@ -291,6 +294,10 @@ public class DebugLogger {
                             + (rule.resetOnRelock() ? ", reset" : "") + "]");
                 }
             }
+        }
+        if (!biomes.isEmpty()) {
+            printList(pw, "Biomes", biomes);
+            if (!biomeModLinked.isEmpty()) printList(pw, "  Biomes (mod-linked)", biomeModLinked);
         }
         if (!attacklock.isEmpty()) {
             printList(pw, "Entities — Attacklock", attacklock);

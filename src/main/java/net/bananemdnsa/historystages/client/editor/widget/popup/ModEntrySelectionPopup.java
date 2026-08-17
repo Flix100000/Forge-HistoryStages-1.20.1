@@ -1,24 +1,31 @@
 package net.bananemdnsa.historystages.client.editor.widget.popup;
 
-import net.bananemdnsa.historystages.client.ClientStructureRegistry;
+import net.bananemdnsa.historystages.client.editor.anim.Anim;
+import net.bananemdnsa.historystages.client.editor.anim.Ease;
+import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
- * Popup that shows all structures from a specific mod with checkboxes.
- * Appears after the entity-selection popup when adding a mod in the editor.
- * Mirrors the layout of ModEntitySelectionPopup.
+ * Popup that lists every entry of one mod with checkboxes, used by the mod-lock flow in the
+ * editor to ask which of that mod's structures / biomes should be locked along with it.
+ *
+ * <p>The entry kind is supplied by the caller: a title and a source of all known IDs. Both the
+ * structure and the biome step are instances of this class.
  */
-public class ModStructureSelectionPopup {
+public class ModEntrySelectionPopup {
     private static final int ROW_HEIGHT = 18;
     private static final int VISIBLE_ROWS = 8;
     private static final int PADDING = 8;
@@ -27,13 +34,14 @@ public class ModStructureSelectionPopup {
     private static final int HEADER_HEIGHT = 38;
     private static final int FOOTER_HEIGHT = 30;
 
-    private static final long MARQUEE_DELAY_MS = 800;
-    private static final float MARQUEE_SPEED = 25.0f;
+    private static final long MARQUEE_DELAY_MS = Timing.MARQUEE_DELAY_MS;
+    private static final float MARQUEE_SPEED = Timing.MARQUEE_SPEED;
 
-    private record StructureRow(String id, boolean selected) {
-    }
+    private record EntryRow(String id, boolean selected) {}
 
-    private final List<StructureRow> structures = new ArrayList<>();
+    private final List<EntryRow> entries = new ArrayList<>();
+    private final Component kindLabel;
+    private final Supplier<Collection<String>> idSupplier;
     private final Consumer<List<String>> onConfirm;
 
     private int panelX, panelY, panelW, panelH;
@@ -44,53 +52,56 @@ public class ModStructureSelectionPopup {
     private String modDisplayName = "";
     private boolean allSelected = false;
 
-    private float confirmHoverProgress = 0;
-    private float skipHoverProgress = 0;
+    private final Anim confirmHoverProgress = new Anim();
+    private final Anim skipHoverProgress = new Anim();
 
-    private final Map<String, Float> checkboxHoverProgress = new HashMap<>();
+    private final Map<String, Anim> checkboxHoverProgress = new HashMap<>();
 
     private int hoveredRowIndex = -1;
     private long rowHoverStartTime = 0;
 
-    public ModStructureSelectionPopup(Consumer<List<String>> onConfirm) {
+    /**
+     * @param kindLabel  shown after the mod name in the header, e.g. "Structures"
+     * @param idSupplier all known IDs of that kind; filtered by mod namespace on show
+     */
+    public ModEntrySelectionPopup(Component kindLabel, Supplier<Collection<String>> idSupplier,
+                                  Consumer<List<String>> onConfirm) {
+        this.kindLabel = kindLabel;
+        this.idSupplier = idSupplier;
         this.onConfirm = onConfirm;
     }
 
     /**
-     * Returns false if this mod has no known structures (caller should skip showing
-     * it).
+     * Returns false if this mod has no known entries of this kind (caller should skip showing it).
      */
     public boolean showForMod(String modId, String modDisplayName, int centerX, int centerY,
-            List<String> initialStructures) {
+            List<String> initialSelected) {
         this.modDisplayName = modDisplayName;
-        structures.clear();
+        entries.clear();
         checkboxHoverProgress.clear();
-        confirmHoverProgress = 0;
-        skipHoverProgress = 0;
+        confirmHoverProgress.set(0.0f);
+        skipHoverProgress.set(0.0f);
         hoveredRowIndex = -1;
         allSelected = false;
 
         String prefix = modId + ":";
-        for (String id : ClientStructureRegistry.get()) {
+        for (String id : idSupplier.get()) {
             if (id.startsWith(prefix)) {
-                structures.add(new StructureRow(id, initialStructures != null && initialStructures.contains(id)));
+                entries.add(new EntryRow(id, initialSelected != null && initialSelected.contains(id)));
             }
         }
 
-        if (structures.isEmpty())
-            return false;
+        if (entries.isEmpty()) return false;
 
-        structures.sort((a, b) -> a.id.compareToIgnoreCase(b.id));
+        entries.sort((a, b) -> a.id.compareToIgnoreCase(b.id));
 
-        int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
+        int visibleRows = Math.min(VISIBLE_ROWS, entries.size());
         panelW = PANEL_WIDTH;
         panelH = HEADER_HEIGHT + PADDING + visibleRows * ROW_HEIGHT + PADDING + FOOTER_HEIGHT;
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
-        if (panelX < 4)
-            panelX = 4;
-        if (panelY < 4)
-            panelY = 4;
+        if (panelX < 4) panelX = 4;
+        if (panelY < 4) panelY = 4;
 
         this.visible = true;
         this.scrollRow = 0;
@@ -98,17 +109,12 @@ public class ModStructureSelectionPopup {
         return true;
     }
 
-    public void hide() {
-        this.visible = false;
-    }
-
-    public boolean isVisible() {
-        return visible;
-    }
+    public void hide() { this.visible = false; }
+    public boolean isVisible() { return visible; }
 
     private void updateMaxScroll() {
-        int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
-        maxScrollRow = Math.max(0, structures.size() - visibleRows);
+        int visibleRows = Math.min(VISIBLE_ROWS, entries.size());
+        maxScrollRow = Math.max(0, entries.size() - visibleRows);
     }
 
     private int getCbX() {
@@ -116,10 +122,9 @@ public class ModStructureSelectionPopup {
     }
 
     public void render(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY) {
-        if (!visible)
-            return;
+        if (!visible) return;
 
-        int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
+        int visibleRows = Math.min(VISIBLE_ROWS, entries.size());
 
         // Dimmed background
         guiGraphics.fill(0, 0, guiGraphics.guiWidth(), guiGraphics.guiHeight(), 0x88000000);
@@ -129,14 +134,14 @@ public class ModStructureSelectionPopup {
         guiGraphics.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
 
         // Header: title on the left, "Add" label above the checkbox column
-        String title = modDisplayName + " - Structures";
+        String title = modDisplayName + " - " + kindLabel.getString();
         if (font.width(title) > panelW - PADDING * 2 - 60) {
             title = font.plainSubstrByWidth(title, panelW - PADDING * 2 - 66) + "...";
         }
         guiGraphics.drawString(font, title, panelX + PADDING, panelY + 7, 0xFFFFFF, false);
 
         int cbX = getCbX();
-        String addLabel = "Add";
+        String addLabel = Component.translatable("editor.historystages.popup.add").getString();
         int addLabelX = cbX + (CHECKBOX_SIZE - font.width(addLabel)) / 2;
         guiGraphics.drawString(font, addLabel, addLabelX, panelY + 7, 0x999999, false);
 
@@ -152,20 +157,18 @@ public class ModStructureSelectionPopup {
 
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
-            if (index >= structures.size())
-                break;
+            if (index >= entries.size()) break;
             int rowY = listY + i * ROW_HEIGHT;
-            StructureRow row = structures.get(index);
+            EntryRow row = entries.get(index);
 
             boolean rowHovered = mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (rowHovered)
-                currentHoveredRow = index;
+            if (rowHovered) currentHoveredRow = index;
 
             guiGraphics.fill(listX, rowY, listX + listW, rowY + ROW_HEIGHT,
                     rowHovered ? 0xFF353535 : 0xFF252525);
 
-            // Structure ID with marquee
+            // Entry ID with marquee
             int textStartX = listX + 4;
             int textAvailW = cbX - textStartX - 8;
             String text = row.id;
@@ -230,22 +233,21 @@ public class ModStructureSelectionPopup {
         boolean skipHovered = mouseX >= skipX && mouseX < skipX + btnW
                 && mouseY >= footerY + 5 && mouseY < footerY + 5 + btnH;
 
-        confirmHoverProgress = confirmHovered
-                ? Math.min(1.0f, confirmHoverProgress + 0.1f)
-                : Math.max(0.0f, confirmHoverProgress - 0.08f);
-        skipHoverProgress = skipHovered
-                ? Math.min(1.0f, skipHoverProgress + 0.1f)
-                : Math.max(0.0f, skipHoverProgress - 0.08f);
+        float confirmHoverProgressValue = Ease.outCubic(confirmHoverProgress.ramp(confirmHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        float skipHoverProgressValue = Ease.outCubic(skipHoverProgress.ramp(skipHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
 
-        renderStyledButton(guiGraphics, font, "Confirm", confirmX, footerY + 5, btnW, btnH, confirmHoverProgress);
-        renderStyledButton(guiGraphics, font, "Skip", skipX, footerY + 5, btnW, btnH, skipHoverProgress);
+        renderStyledButton(guiGraphics, font,
+                Component.translatable("editor.historystages.popup.confirm").getString(),
+                confirmX, footerY + 5, btnW, btnH, confirmHoverProgressValue);
+        renderStyledButton(guiGraphics, font,
+                Component.translatable("editor.historystages.popup.skip").getString(),
+                skipX, footerY + 5, btnW, btnH, skipHoverProgressValue);
     }
 
     private void renderCheckbox(GuiGraphics g, int x, int y, boolean checked, int mx, int my, String hoverKey) {
         boolean hovered = mx >= x && mx < x + CHECKBOX_SIZE && my >= y && my < y + CHECKBOX_SIZE;
-        float hp = checkboxHoverProgress.getOrDefault(hoverKey, 0f);
-        hp = hovered ? Math.min(1.0f, hp + 0.1f) : Math.max(0.0f, hp - 0.08f);
-        checkboxHoverProgress.put(hoverKey, hp);
+        float hp = Ease.outCubic(checkboxHoverProgress.computeIfAbsent(hoverKey, k -> new Anim())
+                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
         float progress = checked ? 1.0f : hp;
 
         int bgAlpha = (int) (0x30 + progress * 0x20);
@@ -286,15 +288,14 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY) {
-        if (!visible)
-            return false;
+        if (!visible) return false;
 
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
             return true;
         }
 
-        int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
+        int visibleRows = Math.min(VISIBLE_ROWS, entries.size());
         int footerY = panelY + panelH - FOOTER_HEIGHT;
         int btnW = 80;
         int btnH = 20;
@@ -305,9 +306,8 @@ public class ModStructureSelectionPopup {
         if (mouseY >= footerY + 5 && mouseY < footerY + 5 + btnH) {
             if (mouseX >= confirmX && mouseX < confirmX + btnW) {
                 List<String> selected = new ArrayList<>();
-                for (StructureRow row : structures) {
-                    if (row.selected)
-                        selected.add(row.id);
+                for (EntryRow row : entries) {
+                    if (row.selected) selected.add(row.id);
                 }
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -344,8 +344,8 @@ public class ModStructureSelectionPopup {
             Minecraft.getInstance().getSoundManager()
                     .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             allSelected = !allSelected;
-            for (int idx = 0; idx < structures.size(); idx++) {
-                structures.set(idx, new StructureRow(structures.get(idx).id, allSelected));
+            for (int idx = 0; idx < entries.size(); idx++) {
+                entries.set(idx, new EntryRow(entries.get(idx).id, allSelected));
             }
             return true;
         }
@@ -356,14 +356,13 @@ public class ModStructureSelectionPopup {
         int listW = panelW - PADDING * 2 - 8;
         for (int i = 0; i < visibleRows; i++) {
             int index = scrollRow + i;
-            if (index >= structures.size())
-                break;
+            if (index >= entries.size()) break;
             int rowY = listY + i * ROW_HEIGHT;
             if (mouseX >= listX && mouseX < listX + listW && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                StructureRow row = structures.get(index);
-                structures.set(index, new StructureRow(row.id, !row.selected));
+                EntryRow row = entries.get(index);
+                entries.set(index, new EntryRow(row.id, !row.selected));
                 allSelected = false;
                 return true;
             }
@@ -373,23 +372,18 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean mouseDragged(double mouseX, double mouseY) {
-        if (!visible || !draggingScrollbar)
-            return false;
+        if (!visible || !draggingScrollbar) return false;
         updateScrollFromMouse(mouseY);
         return true;
     }
 
     public boolean mouseReleased() {
-        if (draggingScrollbar) {
-            draggingScrollbar = false;
-            return true;
-        }
+        if (draggingScrollbar) { draggingScrollbar = false; return true; }
         return false;
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (!visible)
-            return false;
+        if (!visible) return false;
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow, scrollRow - (int) delta));
             return true;
@@ -398,17 +392,13 @@ public class ModStructureSelectionPopup {
     }
 
     public boolean keyPressed(int keyCode) {
-        if (!visible)
-            return false;
-        if (keyCode == 256) {
-            hide();
-            return true;
-        } // ESC
+        if (!visible) return false;
+        if (keyCode == 256) { hide(); return true; } // ESC
         return false;
     }
 
     private void updateScrollFromMouse(double mouseY) {
-        int visibleRows = Math.min(VISIBLE_ROWS, structures.size());
+        int visibleRows = Math.min(VISIBLE_ROWS, entries.size());
         int listY = panelY + HEADER_HEIGHT + PADDING;
         int listH = visibleRows * ROW_HEIGHT;
         int totalRows = maxScrollRow + visibleRows;

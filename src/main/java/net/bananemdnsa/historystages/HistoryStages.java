@@ -111,6 +111,8 @@ public class HistoryStages {
         if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
             net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
                     Config.COMMON.researchBoosters.get());
+            net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
+                    Config.COMMON.biomeEffects.get());
         }
     }
 
@@ -118,6 +120,8 @@ public class HistoryStages {
         if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
             net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
                     Config.COMMON.researchBoosters.get());
+            net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
+                    Config.COMMON.biomeEffects.get());
         }
     }
 

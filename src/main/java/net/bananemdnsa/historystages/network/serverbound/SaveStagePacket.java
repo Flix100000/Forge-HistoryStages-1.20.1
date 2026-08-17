@@ -77,6 +77,7 @@ public class SaveStagePacket {
                 // structure-lock per-player cache so borders + screen overlay
                 // reflect the change on the next server tick.
                 net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
+                net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
                 net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
                 PacketHandler.sendDefinitionsToAll(new SyncStageDefinitionsPacket(StageManager.getStages()));
                 PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));

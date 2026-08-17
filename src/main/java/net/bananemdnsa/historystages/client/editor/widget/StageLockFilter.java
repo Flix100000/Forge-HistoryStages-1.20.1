@@ -79,4 +79,10 @@ public final class StageLockFilter {
         Set<String> locked = new HashSet<>(entry.getStructures());
         return id -> id != null && locked.contains(id);
     }
+
+    /** Biome-id predicate: direct lookups; tags (id starts with "#") are matched too. */
+    public static Predicate<String> forBiomes(StageEntry entry) {
+        Set<String> locked = new HashSet<>(entry.getBiomes());
+        return id -> id != null && locked.contains(id);
+    }
 }
