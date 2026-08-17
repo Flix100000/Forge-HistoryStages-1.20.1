@@ -80,6 +80,7 @@ public final class CommonConfigSync {
 
         // individual_stages
         bool("individualLockItemPickup", Config.COMMON.individualLockItemPickup);
+        bool("individualLockLoot", Config.COMMON.individualLockLoot);
         bool("individualDropOnRevoke", Config.COMMON.individualDropOnRevoke);
         bool("individualLockBlockBreaking", Config.COMMON.individualLockBlockBreaking);
         dbl("individualLockedBlockBreakSpeedMultiplier", Config.COMMON.individualLockedBlockBreakSpeedMultiplier);

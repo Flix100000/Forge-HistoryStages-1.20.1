@@ -18,6 +18,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = "historystages", bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class LootLockHandler {
@@ -35,13 +36,17 @@ public class LootLockHandler {
         // Prüfen, ob es ein Lootr-Container ist (Klassennamen-Check)
         if (!container.getClass().getName().toLowerCase().contains("lootr")) return;
 
+        // Lootr hands every player their own copy of the loot, so the container being opened
+        // belongs to this player alone and may be stripped against their individual stages.
+        UUID playerUuid = event.getEntity().getUUID();
+
         boolean changed = false;
         int replacedCount = 0;
         for (int i = 0; i < container.getContainerSize(); i++) {
             ItemStack stack = container.getItem(i);
             if (stack.isEmpty()) continue;
 
-            if (StageLockHelper.isActionLockedForServer(stack, "loot")) {
+            if (isLootLocked(stack, playerUuid)) {
                 if (Config.COMMON.useReplacements.get()) {
                     container.setItem(i, getReplacement(stack.getCount()));
                 } else {
@@ -57,6 +62,12 @@ public class LootLockHandler {
                     "Replaced " + replacedCount + " locked item(s) in Lootr container [action: loot]");
             event.getContainer().broadcastChanges();
         }
+    }
+
+    private static boolean isLootLocked(ItemStack stack, UUID playerUuid) {
+        if (StageLockHelper.isActionLockedForServer(stack, "loot")) return true;
+        return Config.COMMON.individualLockLoot.get()
+                && StageLockHelper.isActionLockedByIndividualStage(stack, playerUuid, "loot");
     }
 
     private static ItemStack getReplacement(int count) {

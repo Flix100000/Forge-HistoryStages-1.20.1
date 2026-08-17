@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -19,6 +20,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class MobLootLockHandler {
@@ -37,6 +39,11 @@ public class MobLootLockHandler {
             StageData.get(event.getEntity().level());
         }
 
+        // Mob drops are a single set of world items shared by everyone, so there is no per-player
+        // view to strip. The killing player is the closest stand-in: their individual stages decide.
+        // Without a player killer (fall damage, mob-on-mob, …) only global stages apply.
+        UUID killerUuid = event.getSource().getEntity() instanceof Player player ? player.getUUID() : null;
+
         Collection<ItemEntity> drops = event.getDrops();
         int replacedCount = 0;
 
@@ -44,7 +51,7 @@ public class MobLootLockHandler {
             ItemStack stack = itemEntity.getItem();
             if (stack.isEmpty()) continue;
 
-            if (StageLockHelper.isActionLockedForServer(stack, "loot")) {
+            if (isLootLocked(stack, killerUuid)) {
                 if (Config.COMMON.useReplacements.get()) {
                     itemEntity.setItem(getReplacement(stack.getCount()));
                 } else {
@@ -62,6 +69,13 @@ public class MobLootLockHandler {
             DebugLogger.runtimeThrottled("Mob Loot Lock", "mobloot_" + entityType,
                     "Replaced " + replacedCount + " locked drop(s) from '" + entityType + "' [action: loot]");
         }
+    }
+
+    private static boolean isLootLocked(ItemStack stack, UUID killerUuid) {
+        if (StageLockHelper.isActionLockedForServer(stack, "loot")) return true;
+        return killerUuid != null
+                && Config.COMMON.individualLockLoot.get()
+                && StageLockHelper.isActionLockedByIndividualStage(stack, killerUuid, "loot");
     }
 
     private static ItemStack getReplacement(int count) {

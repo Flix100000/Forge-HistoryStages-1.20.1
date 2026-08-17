@@ -229,6 +229,7 @@ public class Config {
 
         // Individual Stages - Gameplay
         public final ForgeConfigSpec.BooleanValue individualLockItemPickup;
+        public final ForgeConfigSpec.BooleanValue individualLockLoot;
         public final ForgeConfigSpec.BooleanValue individualDropOnRevoke;
         public final ForgeConfigSpec.BooleanValue individualLockBlockBreaking;
         public final ForgeConfigSpec.DoubleValue individualLockedBlockBreakSpeedMultiplier;
@@ -404,6 +405,10 @@ public class Config {
             individualLockItemPickup = builder
                     .comment("Prevent players from picking up items locked by individual stages? [Default: true]")
                     .define("lockItemPickup", true);
+
+            individualLockLoot = builder
+                    .comment("Handle items locked by individual stages in Lootr containers and mob loot? Lootr containers are checked against the player opening them; mob drops are shared world items, so they are checked against the killing player. [Default: true]")
+                    .define("lockLoot", true);
 
             individualDropOnRevoke = builder
                     .comment("Drop locked items from a player's inventory when their individual stage is revoked? [Default: true]")
