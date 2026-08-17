@@ -19,6 +19,7 @@ public class SaveStagePacket {
     private final String stageJson;
     private final boolean individual;
     private final boolean duplicate;
+    private final String folder;
 
     public SaveStagePacket(String stageId, StageEntry entry) {
         this(stageId, entry, false, false);
@@ -29,15 +30,26 @@ public class SaveStagePacket {
     }
 
     public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
-        this(stageId, entry.toCompactJson(), individual, duplicate);
+        this(stageId, entry.toCompactJson(), individual, duplicate, "");
+    }
+
+    /** {@code folder} is the folder the editor was standing in; it only applies to a new stage. */
+    public SaveStagePacket(String stageId, StageEntry entry, boolean individual, boolean duplicate, String folder) {
+        this(stageId, entry.toCompactJson(), individual, duplicate, folder == null ? "" : folder);
     }
 
     /** {@code stageJson} must already be the compact form — see {@link StageEntry#toCompactJson()}. */
     public SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate) {
+        this(stageId, stageJson, individual, duplicate, "");
+    }
+
+    /** {@code stageJson} must already be the compact form — see {@link StageEntry#toCompactJson()}. */
+    public SaveStagePacket(String stageId, String stageJson, boolean individual, boolean duplicate, String folder) {
         this.stageId = stageId;
         this.stageJson = stageJson;
         this.individual = individual;
         this.duplicate = duplicate;
+        this.folder = folder == null ? "" : folder;
     }
 
     public static void encode(SaveStagePacket msg, FriendlyByteBuf buffer) {
@@ -45,6 +57,7 @@ public class SaveStagePacket {
         buffer.writeUtf(msg.stageJson, StageJsonLimits.MAX_STAGE_JSON);
         buffer.writeBoolean(msg.individual);
         buffer.writeBoolean(msg.duplicate);
+        buffer.writeUtf(msg.folder);
     }
 
     public static SaveStagePacket decode(FriendlyByteBuf buffer) {
@@ -52,7 +65,8 @@ public class SaveStagePacket {
         String stageJson = buffer.readUtf(StageJsonLimits.MAX_STAGE_JSON);
         boolean individual = buffer.readBoolean();
         boolean duplicate = buffer.readBoolean();
-        return new SaveStagePacket(stageId, stageJson, individual, duplicate);
+        String folder = buffer.readUtf();
+        return new SaveStagePacket(stageId, stageJson, individual, duplicate, folder);
     }
 
     public static void handle(SaveStagePacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -63,11 +77,21 @@ public class SaveStagePacket {
             StageEntry entry = GSON.fromJson(msg.stageJson, StageEntry.class);
             if (entry == null) return;
 
+            if (!net.bananemdnsa.historystages.data.StagePaths.isValid(msg.folder)) {
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.error(
+                                "editor.historystages.toast.stage_save_failed.title",
+                                "editor.historystages.toast.stage_save_failed.message",
+                                msg.stageId),
+                        player);
+                return;
+            }
+
             boolean success;
             if (msg.individual) {
-                success = StageManager.saveIndividualStage(msg.stageId, entry);
+                success = StageManager.saveIndividualStage(msg.stageId, entry, msg.folder);
             } else {
-                success = StageManager.saveStage(msg.stageId, entry);
+                success = StageManager.saveStage(msg.stageId, entry, msg.folder);
             }
 
             if (success) {

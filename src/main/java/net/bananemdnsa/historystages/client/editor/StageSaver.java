@@ -18,7 +18,8 @@ public final class StageSaver {
     private StageSaver() {}
 
     /** Returns false when the stage was too large and a toast was shown instead of saving. */
-    public static boolean send(String stageId, StageEntry entry, boolean individual, boolean duplicate) {
+    public static boolean send(String stageId, StageEntry entry, boolean individual,
+                               boolean duplicate, String folder) {
         String json = entry.toCompactJson();
         if (!StageJsonLimits.fitsSavePacket(json)) {
             EditorToastHandler.show(EditorToast.Level.ERROR,
@@ -26,7 +27,8 @@ public final class StageSaver {
                     Component.translatable("editor.historystages.toast.stage_too_large.message", stageId));
             return false;
         }
-        PacketHandler.sendToServer(new SaveStagePacket(stageId, json, individual, duplicate));
+        PacketHandler.sendToServer(new SaveStagePacket(stageId, json, individual, duplicate,
+                folder == null ? "" : folder));
         return true;
     }
 }

@@ -294,6 +294,11 @@ public class StageDetailScreen extends Screen {
     private static final int FIELD_HEIGHT = 18;
 
     private final boolean isIndividual;
+    /**
+     * Folder a brand-new stage is written to, {@code ""} for the tree root. Ignored by the
+     * server for a stage that already exists — that one keeps the folder it lives in.
+     */
+    private final String targetFolder;
 
     // Tabs that are disabled for individual stages (Recipes=4, Spawnlock=7)
     private boolean isTabDisabled(int tab) {
@@ -304,17 +309,23 @@ public class StageDetailScreen extends Screen {
         this(parent, stageId, entry, isIndividual, "");
     }
 
+    public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual,
+                             String targetFolder) {
+        this(parent, stageId, entry, isIndividual, targetFolder, "");
+    }
+
     /**
      * @param initialDisplayName display name the creation dialog already collected, {@code ""}
      *                           when none was given. Only consulted for a stage that has no
      *                           entry yet — an existing entry brings its own name.
      */
     public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual,
-                             String initialDisplayName) {
+                             String targetFolder, String initialDisplayName) {
         super(Component.translatable("editor.historystages.detail_title"));
         this.parent = parent;
         this.originalStageId = stageId;
         this.isIndividual = isIndividual;
+        this.targetFolder = targetFolder == null ? "" : targetFolder;
         this.isNewStage = (stageId == null
                 || (!StageManager.getStages().containsKey(stageId)
                         && !StageManager.getIndividualStages().containsKey(stageId)));
@@ -4005,7 +4016,7 @@ public class StageDetailScreen extends Screen {
         saveError = "";
 
         // Keep the edits pending when the stage is too large, so nothing is lost on a failed save.
-        if (StageSaver.send(id, buildEntrySnapshot(), isIndividual, false)) {
+        if (StageSaver.send(id, buildEntrySnapshot(), isIndividual, false, targetFolder)) {
             hasChanges = false;
         }
     }

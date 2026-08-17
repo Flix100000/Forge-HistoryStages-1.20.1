@@ -94,6 +94,23 @@ public abstract class AbstractModalScreen extends Screen {
         return 280;
     }
 
+    /**
+     * The headline drawn at the top of the dialog. Defaults to the title passed to the
+     * constructor; override when a dialog changes what it is doing while open, since
+     * {@code Screen.title} is final and cannot be swapped.
+     */
+    protected Component titleText() {
+        return this.title;
+    }
+
+    /**
+     * Whether the headline is centred. Override to {@code false} when the title row also
+     * carries controls, so the title keeps to the left edge instead of running into them.
+     */
+    protected boolean titleCentered() {
+        return true;
+    }
+
     /** Optional grey line under the title. Null or empty hides it (and reclaims its height). */
     protected Component subtitle() {
         return null;
@@ -219,7 +236,11 @@ public abstract class AbstractModalScreen extends Screen {
         g.fill(boxX, boxY, boxX + boxW, boxY + boxH, Fade.alpha(FRAME_INNER, t));
         g.fill(boxX, boxY, boxX + boxW, boxY + 2, Fade.alpha(ACCENT_GOLD, t));
 
-        g.drawCenteredString(this.font, this.title, boxX + boxW / 2, boxY + 8, TITLE_GOLD);
+        if (titleCentered()) {
+            g.drawCenteredString(this.font, titleText(), boxX + boxW / 2, boxY + 8, TITLE_GOLD);
+        } else {
+            g.drawString(this.font, titleText(), boxX + PAD, boxY + 8, TITLE_GOLD, false);
+        }
 
         if (hasSubtitle()) {
             g.drawCenteredString(this.font, subtitle(), boxX + boxW / 2, boxY + TITLE_H, SUBTITLE_GREY);
