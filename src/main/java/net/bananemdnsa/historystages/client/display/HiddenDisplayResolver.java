@@ -26,6 +26,10 @@ import java.util.Map;
  * specifically — explicit item entry (3) &gt; tag (2) &gt; mod (1) — with ties broken on
  * stage iteration order. A per-item REPLACE override only applies when that axis won via
  * an explicit item entry.</p>
+ *
+ * <p>Lock hints are resolved independently of name and tooltip: any matching locked stage
+ * that disables them wins, so a stage can suppress the hints while leaving the item's own
+ * name and tooltip untouched.</p>
  */
 public final class HiddenDisplayResolver {
 
@@ -88,6 +92,8 @@ public final class HiddenDisplayResolver {
                 }
             }
 
+            if (!cfg.isShowLockHints()) showLockHints = false;
+
             // Strict > keeps the first stage on ties (iteration order).
             if (cfg.getNameMode() != DisplayMode.OFF && score > bestNameScore) {
                 bestNameScore = score;
@@ -98,11 +104,10 @@ public final class HiddenDisplayResolver {
                 bestTooltipScore = score;
                 tooltipMode = cfg.getTooltipMode();
                 tooltipText = resolveText(cfg.getTooltipText(), holder.getTooltipTextOverride());
-                showLockHints = cfg.isShowLockHints();
             }
         }
 
-        if (nameMode == DisplayMode.OFF && tooltipMode == DisplayMode.OFF) return Resolved.NONE;
+        if (nameMode == DisplayMode.OFF && tooltipMode == DisplayMode.OFF && showLockHints) return Resolved.NONE;
         return new Resolved(nameMode, nameText, tooltipMode, tooltipText, showLockHints);
     }
 
