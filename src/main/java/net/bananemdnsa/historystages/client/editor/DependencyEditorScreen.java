@@ -43,6 +43,10 @@ import java.util.stream.Collectors;
 public class DependencyEditorScreen extends Screen {
     private final Screen parent;
     private final List<DependencyGroup> groups;
+    /** Kept so the label + enabled state can follow the group count at runtime. */
+    private StyledButton addGroupButton;
+    /** Last applied limit state, so the button is only rewritten when it flips. */
+    private boolean addGroupButtonLimited;
     private final boolean isIndividual;
     private final Consumer<List<DependencyGroup>> onSave;
     private final String currentStageId;
@@ -189,15 +193,20 @@ public class DependencyEditorScreen extends Screen {
                 btn -> confirmDiscard(), 10, this.height - 25, 50, 18));
 
         // Add Group button
-        this.addRenderableWidget(StyledButton.of(
+        addGroupButton = this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.dep.add_group"),
                 btn -> {
+                    if (atGroupLimit()) return;
                     groups.add(new DependencyGroup());
                     selectedGroup = groups.size() - 1;
                     activeTab = 0;
                     scrollOffset = 0;
                     hasChanges = true;
                 }, 10, this.height - 50, LEFT_PANEL_W - 20, 16));
+        // The fresh button is enabled and carries the add label, so the cache starts unlimited;
+        // without this reset a re-init while capped would leave a stale enabled button.
+        addGroupButtonLimited = false;
+        updateAddGroupButton();
 
         // Searchable widgets. Already-added suppliers map the dependency-wrapper
         // lists (DependencyItem/EntityKillDep/etc.) back to plain string IDs so
@@ -448,6 +457,25 @@ public class DependencyEditorScreen extends Screen {
         }
     }
 
+    private boolean atGroupLimit() {
+        return groups.size() >= DependencyGroup.MAX_GROUPS;
+    }
+
+    /**
+     * Swaps the Add-Group button to an inert "limit reached" state once the cap is hit.
+     * Runs every frame, so it only touches the button when the state actually flips.
+     */
+    private void updateAddGroupButton() {
+        if (addGroupButton == null) return;
+        boolean limited = atGroupLimit();
+        if (limited == addGroupButtonLimited) return;
+        addGroupButtonLimited = limited;
+        addGroupButton.active = !limited;
+        addGroupButton.setMessage(limited
+                ? Component.translatable("editor.historystages.dep.group_limit", DependencyGroup.MAX_GROUPS)
+                : Component.translatable("editor.historystages.dep.add_group"));
+    }
+
     private void drawSmallText(GuiGraphics g, String text, int x, int y, int color) {
         g.pose().pushPose();
         g.pose().translate(x, y, 0);
@@ -464,6 +492,9 @@ public class DependencyEditorScreen extends Screen {
 
         smoothScroll.approach((float) scrollOffset, Timing.SCROLL_HALF_LIFE_MS);
         smoothScroll.settle((float) scrollOffset, 0.5f);
+
+        // Groups can be added or removed between frames, so the cap is re-checked here.
+        updateAddGroupButton();
 
         String currentTooltipKey = null;
         String currentTooltipText = null;
@@ -495,14 +526,17 @@ public class DependencyEditorScreen extends Screen {
                     0x888888);
         }
 
-        // Unsaved indicator (pulsing dot like StageDetailScreen)
+        // Unsaved indicator (pulsing dot), right-aligned against the Save button like StageDetailScreen
         if (hasChanges) {
             float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
                     / Timing.BREATHE_PERIOD_MS;
             int dotAlpha = (int) ((0.35f + 0.45f * Ease.breathe(phase)) * 255);
-            int dotX = this.width / 2 - 45;
-            g.fill(dotX, this.height - 12, dotX + 6, this.height - 6, (dotAlpha << 24) | 0xFFCC00);
-            drawSmallText(g, t("editor.historystages.unsaved"), dotX + 9, this.height - 12, 0xFFCC00);
+            int dotX = this.width - 60 - 8 - 6;
+            String unsavedLabel = t("editor.historystages.unsaved");
+            int unsavedW = (int) (this.font.width(unsavedLabel) * SMALL_SCALE);
+            g.fill(dotX - unsavedW - 4, this.height - 18, dotX - unsavedW + 2, this.height - 12,
+                    (dotAlpha << 24) | 0xFFCC00);
+            drawSmallText(g, unsavedLabel, dotX - unsavedW + 5, this.height - 18, 0xFFCC00);
         }
 
         super.render(g, mouseX, mouseY, partialTick);
@@ -1320,6 +1354,7 @@ public class DependencyEditorScreen extends Screen {
                             hasChanges = true;
                         });
                         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
+                            if (atGroupLimit()) return;
                             groups.add(gi + 1, groups.get(gi).copy());
                             hasChanges = true;
                         });

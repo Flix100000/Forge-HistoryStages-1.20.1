@@ -8,6 +8,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class DependencyGroup {
+
+    /**
+     * Maximum number of dependency groups recognised per stage. Enforced by the editor
+     * and when loading stage JSON — surplus groups from hand-written files are dropped
+     * with a warning rather than silently evaluated.
+     */
+    public static final int MAX_GROUPS = 5;
+
     private String logic; // "AND" or "OR"
 
     private List<DependencyItem> items;

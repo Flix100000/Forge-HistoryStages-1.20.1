@@ -293,6 +293,7 @@
   "editor.historystages.dep.no_groups": "No groups. Click '+ Group' to add one.",
   "editor.historystages.dep.group": "Group %d",
   "editor.historystages.dep.add_group": "+ Group",
+  "editor.historystages.dep.group_limit": "Max. %s groups",
   "editor.historystages.dep.add": "+ Add",
   "editor.historystages.dep.set_xp_level": "+ Set XP Level",
   "editor.historystages.dep.required_xp": "Required XP Level:",

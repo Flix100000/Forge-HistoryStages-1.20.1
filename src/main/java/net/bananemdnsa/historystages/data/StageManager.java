@@ -229,6 +229,25 @@ public class StageManager {
         return false;
     }
 
+    /**
+     * Drops dependency groups beyond {@link DependencyGroup#MAX_GROUPS}. Hand-written JSON can
+     * declare any number; only the first {@code MAX_GROUPS} are evaluated, so the surplus is
+     * removed here instead of silently taking effect.
+     */
+    private static void trimDependencyGroups(String stageId, StageEntry entry) {
+        List<DependencyGroup> deps = entry.getDependencies();
+        if (deps.size() <= DependencyGroup.MAX_GROUPS) return;
+
+        int dropped = deps.size() - DependencyGroup.MAX_GROUPS;
+        entry.setDependencies(new ArrayList<>(deps.subList(0, DependencyGroup.MAX_GROUPS)));
+
+        String msg = "Stage '" + stageId + "' declares " + deps.size() + " dependency groups, "
+                + "but only " + DependencyGroup.MAX_GROUPS + " are supported. Dropped the last "
+                + dropped + ".";
+        addMessage(MessageLevel.WARN, msg);
+        DebugLogger.warn("Dependency Groups", msg);
+    }
+
     private static void validateFileName(String id, String fileName) {
         if (!id.equals(id.toLowerCase())) {
             addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
@@ -315,6 +334,8 @@ public class StageManager {
             DebugLogger.warn("Invalid Icon", "Stage '" + stageId + "' has an invalid icon ResourceLocation: '" + entry.getIcon() + "'. It will be ignored.");
             entry.setIcon(null);
         }
+
+        trimDependencyGroups(stageId, entry);
 
         // --- Empty strings & duplicates helper ---
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
@@ -1346,6 +1367,8 @@ public class StageManager {
             DebugLogger.error("Individual Stage Loading", msg);
             return;
         }
+
+        trimDependencyGroups(stageId, entry);
 
         // Reuse global validation (empty strings, duplicates, format checks)
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
