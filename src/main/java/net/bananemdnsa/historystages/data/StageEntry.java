@@ -423,6 +423,7 @@ public class StageEntry {
         copy.setStructureGenerationRules(getStructureGenerationRules());
         EntityLocks locksCopy = new EntityLocks();
         locksCopy.setAttacklock(getEntities().getAttacklock());
+        locksCopy.setInteractionlock(getEntities().getInteractionlock());
         locksCopy.setSpawnlock(getEntities().getSpawnlock());
         locksCopy.setModLinked(getEntities().getModLinked());
         copy.setEntities(locksCopy);

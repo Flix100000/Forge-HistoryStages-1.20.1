@@ -9,11 +9,14 @@ public class EntityLocks {
     @JsonAdapter(EntitySpawnLockEntryListAdapter.class)
     private List<EntitySpawnLockEntry> spawnlock;
     private List<String> attacklock;
+    @JsonAdapter(EntityInteractionLockEntryListAdapter.class)
+    private List<EntityInteractionLockEntry> interactionlock;
     private List<String> modLinked;
 
     public EntityLocks() {
         this.spawnlock = new ArrayList<>();
         this.attacklock = new ArrayList<>();
+        this.interactionlock = new ArrayList<>();
         this.modLinked = new ArrayList<>();
     }
 
@@ -23,6 +26,17 @@ public class EntityLocks {
 
     public List<String> getAttacklock() {
         return attacklock != null ? attacklock : new ArrayList<>();
+    }
+
+    public List<EntityInteractionLockEntry> getInteractionlock() {
+        return interactionlock != null ? interactionlock : new ArrayList<>();
+    }
+
+    /** Convenience: returns just the entity IDs in interactionlock (without action detail). */
+    public List<String> getInteractionlockIds() {
+        List<String> ids = new ArrayList<>(getInteractionlock().size());
+        for (EntityInteractionLockEntry e : getInteractionlock()) ids.add(e.getId());
+        return ids;
     }
 
     public List<String> getModLinked() {
@@ -41,6 +55,16 @@ public class EntityLocks {
 
     public void setAttacklock(List<String> attacklock) {
         this.attacklock = attacklock != null ? new ArrayList<>(attacklock) : new ArrayList<>();
+    }
+
+    public void setInteractionlock(List<EntityInteractionLockEntry> interactionlock) {
+        if (interactionlock == null) {
+            this.interactionlock = new ArrayList<>();
+            return;
+        }
+        List<EntityInteractionLockEntry> copy = new ArrayList<>(interactionlock.size());
+        for (EntityInteractionLockEntry e : interactionlock) copy.add(e.copy());
+        this.interactionlock = copy;
     }
 
     public void setModLinked(List<String> modLinked) {

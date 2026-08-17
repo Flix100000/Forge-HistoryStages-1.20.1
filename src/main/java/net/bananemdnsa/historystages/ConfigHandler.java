@@ -93,6 +93,9 @@ public class ConfigHandler {
         JsonArray attacklock = new JsonArray();
         attacklock.add("minecraft:zombie");
         entities.add("attacklock", attacklock);
+        JsonArray interactionlock = new JsonArray();
+        interactionlock.add("minecraft:villager");
+        entities.add("interactionlock", interactionlock);
         JsonArray spawnlock = new JsonArray();
         spawnlock.add("minecraft:skeleton");
         entities.add("spawnlock", spawnlock);

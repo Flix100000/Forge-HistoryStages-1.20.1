@@ -101,6 +101,8 @@ public class StageDetailScreen extends Screen {
     private final List<String> editStructureModLinked;
     private final List<StructureGenerationRule> editStructureGenerationRules;
     private final List<String> editAttacklock;
+    private final List<String> editInteractionlock;
+    private final Map<String, List<String>> editInteractionlockActions;
     private final List<String> editSpawnlock;
     private final Map<String, List<String>> editSpawnlockSources;
     private final Map<String, List<String>> editSpawnlockDimensions;
@@ -130,6 +132,7 @@ public class StageDetailScreen extends Screen {
     private ModEntitySelectionPopup modEntityPopup;
     private ModStructureSelectionPopup modStructurePopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup dimFilterPopup;
+    private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup interactionActionsPopup;
     private GenerationLimitPopup generationLimitPopup;
     private String pendingModId = null;
     private String pendingModDisplayName = null;
@@ -242,6 +245,7 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tab.dimensions",
             "editor.historystages.tab.attack",
             "editor.historystages.tab.spawn",
+            "editor.historystages.tab.interaction",
             "editor.historystages.tab.structures"
     };
 
@@ -255,6 +259,7 @@ public class StageDetailScreen extends Screen {
             "editor.historystages.tooltip.dimensions",
             "editor.historystages.tooltip.attack",
             "editor.historystages.tooltip.spawn",
+            "editor.historystages.tooltip.interaction",
             "editor.historystages.tooltip.structures"
     };
 
@@ -375,6 +380,14 @@ public class StageDetailScreen extends Screen {
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
         this.editStructureGenerationRules = new ArrayList<>(e.getStructureGenerationRules());
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
+        this.editInteractionlock = new ArrayList<>();
+        this.editInteractionlockActions = new HashMap<>();
+        for (net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry ie : e.getEntities().getInteractionlock()) {
+            this.editInteractionlock.add(ie.getId());
+            if (ie.hasLockActions()) {
+                this.editInteractionlockActions.put(ie.getId(), new ArrayList<>(ie.getLockActions()));
+            }
+        }
         this.editSpawnlock = new ArrayList<>();
         this.editSpawnlockSources = new HashMap<>();
         this.editSpawnlockDimensions = new HashMap<>();
@@ -571,7 +584,7 @@ public class StageDetailScreen extends Screen {
 
         generationLimitPopup = new GenerationLimitPopup(this::applyGenerationRule);
 
-        modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds) -> {
+        modEntityPopup = new ModEntitySelectionPopup((spawnlockIds, attacklockIds, interactionlockIds) -> {
             // In edit mode, drop the previous mod-linked entity locks for this mod first
             // so unchecked rows are actually removed.
             if (editingModId != null) {
@@ -587,8 +600,16 @@ public class StageDetailScreen extends Screen {
                         });
                 boolean removedAttack = editAttacklock
                         .removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                boolean removedInteract = editInteractionlock
+                        .removeIf(id -> {
+                            if (id.startsWith(prefix) && editModLinked.contains(id)) {
+                                editInteractionlockActions.remove(id);
+                                return true;
+                            }
+                            return false;
+                        });
                 boolean removedLink = editModLinked.removeIf(id -> id.startsWith(prefix));
-                if (removedSpawn || removedAttack || removedLink)
+                if (removedSpawn || removedAttack || removedInteract || removedLink)
                     hasChanges = true;
             }
             for (String id : spawnlockIds) {
@@ -603,7 +624,13 @@ public class StageDetailScreen extends Screen {
                 if (!editModLinked.contains(id))
                     editModLinked.add(id);
             }
-            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty())
+            for (String id : interactionlockIds) {
+                if (!editInteractionlock.contains(id))
+                    editInteractionlock.add(id);
+                if (!editModLinked.contains(id))
+                    editModLinked.add(id);
+            }
+            if (!spawnlockIds.isEmpty() || !attacklockIds.isEmpty() || !interactionlockIds.isEmpty())
                 hasChanges = true;
             updateMaxScroll();
             if (pendingModId != null)
@@ -620,6 +647,15 @@ public class StageDetailScreen extends Screen {
                 editingModId = null;
         });
 
+        interactionActionsPopup = new net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup((entityId, blocked) -> {
+            if (blocked.isEmpty()) {
+                editInteractionlockActions.remove(entityId);
+            } else {
+                editInteractionlockActions.put(entityId, blocked);
+            }
+            hasChanges = true;
+        });
+
         modSearch = new SearchableModList(modId -> {
             if (!editMods.contains(modId))
                 editMods.add(modId);
@@ -630,7 +666,7 @@ public class StageDetailScreen extends Screen {
             editingModId = null; // normal add — not edit mode
             // Show entity popup first; structure popup follows after confirm
             if (!modEntityPopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
-                    editAttacklock)) {
+                    editAttacklock, editInteractionlock)) {
                 // No entities — go straight to structure popup
                 modStructurePopup.showForMod(modId, pendingModDisplayName, this.width / 2, this.height / 2,
                         editStructures);
@@ -689,6 +725,7 @@ public class StageDetailScreen extends Screen {
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopupVisible
+                || interactionActionsPopup.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
                 || modEntityPopup.isVisible() || modStructurePopup.isVisible();
@@ -893,7 +930,8 @@ public class StageDetailScreen extends Screen {
             case 5 -> editDimensions;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
-            case 8 -> editStructures;
+            case 8 -> editInteractionlock;
+            case 9 -> editStructures;
             default -> new ArrayList<>();
         };
     }
@@ -1107,7 +1145,8 @@ public class StageDetailScreen extends Screen {
                                 case 2 -> StageManager.getDualPhaseMods();
                                 case 5 -> StageManager.getDualPhaseDimensions();
                                 case 6 -> StageManager.getDualPhaseAttacklock();
-                                case 8 -> StageManager.getDualPhaseStructures();
+                                case 8 -> StageManager.getDualPhaseInteractionlock();
+                                case 9 -> StageManager.getDualPhaseStructures();
                                 default -> null;
                             }
                             : switch (activeTab) {
@@ -1116,7 +1155,8 @@ public class StageDetailScreen extends Screen {
                                 case 2 -> StageManager.getDualPhaseModsInd();
                                 case 5 -> StageManager.getDualPhaseDimensionsInd();
                                 case 6 -> StageManager.getDualPhaseAttacklockInd();
-                                case 8 -> StageManager.getDualPhaseStructuresInd();
+                                case 8 -> StageManager.getDualPhaseInteractionlockInd();
+                                case 9 -> StageManager.getDualPhaseStructuresInd();
                                 default -> null;
                             };
                     if (dualMap != null) {
@@ -1142,7 +1182,7 @@ public class StageDetailScreen extends Screen {
                 }
 
                 int textOffsetX = 8;
-                boolean isEntityTab = (activeTab == 6 || activeTab == 7);
+                boolean isEntityTab = (activeTab == 6 || activeTab == 7 || activeTab == 8);
                 int renderLeft = contentLeft + slideOffsetX;
                 if (isItemsTab || isExceptionsTab) {
                     ItemStack stack = getItemStack(list.get(i));
@@ -1250,16 +1290,30 @@ public class StageDetailScreen extends Screen {
                     }
                 }
 
+                // Interaction-actions badge for interactionlock entries with a non-default action filter
+                if (activeTab == 8) {
+                    List<String> actFilter = editInteractionlockActions.get(list.get(i));
+                    int allActions = net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry.ALL_ACTIONS.size();
+                    if (actFilter != null && !actFilter.isEmpty() && actFilter.size() < allActions) {
+                        String label = Component.translatable("editor.historystages.badge.actions").getString();
+                        String actBadge = "[" + label + ": " + actFilter.size() + "/" + allActions + "]";
+                        int aBadgeW = this.font.width(actBadge) + 4;
+                        guiGraphics.drawString(this.font, actBadge, contentRight - badgeW - aBadgeW, cardY + 7,
+                                0xCCAA66, false);
+                        badgeW += aBadgeW;
+                    }
+                }
+
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
-                        || (activeTab == 8 && editStructureModLinked.contains(list.get(i)))) {
+                        || (activeTab == 9 && editStructureModLinked.contains(list.get(i)))) {
                     String badge = "\u00A77[mod]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
                 }
 
                 // Marks structure entries whose world generation is restricted
-                if (activeTab == 8) {
+                if (activeTab == 9) {
                     StructureGenerationRule genRule = generationRuleFor(list.get(i));
                     if (genRule != null) {
                         String genBadge = genRule.max() == 0
@@ -1461,6 +1515,7 @@ public class StageDetailScreen extends Screen {
             renderLockActionsPopup(guiGraphics, mouseX, mouseY);
         if (spawnSourcesPopupVisible)
             renderSpawnSourcesPopup(guiGraphics, mouseX, mouseY);
+        interactionActionsPopup.render(guiGraphics, this.font, mouseX, mouseY);
         if (overridePopupVisible)
             renderOverridePopup(guiGraphics, mouseX, mouseY);
         dimFilterPopup.render(guiGraphics, this.font, mouseX, mouseY);
@@ -2643,6 +2698,9 @@ public class StageDetailScreen extends Screen {
         if (spawnSourcesPopupVisible) {
             return handleSpawnSourcesPopupClick(mouseX, mouseY);
         }
+        if (interactionActionsPopup.isVisible()) {
+            return interactionActionsPopup.mouseClicked(mouseX, mouseY);
+        }
         if (overridePopupVisible) {
             return handleOverridePopupClick(mouseX, mouseY, button);
         }
@@ -2854,9 +2912,13 @@ public class StageDetailScreen extends Screen {
                                 () -> dimFilterPopup.show(entryValue, editSpawnlockDimensions.get(entryValue),
                                         this.width / 2, this.height / 2));
                     }
+                    if (tabIdx == 8) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.interaction_actions").getString(),
+                                () -> interactionActionsPopup.show(entryValue, editInteractionlockActions.get(entryValue)));
+                    }
                     // World generation is global and baked into the chunk, so an individual
                     // (per-player) stage has no coherent answer — no settings offered there.
-                    if (tabIdx == 8 && !isIndividual) {
+                    if (tabIdx == 9 && !isIndividual) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.generation").getString(),
                                 () -> generationLimitPopup.show(entryValue, generationRuleFor(entryValue),
                                         this.width / 2, this.height / 2));
@@ -2869,7 +2931,7 @@ public class StageDetailScreen extends Screen {
                                     editingModId = entryValue;
                                     boolean entityShown = modEntityPopup.showForMod(pendingModId,
                                             pendingModDisplayName, this.width / 2, this.height / 2, editSpawnlock,
-                                            editAttacklock);
+                                            editAttacklock, editInteractionlock);
                                     if (!entityShown) {
                                         boolean structShown = modStructurePopup.showForMod(pendingModId,
                                                 pendingModDisplayName, this.width / 2, this.height / 2,
@@ -2934,6 +2996,10 @@ public class StageDetailScreen extends Screen {
                             editSpawnlockSources.remove(removedValue);
                             editSpawnlockDimensions.remove(removedValue);
                         }
+                        // When removing an interactionlock entry, drop its action filter (keyed by entity ID)
+                        if (tabIdx == 8 && removedValue != null) {
+                            editInteractionlockActions.remove(removedValue);
+                        }
                         // When removing a mod exception, shift NBT indices
                         if (tabIdx == 3) {
                             editModExceptionNbt.remove(entryIdx);
@@ -2958,6 +3024,13 @@ public class StageDetailScreen extends Screen {
                                 return false;
                             });
                             editAttacklock.removeIf(id -> id.startsWith(prefix) && editModLinked.contains(id));
+                            editInteractionlock.removeIf(id -> {
+                                if (id.startsWith(prefix) && editModLinked.contains(id)) {
+                                    editInteractionlockActions.remove(id);
+                                    return true;
+                                }
+                                return false;
+                            });
                             editModLinked.removeIf(id -> id.startsWith(prefix));
                             editStructures.removeIf(id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
                             editStructureModLinked.removeIf(id -> id.startsWith(prefix));
@@ -3015,10 +3088,10 @@ public class StageDetailScreen extends Screen {
         } else if (activeTab == 5) {
             dimensionSearch.setFilter("");
             dimensionSearch.show(this.width / 2, this.height / 2, cw);
-        } else if (activeTab == 6 || activeTab == 7) {
+        } else if (activeTab == 6 || activeTab == 7 || activeTab == 8) {
             entitySearch.setFilter("");
             entitySearch.show(this.width / 2, this.height / 2, cw);
-        } else if (activeTab == 8) {
+        } else if (activeTab == 9) {
             structureSearch.setFilter("");
             structureSearch.show(this.width / 2, this.height / 2, cw);
         }
@@ -3234,6 +3307,8 @@ public class StageDetailScreen extends Screen {
         if (generationLimitPopup.isVisible() && generationLimitPopup.keyPressed(keyCode))
             return true;
         if (dimFilterPopup.isVisible() && dimFilterPopup.keyPressed(keyCode))
+            return true;
+        if (interactionActionsPopup.isVisible() && interactionActionsPopup.keyPressed(keyCode))
             return true;
         if (recipePopupVisible && keyCode == 256) {
             closeRecipePopup();
@@ -3566,6 +3641,12 @@ public class StageDetailScreen extends Screen {
         newEntry.setStructureGenerationRules(editStructureGenerationRules);
         EntityLocks locks = new EntityLocks();
         locks.setAttacklock(editAttacklock);
+        List<net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry> interactionlockEntries = new ArrayList<>();
+        for (String entityId : editInteractionlock) {
+            interactionlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry(
+                    entityId, editInteractionlockActions.get(entityId)));
+        }
+        locks.setInteractionlock(interactionlockEntries);
         List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
         for (String entityId : editSpawnlock) {
             spawnlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry(
