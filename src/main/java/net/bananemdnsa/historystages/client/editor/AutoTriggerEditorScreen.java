@@ -75,6 +75,8 @@ public class AutoTriggerEditorScreen extends Screen {
     private final Consumer<AutoTrigger> onChanged;
     /** Live snapshot of the parent stage's lock data, sampled per picker open. May be null. */
     private final Supplier<StageEntry> lockSnapshot;
+    /** Persists the whole stage from the parent screen. May be null. */
+    private final Runnable onPersist;
 
     // Layout
     private int listX, listY, listW, listH;
@@ -113,17 +115,25 @@ public class AutoTriggerEditorScreen extends Screen {
     private ContextMenu contextMenu = new ContextMenu();
 
     public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger, Consumer<AutoTrigger> onChanged) {
-        this(parent, trigger, onChanged, null);
+        this(parent, trigger, onChanged, null, null);
     }
 
     public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
                                    Consumer<AutoTrigger> onChanged,
                                    Supplier<StageEntry> lockSnapshot) {
+        this(parent, trigger, onChanged, lockSnapshot, null);
+    }
+
+    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
+                                   Consumer<AutoTrigger> onChanged,
+                                   Supplier<StageEntry> lockSnapshot,
+                                   Runnable onPersist) {
         super(Component.translatable("editor.historystages.auto_trigger.title"));
         this.parent = parent;
         this.trigger = trigger;
         this.onChanged = onChanged;
         this.lockSnapshot = lockSnapshot;
+        this.onPersist = onPersist;
     }
 
     @Override
@@ -170,7 +180,7 @@ public class AutoTriggerEditorScreen extends Screen {
         // Footer buttons
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
-                btn -> this.minecraft.setScreen(parent),
+                btn -> saveAndStay(),
                 this.width - 110, this.height - 25, 90, 20));
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.cancel"),
@@ -1015,6 +1025,12 @@ public class AutoTriggerEditorScreen extends Screen {
     private void notifyChanged() {
         if (onChanged != null) onChanged.accept(trigger);
         applyTriggerFilter();
+    }
+
+    /** Hands the trigger up and persists the whole stage, staying on this screen. */
+    private void saveAndStay() {
+        notifyChanged();
+        if (onPersist != null) onPersist.run();
     }
 
     @Override

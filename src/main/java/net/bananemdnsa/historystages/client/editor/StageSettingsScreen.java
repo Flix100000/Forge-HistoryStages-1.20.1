@@ -128,6 +128,11 @@ public class StageSettingsScreen extends Screen {
     /** Hover state of the two card toggles, which used to switch colour in one frame. */
     private final Anim lockHintsHover = new Anim();
     private final Anim scrollThumbHover = new Anim();
+    /**
+     * Gold wash over the button row after a successful save. Save deliberately stays on this
+     * screen, so without it the only confirmation is a toast the eye may already have left.
+     */
+    private long saveFlashAt = -1L;
     private int renderScroll = 0;
     /** Content widgets rendered manually inside the scrolled viewport (not auto-rendered). */
     private final List<AbstractWidget> contentWidgets = new ArrayList<>();
@@ -280,7 +285,7 @@ public class StageSettingsScreen extends Screen {
                                 if (autoTriggerButton != null) {
                                     autoTriggerButton.setMessage(buildAutoTriggerLabel());
                                 }
-                            }, lockSnapshot));
+                            }, lockSnapshot, this::save));
                 },
                 cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
         addContentWidget(autoTriggerButton);
@@ -597,10 +602,12 @@ public class StageSettingsScreen extends Screen {
             return;
         }
         saveError = "";
+        // The callback hands the values up and persists the stage; staying put is deliberate,
+        // so Save never yanks the user out of the screen they are working in.
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
                 editMode, editAutoTrigger, editTemporary, editHiddenDisplay);
         hasChanges = false;
-        this.minecraft.setScreen(parent);
+        saveFlashAt = System.currentTimeMillis();
     }
 
     private static String tierModeLabelKey(TierMode mode) {
@@ -802,6 +809,23 @@ public class StageSettingsScreen extends Screen {
 
         // Fixed Back/Save buttons (the only auto-rendered widgets), outside the viewport
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+
+        // Confirmation ring around Save. It swells and fades once, which is enough to be seen
+        // without competing with the unsaved indicator that just went away.
+        if (saveFlashAt >= 0) {
+            long age = System.currentTimeMillis() - saveFlashAt;
+            if (age >= Timing.FLASH_MS) {
+                saveFlashAt = -1L;
+            } else {
+                float f = Ease.pulse((float) age / Timing.FLASH_MS);
+                int bx = this.width - 60;
+                int by = this.height - 25;
+                guiGraphics.fill(bx - 2, by - 2, bx + 52, by, Fade.rgba(0xFFCC00, f));
+                guiGraphics.fill(bx - 2, by + 18, bx + 52, by + 20, Fade.rgba(0xFFCC00, f));
+                guiGraphics.fill(bx - 2, by, bx, by + 18, Fade.rgba(0xFFCC00, f));
+                guiGraphics.fill(bx + 50, by, bx + 52, by + 18, Fade.rgba(0xFFCC00, f));
+            }
+        }
 
         // Unsaved changes animation (left of Save button)
         if (hasChanges) {

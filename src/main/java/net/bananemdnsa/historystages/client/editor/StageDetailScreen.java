@@ -2968,6 +2968,7 @@ public class StageDetailScreen extends Screen {
                 editItemNbt.remove(entryIdx);
             }
             hasChanges = true;
+            saveStage();
         }));
     }
 
@@ -2980,6 +2981,7 @@ public class StageDetailScreen extends Screen {
                 editTagNbt.remove(entryIdx);
             }
             hasChanges = true;
+            saveStage();
         }));
     }
 
@@ -2992,6 +2994,7 @@ public class StageDetailScreen extends Screen {
                 editModExceptionNbt.remove(entryIdx);
             }
             hasChanges = true;
+            saveStage();
         }));
     }
 
@@ -3254,6 +3257,7 @@ public class StageDetailScreen extends Screen {
                 .setScreen(new DependencyEditorScreen(this, editDependencies, isIndividual, originalStageId, deps -> {
                     this.editDependencies = deps;
                     this.hasChanges = true;
+                    saveStage();
                 }));
     }
 
@@ -3273,6 +3277,9 @@ public class StageDetailScreen extends Screen {
                     editTemporary = newTemporary;
                     editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
                     hasChanges = true;
+                    // Saving in a sub-screen persists the whole stage, so the user never has to
+                    // come back here and press Save again.
+                    saveStage();
                 },
                 this::buildEntrySnapshot));
     }
