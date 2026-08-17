@@ -270,6 +270,7 @@ public class DebugLogger {
                 + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
         pw.println("  Research time: " + (s.getResearchTime() > 0 ? s.getResearchTime() + "s (custom)" : "global default"));
         if (s.getIcon() != null) pw.println("  Icon: " + s.getIcon());
+        if (s.isLoseOnDeath()) pw.println("  Lose on death: yes");
         pw.println("  Total entries: " + entryCount);
 
         printItemEntries(pw, "Items", s.getItemEntries());
