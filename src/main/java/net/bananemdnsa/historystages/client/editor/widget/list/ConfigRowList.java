@@ -193,7 +193,9 @@ public class ConfigRowList {
                 guiGraphics.drawString(font, entry.value, controlX, y + 8,
                         entry.inherited ? INHERITED_TEXT & 0xFFFFFF : 0xDDDDDD, false);
             }
-            case STRING -> {
+            // A rich text row shows its raw value like any other string; the format codes in it
+            // are part of what the admin is editing, so they stay visible rather than rendered.
+            case STRING, RICH_TEXT -> {
                 String display = entry.value;
                 int availWidth = right - controlX - 5;
                 if (availWidth > 0 && font.width(display) > availWidth) {

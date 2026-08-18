@@ -120,6 +120,8 @@ public class HistoryStages {
                     Config.COMMON.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
                     Config.COMMON.biomeEffects.get());
+            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
+                    Config.COMMON.scrollTooltipLines.get());
         }
         if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
             net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
@@ -132,6 +134,8 @@ public class HistoryStages {
                     Config.COMMON.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
                     Config.COMMON.biomeEffects.get());
+            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
+                    Config.COMMON.scrollTooltipLines.get());
         }
     }
 

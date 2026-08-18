@@ -1,13 +1,9 @@
 package net.bananemdnsa.historystages.init;
 
-import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.client.tooltip.ScrollTooltipRenderer;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.dependency.*;
-import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -33,137 +29,14 @@ public class ModItems {
 
                 @Override
                 public Component getName(ItemStack stack) {
-                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                        String stageId = stack.getTag().getString("StageResearch");
-                        var stage = StageManager.getStages().get(stageId);
-                        if (stage == null) {
-                            stage = StageManager.getIndividualStages().get(stageId);
-                        }
-                        if (stage != null) {
-                            return Component.translatable("tooltip.historystages.research_scroll.named", stage.getDisplayName())
-                                    .withStyle(ChatFormatting.AQUA);
-                        }
-                    }
-                    return super.getName(stack);
+                    Component name = ScrollTooltipRenderer.name(stack.getTag());
+                    return name != null ? name : super.getName(stack);
                 }
 
                 @Override
                 public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip,
                         TooltipFlag flag) {
-                    // Show individual mode and owner name
-                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                        String stageId = stack.getTag().getString("StageResearch");
-                        if (StageManager.isIndividualStage(stageId)) {
-                            tooltip.add(Component.translatable("tooltip.historystages.scroll.individual")
-                                    .withStyle(ChatFormatting.LIGHT_PURPLE));
-                            if (stack.getTag().contains("OwnerName")) {
-                                tooltip.add(Component.translatable("tooltip.historystages.scroll.owner", stack.getTag().getString("OwnerName"))
-                                        .withStyle(ChatFormatting.GRAY));
-                            }
-                        }
-                    }
-
-                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info1")
-                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
-
-                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll.info2")
-                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
-
-                    // Min required pedestal tier (above dependencies block, when narrowing).
-                    if (net.bananemdnsa.historystages.Config.CLIENT.showScrollTierTooltip.get()
-                            && stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                        String tierStageId = stack.getTag().getString("StageResearch");
-                        StageEntry tierEntry = StageManager.isIndividualStage(tierStageId)
-                                ? StageManager.getIndividualStages().get(tierStageId)
-                                : StageManager.getStages().get(tierStageId);
-                        if (tierEntry != null) {
-                            int minTier = tierEntry.getMinPedestalTier();
-                            net.bananemdnsa.historystages.research.TierMode mode =
-                                    tierEntry.getPedestalTierMode();
-                            if (minTier > 1
-                                    || mode == net.bananemdnsa.historystages.research.TierMode.EXACT) {
-                                String key = mode == net.bananemdnsa.historystages.research.TierMode.EXACT
-                                        ? "tooltip.historystages.research_scroll.tier.exact"
-                                        : "tooltip.historystages.research_scroll.tier.min";
-                                tooltip.add(Component.translatable(key,
-                                        net.bananemdnsa.historystages.research.TierMatcher.roman(minTier))
-                                        .withStyle(ChatFormatting.GRAY));
-                            }
-                        }
-                    }
-
-                    // Show dependencies in tooltip
-                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
-                        String stageId = stack.getTag().getString("StageResearch");
-                        boolean individual = StageManager.getStages().get(stageId) == null;
-                        StageEntry entry = individual
-                                ? StageManager.getIndividualStages().get(stageId)
-                                : StageManager.getStages().get(stageId);
-                        if (entry != null && entry.hasDependencies()) {
-                            tooltip.add(Component.empty());
-                            tooltip.add(Component.translatable("tooltip.historystages.scroll.dependencies")
-                                    .withStyle(ChatFormatting.GOLD));
-
-                            DependencyResult result = ClientDependencyCache.get(stageId, individual);
-                            for (DependencyGroup group : entry.getDependencies()) {
-                                if (group.isEmpty())
-                                    continue;
-                                String logic = group.getLogic();
-                                // Show items
-                                for (DependencyItem item : group.getItems()) {
-                                    ResourceLocation rl = ResourceLocation.tryParse(item.getId());
-                                    String name = rl != null && ForgeRegistries.ITEMS.containsKey(rl)
-                                            ? ForgeRegistries.ITEMS.getValue(rl).getDescription().getString()
-                                            : item.getId();
-
-                                    DependencyResult.EntryResult er = findResult(result, "item", item.getId());
-                                    String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
-                                    String progress = er != null ? " (" + er.getCurrent() + "/" + er.getRequired() + ")"
-                                            : "";
-
-                                    tooltip.add(Component.literal("  " + icon + " " + name + progress)
-                                            .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN
-                                                    : ChatFormatting.GRAY));
-                                }
-                                // Show stages
-                                for (String sid : group.getStages()) {
-                                    DependencyResult.EntryResult er = findResult(result, "stage", sid);
-                                    String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
-                                    var se = StageManager.getStages().get(sid);
-                                    String name = se != null ? se.getDisplayName() : sid;
-                                    tooltip.add(Component.translatable("tooltip.historystages.dep.stage", icon, name)
-                                            .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN
-                                                    : ChatFormatting.GRAY));
-                                }
-                                // Show individual stages
-                                for (IndividualStageDep dep : group.getIndividualStages()) {
-                                    DependencyResult.EntryResult er = findResult(result, "individual_stage",
-                                            dep.getStageId());
-                                    String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
-                                    var se = StageManager.getIndividualStages().get(dep.getStageId());
-                                    String name = se != null ? se.getDisplayName() : dep.getStageId();
-                                    tooltip.add(Component.literal("  " + icon + " " + name)
-                                            .append(Component.translatable(dep.isAllEver() ? "tooltip.historystages.dep.all" : "tooltip.historystages.dep.online"))
-                                            .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN
-                                                    : ChatFormatting.GRAY));
-                                }
-                                // Show XP level
-                                XpLevelDep xp = group.getXpLevel();
-                                if (xp != null && xp.getLevel() > 0) {
-                                    DependencyResult.EntryResult er = findResult(result, "xp_level", "xp");
-                                    String icon = er != null ? (er.isFulfilled() ? "\u2714" : "\u2718") : "\u2022";
-                                    tooltip.add(Component.translatable("tooltip.historystages.dep.level", icon, xp.getLevel())
-                                            .withStyle(er != null && er.isFulfilled() ? ChatFormatting.GREEN
-                                                    : ChatFormatting.GRAY));
-                                }
-
-                                if (entry.getDependencies().indexOf(group) < entry.getDependencies().size() - 1) {
-                                    tooltip.add(Component.translatable("tooltip.historystages.dep.separator", logic)
-                                            .withStyle(ChatFormatting.DARK_GRAY));
-                                }
-                            }
-                        }
-                    }
+                    ScrollTooltipRenderer.append(stack.getTag(), tooltip);
                 }
             });
 
@@ -223,22 +96,6 @@ public class ModItems {
 
     public static final RegistryObject<Item> RESEARCH_PEDESTAL_TIER_4_ITEM = ITEMS.register("research_pedestal_tier_4",
             () -> new BlockItem(ModBlocks.RESEARCH_PEDESTAL_TIER_4.get(), new Item.Properties()));
-
-    /**
-     * Finds a specific entry result in the cached data.
-     */
-    private static @Nullable DependencyResult.EntryResult findResult(DependencyResult result, String type, String id) {
-        if (result == null)
-            return null;
-        for (DependencyResult.GroupResult group : result.getGroups()) {
-            for (DependencyResult.EntryResult entry : group.getEntries()) {
-                if (entry.getType().equals(type) && (entry.getId().equals(id) || entry.getDescription().contains(id))) {
-                    return entry;
-                }
-            }
-        }
-        return null;
-    }
 
     public static void register(net.minecraftforge.eventbus.api.IEventBus eventBus) {
         ITEMS.register(eventBus);
