@@ -130,8 +130,16 @@ public class SearchBar {
         return width;
     }
 
+    /**
+     * Width of the text field itself. The filter button's space is only reserved when there are
+     * filters to show — {@link FilterDropdown} already refuses to draw or click an empty
+     * dropdown, so reserving it unconditionally left every filterless bar 22px of dead margin
+     * that its own text then overflowed into.
+     */
     private int searchFieldWidth() {
-        return width - FilterDropdown.BUTTON_SIZE - BUTTON_GAP;
+        return filterDropdown.hasOptions()
+                ? width - FilterDropdown.BUTTON_SIZE - BUTTON_GAP
+                : width;
     }
 
     public void render(GuiGraphics g, Font font, int mouseX, int mouseY) {
@@ -172,16 +180,24 @@ public class SearchBar {
         g.pose().pushPose();
         g.pose().translate(0, 0, 300);
         String displayText = text.isEmpty() ? "§7" + placeholder : text;
+        int textW = font.width(text);
+        // Text is clipped to the field and slides left once it outgrows it, so a long query
+        // stays typeable with its caret in view instead of spilling out past the box.
+        int textAvail = Math.max(0, sw - 8);
+        int shift = Math.max(0, textW - textAvail);
+        int textX = sx + 4 - shift;
+
+        g.enableScissor(sx + 1, sy + 1, sx + sw - 1, sy + HEIGHT - 1);
         if (allSelected && !text.isEmpty()) {
-            int textW = font.width(text);
-            g.fill(sx + 3, sy + 3, sx + 5 + textW, sy + HEIGHT - 3, 0xFF4A6A9A);
+            g.fill(textX - 1, sy + 3, textX + 1 + textW, sy + HEIGHT - 3, 0xFF4A6A9A);
         }
         int textColor = text.isEmpty() ? (lightStyle ? 0x999999 : 0x666666) : 0xFFFFFF;
-        g.drawString(font, displayText, sx + 4, sy + 6, textColor, false);
+        g.drawString(font, displayText, textX, sy + 6, textColor, false);
         if (focused && !allSelected && (System.currentTimeMillis() / 500) % 2 == 0) {
-            int cursorX = sx + 4 + (text.isEmpty() ? 0 : font.width(text));
+            int cursorX = textX + (text.isEmpty() ? 0 : textW);
             g.fill(cursorX, sy + 4, cursorX + 1, sy + HEIGHT - 4, 0xFFFFFFFF);
         }
+        g.disableScissor();
         g.pose().popPose();
 
         int btnX = x + width - FilterDropdown.BUTTON_SIZE;
