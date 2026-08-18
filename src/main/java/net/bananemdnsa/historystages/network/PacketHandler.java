@@ -100,6 +100,21 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, MoveFoldersPacket.class,
                                 MoveFoldersPacket::encode,
                                 MoveFoldersPacket::decode, MoveFoldersPacket::handle);
+                INSTANCE.registerMessage(id++, SyncGraphConfigPacket.class,
+                                SyncGraphConfigPacket::encode,
+                                SyncGraphConfigPacket::decode, SyncGraphConfigPacket::handle);
+                INSTANCE.registerMessage(id++, RequestStageDependencyPacket.class,
+                                RequestStageDependencyPacket::encode,
+                                RequestStageDependencyPacket::decode, RequestStageDependencyPacket::handle);
+                INSTANCE.registerMessage(id++, SaveGraphPositionsPacket.class,
+                                SaveGraphPositionsPacket::encode,
+                                SaveGraphPositionsPacket::decode, SaveGraphPositionsPacket::handle);
+                INSTANCE.registerMessage(id++, RearrangeGraphPacket.class,
+                                RearrangeGraphPacket::encode,
+                                RearrangeGraphPacket::decode, RearrangeGraphPacket::handle);
+                INSTANCE.registerMessage(id++, SaveStageGraphInfoPacket.class,
+                                SaveStageGraphInfoPacket::encode,
+                                SaveStageGraphInfoPacket::decode, SaveStageGraphInfoPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.
@@ -166,6 +181,16 @@ public class PacketHandler {
         // Send individual stages to a specific player
         public static void sendIndividualStagesToPlayer(SyncIndividualStagesPacket packet, ServerPlayer player) {
                 INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
+        }
+
+        // Send graph.toml to a specific player (e.g. on login)
+        public static void sendGraphConfigToPlayer(SyncGraphConfigPacket packet, ServerPlayer player) {
+                INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), packet);
+        }
+
+        // Send graph.toml to all players (e.g. after admin saves the graph config)
+        public static void sendGraphConfigToAll(SyncGraphConfigPacket packet) {
+                INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
         }
 
         // Send a packet from client to server

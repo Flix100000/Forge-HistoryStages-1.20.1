@@ -191,7 +191,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         net.bananemdnsa.historystages.network.PacketHandler.INSTANCE.send(
                                 net.minecraftforge.network.PacketDistributor.TRACKING_CHUNK
                                         .with(() -> level.getChunkAt(this.worldPosition)),
-                                new net.bananemdnsa.historystages.network.SyncDependencyStatusPacket(stageId, result));
+                                new net.bananemdnsa.historystages.network.SyncDependencyStatusPacket(
+                                        stageId, isCurrentScrollIndividual(), result));
                     }
                 }
             }

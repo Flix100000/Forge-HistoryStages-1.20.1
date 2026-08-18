@@ -26,6 +26,21 @@ public final class NodeShapes {
         ring(g, NodeTextures.hexagon(), cx, cy, r, fill, border, bw);
     }
 
+    public static void rect(GuiGraphics g, int cx, int cy, int r, int fill, int border, int bw) {
+        ring(g, NodeTextures.rect(), cx, cy, r, fill, border, bw);
+    }
+
+    /**
+     * The corner radius is baked into {@link NodeTextures#rounded()} at a fixed relative value
+     * (0.18 of the texture's side) and cannot change per draw call — a texture generated once
+     * cannot change shape at runtime. The config's {@code cornerRadius} therefore does NOT scale
+     * the corner geometry; only {@code r} (the drawn size of the whole shape) is under caller
+     * control here.
+     */
+    public static void rounded(GuiGraphics g, int cx, int cy, int r, int fill, int border, int bw) {
+        ring(g, NodeTextures.rounded(), cx, cy, r, fill, border, bw);
+    }
+
     private static void ring(GuiGraphics g, ResourceLocation tex, int cx, int cy, int r,
                              int fill, int border, int bw) {
         if (r <= 0) return;

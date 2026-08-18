@@ -58,6 +58,10 @@ public class HistoryStages {
     public HistoryStages() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
 
+        // Must run before either config spec is registered below — see the class comment on
+        // GraphConfigMigration for why capture and apply are two separate steps.
+        net.bananemdnsa.historystages.data.graph.GraphConfigMigration.capture();
+
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
@@ -73,6 +77,8 @@ public class HistoryStages {
 
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, GraphConfig.GRAPH_SPEC,
+                "historystages/settings/graph.toml");
 
         PacketHandler.register();
         ConfigHandler.setupConfig();
@@ -113,6 +119,9 @@ public class HistoryStages {
                     Config.COMMON.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
                     Config.COMMON.biomeEffects.get());
+        }
+        if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
+            net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
         }
     }
 
@@ -181,6 +190,8 @@ public class HistoryStages {
             StageData data = StageData.get(player.serverLevel());
             PacketHandler.sendToPlayer(new SyncStagesPacket(data.getUnlockedStages()), player);
             PacketHandler.sendConfigToPlayer(SyncConfigPacket.fromServerConfig(), player);
+            PacketHandler.sendGraphConfigToPlayer(
+                    net.bananemdnsa.historystages.network.SyncGraphConfigPacket.fromServerConfig(), player);
 
             // Sync individual stages for this player
             IndividualStageData individualData = IndividualStageData.get(player.serverLevel());
@@ -212,7 +223,7 @@ public class HistoryStages {
                 player.sendSystemMessage(Component.literal("  §7Loaded §f" + stageCount + " §7stage"
                         + (stageCount != 1 ? "s" : "") + " from §fconfig/historystages/"));
                 player.sendSystemMessage(
-                        Component.literal("  §7Settings: §fhistorystages-common.toml §7& §fhistorystages-client.toml"));
+                        Component.literal("  §7Settings: §fhistorystages-common.toml §7& §fhistorystages-client.toml §7& §fhistorystages/settings/graph.toml"));
                 player.sendSystemMessage(Component.literal("  §8(Disable this message in the common config)"));
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
             }

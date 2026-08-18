@@ -1439,8 +1439,8 @@ public class StageOverviewScreen extends Screen {
         contextMenu = new ContextMenu();
         contextMenu.addEntry(Component.translatable("editor.historystages.config_title").getString(),
                 () -> this.minecraft.setScreen(new ConfigEditorScreen(this)));
-        contextMenu.addEntry(Component.translatable("editor.historystages.depgraph.button").getString(),
-                () -> this.minecraft.setScreen(new DependencyGraphScreen(this)));
+        contextMenu.addEntry(Component.translatable("editor.historystages.graph.button").getString(),
+                () -> this.minecraft.setScreen(new StageGraphScreen(this)));
         contextMenu.addEntry(Component.translatable("editor.historystages.menu.organize").getString(),
                 () -> setOrganizeMode(true));
         contextMenu.addEntry(Component.translatable("editor.historystages.menu.credits").getString(),

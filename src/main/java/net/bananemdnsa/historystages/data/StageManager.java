@@ -214,6 +214,111 @@ public class StageManager {
 
         // Rebuild the auto-trigger type index from the freshly loaded stage set.
         net.bananemdnsa.historystages.data.auto.AutoTriggerManager.rebuildIndex();
+
+        // reloadStages() funnels through here, so both the initial load and every editor-driven
+        // reload get their graph positions refreshed from this one place.
+        net.bananemdnsa.historystages.data.graph.GraphLayoutData.load();
+        net.bananemdnsa.historystages.data.graph.GraphStageData.load();
+        recomputeGraphLayout();
+    }
+
+    /**
+     * One dependency group reduced to the stages it references, with the AND/OR flag kept.
+     *
+     * <p>Groups are AND-connected with each other; entries inside a group follow {@link #or()}.
+     * A group with no stage references at all is vacuously satisfied as far as the graph is
+     * concerned — its item/XP/advancement requirements cannot be evaluated client-side.
+     */
+    public record StageDepGroup(boolean or, Set<String> stageKeys) {}
+
+    /**
+     * Dependency groups for the stage graph, over both collections at once, with the group
+     * structure intact. Keys are namespaced ({@code g:} / {@code i:}) because a global and an
+     * individual stage may share an id — they are separate files in separate directories.
+     *
+     * <p>The graph needs the group boundaries for two things the flattened view cannot express:
+     * drawing OR edges differently, and deciding reachability. Flattening makes a stage with a
+     * satisfied OR group look locked, which then also changes what {@code PROGRESSIVE} reveals.
+     */
+    public static Map<String, List<StageDepGroup>> graphDependencyGroups() {
+        Map<String, List<StageDepGroup>> out = new HashMap<>();
+        collectDependencyGroups(STAGES, false, out);
+        collectDependencyGroups(INDIVIDUAL_STAGES, true, out);
+        return out;
+    }
+
+    private static void collectDependencyGroups(Map<String, StageEntry> source, boolean individual,
+                                                Map<String, List<StageDepGroup>> out) {
+        for (Map.Entry<String, StageEntry> entry : source.entrySet()) {
+            List<StageDepGroup> collected = new ArrayList<>();
+            List<DependencyGroup> groups = entry.getValue().getDependencies();
+            if (groups != null) {
+                for (DependencyGroup group : groups) {
+                    Set<String> keys = new java.util.LinkedHashSet<>();
+                    for (String ref : group.getStages()) keys.add(graphKey(ref, false));
+                    for (net.bananemdnsa.historystages.data.dependency.IndividualStageDep dep
+                            : group.getIndividualStages()) {
+                        if (dep.getStageId() != null) keys.add(graphKey(dep.getStageId(), true));
+                    }
+                    collected.add(new StageDepGroup(group.isOr(), keys));
+                }
+            }
+            out.put(graphKey(entry.getKey(), individual), collected);
+        }
+    }
+
+    /**
+     * Flattened prerequisite map — every referenced stage, group boundaries discarded. This is
+     * what the layout wants: an edge is an edge regardless of whether it is one of several
+     * alternatives. Anything that cares about AND/OR must use {@link #graphDependencyGroups()}.
+     */
+    public static Map<String, Set<String>> graphPrerequisites() {
+        Map<String, Set<String>> out = new HashMap<>();
+        for (Map.Entry<String, List<StageDepGroup>> entry : graphDependencyGroups().entrySet()) {
+            Set<String> flat = new java.util.LinkedHashSet<>();
+            for (StageDepGroup group : entry.getValue()) flat.addAll(group.stageKeys());
+            out.put(entry.getKey(), flat);
+        }
+        return out;
+    }
+
+    /** {@code g:steinzeit} / {@code i:erste_quest}. */
+    public static String graphKey(String stageId, boolean individual) {
+        return (individual ? "i:" : "g:") + stageId;
+    }
+
+    /**
+     * Fills in graph positions for any tree that is not frozen. A frozen tree keeps whatever the
+     * pack author placed; stages added since then have no entry, and the editor lists them in its
+     * "unplaced" column.
+     *
+     * <p>Deliberately does not save: an unfrozen tree has no file, and writing one would freeze it
+     * by accident.
+     */
+    public static void recomputeGraphLayout() {
+        net.bananemdnsa.historystages.data.graph.GraphLayoutData.Snapshot snap =
+                net.bananemdnsa.historystages.data.graph.GraphLayoutData.get();
+        boolean globalFrozen = snap.isFrozen(false);
+        boolean individualFrozen = snap.isFrozen(true);
+        if (globalFrozen && individualFrozen) return;
+
+        Map<String, net.bananemdnsa.historystages.data.graph.GraphPos> computed =
+                net.bananemdnsa.historystages.data.graph.GraphAutoLayout.compute(graphPrerequisites());
+
+        // Only the positions change; the frozen flags must survive, because filling an unfrozen
+        // tree's positions here is exactly what must NOT make it look frozen afterwards.
+        if (!globalFrozen) snap = snap.withPositions(false, splitGraphKeys(computed, "g:"));
+        if (!individualFrozen) snap = snap.withPositions(true, splitGraphKeys(computed, "i:"));
+        net.bananemdnsa.historystages.data.graph.GraphLayoutData.set(snap);
+    }
+
+    private static Map<String, net.bananemdnsa.historystages.data.graph.GraphPos> splitGraphKeys(
+            Map<String, net.bananemdnsa.historystages.data.graph.GraphPos> computed, String prefix) {
+        Map<String, net.bananemdnsa.historystages.data.graph.GraphPos> out = new HashMap<>();
+        for (Map.Entry<String, net.bananemdnsa.historystages.data.graph.GraphPos> e : computed.entrySet()) {
+            if (e.getKey().startsWith(prefix)) out.put(e.getKey().substring(prefix.length()), e.getValue());
+        }
+        return out;
     }
 
     /**

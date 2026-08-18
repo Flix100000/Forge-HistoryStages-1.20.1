@@ -72,7 +72,7 @@ public class CheckDependencyPacket {
                     costReduction);
             PacketHandler.INSTANCE.send(
                     net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
-                    new SyncDependencyStatusPacket(packet.stageId, result));
+                    new SyncDependencyStatusPacket(packet.stageId, packet.isIndividual, result));
         });
         ctx.get().setPacketHandled(true);
     }

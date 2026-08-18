@@ -298,7 +298,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             // this stage
             CompoundTag currentDeposited = stack.getTag().getCompound("DepositedDependencies");
             if (lastDepositedNBT == null || !lastDepositedNBT.equals(currentDeposited)) {
-                ClientDependencyCache.remove(stageId);
+                ClientDependencyCache.remove(stageId, StageManager.isIndividualStage(stageId));
                 lastDepositedNBT = currentDeposited.copy();
                 lastDependencyCheck = 0; // Force immediate re-request
             }
@@ -352,7 +352,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
             ItemStack scroll = menu.getSlot(36).getItem();
             if (!scroll.isEmpty() && scroll.hasTag()) {
                 String stageId = scroll.getTag().getString("StageResearch");
-                DependencyResult result = ClientDependencyCache.get(stageId);
+                DependencyResult result = ClientDependencyCache.get(stageId, StageManager.isIndividualStage(stageId));
                 if (result != null) {
                     int groupIdx = 0;
                     for (DependencyResult.GroupResult group : result.getGroups()) {
@@ -384,12 +384,13 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         String stageId = stack.getTag().getString("StageResearch");
         if (stageId == null || stageId.isEmpty())
             return;
+        boolean individual = StageManager.isIndividualStage(stageId);
 
-        DependencyResult result = ClientDependencyCache.get(stageId);
+        DependencyResult result = ClientDependencyCache.get(stageId, individual);
 
         long now = System.currentTimeMillis();
         if (now - lastDependencyCheck > 1000) { // Check once per second
-            PacketHandler.sendToServer(new CheckDependencyPacket(stageId, StageManager.isIndividualStage(stageId),
+            PacketHandler.sendToServer(new CheckDependencyPacket(stageId, individual,
                     menu.getBlockPos()));
             lastDependencyCheck = now;
         }
@@ -577,7 +578,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
         }
 
         // Render XP PAY button under the deposit slot if needed
-        DependencyResult resultSync = ClientDependencyCache.get(stageId);
+        DependencyResult resultSync = ClientDependencyCache.get(stageId, individual);
         if (resultSync != null) {
             int gIdx = 0;
             for (DependencyResult.GroupResult group : resultSync.getGroups()) {

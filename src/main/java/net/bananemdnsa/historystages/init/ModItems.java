@@ -95,15 +95,16 @@ public class ModItems {
                     // Show dependencies in tooltip
                     if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
                         String stageId = stack.getTag().getString("StageResearch");
-                        StageEntry entry = StageManager.getStages().get(stageId);
-                        if (entry == null)
-                            entry = StageManager.getIndividualStages().get(stageId);
+                        boolean individual = StageManager.getStages().get(stageId) == null;
+                        StageEntry entry = individual
+                                ? StageManager.getIndividualStages().get(stageId)
+                                : StageManager.getStages().get(stageId);
                         if (entry != null && entry.hasDependencies()) {
                             tooltip.add(Component.empty());
                             tooltip.add(Component.translatable("tooltip.historystages.scroll.dependencies")
                                     .withStyle(ChatFormatting.GOLD));
 
-                            DependencyResult result = ClientDependencyCache.get(stageId);
+                            DependencyResult result = ClientDependencyCache.get(stageId, individual);
                             for (DependencyGroup group : entry.getDependencies()) {
                                 if (group.isEmpty())
                                     continue;
