@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.network;
 
+import net.bananemdnsa.historystages.client.scroll.ClientLecternScrollHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.api.distmarker.Dist;
@@ -15,9 +16,9 @@ import java.util.function.Supplier;
  * {@code getUpdatePacket} — so the client cannot work this out for itself, however long it looks
  * at the block.
  *
- * <p>The screen open is routed through {@link DistExecutor} rather than called directly: this
- * packet class is loaded on the dedicated server too (for registration), and {@code Minecraft} is
- * a client-only type there. See {@code SyncConfigPacket} for the same pattern.
+ * <p>The screen open goes through {@link ClientLecternScrollHandler} behind a {@link DistExecutor}
+ * guard, so no client-only type appears in this class: the packet is loaded on the dedicated server
+ * too, for registration. See {@code SyncConfigPacket} for the same pattern.
  */
 public class OpenLecternScrollPacket {
     private final String stageId;
@@ -39,9 +40,7 @@ public class OpenLecternScrollPacket {
 
     public static void handle(OpenLecternScrollPacket msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
-                net.minecraft.client.Minecraft.getInstance().setScreen(
-                        new net.bananemdnsa.historystages.client.scroll.OpenScrollScreen(
-                                msg.stageId, msg.lecternPos))));
+                ClientLecternScrollHandler.open(msg.stageId, msg.lecternPos)));
         ctx.get().setPacketHandled(true);
     }
 }
