@@ -1051,6 +1051,7 @@
   "gui.historystages.open_scroll.marker.attack": "Angriff gesperrt",
   "gui.historystages.open_scroll.marker.interaction": "Interaktion gesperrt",
   "gui.historystages.open_scroll.sheet": "Blatt %s von %s",
+  "gui.historystages.open_scroll.take": "Rolle nehmen",
   "editor.historystages.config.open_scroll": "Offene Schriftrolle",
   "editor.historystages.config.openScrollDocument": "Dokument",
   "editor.historystages.config.openScrollDocument.desc": "Welche Kapitel das Dokument hat und welche Blöcke seine Übersichtsseite zeigt, beides in Reihenfolge.",

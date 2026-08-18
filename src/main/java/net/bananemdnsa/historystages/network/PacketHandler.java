@@ -124,6 +124,12 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, PedestalControlPacket.class,
                                 PedestalControlPacket::encode,
                                 PedestalControlPacket::decode, PedestalControlPacket::handle);
+                INSTANCE.registerMessage(id++, OpenLecternScrollPacket.class,
+                                OpenLecternScrollPacket::encode,
+                                OpenLecternScrollPacket::decode, OpenLecternScrollPacket::handle);
+                INSTANCE.registerMessage(id++, TakeLecternScrollPacket.class,
+                                TakeLecternScrollPacket::encode,
+                                TakeLecternScrollPacket::decode, TakeLecternScrollPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.

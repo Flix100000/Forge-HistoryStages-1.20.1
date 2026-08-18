@@ -77,10 +77,71 @@ public final class OpenScrollGeometry {
     public static final int SEARCH_Y = 54;
     public static final int SEARCH_HEIGHT = 11;
 
-    /** Ink rule above the sheet counter, and the counter itself. Both drop on a single sheet. */
-    public static final int RULE_BOTTOM_Y = 166;
-    public static final int FOOT_Y = 170;
-    public static final int FOOT_HEIGHT = 9;
+    /**
+     * Ink rule above the sheet counter, and the counter itself. Both drop on a single sheet.
+     *
+     * <p>Two pixels higher than the text-only footer used to sit: the page arrows are 13px tall
+     * where the counter alone was 9, and the extra height has to come off the top or the arrows
+     * end up on the paper's edge. It costs the content two pixels and no rows.
+     */
+    public static final int RULE_BOTTOM_Y = 164;
+    /** Top of the counter's glyphs, set so the text sits centred against the page arrows. */
+    public static final int FOOT_Y = 168;
+
+    /** A vanilla {@code PageButton} is exactly this big; the numbers are its, not ours. */
+    public static final int PAGE_BUTTON_WIDTH = 23;
+    public static final int PAGE_BUTTON_HEIGHT = 13;
+
+    /**
+     * The page arrows, two pixels under the bottom rule, ending exactly on the same bottom margin
+     * every other mark on the page respects.
+     */
+    public static final int PAGE_BUTTON_Y = 166;
+
+    /** The arrows flank the sheet counter, one at each end of the text block. */
+    public static int pageBackwardX() {
+        return CONTENT_X;
+    }
+
+    public static int pageForwardX() {
+        return CONTENT_X + CONTENT_WIDTH - PAGE_BUTTON_WIDTH;
+    }
+
+    // --- the done button, under the sheet ---
+
+    /**
+     * Size and spacing copied from {@code BookViewScreen}: a 200x20 button two pixels below the
+     * artwork. A reader who has closed a book knows where this one is without looking.
+     */
+    public static final int DONE_WIDTH = 200;
+    public static final int DONE_HEIGHT = 20;
+    public static final int DONE_GAP = 2;
+
+    /** Sheet plus button — what the screen centres vertically, so the pair sits together. */
+    public static int totalHeight() {
+        return HEIGHT + DONE_GAP + DONE_HEIGHT;
+    }
+
+    /** Gap between Done and a second button sharing its row. Vanilla's lectern screen uses 4. */
+    public static final int BUTTON_GAP = 4;
+
+    /**
+     * Width of one button in the row. Two halves plus the gap add up to {@link #DONE_WIDTH}
+     * exactly, so the row keeps its width whether Done stands alone or shares it.
+     */
+    public static int buttonWidth(boolean paired) {
+        return paired ? (DONE_WIDTH - BUTTON_GAP) / 2 : DONE_WIDTH;
+    }
+
+    /** Left edge of the button row. Centred on the screen, not on the sheet — as Done always was. */
+    public static int buttonRowX(int screenWidth) {
+        return (screenWidth - DONE_WIDTH) / 2;
+    }
+
+    /** Left edge of the second button in a shared row. */
+    public static int secondButtonX(int screenWidth) {
+        return buttonRowX(screenWidth) + buttonWidth(true) + BUTTON_GAP;
+    }
 
     // --- content ---
 

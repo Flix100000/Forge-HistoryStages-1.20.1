@@ -36,6 +36,11 @@ public final class OpenScrollHandler {
         if (!stack.is(ModItems.RESEARCH_SCROLL_OPEN.get())) return;
 
         String stageId = ScrollVariants.readStageResearch(stack);
+        // Cancelling the interaction skips the swing vanilla would have done for a written book,
+        // whose use() returns a swinging SUCCESS. Doing it by hand puts the arm back, and because
+        // LocalPlayer.swing sends the packet, everyone else sees the scroll being opened too.
+        event.getEntity().swing(event.getHand());
+        OpenScrollScreen.playPageTurn();
         // An untagged scroll still opens: the screen says the stage is unknown, which beats an
         // item that silently does nothing when you click it.
         Minecraft.getInstance().setScreen(new OpenScrollScreen(stageId == null ? "" : stageId));

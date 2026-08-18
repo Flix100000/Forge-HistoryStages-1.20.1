@@ -1052,6 +1052,7 @@
   "gui.historystages.open_scroll.marker.attack": "Attacking locked",
   "gui.historystages.open_scroll.marker.interaction": "Interaction locked",
   "gui.historystages.open_scroll.sheet": "Sheet %s of %s",
+  "gui.historystages.open_scroll.take": "Take Scroll",
   "editor.historystages.config.open_scroll": "Open Scroll",
   "editor.historystages.config.openScrollDocument": "Document",
   "editor.historystages.config.openScrollDocument.desc": "Which chapters the document has and which blocks its overview page shows, both in order.",
