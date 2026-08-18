@@ -77,6 +77,8 @@ public class StageDetailScreen extends Screen {
     private net.bananemdnsa.historystages.data.auto.AutoTrigger editAutoTrigger;
     private net.bananemdnsa.historystages.data.temporary.TemporaryConfig editTemporary;
     private String editIcon; // null = use default
+    /** Empty means "follow the config default", the same convention {@link #editIcon} uses. */
+    private String editScrollCompletion = "";
     private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
     private boolean editLoseOnDeath;
     private final List<String> editItems;
@@ -343,6 +345,7 @@ public class StageDetailScreen extends Screen {
         this.editAutoTrigger = e.getAutoTrigger() != null ? e.getAutoTrigger().copy() : null;
         this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
         this.editIcon = e.getIcon().isEmpty() ? null : e.getIcon(); // keep null = "use default" for the editor
+        this.editScrollCompletion = e.getScrollCompletion();
         this.editHiddenDisplay = e.getHiddenDisplay().copy();
         this.editLoseOnDeath = e.isLoseOnDeath();
         this.editItems = new ArrayList<>(e.getAllItemIds());
@@ -3750,8 +3753,8 @@ public class StageDetailScreen extends Screen {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
                 editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary,
-                editHiddenDisplay.copy(), editLoseOnDeath, isNewStage, isIndividual,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath) -> {
+                editHiddenDisplay.copy(), editLoseOnDeath, editScrollCompletion, isNewStage, isIndividual,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath, newScrollCompletion) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -3762,6 +3765,7 @@ public class StageDetailScreen extends Screen {
                     editTemporary = newTemporary;
                     editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
                     editLoseOnDeath = newLoseOnDeath;
+                    editScrollCompletion = newScrollCompletion == null ? "" : newScrollCompletion;
                     hasChanges = true;
                     // Saving in a sub-screen persists the whole stage, so the user never has to
                     // come back here and press Save again.
@@ -3940,6 +3944,7 @@ public class StageDetailScreen extends Screen {
         newEntry.setAutoTrigger(editAutoTrigger);
         newEntry.setTemporary(editTemporary);
         newEntry.setIcon(editIcon);
+        newEntry.setScrollCompletion(editScrollCompletion);
         List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
         for (int idx = 0; idx < editItems.size(); idx++) {
             com.google.gson.JsonObject nbt = editItemNbt.get(idx);

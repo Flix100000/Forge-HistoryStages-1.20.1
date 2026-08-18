@@ -19,7 +19,8 @@ public class ClientToastHandler {
         mc.execute(() -> mc.getToasts().addToast(new StageUnlockedToast(stageName, icon)));
     }
 
-    private static ItemStack resolveIcon(String iconId) {
+    /** Resolves the icon item for a stage: the given id, else the configured default, else the scroll. */
+    public static ItemStack resolveIcon(String iconId) {
         String id = (iconId != null && !iconId.isEmpty())
                 ? iconId
                 : Config.COMMON.defaultStageIcon.get();

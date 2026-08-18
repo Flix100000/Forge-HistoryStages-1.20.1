@@ -51,6 +51,25 @@ public final class ScrollVariants {
     }
 
     /**
+     * Ids of every stage that has a scroll at all, in the same order and with the same AUTO
+     * exclusion {@link #buildAllStageScrolls()} applies. Recipe-viewer plugins need the ids rather
+     * than finished stacks, because they build both the open and the sealed side.
+     */
+    public static List<String> scrollableStageIds() {
+        List<String> ids = new ArrayList<>();
+        addIdsFor(StageManager.getStages(), ids);
+        addIdsFor(StageManager.getIndividualStages(), ids);
+        return ids;
+    }
+
+    private static void addIdsFor(Map<String, StageEntry> stages, List<String> out) {
+        for (var entry : stages.entrySet()) {
+            if (entry.getValue().getMode().usesAutoTrigger()) continue;
+            out.add(entry.getKey());
+        }
+    }
+
+    /**
      * A scroll exactly as it is first obtained: the stage tag and nothing else. No owner,
      * no progress, no deposits — the single definition of "fresh", used by the creative
      * tab, the JEI/EMI variant lists and the pedestal's refill.

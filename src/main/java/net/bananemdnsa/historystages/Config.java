@@ -26,6 +26,7 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue showLockIcons;
         public final ForgeConfigSpec.BooleanValue showBoosterTooltips;
         public final ForgeConfigSpec.BooleanValue showScrollTierTooltip;
+        public final ForgeConfigSpec.IntValue openScrollBackdrop;
         // Structure lock visuals
         public final ForgeConfigSpec.BooleanValue structureBorderEnabled;
         public final ForgeConfigSpec.DoubleValue structureBorderDistance;
@@ -80,6 +81,11 @@ public class Config {
             showScrollTierTooltip = builder
                     .comment("Show the minimum required Pedestal tier on Research Scroll tooltips? [Default: true]")
                     .define("showScrollTierTooltip", true);
+
+            openScrollBackdrop = builder
+                    .comment("How far the world behind an open scroll is dimmed, in percent.",
+                            "0 = not at all, 100 = black. [Default: 60]")
+                    .defineInRange("openScrollBackdrop", 60, 0, 100);
 
             structureBorderEnabled = builder
                     .comment("Render a red force-field overlay on the walls of locked structures as you approach them? [Default: true]")
@@ -222,7 +228,19 @@ public class Config {
         public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
         public final ForgeConfigSpec.BooleanValue lockScrollWhileResearching;
         public final ForgeConfigSpec.ConfigValue<String> defaultScrollCompletion;
+        public final ForgeConfigSpec.BooleanValue enableScrollResealing;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
+
+        // Open scroll document
+        public final ForgeConfigSpec.ConfigValue<List<? extends String>> openScrollChapters;
+        public final ForgeConfigSpec.ConfigValue<String> openScrollLockedDisplay;
+        public final ForgeConfigSpec.ConfigValue<List<? extends String>> openScrollOverviewBlocks;
+        public final ForgeConfigSpec.BooleanValue openScrollShowSearch;
+        public final ForgeConfigSpec.BooleanValue openScrollShowEntryIds;
+        public final ForgeConfigSpec.ConfigValue<String> openScrollEntrySort;
+        public final ForgeConfigSpec.ConfigValue<String> openScrollInkHeading;
+        public final ForgeConfigSpec.ConfigValue<String> openScrollInkBody;
+        public final ForgeConfigSpec.ConfigValue<String> openScrollInkFaint;
 
         // Loot-Ersetzungen
         public final ForgeConfigSpec.BooleanValue useReplacements;
@@ -395,6 +413,16 @@ public class Config {
                     .define("defaultScrollCompletion", "consume",
                             o -> o instanceof String s && ScrollCompletion.isKnown(s));
 
+            enableScrollResealing = builder
+                    .comment("Allow crafting a sealed scroll back out of an open one?",
+                            "The open scroll acts as a template and is not consumed; one sheet of",
+                            "paper is. Turn this off for a pack where a finished stage's scroll is",
+                            "meant to stay a one-off.",
+                            "Crafting follows this immediately. JEI and EMI build their recipe lists",
+                            "once at startup, so the entry only appears or disappears there after a",
+                            "restart. [Default: true]")
+                    .define("enableScrollResealing", true);
+
             researchBoosters = builder
                     .comment(
                             "Booster blocks placed directly UNDER a Research Pedestal modify the active research.",
@@ -410,6 +438,72 @@ public class Config {
                             obj -> obj instanceof String);
 
             builder.pop(); // Schließt "research"
+
+            builder.comment("The document an Open Scroll shows when right-clicked.",
+                            "Chapters are drawn in the order they appear below.",
+                            "Each entry is one chapter: id|enabled|mode",
+                            "  id   overview, items, creatures, world",
+                            "  mode icons or text; overview and world are always text",
+                            "Unknown ids are ignored and missing ones fall back to their default,",
+                            "so an update can add chapters safely.")
+                    .push("open_scroll");
+
+            openScrollChapters = builder
+                    .comment("The chapters, in tab order.")
+                    .defineList("chapters",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollChapters.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            openScrollLockedDisplay = builder
+                    .comment("What a reader sees for a stage they have not unlocked.",
+                            "visible  = everything readable, the scroll is just a record",
+                            "obscured = locked entries as silhouettes, names in enchanting glyphs",
+                            "[Default: obscured]")
+                    .define("lockedDisplay",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility.OBSCURED.serialize());
+
+            openScrollOverviewBlocks = builder
+                    .comment("The overview page's blocks, in reading order.",
+                            "Each entry is one block: id|enabled",
+                            "  id  icon, title, description, counts",
+                            "Blocks flow from the top of the page, so a short description no",
+                            "longer leaves a gap above the counts line.")
+                    .defineList("overviewBlocks",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollOverviewBlocks.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            openScrollShowSearch = builder
+                    .comment("Draw the search line? Off gives the content 12 more pixels.",
+                            "[Default: true]")
+                    .define("showSearch", true);
+
+            openScrollShowEntryIds = builder
+                    .comment("Show the raw registry id in an entry's tooltip?",
+                            "Off keeps a story pack free of minecraft:iron_ingot. [Default: true]")
+                    .define("showEntryIds", true);
+
+            openScrollEntrySort = builder
+                    .comment("In which order a chapter lists its entries.",
+                            "defined      = the order the stage file lists them in",
+                            "alphabetical = by display name",
+                            "[Default: defined]")
+                    .define("entrySort",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollSort.DEFINED.serialize());
+
+            openScrollInkHeading = builder
+                    .comment("Ink for the chapter words and the stage title. [Default: #3F2D13]")
+                    .define("inkHeading", "#3F2D13");
+
+            openScrollInkBody = builder
+                    .comment("Ink for entries and the description. [Default: #4A3416]")
+                    .define("inkBody", "#4A3416");
+
+            openScrollInkFaint = builder
+                    .comment("Ink for group headings, the counts line and the sheet counter.",
+                            "[Default: #7A5A2C]")
+                    .define("inkFaint", "#7A5A2C");
+
+            builder.pop(); // open_scroll
 
             // --- LOOT REPLACEMENTS SECTION ---
             builder.comment("Settings for replacing locked loot with alternatives").push("loot_replacements");

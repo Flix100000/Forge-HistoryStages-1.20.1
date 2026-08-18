@@ -47,6 +47,7 @@ public final class ClientConfigSync {
         bool("showLockIcons", Config.CLIENT.showLockIcons);
         bool("showBoosterTooltips", Config.CLIENT.showBoosterTooltips);
         bool("showScrollTierTooltip", Config.CLIENT.showScrollTierTooltip);
+        integer("openScrollBackdrop", Config.CLIENT.openScrollBackdrop);
 
         // jade
         bool("jadeShowInfo", Config.CLIENT.jadeShowInfo);
@@ -114,6 +115,16 @@ public final class ClientConfigSync {
 
     private static void bool(String key, ForgeConfigSpec.BooleanValue value) {
         register(key, () -> value.get().toString(), s -> value.set(Boolean.parseBoolean(s)));
+    }
+
+    private static void integer(String key, ForgeConfigSpec.IntValue value) {
+        register(key, () -> value.get().toString(), s -> {
+            try {
+                value.set(Integer.parseInt(s.trim()));
+            } catch (NumberFormatException e) {
+                LOGGER.warn("[HistoryStages] Ignoring malformed integer for config key '{}': {}", key, s);
+            }
+        });
     }
 
     private static void dbl(String key, ForgeConfigSpec.DoubleValue value) {

@@ -31,6 +31,12 @@ public class ModCreativeTabs {
                         creativeScroll.getOrCreateTag().putString("StageResearch", ModItems.CREATIVE_STAGE_ID);
                         output.accept(creativeScroll);
 
+                        // One blank open scroll, not one per stage: the tab already carries a
+                        // closed scroll for every stage, and doubling that list would bury the
+                        // pedestals. An untagged copy opens to the "no known research" page,
+                        // which is exactly what a blank keepsake should say.
+                        output.accept(new ItemStack(ModItems.RESEARCH_SCROLL_OPEN.get()));
+
                         // 2. Global stage scrolls (skip AUTO-mode: those have no scroll)
                         for (var stageEntry : StageManager.getStages().entrySet()) {
                             if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;

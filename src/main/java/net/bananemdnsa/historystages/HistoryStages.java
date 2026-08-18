@@ -67,6 +67,7 @@ public class HistoryStages {
         ModCreativeTabs.register(modEventBus);
         ModBlockEntities.register(modEventBus);
         ModMenuTypes.register(modEventBus);
+        ModRecipes.register(modEventBus);
         modEventBus.addListener(this::clientSetup);
 
         modEventBus.addListener(this::addCreative);

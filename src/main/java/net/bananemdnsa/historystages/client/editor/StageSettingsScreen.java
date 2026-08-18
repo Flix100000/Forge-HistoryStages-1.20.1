@@ -8,14 +8,22 @@ import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DurationUnitDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
 import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
+import net.bananemdnsa.historystages.data.ScrollCompletion;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.SaveStageGraphInfoPacket;
 import net.bananemdnsa.historystages.research.TierMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -40,10 +48,17 @@ public class StageSettingsScreen extends Screen {
         void onSave(String stageId, String displayName, int researchTime,
                     int minPedestalTier, TierMode pedestalTierMode,
                     StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
-                    HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath);
+                    HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
+                    String scrollCompletion);
     }
 
     private static final int FIELD_HEIGHT = 18;
+
+    /**
+     * Top of the first card. Everything above it is the four stacked fields — id, display name,
+     * mode, description — so adding a field means moving this and nothing else.
+     */
+    private static final int CARD_TOP = 140;
     private static final float SMALL_SCALE = 0.85f;
 
     private final Screen parent;
@@ -55,6 +70,29 @@ public class StageSettingsScreen extends Screen {
     private final Supplier<StageEntry> lockSnapshot;
 
     private String saveError = "";
+
+    /**
+     * The stage's graph description. Held here and sent by {@link #save()} rather than saved by
+     * the text dialog itself, so it follows the same rule as every other field on this screen:
+     * closing without Save changes nothing.
+     */
+    private String editDescription;
+    private final String origDescription;
+    private StyledButton descriptionButton;
+
+    /**
+     * Per-stage override for what happens to the scroll when this stage finishes. Empty means
+     * "follow the config default", exactly the way an empty icon falls back to the default icon —
+     * the global value stays in the config editor, the exception lives with the stage.
+     */
+    private String editScrollCompletion;
+    private final String origScrollCompletion;
+    private EnumDropdown scrollCompletionDropdown;
+
+    /** Empty first: "follow the config default" is the normal state and belongs at the top. */
+    private static final List<String> SCROLL_COMPLETION_OPTIONS = List.of(
+            "", ScrollCompletion.CONSUME.serialize(),
+            ScrollCompletion.REPLACE.serialize(), ScrollCompletion.OPEN.serialize());
 
     private String editStageId;
     private String editDisplayName;
@@ -155,16 +193,18 @@ public class StageSettingsScreen extends Screen {
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
+                               String scrollCompletion,
                                boolean isNewStage, boolean isIndividual, SaveCallback onSave) {
         this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
-                mode, autoTrigger, temporary, hiddenDisplay, loseOnDeath, isNewStage, isIndividual,
-                onSave, null);
+                mode, autoTrigger, temporary, hiddenDisplay, loseOnDeath, scrollCompletion,
+                isNewStage, isIndividual, onSave, null);
     }
 
     public StageSettingsScreen(Screen parent, String stageId, String displayName, int researchTime,
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
+                               String scrollCompletion,
                                boolean isNewStage, boolean isIndividual, SaveCallback onSave,
                                Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
@@ -184,6 +224,13 @@ public class StageSettingsScreen extends Screen {
         this.editTemporary = temporary;
         this.editHiddenDisplay = hiddenDisplay != null ? hiddenDisplay : new HiddenDisplayConfig();
         this.editLoseOnDeath = loseOnDeath;
+
+        this.editScrollCompletion = scrollCompletion == null ? "" : scrollCompletion;
+        this.origScrollCompletion = this.editScrollCompletion;
+
+        String description = GraphStageData.get().description(stageId, isIndividual);
+        this.editDescription = description == null ? "" : description;
+        this.origDescription = this.editDescription;
 
         this.origStageId = stageId;
         this.origDisplayName = displayName;
@@ -210,15 +257,19 @@ public class StageSettingsScreen extends Screen {
         String labelId = Component.translatable("editor.historystages.field.stage_id").getString();
         String labelName = Component.translatable("editor.historystages.field.display_name").getString();
         String labelStageMode = Component.translatable("editor.historystages.mode.label").getString();
-        int maxLabelW = Math.max(Math.max(this.font.width(labelId), this.font.width(labelName)),
-                this.font.width(labelStageMode));
+        String labelDescription = Component.translatable("editor.historystages.field.description").getString();
+        String labelCompletion = Component.translatable("editor.historystages.field.scroll_completion").getString();
+        int maxLabelW = Math.max(
+                Math.max(this.font.width(labelId), this.font.width(labelName)),
+                Math.max(Math.max(this.font.width(labelStageMode), this.font.width(labelDescription)),
+                        this.font.width(labelCompletion)));
         fieldX = labelX + maxLabelW + 10;
         fieldWidth = Math.min(220, this.width - fieldX - 40);
 
         // Cached card geometry (used by render + mouseClicked)
         cardX = labelX;
         cardW = this.width - cardX - 30;
-        cardY = 96;
+        cardY = CARD_TOP;
 
         stageIdField = new EditBox(this.font, fieldX, 22, fieldWidth, FIELD_HEIGHT,
                 Component.translatable("editor.historystages.field.stage_id"));
@@ -247,6 +298,33 @@ public class StageSettingsScreen extends Screen {
         modeDropdownX = fieldX;
         modeDropdownY = 66;
         modeDropdownW = computeModeDropdownWidth();
+
+        // The description lives in graph_stages.json rather than in the stage entry, so it never
+        // reaches SaveCallback — save() sends its own packet. It is edited here because the graph
+        // canvas was the only way in, and a pack maker writing a stage should not have to go
+        // hunting through a second editor for its one line of prose.
+        descriptionButton = StyledButton.of(
+                descriptionLabel(),
+                btn -> this.minecraft.setScreen(new DescriptionInputScreen(
+                        this, editDescription,
+                        text -> {
+                            editDescription = text == null ? "" : text;
+                            if (!editDescription.equals(origDescription)) hasChanges = true;
+                            descriptionButton.setMessage(descriptionLabel());
+                        })),
+                fieldX, 88, fieldWidth, FIELD_HEIGHT);
+        addContentWidget(descriptionButton);
+
+        // The inherit state is one of the options rather than a separate checkbox: it is a choice
+        // about where the value comes from, and it belongs in the same list as the values.
+        scrollCompletionDropdown = new EnumDropdown(
+                SCROLL_COMPLETION_OPTIONS, editScrollCompletion, fieldWidth,
+                StageSettingsScreen::scrollCompletionLabel,
+                value -> {
+                    editScrollCompletion = value == null ? "" : value;
+                    if (!editScrollCompletion.equals(origScrollCompletion)) hasChanges = true;
+                });
+        scrollCompletionDropdown.setPosition(fieldX, 110);
 
         // --- Card-internal widgets ---
         // Positions inside the card body (cardY + 28 = body start)
@@ -475,13 +553,15 @@ public class StageSettingsScreen extends Screen {
     private void layoutAll() {
         cardX = 30;
         cardW = this.width - cardX - 30;
-        cardY = 96 - renderScroll;
+        cardY = CARD_TOP - renderScroll;
 
         stageIdField.setPosition(fieldX, 22 - renderScroll);
         displayNameField.setPosition(fieldX, 44 - renderScroll);
         modeDropdownX = fieldX;
         modeDropdownY = 66 - renderScroll;
         modeDropdownW = computeModeDropdownWidth();
+        descriptionButton.setPosition(fieldX, 88 - renderScroll);
+        scrollCompletionDropdown.setPosition(fieldX, 110 - renderScroll);
 
         int bodyY = cardY + 28;
         int cardFieldX = cardX + 12 + labelInsetW();
@@ -582,7 +662,7 @@ public class StageSettingsScreen extends Screen {
     }
 
     private void clampScroll() {
-        int contentBottom = 96 + computeCardHeight() + 6 + computeDisplayCardHeight();
+        int contentBottom = CARD_TOP + computeCardHeight() + 6 + computeDisplayCardHeight();
         if (isIndividual) contentBottom += 6 + computeIndividualCardHeight();
         maxScroll = Math.max(0, contentBottom + 6 - viewBottom);
         if (scrollY < 0) scrollY = 0;
@@ -597,6 +677,8 @@ public class StageSettingsScreen extends Screen {
             if (cooldownUnitDropdown != null) cooldownUnitDropdown.close();
             if (nameModeDropdown != null) nameModeDropdown.close();
             if (tooltipModeDropdown != null) tooltipModeDropdown.close();
+            // An expanded popup would keep its old screen position while the rows move under it.
+            if (scrollCompletionDropdown != null) scrollCompletionDropdown.close();
             scrollY -= (int) (delta * 12);
             clampScroll();
             return true;
@@ -653,9 +735,40 @@ public class StageSettingsScreen extends Screen {
         // The callback hands the values up and persists the stage; staying put is deliberate,
         // so Save never yanks the user out of the screen they are working in.
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
-                editMode, editAutoTrigger, editTemporary, editHiddenDisplay, editLoseOnDeath);
+                editMode, editAutoTrigger, editTemporary, editHiddenDisplay, editLoseOnDeath,
+                editScrollCompletion);
+
+        // The description rides in graph_stages.json, not in the stage entry, so it has its own
+        // packet. Keyed on the original id: a rename is the rename logic's business, and writing
+        // the text under a fresh id here would leave the old entry behind.
+        if (!editDescription.equals(origDescription)) {
+            PacketHandler.sendToServer(new SaveStageGraphInfoPacket(origStageId, isIndividual, editDescription));
+            // Optimistic local update, the same reason StageInfoTextScreen does it: the graph
+            // reads GraphStageData directly and would otherwise show stale text until the
+            // broadcast reply lands.
+            GraphStageData.set(GraphStageData.get()
+                    .withDescription(origStageId, isIndividual, editDescription));
+        }
+
         hasChanges = false;
         saveFlashAt = System.currentTimeMillis();
+    }
+
+    private static Component scrollCompletionLabel(String value) {
+        if (value == null || value.isEmpty()) {
+            return Component.translatable("editor.historystages.field.scroll_completion.inherit");
+        }
+        return Component.translatable("editor.historystages.enum.scrollcompletion."
+                + value.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** Shows the first line of the description, or a prompt when there is none yet. */
+    private Component descriptionLabel() {
+        if (editDescription == null || editDescription.isBlank()) {
+            return Component.translatable("editor.historystages.field.description.empty");
+        }
+        String flat = editDescription.replace('\n', ' ');
+        return Component.literal(this.font.plainSubstrByWidth(flat, Math.max(20, fieldWidth - 12)));
     }
 
     private static String tierModeLabelKey(TierMode mode) {
@@ -774,6 +887,12 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.drawString(this.font,
                 Component.translatable("editor.historystages.mode.label").getString(),
                 labelX, 71 - renderScroll, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font,
+                Component.translatable("editor.historystages.field.description").getString(),
+                labelX, 93 - renderScroll, 0xAAAAAA, false);
+        guiGraphics.drawString(this.font,
+                Component.translatable("editor.historystages.field.scroll_completion").getString(),
+                labelX, 115 - renderScroll, 0xAAAAAA, false);
 
         // Card chrome (before widgets so they sit on top)
         int cardH = computeCardHeight();
@@ -842,6 +961,7 @@ public class StageSettingsScreen extends Screen {
 
         // Mode dropdown button (inside the viewport)
         renderModeDropdownButton(guiGraphics, mouseX, mouseY);
+        scrollCompletionDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
 
         guiGraphics.disableScissor();
 
@@ -908,6 +1028,7 @@ public class StageSettingsScreen extends Screen {
             }
         }
         renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
+        scrollCompletionDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         nameModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         tooltipModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
     }
@@ -1146,6 +1267,7 @@ public class StageSettingsScreen extends Screen {
                 return true;
             }
         }
+        if (scrollCompletionDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (nameModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (tooltipModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (button == 0 && handleDisplayCardClick(mouseX, mouseY)) return true;
@@ -1159,5 +1281,38 @@ public class StageSettingsScreen extends Screen {
         g.pose().scale(SMALL_SCALE, SMALL_SCALE, 1.0f);
         g.drawString(this.font, text, 0, 0, color, false);
         g.pose().popPose();
+    }
+
+    /**
+     * Single-field text dialog for the description button. Built on {@link AbstractInputScreen}
+     * rather than a rich-text editor — this branch has no multi-line formatted-text screen yet, so
+     * the same single-field convention {@code StageInfoTextScreen} uses for graph descriptions
+     * applies here too, just with a callback instead of sending the packet itself, so the value
+     * stays pending until this screen's own Save.
+     */
+    private static final class DescriptionInputScreen extends AbstractInputScreen {
+
+        private final String initial;
+        private final java.util.function.Consumer<String> onConfirm;
+
+        DescriptionInputScreen(Screen parent, String initial, java.util.function.Consumer<String> onConfirm) {
+            super(parent, Component.translatable("editor.historystages.graph.info.title"));
+            this.initial = initial == null ? "" : initial;
+            this.onConfirm = onConfirm;
+        }
+
+        @Override
+        protected List<InputField> fields() {
+            return List.of(InputField.text("description")
+                    .maxLength(512)
+                    .hint(Component.translatable("editor.historystages.graph.info.hint"))
+                    .initial(initial));
+        }
+
+        @Override
+        protected void onConfirm(InputValues values) {
+            onConfirm.accept(values.getString("description"));
+            this.minecraft.setScreen(parent);
+        }
     }
 }

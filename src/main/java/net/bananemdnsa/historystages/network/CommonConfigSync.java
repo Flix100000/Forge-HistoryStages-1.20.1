@@ -73,6 +73,18 @@ public final class CommonConfigSync {
                 net.bananemdnsa.historystages.research.ResearchBoosterRegistry::rebuildFromConfig);
         bool("lockScrollWhileResearching", Config.COMMON.lockScrollWhileResearching);
         str("defaultScrollCompletion", Config.COMMON.defaultScrollCompletion);
+        bool("enableScrollResealing", Config.COMMON.enableScrollResealing);
+
+        // open_scroll
+        list("openScrollChapters", Config.COMMON.openScrollChapters, ";", null);
+        str("openScrollLockedDisplay", Config.COMMON.openScrollLockedDisplay);
+        list("openScrollOverviewBlocks", Config.COMMON.openScrollOverviewBlocks, ";", null);
+        bool("openScrollShowSearch", Config.COMMON.openScrollShowSearch);
+        bool("openScrollShowEntryIds", Config.COMMON.openScrollShowEntryIds);
+        str("openScrollEntrySort", Config.COMMON.openScrollEntrySort);
+        str("openScrollInkHeading", Config.COMMON.openScrollInkHeading);
+        str("openScrollInkBody", Config.COMMON.openScrollInkBody);
+        str("openScrollInkFaint", Config.COMMON.openScrollInkFaint);
 
         // loot_replacements
         bool("useReplacements", Config.COMMON.useReplacements);

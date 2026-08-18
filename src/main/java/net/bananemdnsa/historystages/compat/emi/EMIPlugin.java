@@ -3,14 +3,21 @@ package net.bananemdnsa.historystages.compat.emi;
 import dev.emi.emi.api.EmiEntrypoint;
 import dev.emi.emi.api.EmiPlugin;
 import dev.emi.emi.api.EmiRegistry;
+import dev.emi.emi.api.recipe.EmiCraftingRecipe;
 import dev.emi.emi.api.stack.Comparison;
 import dev.emi.emi.api.stack.EmiStack;
+import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
 import net.bananemdnsa.historystages.util.ScrollVariants;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+
+import java.util.List;
 
 @EmiEntrypoint
 public class EMIPlugin implements EmiPlugin {
@@ -25,9 +32,26 @@ public class EMIPlugin implements EmiPlugin {
         registry.setDefaultComparison(ModItems.RESEARCH_SCROLL.get(), stageComparison);
         registry.setDefaultComparison(ModItems.CREATIVE_SCROLL.get(), stageComparison);
 
+        registry.setDefaultComparison(ModItems.RESEARCH_SCROLL_OPEN.get(), stageComparison);
+
         // Add one scroll variant per stage so they appear in EMI
         for (ItemStack scroll : ScrollVariants.buildAllStageScrolls()) {
             registry.addEmiStack(EmiStack.of(scroll));
+        }
+
+        // The resealing recipe is a special recipe with no declared ingredients, so no viewer can
+        // derive it — one display entry per stage is added by hand. EMI can show the open scroll
+        // as a remainder, which is exactly what happens: only the paper is spent.
+        if (Config.COMMON.enableScrollResealing.get()) {
+            for (String stageId : ScrollVariants.scrollableStageIds()) {
+                EmiStack open = EmiStack.of(ScrollVariants.createOpenScroll(stageId));
+                registry.addEmiStack(open);
+                registry.addRecipe(new EmiCraftingRecipe(
+                        List.of(open.copy().setRemainder(open.copy()), EmiStack.of(Items.PAPER)),
+                        EmiStack.of(ScrollVariants.createScroll(stageId)),
+                        new ResourceLocation(HistoryStages.MOD_ID,
+                                "reseal_scroll/" + stageId.replace(':', '_'))));
+            }
         }
 
         BoosterEmiCategory category = new BoosterEmiCategory();

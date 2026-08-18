@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.compat.jei;
 import com.mojang.logging.LogUtils;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.subtypes.IIngredientSubtypeInterpreter;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -22,10 +23,16 @@ import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.crafting.CraftingBookCategory;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.ShapelessRecipe;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.bananemdnsa.historystages.client.display.HiddenDisplayResolver;
 import org.slf4j.Logger;
@@ -272,6 +279,24 @@ public class JEIPlugin implements IModPlugin {
                 BoosterUtil.percent(booster.speedReduction()),
                 BoosterUtil.percent(booster.costReduction()))));
         registration.addRecipes(BoosterRecipeCategory.TYPE, recipes);
+
+        // The resealing recipe is a special recipe with no declared ingredients, so JEI cannot
+        // derive it from the recipe manager — one shapeless stand-in per stage is added by hand.
+        // These are display only; the real matching still happens in ResealScrollRecipe.
+        if (Config.COMMON.enableScrollResealing.get()) {
+            List<CraftingRecipe> reseal = new ArrayList<>();
+            for (String stageId : ScrollVariants.scrollableStageIds()) {
+                NonNullList<Ingredient> inputs = NonNullList.create();
+                inputs.add(Ingredient.of(ScrollVariants.createOpenScroll(stageId)));
+                inputs.add(Ingredient.of(Items.PAPER));
+                reseal.add(new ShapelessRecipe(
+                        new ResourceLocation(HistoryStages.MOD_ID,
+                                "reseal_scroll/" + stageId.replace(':', '_')),
+                        "", CraftingBookCategory.MISC,
+                        ScrollVariants.createScroll(stageId), inputs));
+            }
+            registration.addRecipes(RecipeTypes.CRAFTING, reseal);
+        }
     }
 
     @Override
