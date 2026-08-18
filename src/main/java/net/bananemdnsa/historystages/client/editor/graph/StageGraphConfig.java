@@ -19,8 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * under plain JUnit.
  *
  * <p>Results are cached per stage id + collection + state since the canvas asks for a style once
- * per node per frame. Call {@link #invalidateCache()} whenever the backing data changes; the two
- * call sites are {@code SyncGraphConfigPacket.apply} and {@code SyncStageDefinitionsPacket.handle}.
+ * per node per frame. Call {@link #invalidateCache()} whenever the backing data changes; the
+ * call sites are {@code SyncGraphConfigPacket.apply}, {@code SyncStageDefinitionsPacket.handle}
+ * and the two optimistic local writes, {@code StageStyleScreen.save} and
+ * {@code StageGraphScreen.applyPaste}.
  */
 public final class StageGraphConfig {
 
@@ -48,7 +50,9 @@ public final class StageGraphConfig {
                 ResolvedStyle.parseColor(block.labelColor.get(), 0),
                 block.checkmark.get());
 
-        StageStyle override = GraphStageData.get().style(stageId, individual);
+        // Both layers of the per-stage file at once: the all-states block with the per-state
+        // block folded on top. The cache key already carries the state, so nothing else changes.
+        StageStyle override = GraphStageData.get().style(stageId, individual, state);
         return ResolvedStyle.merge(base, override);
     }
 

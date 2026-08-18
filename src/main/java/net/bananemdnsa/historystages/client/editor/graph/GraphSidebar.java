@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
@@ -61,7 +62,7 @@ public final class GraphSidebar {
     /** One folder's worth of rows, built fresh whenever {@link #setModel} runs. */
     private record Group(String header, List<StageRow> rows) {}
 
-    private record StageRow(String graphKey, String stageId, String label) {}
+    private record StageRow(String graphKey, String stageId, String label, boolean individual) {}
 
     /**
      * A single drawable/clickable row with its content-space top offset already resolved.
@@ -129,7 +130,7 @@ public final class GraphSidebar {
             GroupKey key = new GroupKey(node.individual(),
                     StageManager.getStageFolder(node.stageId(), node.individual()));
             byGroup.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new StageRow(e.getKey(), node.stageId(), node.label()));
+                    .add(new StageRow(e.getKey(), node.stageId(), node.label(), node.individual()));
         }
 
         List<Group> out = new ArrayList<>();
@@ -253,6 +254,15 @@ public final class GraphSidebar {
         int textColor = selected ? 0xFFFFCC00 : Fade.mix(ROW_TEXT_COLOR, ROW_TEXT_COLOR_HOVER, hover);
         String label = row.label() == null || row.label().isEmpty() ? row.stageId() : row.label();
         g.drawString(font, label, x + ROW_LEFT_PAD + 2, top + 5, textColor, false);
+
+        // Which stages deviate from the graph settings at all. Without this the only way to find
+        // out in an eighty-stage pack is to open graph_stages.json.
+        GraphStageData.Entry entry =
+                GraphStageData.get().tree(row.individual()).get(row.stageId());
+        if (entry != null && entry.hasStyles()) {
+            int dotX = x + ROW_LEFT_PAD + 6 + font.width(label);
+            g.fill(dotX, top + 7, dotX + 3, top + 10, 0xFFFFCC00);
+        }
     }
 
     // --- Input --------------------------------------------------------------------------------
