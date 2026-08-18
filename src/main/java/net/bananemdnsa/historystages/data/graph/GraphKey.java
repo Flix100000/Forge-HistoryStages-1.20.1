@@ -20,7 +20,7 @@ import java.util.List;
 public record GraphKey(String path, Kind kind, String defaultValue,
                        Double min, Double max, List<String> enumConstants, String enumType) {
 
-    public enum Kind { BOOLEAN, INTEGER, DOUBLE, STRING, COLOR, ENUM, TEXTURE }
+    public enum Kind { BOOLEAN, INTEGER, DOUBLE, STRING, RICH_TEXT, COLOR, ENUM, TEXTURE }
 
     /** The last path segment — the leaf name shared by all six style blocks. */
     public String leaf() {

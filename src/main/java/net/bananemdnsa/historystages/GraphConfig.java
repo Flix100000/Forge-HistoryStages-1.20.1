@@ -138,7 +138,8 @@ public class GraphConfig {
                             "graph through the in-game editor. [Default: false]")
                     .define("enabled", false);
             title = builder
-                    .comment("Screen title. Either literal text or a translation key.")
+                    .comment("Screen title. Either literal text or a translation key.",
+                            "Literal text may carry & colour codes, e.g. &6Progression.")
                     .define("title", "graph.historystages.title");
             showSidebar = builder
                     .comment("Show the searchable stage list on the left? [Default: true]")

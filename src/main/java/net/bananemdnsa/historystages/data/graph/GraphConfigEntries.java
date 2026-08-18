@@ -30,6 +30,13 @@ public final class GraphConfigEntries {
     private static final Set<String> TEXTURE_PATHS = Set.of("canvas.backgroundTexture");
 
     /**
+     * Keys edited with the rich text dialog rather than a one-line input: display strings that
+     * may carry {@code &} colour codes, or a lang key instead of literal text. A plain input
+     * shows neither what the codes do nor what the key resolves to.
+     */
+    private static final Set<String> RICH_TEXT_PATHS = Set.of("general.title");
+
+    /**
      * Leaves the editor does not offer, even though they are in the spec.
      *
      * <p>Only {@code cornerRadius} so far, and only because nothing draws with it: the rounded
@@ -126,6 +133,7 @@ public final class GraphConfigEntries {
 
         if (isColorPath(path)) return GraphKey.Kind.COLOR;
         if (TEXTURE_PATHS.contains(path)) return GraphKey.Kind.TEXTURE;
+        if (RICH_TEXT_PATHS.contains(path)) return GraphKey.Kind.RICH_TEXT;
         return GraphKey.Kind.STRING;
     }
 
