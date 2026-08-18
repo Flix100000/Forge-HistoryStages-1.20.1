@@ -25,8 +25,11 @@ public final class EditorTooltip {
     private static final int LINE_H = 10;
     private static final int PAD_X = 4;
     private static final int PAD_Y = 3;
-    /** Above everything else the editor draws, including the dropdown popups at 400. */
-    private static final int TOOLTIP_Z = 400;
+    /**
+     * Above everything else the editor draws. Higher than the dropdown popups at 400, because a
+     * per-option tooltip is drawn while such a popup is open and must not fight it for depth.
+     */
+    private static final int TOOLTIP_Z = 500;
 
     private static final int FRAME = 0xFF3D3D3D;
     private static final int BACKGROUND = 0xFF0D0D0D;

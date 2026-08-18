@@ -1,16 +1,13 @@
 package net.bananemdnsa.historystages.client.editor.graph;
 
 import net.bananemdnsa.historystages.GraphConfig;
-import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
-import net.bananemdnsa.historystages.client.cache.ClientStageCache;
-import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
+import net.bananemdnsa.historystages.data.graph.GraphReachability;
 
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,12 +30,11 @@ public class GraphViewFilter {
     private final boolean showTriggers;
     private final boolean showIndividualStages;
 
-    private final Map<String, StageEntry> global;
-    private final Map<String, StageEntry> individual;
-    private final Set<String> unlockedGlobal;
-    private final Set<String> unlockedIndividual;
-
-    /** Ids of stages this filter admits. Computed once on construction. Null when passThrough. */
+    /**
+     * Namespaced keys of the stages this filter admits. Computed once on construction — the
+     * unlock state it is derived from cannot change while a single view is being built.
+     * Null when passThrough.
+     */
     private final Set<String> visible;
 
     private GraphViewFilter(boolean passThrough,
@@ -46,45 +42,24 @@ public class GraphViewFilter {
                             boolean respectHiddenDisplay,
                             boolean showStageElements,
                             boolean showTriggers,
-                            boolean showIndividualStages,
-                            Map<String, StageEntry> global,
-                            Map<String, StageEntry> individual,
-                            Set<String> unlockedGlobal,
-                            Set<String> unlockedIndividual) {
+                            boolean showIndividualStages) {
         this.passThrough = passThrough;
         this.visibility = visibility;
         this.respectHiddenDisplay = respectHiddenDisplay;
         this.showStageElements = showStageElements;
         this.showTriggers = showTriggers;
         this.showIndividualStages = showIndividualStages;
-        this.global = global;
-        this.individual = individual;
-        this.unlockedGlobal = unlockedGlobal;
-        this.unlockedIndividual = unlockedIndividual;
         this.visible = passThrough ? null : computeVisible();
     }
 
     /** Admin view: everything, ignoring all config. */
     public static GraphViewFilter passThrough() {
         return new GraphViewFilter(true, GraphConfig.GraphVisibility.ALL,
-                false, true, true, true,
-                new HashMap<>(), new HashMap<>(), new HashSet<>(), new HashSet<>());
+                false, true, true, true);
     }
 
     /** Player view: reads the synced server config and the client's unlock caches. */
     public static GraphViewFilter fromConfig() {
-        Map<String, StageEntry> global = StageManager.getStages();
-        Map<String, StageEntry> individual = StageManager.getIndividualStages();
-
-        Set<String> unlockedGlobal = new HashSet<>();
-        for (String id : global.keySet()) {
-            if (ClientStageCache.isStageUnlocked(id)) unlockedGlobal.add(id);
-        }
-        Set<String> unlockedIndividual = new HashSet<>();
-        for (String id : individual.keySet()) {
-            if (ClientIndividualStageCache.isStageUnlocked(id)) unlockedIndividual.add(id);
-        }
-
         // showStageElements has no single equivalent in graph.toml any more — it fanned out
         // into the six [panel] item/xp/advancement/kill/stat/scoreboard toggles. This legacy
         // filter still gates all detail satellites together, so it shows them if any is on.
@@ -100,8 +75,7 @@ public class GraphViewFilter {
                 GraphConfig.GRAPH.respectHiddenDisplay.get(),
                 showStageElements,
                 GraphConfig.GRAPH.showTriggers.get(),
-                GraphConfig.GRAPH.showIndividualStages.get(),
-                global, individual, unlockedGlobal, unlockedIndividual);
+                GraphConfig.GRAPH.showIndividualStages.get());
     }
 
     // --- Public queries ---------------------------------------------------
@@ -110,7 +84,7 @@ public class GraphViewFilter {
     public boolean showsStage(String stageId, boolean isIndividual) {
         if (passThrough) return true;
         if (isIndividual && !showIndividualStages) return false;
-        return visible.contains(stageId);
+        return visible.contains(StageManager.graphKey(stageId, isIndividual));
     }
 
     /** True when DETAIL satellites (items/XP/kills/...) may be drawn. */
@@ -141,126 +115,80 @@ public class GraphViewFilter {
      *       name — hiding one the player has demonstrably already seen helps nobody.</li>
      * </ul>
      */
-    public boolean anonymizes(String stageId, StageEntry entry) {
+    public boolean anonymizes(String stageId, boolean isIndividual, StageEntry entry) {
         if (passThrough || !respectHiddenDisplay || entry == null) return false;
-        if (isUnlocked(stageId)) return false;
+        if (GraphUnlocks.isUnlocked(StageManager.graphKey(stageId, isIndividual))) return false;
         return entry.getHiddenDisplay().getNameMode() != DisplayMode.OFF;
     }
 
     // --- Visibility computation -------------------------------------------
 
+    /**
+     * The admitted set, in namespaced graph keys.
+     *
+     * <p>{@code PROGRESSIVE} shows the unlocked stages, their direct neighbours in both
+     * directions — what led here, what comes next — and on top of that everything that is
+     * researchable right now, wherever it sits. That last part is what also surfaces the roots
+     * of branches the player has not touched at all.</p>
+     *
+     * <p>{@code PROGRESSIVE_STRICT} drops exactly that third part and keeps the neighbourhood
+     * around what the player owns. Note that this does <em>not</em> hide the researchable
+     * stages the player could tackle next: those are successors of an unlocked stage and come
+     * in as neighbours. What disappears is the researchable stages hanging off nothing the
+     * player has — free-standing roots, and stages whose only requirements are items or XP.</p>
+     *
+     * <p>In both modes the neighbour ring is drawn around the UNLOCKED stages only, never
+     * around the researchable ones as well. Doing the latter revealed a further layer of locked
+     * stages up to two hops from anything the player actually owned, which is what made
+     * {@code PROGRESSIVE} feel like it leaked half the map on a pack with many roots.</p>
+     */
     private Set<String> computeVisible() {
+        Map<String, List<StageManager.StageDepGroup>> prereqs = StageManager.graphDependencyGroups();
+        Set<String> unlocked = new HashSet<>();
+        for (String key : prereqs.keySet()) {
+            if (GraphUnlocks.isUnlocked(key)) unlocked.add(key);
+        }
+
         Set<String> out = new HashSet<>();
         switch (visibility) {
-            case ALL -> {
-                out.addAll(global.keySet());
-                out.addAll(individual.keySet());
-            }
-            case UNLOCKED_ONLY -> {
-                out.addAll(unlockedGlobal);
-                out.addAll(unlockedIndividual);
-            }
+            case ALL -> out.addAll(prereqs.keySet());
+            case UNLOCKED_ONLY -> out.addAll(unlocked);
+            case PROGRESSIVE_STRICT -> out.addAll(withNeighbours(unlocked, prereqs));
             case PROGRESSIVE -> {
-                // Base: unlocked, plus everything currently researchable (roots included).
-                Set<String> base = new HashSet<>();
-                base.addAll(unlockedGlobal);
-                base.addAll(unlockedIndividual);
-                for (String id : allIds()) {
-                    if (stagePrereqsSatisfied(id)) base.add(id);
-                }
-                out.addAll(base);
-                // One step of lookahead: direct neighbours of the base, both directions.
-                for (String id : base) {
-                    out.addAll(stagePrereqIdsOf(id));
-                    for (String other : allIds()) {
-                        if (stagePrereqIdsOf(other).contains(id)) out.add(other);
-                    }
+                out.addAll(withNeighbours(unlocked, prereqs));
+                for (String key : prereqs.keySet()) {
+                    if (GraphReachability.isOpen(key, prereqs, GraphUnlocks::isUnlocked)) out.add(key);
                 }
             }
         }
         return out;
     }
 
-    private Set<String> allIds() {
-        Set<String> ids = new HashSet<>(global.keySet());
-        ids.addAll(individual.keySet());
-        return ids;
+    /** The given stages plus everything one dependency edge away, in either direction. */
+    private static Set<String> withNeighbours(Set<String> seeds,
+                                              Map<String, List<StageManager.StageDepGroup>> prereqs) {
+        Set<String> out = new HashSet<>(seeds);
+        for (String key : seeds) {
+            out.addAll(prereqIdsOf(key, prereqs));
+        }
+        for (String key : prereqs.keySet()) {
+            for (String dep : prereqIdsOf(key, prereqs)) {
+                if (seeds.contains(dep)) {
+                    out.add(key);
+                    break;
+                }
+            }
+        }
+        return out;
     }
 
-    private StageEntry entryOf(String id) {
-        StageEntry e = global.get(id);
-        return e != null ? e : individual.get(id);
-    }
-
-    private boolean isUnlocked(String id) {
-        return unlockedGlobal.contains(id) || unlockedIndividual.contains(id);
-    }
-
-    /** All stage ids this stage references as prerequisites (global + individual). */
-    private Set<String> stagePrereqIdsOf(String id) {
+    /** All stage keys this stage references as prerequisites, group boundaries discarded. */
+    private static Set<String> prereqIdsOf(String key,
+                                           Map<String, List<StageManager.StageDepGroup>> prereqs) {
         Set<String> out = new HashSet<>();
-        StageEntry e = entryOf(id);
-        if (e == null) return out;
-        for (DependencyGroup g : e.getDependencies()) {
-            if (g.isEmpty()) continue;
-            out.addAll(g.getStages());
-            for (IndividualStageDep d : g.getIndividualStages()) {
-                if (d.getStageId() != null) out.add(d.getStageId());
-            }
+        for (StageManager.StageDepGroup g : prereqs.getOrDefault(key, List.of())) {
+            out.addAll(g.stageKeys());
         }
         return out;
-    }
-
-    /**
-     * True when every dependency group's STAGE requirements are met — i.e. the stage is
-     * researchable right now as far as stages go.
-     *
-     * <p>Only stage requirements are considered. Item/XP/kill requirements are deliberately
-     * ignored: the client cannot evaluate them reliably, and "you still need to gather the
-     * iron" does not make a stage unreachable — it is exactly what the player wants to see.</p>
-     *
-     * <p>Groups are AND-combined (matching {@code DependencyChecker.checkAll}); within a
-     * group, {@code isOr()} selects OR.</p>
-     */
-    private boolean stagePrereqsSatisfied(String id) {
-        StageEntry e = entryOf(id);
-        if (e == null) return false;
-        for (DependencyGroup g : e.getDependencies()) {
-            if (g.isEmpty()) continue;
-            if (!groupStageReqsSatisfied(g)) return false;
-        }
-        return true;
-    }
-
-    private boolean groupStageReqsSatisfied(DependencyGroup g) {
-        Set<String> refs = new HashSet<>(g.getStages());
-        for (IndividualStageDep d : g.getIndividualStages()) {
-            if (d.getStageId() != null) refs.add(d.getStageId());
-        }
-        // No stage requirements in this group — nothing here can block it.
-        if (refs.isEmpty()) return true;
-
-        if (g.isOr()) {
-            // An OR group can also be satisfied through its non-stage requirements, so a
-            // locked stage ref does not block it if any other requirement exists.
-            if (hasNonStageReqs(g)) return true;
-            for (String r : refs) {
-                if (isUnlocked(r)) return true;
-            }
-            return false;
-        }
-        for (String r : refs) {
-            if (!isUnlocked(r)) return false;
-        }
-        return true;
-    }
-
-    private boolean hasNonStageReqs(DependencyGroup g) {
-        return !g.getItems().isEmpty()
-                || !g.getAdvancements().isEmpty()
-                || g.getXpLevel() != null
-                || !g.getEntityKills().isEmpty()
-                || !g.getStats().isEmpty()
-                || !g.getScoreboard().isEmpty();
     }
 }
