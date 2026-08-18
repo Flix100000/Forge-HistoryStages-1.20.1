@@ -1,26 +1,19 @@
 package net.bananemdnsa.historystages.network;
 
-import com.electronwill.nightconfig.core.UnmodifiableConfig;
-import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.client.editor.graph.StageGraphConfig;
+import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.network.NetworkEvent;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
  * Server -&gt; client sync of {@code graph.toml}.
  *
- * <p>Unlike {@code SyncConfigPacket}, which keeps a hand-written list of keys, this walks the spec
- * itself. Seventy keys in a hand-maintained list is a list somebody forgets to extend — that has
- * already happened in the common config, where several keys are saved server-side and never reach
- * clients at all.
+ * <p>The values are gathered by walking the spec itself, so a key added to {@code GraphConfig}
+ * syncs without anyone remembering to list it.
  *
  * <p>Keys are the dotted toml paths ({@code style.global.unlocked.shape}), not the invented flat
  * names {@code SyncConfigPacket} uses. Flat names exist there because leaf names repeat across
@@ -54,23 +47,7 @@ public class SyncGraphConfigPacket {
 
     /** Snapshots every value in the graph spec, keyed by its dotted toml path. */
     public static SyncGraphConfigPacket fromServerConfig() {
-        Map<String, String> values = new LinkedHashMap<>();
-        collect(GraphConfig.GRAPH_SPEC.getValues(), "", values);
-        return new SyncGraphConfigPacket(values);
-    }
-
-    /** Depth-first walk of the spec's value tree; leaves are {@link ForgeConfigSpec.ConfigValue}. */
-    private static void collect(UnmodifiableConfig config, String prefix, Map<String, String> out) {
-        for (UnmodifiableConfig.Entry entry : config.entrySet()) {
-            String path = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
-            Object raw = entry.getRawValue();
-            if (raw instanceof UnmodifiableConfig nested) {
-                collect(nested, path, out);
-            } else if (raw instanceof ForgeConfigSpec.ConfigValue<?> value) {
-                Object current = value.get();
-                if (current != null) out.put(path, String.valueOf(current));
-            }
-        }
+        return new SyncGraphConfigPacket(GraphConfigCodec.collect());
     }
 
     public static void handle(SyncGraphConfigPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -79,40 +56,20 @@ public class SyncGraphConfigPacket {
     }
 
     /** Writes the received values straight into the client's own spec objects. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public static void apply(Map<String, String> values) {
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            List<String> path = Arrays.asList(entry.getKey().split("\\."));
-            Object raw = GraphConfig.GRAPH_SPEC.getValues().getRaw(path);
-            if (!(raw instanceof ForgeConfigSpec.ConfigValue<?> value)) continue;
-
-            Object parsed = parseLike(value.getDefault(), entry.getValue());
-            if (parsed != null) ((ForgeConfigSpec.ConfigValue) value).set(parsed);
-        }
+        GraphConfigCodec.apply(values, true);
 
         // graph.toml changed under it — every previously resolved node style is stale.
         StageGraphConfig.invalidateCache();
-    }
 
-    /**
-     * Parses a string back into the type of the spec's own default value.
-     *
-     * <p>Returns null when the text cannot be parsed, in which case the caller keeps the local
-     * value. A server sending something this client cannot read is not worth failing a login over.
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static Object parseLike(Object template, String text) {
-        try {
-            if (template instanceof Boolean) return Boolean.parseBoolean(text);
-            if (template instanceof Integer) return Integer.parseInt(text);
-            if (template instanceof Long) return Long.parseLong(text);
-            if (template instanceof Double) return Double.parseDouble(text);
-            if (template instanceof Enum<?> constant) {
-                return Enum.valueOf((Class<Enum>) constant.getDeclaringClass(), text);
-            }
-            return text;
-        } catch (Exception e) {
-            return null;
-        }
+        // An open config editor holds a snapshot of the Graph tab taken when it was built. Left
+        // alone, it would re-send those pre-sync values on its next Save and undo whichever admin
+        // saved first. The screen is client-only, so it is reached through DistExecutor rather than
+        // named here — a packet class is loaded on the dedicated server too, and calling straight
+        // into client-only code from here is what forced the 5.6.1 hotfix on the neoforge branch.
+        net.minecraftforge.fml.DistExecutor.unsafeRunWhenOn(
+                net.minecraftforge.api.distmarker.Dist.CLIENT,
+                () -> () -> net.bananemdnsa.historystages.client.editor.ConfigEditorScreen
+                        .onGraphConfigSynced());
     }
 }

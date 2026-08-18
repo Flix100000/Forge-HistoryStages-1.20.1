@@ -1,7 +1,14 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 import net.bananemdnsa.historystages.Config;
+import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
+import net.bananemdnsa.historystages.data.graph.GraphConfigEntries;
+import net.bananemdnsa.historystages.data.graph.GraphKey;
+import net.bananemdnsa.historystages.network.SaveGraphConfigPacket;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
+import net.bananemdnsa.historystages.client.editor.widget.EditorTooltip;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
 import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
@@ -17,12 +24,18 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
+import net.bananemdnsa.historystages.client.editor.dialog.ColorInputScreen;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
+import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
+import net.bananemdnsa.historystages.client.editor.widget.list.ConfigRowList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTextureList;
 
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -32,10 +45,14 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ConfigEditorScreen extends Screen {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     /**
      * The editor the incoming config sync should refresh, if one is open. Weak on purpose: nothing
      * here owns the screen's lifecycle, and clearing it reliably would mean hooking every path that
@@ -59,8 +76,8 @@ public class ConfigEditorScreen extends Screen {
     private final Map<Integer, Anim> rowHover = new HashMap<>();
     /** Per-tab hover progress, indexed by tab position. */
     private final Map<Integer, Anim> tabHover = new HashMap<>();
-    /** Hover progress per config entry, keyed by the entry's config key. */
-    private final Map<String, Anim> entryHover = new HashMap<>();
+    /** Draws and hit-tests the config rows; owns their hover state. */
+    private final ConfigRowList configRows = new ConfigRowList();
     private final Anim scrollThumbHover = new Anim();
     private int maxScroll = 0;
     private boolean draggingScrollbar = false;
@@ -71,16 +88,23 @@ public class ConfigEditorScreen extends Screen {
     // Config entries grouped by section
     private List<ConfigSection> clientSections;
     private List<ConfigSection> commonSections;
+    /** graph.toml's five non-style tables, generated from the spec. */
+    private List<ConfigSection> graphSections;
+    /**
+     * The six node-style blocks, keyed {@code "global.unlocked"} and so on. Edited by
+     * {@link GraphStyleScreen} but owned here, so one Save covers them and the unsaved-changes
+     * marker stays honest across both screens.
+     */
+    private final Map<String, List<ConfigEntry>> styleEntries = new LinkedHashMap<>();
 
-    // Tooltip hover tracking
-    private String hoveredEntryKey = null;
-    private long hoverStartTime = 0;
-    private static final long TOOLTIP_DELAY_MS = Timing.TOOLTIP_DELAY_MS;
+    /** Hover tooltip, including its own appear-delay bookkeeping. */
+    private final EditorTooltip tooltip = new EditorTooltip();
 
     // Tab layout
     private static final String[] TAB_KEYS = {
             "editor.historystages.tab.client",
-            "editor.historystages.tab.common"
+            "editor.historystages.tab.common",
+            "editor.historystages.tab.graph"
     };
     private int[] tabX;
     private int[] tabW;
@@ -88,9 +112,6 @@ public class ConfigEditorScreen extends Screen {
 
     // Layout constants
     private static final int HEADER_HEIGHT = 50;
-    private static final int SECTION_HEADER_HEIGHT = 22;
-    private static final int ENTRY_HEIGHT = 24;
-    private static final int SECTION_GAP = 12;
     private static final int TAB_HEIGHT = 16;
     private static final int TAB_PAD = 8;
     private static final float SMALL_SCALE = 0.85f;
@@ -107,6 +128,8 @@ public class ConfigEditorScreen extends Screen {
         // Staying stale is instead handled by onCommonConfigSynced().
         if (clientSections == null)
             buildConfigEntries();
+        if (graphSections == null)
+            buildGraphEntries();
 
         active = new java.lang.ref.WeakReference<>(this);
 
@@ -114,7 +137,8 @@ public class ConfigEditorScreen extends Screen {
         tabY = 30;
         tabX = new int[TAB_KEYS.length];
         tabW = new int[TAB_KEYS.length];
-        int tabTotalWidth = 200;
+        // Three tabs now: 200 split three ways leaves 66px each, too narrow for the labels.
+        int tabTotalWidth = 300;
         int gap = 2;
         int tabStartX = this.width / 2 - tabTotalWidth / 2;
         int tabWidthEach = (tabTotalWidth - gap) / TAB_KEYS.length;
@@ -158,107 +182,88 @@ public class ConfigEditorScreen extends Screen {
 
         ConfigSection visuals = new ConfigSection("editor.historystages.config.visuals");
         visuals.add(new ConfigEntry("showTooltips", ConfigType.BOOLEAN,
-                Config.CLIENT.showTooltips.get().toString(), true, "true",
-                "Show information tooltips on locked items?"));
+                Config.CLIENT.showTooltips.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showStageName", ConfigType.BOOLEAN,
-                Config.CLIENT.showStageName.get().toString(), true, "true",
-                "If tooltips are enabled, show the name of the required stage?"));
+                Config.CLIENT.showStageName.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showAllUntilComplete", ConfigType.BOOLEAN,
-                Config.CLIENT.showAllUntilComplete.get().toString(), true, "true",
-                "If an item is in multiple stages, show all of them until all are unlocked?"));
+                Config.CLIENT.showAllUntilComplete.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showBoosterTooltips", ConfigType.BOOLEAN,
-                Config.CLIENT.showBoosterTooltips.get().toString(), true, "true",
-                "Show a tooltip on Research Pedestal booster blocks describing their speed/cost effect?"));
+                Config.CLIENT.showBoosterTooltips.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showScrollTierTooltip", ConfigType.BOOLEAN,
-                Config.CLIENT.showScrollTierTooltip.get().toString(), true, "true",
-                "Show the minimum required Pedestal tier on Research Scroll tooltips?"));
+                Config.CLIENT.showScrollTierTooltip.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("showLockIcons", ConfigType.BOOLEAN,
-                Config.CLIENT.showLockIcons.get().toString(), true, "true",
-                "Show a lock icon overlay on locked items in JEI and Inventories?"));
+                Config.CLIENT.showLockIcons.get().toString(), true, "true"));
         clientSections.add(visuals);
 
         ConfigSection structureVisuals = new ConfigSection("editor.historystages.config.structure_visuals");
         structureVisuals.add(new ConfigEntry("structureBorderEnabled", ConfigType.BOOLEAN,
-                Config.CLIENT.structureBorderEnabled.get().toString(), true, "true",
-                "Render a red force-field overlay on the walls of locked structures as you approach them?"));
+                Config.CLIENT.structureBorderEnabled.get().toString(), true, "true"));
         structureVisuals.add(new ConfigEntry("structureBorderDistance", ConfigType.DOUBLE,
                 Config.CLIENT.structureBorderDistance.get().toString(), true, "8.0",
-                "How close (in blocks) to a locked structure wall before the border becomes visible.",
                 1.0, 32.0));
         structureVisuals.add(new ConfigEntry("structureLockOverlayEnabled", ConfigType.BOOLEAN,
-                Config.CLIENT.structureLockOverlayEnabled.get().toString(), true, "true",
-                "While standing inside a locked structure, tint the whole screen red?"));
+                Config.CLIENT.structureLockOverlayEnabled.get().toString(), true, "true"));
         structureVisuals.add(new ConfigEntry("structureLockOverlayOpacity", ConfigType.DOUBLE,
                 Config.CLIENT.structureLockOverlayOpacity.get().toString(), true, "0.30",
-                "Opacity of the red lock-overlay (0.0 = invisible, 1.0 = fully opaque).",
                 0.0, 1.0));
         clientSections.add(structureVisuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
         jade.add(new ConfigEntry("jadeShowInfo", ConfigType.BOOLEAN,
-                Config.CLIENT.jadeShowInfo.get().toString(), true, "true",
-                "Show stage information on locked blocks in the Jade overlay?"));
+                Config.CLIENT.jadeShowInfo.get().toString(), true, "true"));
         jade.add(new ConfigEntry("jadeStageName", ConfigType.BOOLEAN,
-                Config.CLIENT.jadeStageName.get().toString(), true, "true",
-                "If Jade info is enabled, show the name of the required stage?"));
+                Config.CLIENT.jadeStageName.get().toString(), true, "true"));
         jade.add(new ConfigEntry("jadeShowAllUntilComplete", ConfigType.BOOLEAN,
-                Config.CLIENT.jadeShowAllUntilComplete.get().toString(), true, "true",
-                "If a block is in multiple stages, show all of them until all are unlocked?"));
+                Config.CLIENT.jadeShowAllUntilComplete.get().toString(), true, "true"));
         clientSections.add(jade);
 
         ConfigSection individualClient = new ConfigSection("editor.historystages.config.individual_stages");
         individualClient.add(new ConfigEntry("showSilverLockIcons", ConfigType.BOOLEAN,
-                Config.CLIENT.showSilverLockIcons.get().toString(), true, "true",
-                "Show a silver lock icon on items locked by individual stages?"));
+                Config.CLIENT.showSilverLockIcons.get().toString(), true, "true"));
         individualClient.add(new ConfigEntry("showIndividualTooltips", ConfigType.BOOLEAN,
-                Config.CLIENT.showIndividualTooltips.get().toString(), true, "true",
-                "Show tooltip information for items locked by individual stages?"));
+                Config.CLIENT.showIndividualTooltips.get().toString(), true, "true"));
         clientSections.add(individualClient);
 
         ConfigSection dependenciesClient = new ConfigSection("editor.historystages.config.dependencies");
         dependenciesClient.add(new ConfigEntry("showDependenciesOnScroll", ConfigType.BOOLEAN,
-                Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true",
-                "Show dependency requirements in research scroll tooltips?"));
+                Config.CLIENT.showDependenciesOnScroll.get().toString(), true, "true"));
         dependenciesClient.add(new ConfigEntry("hideFulfilledDependencies", ConfigType.BOOLEAN,
-                Config.CLIENT.hideFulfilledDependencies.get().toString(), true, "false",
-                "Hide already fulfilled dependencies in scroll tooltips?"));
+                Config.CLIENT.hideFulfilledDependencies.get().toString(), true, "false"));
         clientSections.add(dependenciesClient);
 
         // JEI hiding (Issue #64)
         ConfigSection jeiHiding = new ConfigSection("editor.historystages.config.jei_hiding");
         jeiHiding.add(new ConfigEntry("hideLockedItemsInJei", ConfigType.BOOLEAN,
-                Config.CLIENT.hideLockedItemsInJei.get().toString(), true, "false",
-                "Remove locked items from the JEI ingredient panel entirely."));
+                Config.CLIENT.hideLockedItemsInJei.get().toString(), true, "false"));
         jeiHiding.add(new ConfigEntry("hideLockedRecipesInJei", ConfigType.BOOLEAN,
-                Config.CLIENT.hideLockedRecipesInJei.get().toString(), true, "false",
-                "Hide recipes whose OUTPUT is a locked item in JEI."));
-        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.MULTI_STAGE_POLICY,
+                Config.CLIENT.hideLockedRecipesInJei.get().toString(), true, "false"));
+        // An ENUM row rather than a toggle: STRICT and LENIENT are two named policies, and
+        // cycling through them one click at a time says nothing about what the other one is.
+        jeiHiding.add(new ConfigEntry("lockedItemMultiStagePolicy", ConfigType.ENUM,
                 Config.CLIENT.lockedItemMultiStagePolicy.get().name(), true, "STRICT",
-                "Multi-stage policy: STRICT (hide while any stage locked) or LENIENT (show when any unlocked)."));
+                "editor.historystages.config.lockedItemMultiStagePolicy",
+                "editor.historystages.config.lockedItemMultiStagePolicy.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(Config.Client.MultiStagePolicy.values()).map(Enum::name).toList(),
+                Config.Client.MultiStagePolicy.class.getSimpleName()));
         clientSections.add(jeiHiding);
 
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimUseActionbar", ConfigType.BOOLEAN,
-                Config.CLIENT.dimUseActionbar.get().toString(), true, "true",
-                "Show a simple 'Dimension Locked' message in the actionbar?"));
+                Config.CLIENT.dimUseActionbar.get().toString(), true, "true"));
         dimLock.add(new ConfigEntry("dimShowChat", ConfigType.BOOLEAN,
-                Config.CLIENT.dimShowChat.get().toString(), true, "false",
-                "Show the dimension lock message in the chat?"));
+                Config.CLIENT.dimShowChat.get().toString(), true, "false"));
         dimLock.add(new ConfigEntry("dimShowStagesInChat", ConfigType.BOOLEAN,
-                Config.CLIENT.dimShowStagesInChat.get().toString(), true, "true",
-                "If dimShowChat is true, should the required stages also be listed?"));
+                Config.CLIENT.dimShowStagesInChat.get().toString(), true, "true"));
         clientSections.add(dimLock);
 
         ConfigSection mobLock = new ConfigSection("editor.historystages.config.mob_lock");
         mobLock.add(new ConfigEntry("mobUseActionbar", ConfigType.BOOLEAN,
-                Config.CLIENT.mobUseActionbar.get().toString(), true, "true",
-                "Show a 'Mob Protected' message in the actionbar?"));
+                Config.CLIENT.mobUseActionbar.get().toString(), true, "true"));
         mobLock.add(new ConfigEntry("mobShowChat", ConfigType.BOOLEAN,
-                Config.CLIENT.mobShowChat.get().toString(), true, "false",
-                "Show the mob lock message in the chat?"));
+                Config.CLIENT.mobShowChat.get().toString(), true, "false"));
         mobLock.add(new ConfigEntry("mobShowStagesInChat", ConfigType.BOOLEAN,
-                Config.CLIENT.mobShowStagesInChat.get().toString(), true, "true",
-                "If mobShowChat is true, should the required stages also be listed?"));
+                Config.CLIENT.mobShowStagesInChat.get().toString(), true, "true"));
         clientSections.add(mobLock);
 
         // --- COMMON CONFIG ---
@@ -266,269 +271,315 @@ public class ConfigEditorScreen extends Screen {
 
         ConfigSection messages = new ConfigSection("editor.historystages.config.messages");
         messages.add(new ConfigEntry("showWelcomeMessage", ConfigType.BOOLEAN,
-                Config.COMMON.showWelcomeMessage.get().toString(), false, "true",
-                "Show a welcome message in chat when a player joins the world?"));
+                Config.COMMON.showWelcomeMessage.get().toString(), false, "true"));
         messages.add(new ConfigEntry("showDebugErrors", ConfigType.BOOLEAN,
-                Config.COMMON.showDebugErrors.get().toString(), false, "true",
-                "Show debug messages in chat if a JSON stage has errors or missing items?"));
+                Config.COMMON.showDebugErrors.get().toString(), false, "true"));
         messages.add(new ConfigEntry("enableRuntimeLogging", ConfigType.BOOLEAN,
-                Config.COMMON.enableRuntimeLogging.get().toString(), false, "false",
-                "Log runtime events (unlock/lock, blocked actions, loot replacements) to config/historystages/logs/?"));
+                Config.COMMON.enableRuntimeLogging.get().toString(), false, "false"));
         commonSections.add(messages);
 
         ConfigSection gameplay = new ConfigSection("editor.historystages.config.gameplay");
         gameplay.add(new ConfigEntry("lockMobLoot", ConfigType.BOOLEAN,
-                Config.COMMON.lockMobLoot.get().toString(), false, "true",
-                "Handle locked items in mob loot tables?"));
+                Config.COMMON.lockMobLoot.get().toString(), false, "true"));
         gameplay.add(new ConfigEntry("lockBlockBreaking", ConfigType.BOOLEAN,
-                Config.COMMON.lockBlockBreaking.get().toString(), false, "true",
-                "Make locked blocks much harder to break and prevent their drops?"));
+                Config.COMMON.lockBlockBreaking.get().toString(), false, "true"));
         gameplay.add(new ConfigEntry("lockedBlockBreakSpeedMultiplier", ConfigType.DOUBLE,
                 Config.COMMON.lockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
-                "Break speed multiplier for locked blocks (0.001-1.0). Lower = slower.",
                 0.001, 1.0));
         gameplay.add(new ConfigEntry("lockItemUsage", ConfigType.BOOLEAN,
-                Config.COMMON.lockItemUsage.get().toString(), false, "true",
-                "Prevent using locked items? (equipping armor, weapons, food, etc.)"));
+                Config.COMMON.lockItemUsage.get().toString(), false, "true"));
         gameplay.add(new ConfigEntry("lockEntityItems", ConfigType.BOOLEAN,
-                Config.COMMON.lockEntityItems.get().toString(), false, "true",
-                "Prevent interacting with or breaking armor stands and item frames that contain locked items?"));
+                Config.COMMON.lockEntityItems.get().toString(), false, "true"));
         gameplay.add(new ConfigEntry("lockBlockInteraction", ConfigType.BOOLEAN,
-                Config.COMMON.lockBlockInteraction.get().toString(), false, "true",
-                "Prevent opening the GUI of locked blocks? (Chests, furnaces, crafting tables, etc.)"));
+                Config.COMMON.lockBlockInteraction.get().toString(), false, "true"));
         commonSections.add(gameplay);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
         notifications.add(new ConfigEntry("broadcastChat", ConfigType.BOOLEAN,
-                Config.COMMON.broadcastChat.get().toString(), false, "true",
-                "Show unlock/lock messages in the chat for everyone?"));
+                Config.COMMON.broadcastChat.get().toString(), false, "true"));
         notifications.add(new ConfigEntry("unlockMessageFormat", ConfigType.STRING,
                 Config.COMMON.unlockMessageFormat.get(), false,
-                "&fThe world has entered the &b{stage}&f!",
-                "Message format for unlocks. Use {stage} for the name and & for colors."));
+                "&fThe world has entered the &b{stage}&f!"));
         notifications.add(new ConfigEntry("useActionbar", ConfigType.BOOLEAN,
-                Config.COMMON.useActionbar.get().toString(), false, "false",
-                "Show messages in the actionbar for everyone?"));
+                Config.COMMON.useActionbar.get().toString(), false, "false"));
         notifications.add(new ConfigEntry("useSounds", ConfigType.BOOLEAN,
-                Config.COMMON.useSounds.get().toString(), false, "true",
-                "Play notification sounds for everyone?"));
+                Config.COMMON.useSounds.get().toString(), false, "true"));
         notifications.add(new ConfigEntry("useToasts", ConfigType.BOOLEAN,
-                Config.COMMON.useToasts.get().toString(), false, "true",
-                "Show an advancement-style toast popup when a stage is unlocked?"));
+                Config.COMMON.useToasts.get().toString(), false, "true"));
         notifications.add(new ConfigEntry("defaultStageIcon", ConfigType.ITEM,
-                Config.COMMON.defaultStageIcon.get(), false, "historystages:research_scroll",
-                "Default icon used in unlock toasts for stages that don't define their own icon."));
+                Config.COMMON.defaultStageIcon.get(), false, "historystages:research_scroll"));
         commonSections.add(notifications);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
         individualCommon.add(new ConfigEntry("individualLockItemPickup", ConfigType.BOOLEAN,
-                Config.COMMON.individualLockItemPickup.get().toString(), false, "true",
-                "Prevent players from picking up items locked by individual stages?"));
+                Config.COMMON.individualLockItemPickup.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualLockLoot", ConfigType.BOOLEAN,
-                Config.COMMON.individualLockLoot.get().toString(), false, "true",
-                "Handle items locked by individual stages in Lootr containers and mob loot? Mob drops are checked against the killing player."));
+                Config.COMMON.individualLockLoot.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualDropOnRevoke", ConfigType.BOOLEAN,
-                Config.COMMON.individualDropOnRevoke.get().toString(), false, "true",
-                "Drop locked items from a player's inventory when their individual stage is revoked?"));
+                Config.COMMON.individualDropOnRevoke.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualLockBlockBreaking", ConfigType.BOOLEAN,
-                Config.COMMON.individualLockBlockBreaking.get().toString(), false, "true",
-                "Make blocks locked by individual stages much harder to break and prevent their drops?"));
+                Config.COMMON.individualLockBlockBreaking.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualLockedBlockBreakSpeedMultiplier", ConfigType.DOUBLE,
                 Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().toString(), false, "0.05",
-                "Break speed multiplier for blocks locked by individual stages (0.001-1.0). Lower = slower.",
                 0.001, 1.0));
         individualCommon.add(new ConfigEntry("individualLockItemUsage", ConfigType.BOOLEAN,
-                Config.COMMON.individualLockItemUsage.get().toString(), false, "true",
-                "Prevent using items locked by individual stages? (Blocks equipping armor, using weapons, eating food, etc.)"));
+                Config.COMMON.individualLockItemUsage.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualLockBlockInteraction", ConfigType.BOOLEAN,
-                Config.COMMON.individualLockBlockInteraction.get().toString(), false, "true",
-                "Prevent opening the GUI of blocks locked by individual stages? (Chests, furnaces, crafting tables, etc.)"));
+                Config.COMMON.individualLockBlockInteraction.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualBroadcastChat", ConfigType.BOOLEAN,
-                Config.COMMON.individualBroadcastChat.get().toString(), false, "true",
-                "Show individual stage unlock/lock messages in the chat for the player?"));
+                Config.COMMON.individualBroadcastChat.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualUnlockMessageFormat", ConfigType.STRING,
                 Config.COMMON.individualUnlockMessageFormat.get(), false,
-                "&fYou have unlocked &b{stage}&f!",
-                "Message format for individual unlocks. Use {stage} for the name, {player} for the player, and & for colors."));
+                "&fYou have unlocked &b{stage}&f!"));
         individualCommon.add(new ConfigEntry("individualUseActionbar", ConfigType.BOOLEAN,
-                Config.COMMON.individualUseActionbar.get().toString(), false, "false",
-                "Show individual stage messages in the actionbar?"));
+                Config.COMMON.individualUseActionbar.get().toString(), false, "false"));
         individualCommon.add(new ConfigEntry("individualUseSounds", ConfigType.BOOLEAN,
-                Config.COMMON.individualUseSounds.get().toString(), false, "true",
-                "Play notification sounds for individual stage unlocks?"));
+                Config.COMMON.individualUseSounds.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individualUseToasts", ConfigType.BOOLEAN,
-                Config.COMMON.individualUseToasts.get().toString(), false, "true",
-                "Show an advancement-style toast popup when an individual stage is unlocked?"));
+                Config.COMMON.individualUseToasts.get().toString(), false, "true"));
         commonSections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("researchBoosters", ConfigType.BOOSTER_LIST,
-                encodeBoosterList(Config.COMMON.researchBoosters.get()), false, "",
-                "Booster blocks placed under a Research Pedestal. Speed/cost values are percentages 0-90."));
+                encodeBoosterList(Config.COMMON.researchBoosters.get()), false, ""));
         research.add(new ConfigEntry("researchTimeInSeconds", ConfigType.INTEGER,
                 Config.COMMON.researchTimeInSeconds.get().toString(), false, "20",
-                "Default research time in seconds. Used as fallback if a stage does not define its own.",
                 1, 86400));
         research.add(new ConfigEntry("showDependencyScreenInPedestal", ConfigType.BOOLEAN,
-                Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true",
-                "Show dependency checklist screen when interacting with pedestal that has dependency requirements?"));
+                Config.COMMON.showDependencyScreenInPedestal.get().toString(), false, "true"));
         research.add(new ConfigEntry("lockScrollWhileResearching", ConfigType.BOOLEAN,
-                Config.COMMON.lockScrollWhileResearching.get().toString(), false, "false",
-                "Lock the scroll in the pedestal once research has started? Prevents players and hoppers from removing it."));
+                Config.COMMON.lockScrollWhileResearching.get().toString(), false, "false"));
         commonSections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");
         lootReplace.add(new ConfigEntry("useReplacements", ConfigType.BOOLEAN,
-                Config.COMMON.useReplacements.get().toString(), false, "false",
-                "If true, locked items are replaced by specific items/tags. If false, they disappear."));
+                Config.COMMON.useReplacements.get().toString(), false, "false"));
         lootReplace.add(new ConfigEntry("replacementItems", ConfigType.ITEM_LIST,
                 String.join(",", Config.COMMON.replacementItems.get()), false,
-                "minecraft:cobblestone,minecraft:dirt",
-                "List of item IDs to pick from as replacement (Priority 1). Click to manage."));
+                "minecraft:cobblestone,minecraft:dirt"));
         lootReplace.add(new ConfigEntry("replacementTags", ConfigType.TAG_LIST,
-                String.join(",", Config.COMMON.replacementTags.get()), false, "",
-                "List of tags to pick a random replacement from (Priority 2). Click to manage."));
+                String.join(",", Config.COMMON.replacementTags.get()), false, ""));
         commonSections.add(lootReplace);
 
         ConfigSection structureLock = new ConfigSection("editor.historystages.config.structure_lock");
         structureLock.add(new ConfigEntry("structureCheckInterval", ConfigType.INTEGER,
                 Config.COMMON.structureCheckInterval.get().toString(), false, "10",
-                "How often (in ticks) to check if a player is inside a locked structure.",
                 1, 200));
         structureLock.add(new ConfigEntry("structureMessageEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.structureMessageEnabled.get().toString(), false, "true",
-                "Show the player a message when they are inside a locked structure?"));
+                Config.COMMON.structureMessageEnabled.get().toString(), false, "true"));
         structureLock.add(new ConfigEntry("structureLockMessageFormat", ConfigType.STRING,
                 Config.COMMON.structureLockMessageFormat.get(), false,
-                "&cYou cannot enter &e{structure}&c yet!",
-                "Message format for structure lock. Use {structure}, {stage} and & for colors."));
+                "&cYou cannot enter &e{structure}&c yet!"));
         structureLock.add(new ConfigEntry("structureLockInChat", ConfigType.BOOLEAN,
-                Config.COMMON.structureLockInChat.get().toString(), false, "false",
-                "Show the structure lock message in chat as well (otherwise only actionbar)?"));
+                Config.COMMON.structureLockInChat.get().toString(), false, "false"));
         structureLock.add(new ConfigEntry("structureDamageEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.structureDamageEnabled.get().toString(), false, "false",
-                "Damage the player while they are inside a locked structure?"));
+                Config.COMMON.structureDamageEnabled.get().toString(), false, "false"));
         structureLock.add(new ConfigEntry("structureDamageAmount", ConfigType.DOUBLE,
                 Config.COMMON.structureDamageAmount.get().toString(), false, "1.0",
-                "Amount of damage dealt per damage tick.",
                 0.1, 100.0));
         structureLock.add(new ConfigEntry("structureDamageInterval", ConfigType.INTEGER,
                 Config.COMMON.structureDamageInterval.get().toString(), false, "20",
-                "How often (in ticks) to deal damage while inside a locked structure.",
                 1, 600));
         structureLock.add(new ConfigEntry("structureBlockRightClick", ConfigType.BOOLEAN,
-                Config.COMMON.structureBlockRightClick.get().toString(), false, "true",
-                "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked structure?"));
+                Config.COMMON.structureBlockRightClick.get().toString(), false, "true"));
         structureLock.add(new ConfigEntry("structureBlockLeftClick", ConfigType.BOOLEAN,
-                Config.COMMON.structureBlockLeftClick.get().toString(), false, "true",
-                "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked structure?"));
+                Config.COMMON.structureBlockLeftClick.get().toString(), false, "true"));
         structureLock.add(new ConfigEntry("structureBlockProjectiles", ConfigType.BOOLEAN,
-                Config.COMMON.structureBlockProjectiles.get().toString(), false, "true",
-                "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked structure?"));
+                Config.COMMON.structureBlockProjectiles.get().toString(), false, "true"));
         commonSections.add(structureLock);
 
         ConfigSection biomeLock = new ConfigSection("editor.historystages.config.biome_lock");
         biomeLock.add(new ConfigEntry("biomeCheckInterval", ConfigType.INTEGER,
                 Config.COMMON.biomeCheckInterval.get().toString(), false, "10",
-                "How often (in ticks) to re-check a player's biome even when they haven't moved to a new biome cell. Moving always re-checks immediately.",
                 1, 200));
         biomeLock.add(new ConfigEntry("biomeEffectsEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.biomeEffectsEnabled.get().toString(), false, "true",
-                "Apply the potion effects below while the player is inside a locked biome?"));
+                Config.COMMON.biomeEffectsEnabled.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biomeEffects", ConfigType.EFFECT_LIST,
                 encodeEffectList(Config.COMMON.biomeEffects.get()), false,
-                "minecraft:blindness, 30, 0",
-                "Potion effects applied inside a locked biome. Refreshed while the player stays inside, so the duration is really how long it lingers after leaving. Click to manage."));
+                "minecraft:blindness, 30, 0"));
         biomeLock.add(new ConfigEntry("biomeClearEffectsOnLeave", ConfigType.BOOLEAN,
-                Config.COMMON.biomeClearEffectsOnLeave.get().toString(), false, "false",
-                "Remove those effects the moment the player leaves the locked biome, instead of letting them run out?"));
+                Config.COMMON.biomeClearEffectsOnLeave.get().toString(), false, "false"));
         biomeLock.add(new ConfigEntry("biomeMessageEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.biomeMessageEnabled.get().toString(), false, "true",
-                "Show the player a message while they are inside a locked biome?"));
+                Config.COMMON.biomeMessageEnabled.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biomeLockMessageFormat", ConfigType.STRING,
                 Config.COMMON.biomeLockMessageFormat.get(), false,
-                "&cYou cannot survive in &e{biome}&c yet!",
-                "Message format for biome lock. Use {biome} for the ID, {stage} for the required stage, and & for colors."));
+                "&cYou cannot survive in &e{biome}&c yet!"));
         biomeLock.add(new ConfigEntry("biomeLockInChat", ConfigType.BOOLEAN,
-                Config.COMMON.biomeLockInChat.get().toString(), false, "false",
-                "Show the biome lock message in chat as well (otherwise only actionbar)?"));
+                Config.COMMON.biomeLockInChat.get().toString(), false, "false"));
         biomeLock.add(new ConfigEntry("biomeDamageEnabled", ConfigType.BOOLEAN,
-                Config.COMMON.biomeDamageEnabled.get().toString(), false, "true",
-                "Damage the player while they are inside a locked biome?"));
+                Config.COMMON.biomeDamageEnabled.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biomeDamageAmount", ConfigType.DOUBLE,
                 Config.COMMON.biomeDamageAmount.get().toString(), false, "1.0",
-                "Amount of damage dealt per damage tick (0.1-100.0).",
                 0.1, 100.0));
         biomeLock.add(new ConfigEntry("biomeDamageInterval", ConfigType.INTEGER,
                 Config.COMMON.biomeDamageInterval.get().toString(), false, "20",
-                "How often (in ticks) to deal damage while inside a locked biome.",
                 1, 600));
         biomeLock.add(new ConfigEntry("biomeBlockRightClick", ConfigType.BOOLEAN,
-                Config.COMMON.biomeBlockRightClick.get().toString(), false, "true",
-                "Cancel ALL right-click interactions (blocks, items, entities) while inside a locked biome?"));
+                Config.COMMON.biomeBlockRightClick.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biomeBlockLeftClick", ConfigType.BOOLEAN,
-                Config.COMMON.biomeBlockLeftClick.get().toString(), false, "true",
-                "Cancel ALL left-click interactions (attacking entities, breaking blocks) while inside a locked biome?"));
+                Config.COMMON.biomeBlockLeftClick.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biomeBlockProjectiles", ConfigType.BOOLEAN,
-                Config.COMMON.biomeBlockProjectiles.get().toString(), false, "true",
-                "Cancel projectiles (arrows, snowballs, ender pearls, etc.) that would impact inside a locked biome?"));
+                Config.COMMON.biomeBlockProjectiles.get().toString(), false, "true"));
         commonSections.add(biomeLock);
 
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
         lockMessages.add(new ConfigEntry("msgDimensionUnknown", ConfigType.STRING,
-                Config.COMMON.msgDimensionUnknown.get(), false, "",
-                "Override for the dimension lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgDimensionUnknown.get(), false, ""));
         lockMessages.add(new ConfigEntry("msgMobUnknown", ConfigType.STRING,
-                Config.COMMON.msgMobUnknown.get(), false, "",
-                "Override for the mob lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgMobUnknown.get(), false, ""));
         lockMessages.add(new ConfigEntry("msgItemLocked", ConfigType.STRING,
-                Config.COMMON.msgItemLocked.get(), false, "",
-                "Override for the item lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgItemLocked.get(), false, ""));
         lockMessages.add(new ConfigEntry("msgBlockLocked", ConfigType.STRING,
-                Config.COMMON.msgBlockLocked.get(), false, "",
-                "Override for the block lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgBlockLocked.get(), false, ""));
         lockMessages.add(new ConfigEntry("msgEntityItemLocked", ConfigType.STRING,
-                Config.COMMON.msgEntityItemLocked.get(), false, "",
-                "Override for the armor stand / item frame lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgEntityItemLocked.get(), false, ""));
         lockMessages.add(new ConfigEntry("msgEnchantmentLocked", ConfigType.STRING,
-                Config.COMMON.msgEnchantmentLocked.get(), false, "",
-                "Override for the enchantment lock actionbar message. Empty = use language file. Use & for color codes."));
+                Config.COMMON.msgEnchantmentLocked.get(), false, ""));
         commonSections.add(lockMessages);
     }
 
-    private void resetToDefaults() {
-        List<ConfigSection> allSections = new ArrayList<>();
-        allSections.addAll(clientSections);
-        allSections.addAll(commonSections);
-        for (ConfigSection section : allSections) {
-            for (ConfigEntry entry : section.entries) {
-                entry.value = entry.defaultValue;
+    /**
+     * The rows of graph.toml, generated by walking its spec rather than listed by hand. Hand
+     * listing 93 entries would be a second place where the graph's defaults live, and a key
+     * added to {@link net.bananemdnsa.historystages.GraphConfig} later would silently never
+     * appear here.
+     *
+     * <p>The five non-style tables become sections; the sixty style keys are held aside in
+     * {@link #styleEntries} behind a single row that opens {@link GraphStyleScreen}.
+     */
+    private void buildGraphEntries() {
+        graphSections = new ArrayList<>();
+        styleEntries.clear();
+        Map<String, String> current = GraphConfigCodec.collect();
+
+        for (Map.Entry<String, List<GraphKey>> table : GraphConfigEntries.sections().entrySet()) {
+            ConfigSection section = new ConfigSection(
+                    "editor.historystages.config.graph.section." + table.getKey());
+            for (GraphKey gk : table.getValue()) {
+                section.add(toEntry(gk, current, "editor.historystages.config.graph." + gk.path()));
+            }
+            graphSections.add(section);
+        }
+
+        for (String collection : List.of("global", "individual")) {
+            for (String state : List.of("unlocked", "reachable", "locked")) {
+                List<ConfigEntry> block = new ArrayList<>();
+                for (GraphKey gk : GraphConfigEntries.styleKeys(collection, state)) {
+                    // Keyed by leaf, so all six blocks share ten labels instead of sixty.
+                    block.add(toEntry(gk, current,
+                            "editor.historystages.config.graph.style." + gk.leaf()));
+                }
+                styleEntries.put(collection + "." + state, block);
+            }
+        }
+
+        ConfigSection styles = new ConfigSection("editor.historystages.config.graph.section.style");
+        styles.add(new ConfigEntry("graph.style", ConfigType.SUBSCREEN, "", false, "",
+                "editor.historystages.config.graph.style",
+                "editor.historystages.config.graph.style.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        graphSections.add(styles);
+
+        warnAboutMissingLangKeys();
+    }
+
+    /** One generated row. The path is what goes on the wire; the key is the editor-side identity. */
+    private ConfigEntry toEntry(GraphKey gk, Map<String, String> current, String labelKey) {
+        ConfigType type = switch (gk.kind()) {
+            case BOOLEAN -> ConfigType.BOOLEAN;
+            case INTEGER -> ConfigType.INTEGER;
+            case DOUBLE -> ConfigType.DOUBLE;
+            case STRING -> ConfigType.STRING;
+            case COLOR -> ConfigType.COLOR;
+            case ENUM -> ConfigType.ENUM;
+            case TEXTURE -> ConfigType.TEXTURE;
+        };
+        return new ConfigEntry(
+                "graph." + gk.path(), type,
+                current.getOrDefault(gk.path(), gk.defaultValue()), false,
+                gk.defaultValue(),
+                labelKey, labelKey + ".desc",
+                gk.min() == null ? Double.NEGATIVE_INFINITY : gk.min(),
+                gk.max() == null ? Double.POSITIVE_INFINITY : gk.max(),
+                gk.path(), gk.enumConstants(), gk.enumType());
+    }
+
+    /**
+     * With no unit test able to reach the generated key list, this is the only thing between a
+     * forgotten translation and a row that quietly shows a raw toml path.
+     */
+    private void warnAboutMissingLangKeys() {
+        for (ConfigEntry entry : graphEntries()) {
+            if (!I18n.exists(entry.labelKey)) {
+                LOGGER.warn("Graph config row {} has no label key {}",
+                        entry.key, entry.labelKey);
+            }
+            if (!I18n.exists(entry.descKey)) {
+                LOGGER.warn("Graph config row {} has no description key {}",
+                        entry.key, entry.descKey);
             }
         }
     }
 
-    private boolean hasChanges() {
-        List<ConfigSection> allSections = new ArrayList<>();
-        if (clientSections != null)
-            allSections.addAll(clientSections);
-        if (commonSections != null)
-            allSections.addAll(commonSections);
-        for (ConfigSection section : allSections) {
-            for (ConfigEntry entry : section.entries) {
-                if (!entry.value.equals(entry.initialValue))
-                    return true;
-            }
+    /** Every graph row, including the style blocks that live behind their own screen. */
+    private List<ConfigEntry> graphEntries() {
+        List<ConfigEntry> all = new ArrayList<>();
+        if (graphSections != null) {
+            for (ConfigSection section : graphSections) all.addAll(section.entries);
+        }
+        for (List<ConfigEntry> block : styleEntries.values()) all.addAll(block);
+        return all;
+    }
+
+    /**
+     * Every row on every tab. The four callers that used to each assemble their own list are
+     * why the graph rows have to be added in one place: three of them would have been easy to
+     * update and one easy to forget.
+     */
+    private List<ConfigEntry> allEntries() {
+        List<ConfigEntry> all = new ArrayList<>();
+        if (clientSections != null) {
+            for (ConfigSection section : clientSections) all.addAll(section.entries);
+        }
+        if (commonSections != null) {
+            for (ConfigSection section : commonSections) all.addAll(section.entries);
+        }
+        all.addAll(graphEntries());
+        return all;
+    }
+
+    private void resetToDefaults() {
+        for (ConfigEntry entry : allEntries()) {
+            entry.value = entry.defaultValue;
+        }
+    }
+
+    /** Package-private: {@link GraphStyleScreen} saves through this screen and shows the same marker. */
+    boolean hasChanges() {
+        for (ConfigEntry entry : allEntries()) {
+            if (!entry.value.equals(entry.initialValue)) return true;
         }
         return false;
     }
 
     private List<ConfigSection> getActiveSections() {
-        return activeTab == 0 ? clientSections : commonSections;
+        return switch (activeTab) {
+            case 0 -> clientSections;
+            case 2 -> graphSections;
+            default -> commonSections;
+        };
+    }
+
+    /** The six style blocks, for {@link GraphStyleScreen} to edit in place. */
+    Map<String, List<ConfigEntry>> styleEntries() {
+        return styleEntries;
     }
 
     private void switchTab(int tab) {
         if (activeTab != tab) {
             activeTab = tab;
+            // Its row is on the tab we just left.
+            closeDropdown();
             scrollOffset = 0;
             smoothScroll.set(0.0f);
             updateMaxScroll();
@@ -555,9 +606,9 @@ public class ConfigEditorScreen extends Screen {
     private int calculateContentHeight() {
         int height = 0;
         for (ConfigSection section : getActiveSections()) {
-            height += SECTION_HEADER_HEIGHT;
-            height += section.entries.size() * ENTRY_HEIGHT;
-            height += SECTION_GAP;
+            height += ConfigRowList.SECTION_HEADER_HEIGHT;
+            height += section.entries.size() * ConfigRowList.ENTRY_HEIGHT;
+            height += ConfigRowList.SECTION_GAP;
         }
         return height;
     }
@@ -625,30 +676,32 @@ public class ConfigEditorScreen extends Screen {
 
         for (ConfigSection section : sections) {
             // Section header
-            guiGraphics.fill(contentLeft, y, contentRight, y + SECTION_HEADER_HEIGHT, 0x30FFFFFF);
+            guiGraphics.fill(contentLeft, y, contentRight, y + ConfigRowList.SECTION_HEADER_HEIGHT, 0x30FFFFFF);
             guiGraphics.drawString(this.font,
                     Component.translatable(section.titleKey).getString(),
                     contentLeft + 5, y + 7, 0xFFCC00, false);
-            y += SECTION_HEADER_HEIGHT;
+            y += ConfigRowList.SECTION_HEADER_HEIGHT;
 
             // Entries
             for (ConfigEntry entry : section.entries) {
-                if (y + ENTRY_HEIGHT > listTop - 20 && y < listBottom + 20) {
-                    renderConfigEntry(guiGraphics, entry, contentLeft, y, contentRight, mouseX, mouseY);
+                if (y + ConfigRowList.ENTRY_HEIGHT > listTop - 20 && y < listBottom + 20) {
+                    configRows.renderRow(guiGraphics, entry, contentLeft, y, contentRight, mouseX, mouseY);
 
                     // Check hover for tooltip
                     boolean entryHovered = mouseX >= contentLeft && mouseX <= contentRight
-                            && mouseY >= y && mouseY < y + ENTRY_HEIGHT
+                            && mouseY >= y && mouseY < y + ConfigRowList.ENTRY_HEIGHT
                             && mouseY >= listTop && mouseY <= listBottom;
-                    if (entryHovered && entry.description != null && !entry.description.isEmpty()) {
+                    // A missing .desc key resolves to the raw key, so ask I18n instead of
+                    // checking the resolved string for emptiness.
+                    if (entryHovered && I18n.exists(entry.descKey)) {
                         currentHovered = entry.key;
-                        currentDescription = entry.description;
+                        currentDescription = Component.translatable(entry.descKey).getString();
                     }
                 }
-                y += ENTRY_HEIGHT;
+                y += ConfigRowList.ENTRY_HEIGHT;
             }
 
-            y += SECTION_GAP;
+            y += ConfigRowList.SECTION_GAP;
         }
 
         guiGraphics.disableScissor();
@@ -687,6 +740,18 @@ public class ConfigEditorScreen extends Screen {
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
+        // Enum picker popup. Outside the scissor above, so it is not clipped to the scrolling
+        // list, and after super.render so it covers the buttons. It keeps being drawn after it
+        // collapses, which is what lets it roll back up instead of vanishing.
+        if (openDropdown != null) {
+            // The row drew a collapsed button here; the live one goes on top so the frame turns
+            // gold and the caret flips over while the popup is open.
+            openDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+            openDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            // A row tooltip under an open picker is noise.
+            if (openDropdown.isExpanded()) currentHovered = null;
+        }
+
         // Item picker overlay (single-item selector for ITEM entries).
         // Lifted above everything drawn so far: text is batched and flushed after the picker's
         // panel fills, so the config rows and button labels underneath would otherwise bleed
@@ -700,186 +765,33 @@ public class ConfigEditorScreen extends Screen {
             currentHovered = null;
         }
 
-        // Tooltip rendering (after everything else, including super)
-        if (currentHovered != null) {
-            if (!currentHovered.equals(hoveredEntryKey)) {
-                hoveredEntryKey = currentHovered;
-                hoverStartTime = System.currentTimeMillis();
-            }
-            if (System.currentTimeMillis() - hoverStartTime >= TOOLTIP_DELAY_MS) {
-                renderTooltip(guiGraphics, currentDescription, tooltipMouseX, tooltipMouseY);
-            }
-        } else {
-            hoveredEntryKey = null;
-        }
+        // Tooltip last, after everything else including super — it belongs on top of all of it.
+        tooltip.render(guiGraphics, this.font, currentHovered, currentDescription,
+                tooltipMouseX, tooltipMouseY, this.width, this.height);
     }
 
-    private void renderTooltip(GuiGraphics guiGraphics, String text, int mouseX, int mouseY) {
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
-
-        // Word-wrap long descriptions
-        List<String> lines = new ArrayList<>();
-        int maxWidth = 200;
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        for (String word : words) {
-            if (line.length() > 0 && this.font.width(line + " " + word) > maxWidth) {
-                lines.add(line.toString());
-                line = new StringBuilder(word);
-            } else {
-                if (line.length() > 0)
-                    line.append(" ");
-                line.append(word);
-            }
-        }
-        if (line.length() > 0)
-            lines.add(line.toString());
-
-        int tooltipW = 0;
-        for (String l : lines) {
-            tooltipW = Math.max(tooltipW, this.font.width(l));
-        }
-        tooltipW += 8;
-        int tooltipH = lines.size() * 10 + 6;
-
-        int tooltipX = mouseX + 12;
-        int tooltipY = mouseY - 4;
-
-        // Keep on screen
-        if (tooltipX + tooltipW + 2 > this.width - 4)
-            tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > this.height - 4)
-            tooltipY = this.height - tooltipH - 6;
-        if (tooltipX < 4)
-            tooltipX = 4;
-        if (tooltipY < 4)
-            tooltipY = 4;
-
-        guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
-
-        int ty = tooltipY + 3;
-        for (String l : lines) {
-            guiGraphics.drawString(this.font, l, tooltipX + 4, ty, 0xCCCCCC, false);
-            ty += 10;
-        }
-
-        guiGraphics.pose().popPose();
-    }
-
-    private void renderConfigEntry(GuiGraphics guiGraphics, ConfigEntry entry, int left, int y, int right, int mouseX,
-            int mouseY) {
-        boolean hovered = mouseX >= left && mouseX <= right && mouseY >= y && mouseY < y + ENTRY_HEIGHT;
-        // Keyed by the config key rather than the row index: sections collapse and the active
-        // tab changes, so an index would carry one row's hover state over to a different setting.
-        float hp = Ease.outCubic(entryHover.computeIfAbsent(entry.key, k -> new Anim())
-                .ramp(hovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        if (hp > 0.001f) {
-            guiGraphics.fill(left, y, right, y + ENTRY_HEIGHT, Fade.rgba(0xFFFFFF, 0.082f * hp));
-            // Gold edge, the same cue the stage list and the dropdowns use for a hovered row.
-            guiGraphics.fill(left, y, left + 1, y + ENTRY_HEIGHT, Fade.rgba(0xFFCC00, hp * 0.8f));
-        }
-
-        // Label
-        String label = Component.translatable("editor.historystages.config." + entry.key).getString();
-        guiGraphics.drawString(this.font, label, left + 8 + Math.round(hp * 2.0f), y + 8,
-                Fade.mix(0xFFCCCCCC, 0xFFFFFFFF, hp), false);
-
-        // Value control — positioned further left for better readability
-        int labelWidth = this.font.width(label);
-        int controlX = left + Math.max(labelWidth + 20, 180);
-
-        switch (entry.type) {
-            case BOOLEAN -> {
-                boolean val = Boolean.parseBoolean(entry.value);
-                String toggleText = val ? "\u2714 ON" : "\u2718 OFF";
-                int toggleColor = val ? 0x55FF55 : 0xFF5555;
-                boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                if (toggleHovered)
-                    toggleColor = val ? 0x88FF88 : 0xFF8888;
-                guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
-            }
-            case INTEGER, DOUBLE -> {
-                guiGraphics.drawString(this.font, entry.value, controlX, y + 8, 0xDDDDDD, false);
-            }
-            case STRING -> {
-                String display = entry.value;
-                int availWidth = right - controlX - 5;
-                if (availWidth > 0 && this.font.width(display) > availWidth) {
-                    display = this.font.plainSubstrByWidth(display, availWidth - 10) + "...";
-                }
-                guiGraphics.drawString(this.font, display, controlX, y + 8, 0xDDDDDD, false);
-            }
-            case MULTI_STAGE_POLICY -> {
-                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
-                String toggleText = strict ? "✔ STRICT" : "✘ LENIENT";
-                int toggleColor = strict ? 0x55FF55 : 0xFFAA55;
-                boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                if (toggleHovered) toggleColor = strict ? 0x88FF88 : 0xFFCC88;
-                guiGraphics.drawString(this.font, toggleText, controlX, y + 8, toggleColor, false);
-            }
-            case ITEM -> {
-                ItemStack stack = resolveItemStack(entry.value);
-                guiGraphics.renderItem(stack, controlX, y + 3);
-                String idText = entry.value.isEmpty() ? "\u00A77(click to pick)" : entry.value;
-                int availWidth = right - (controlX + 20) - 5;
-                if (availWidth > 0 && this.font.width(idText) > availWidth) {
-                    idText = this.font.plainSubstrByWidth(idText, availWidth - 10) + "...";
-                }
-                boolean itemHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                guiGraphics.drawString(this.font, idText, controlX + 22, y + 8,
-                        itemHovered ? 0xFFCC00 : 0xDDDDDD, false);
-            }
-            case ITEM_LIST -> {
-                int count = entry.value.isEmpty() ? 0 : entry.value.split(",").length;
-                String display = "[" + count + " items] \u00A77(click to edit)";
-                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                guiGraphics.drawString(this.font, display, controlX, y + 8,
-                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
-            }
-            case TAG_LIST -> {
-                int count = entry.value.isEmpty() ? 0 : entry.value.split(",").length;
-                String display = "[" + count + " tags] \u00A77(click to edit)";
-                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                guiGraphics.drawString(this.font, display, controlX, y + 8,
-                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
-            }
-            case BOOSTER_LIST -> {
-                int count = entry.value.isEmpty() ? 0 : entry.value.split(";").length;
-                String display = "[" + count + " boosters] \u00A77(click to edit)";
-                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                guiGraphics.drawString(this.font, display, controlX, y + 8,
-                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
-            }
-            case EFFECT_LIST -> {
-                int count = entry.value.isEmpty() ? 0 : entry.value.split(";").length;
-                String display = Component.translatable(
-                        "editor.historystages.config.effects_summary", count).getString();
-                boolean listHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                guiGraphics.drawString(this.font, display, controlX, y + 8,
-                        listHovered ? 0xFFCC00 : 0xDDDDDD, false);
-            }
-        }
-    }
-
-    private void drawSmallText(GuiGraphics guiGraphics, String text, int x, int y, int color) {
+    /** Package-private: the unsaved-changes marker is drawn on the style screen too. */
+    static void drawSmallText(GuiGraphics guiGraphics, String text, int x, int y, int color) {
         guiGraphics.pose().pushPose();
         guiGraphics.pose().translate(x, y, 0);
         guiGraphics.pose().scale(SMALL_SCALE, SMALL_SCALE, 1.0f);
-        guiGraphics.drawString(this.font, text, 0, 0, color, false);
+        guiGraphics.drawString(Minecraft.getInstance().font, text, 0, 0, color, false);
         guiGraphics.pose().popPose();
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Enum picker first: its popup is drawn on top of everything, so it must get the click
+        // before the row underneath it does.
+        if (openDropdown != null) {
+            boolean wasExpanded = openDropdown.isExpanded();
+            if (openDropdown.mouseClicked(mouseX, mouseY)) return true;
+            closeDropdown();
+            // A click that only dismissed an open popup stops there — it must not also toggle
+            // whatever row happened to be underneath.
+            if (wasExpanded) return true;
+        }
+
         // Item picker overlay
         syncPickerState();
         if (itemPickerOverlay != null) {
@@ -923,32 +835,61 @@ public class ConfigEditorScreen extends Screen {
         List<ConfigSection> sections = getActiveSections();
 
         for (ConfigSection section : sections) {
-            y += SECTION_HEADER_HEIGHT;
+            y += ConfigRowList.SECTION_HEADER_HEIGHT;
 
             for (ConfigEntry entry : section.entries) {
-                if (mouseY >= y && mouseY < y + ENTRY_HEIGHT) {
-                    // Calculate controlX the same way as render
-                    String label = Component.translatable("editor.historystages.config." + entry.key).getString();
-                    int labelWidth = this.font.width(label);
-                    int controlX = contentLeft + Math.max(labelWidth + 20, 180);
-                    if (mouseX >= controlX && mouseX <= contentRight - 5) {
-                        Minecraft.getInstance().getSoundManager()
-                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                        handleEntryClick(entry);
-                        return true;
-                    }
+                if (configRows.hitTest(entry, contentLeft, contentRight, y, mouseX, mouseY)) {
+                    Minecraft.getInstance().getSoundManager()
+                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    handleEntryClick(entry, contentLeft, y);
+                    return true;
                 }
-                y += ENTRY_HEIGHT;
+                y += ConfigRowList.ENTRY_HEIGHT;
             }
-            y += SECTION_GAP;
+            y += ConfigRowList.SECTION_GAP;
         }
 
         return false;
     }
 
-    // Single-item picker overlay for ITEM config entries
-    private SearchableItemList itemPickerOverlay;
+    /**
+     * The open picker overlay, or null — the item picker for ITEM rows, the texture picker for
+     * TEXTURE ones. One slot rather than one field per kind: only one can be open at a time, and
+     * every path that dismisses, renders or forwards input to it is identical for both.
+     */
+    private PickerOverlay itemPickerOverlay;
     private ConfigEntry pickingItemEntry;
+
+    /**
+     * The open enum picker, or null. Anchored to the screen position its row had when it was
+     * clicked, and drawn outside the list's scissor — a popup clipped to the scrolling area
+     * would be cut off after two entries. Because the anchor is fixed, scrolling closes it
+     * rather than letting it drift away from its row.
+     */
+    private EnumDropdown openDropdown;
+
+    /** Drops the open enum picker. Safe to call when there is none. */
+    private void closeDropdown() {
+        openDropdown = null;
+    }
+
+    /**
+     * @param contentLeft left edge of the row, needed to place the popup under the value control
+     * @param rowY        the row's screen y at click time
+     */
+    private void openEnumDropdown(ConfigEntry entry, int contentLeft, int rowY) {
+        if (entry.enumConstants.isEmpty()) return;
+        EnumDropdown dropdown = new EnumDropdown(
+                entry.enumConstants, entry.value, ConfigRowList.DROPDOWN_MIN_WIDTH,
+                constant -> ConfigRowList.enumLabel(entry.enumType, constant),
+                picked -> entry.value = picked);
+        // Placed exactly over the collapsed button the row drew, so the popup grows out of the
+        // control the user clicked rather than appearing beside it.
+        dropdown.setPosition(configRows.controlX(entry, contentLeft),
+                rowY + ConfigRowList.DROPDOWN_INSET_Y);
+        dropdown.expand();
+        openDropdown = dropdown;
+    }
 
     /**
      * Drops the picker reference once it has hidden itself. Clicking outside the panel makes the
@@ -966,31 +907,31 @@ public class ConfigEditorScreen extends Screen {
         return true;
     }
 
-    private ItemStack resolveItemStack(String id) {
-        if (id != null && !id.isEmpty()) {
-            ResourceLocation rl = ResourceLocation.tryParse(id);
-            if (rl != null) {
-                Item item = ForgeRegistries.ITEMS.getValue(rl);
-                if (item != null && item != net.minecraft.world.item.Items.AIR) {
-                    return new ItemStack(item);
-                }
-            }
-        }
-        return new ItemStack(net.bananemdnsa.historystages.init.ModItems.RESEARCH_SCROLL.get());
-    }
-
     private void openItemPicker(ConfigEntry entry) {
-        pickingItemEntry = entry;
-        itemPickerOverlay = new SearchableItemList(itemId -> {
-            if (pickingItemEntry != null) {
-                pickingItemEntry.value = itemId;
-            }
-        });
-        itemPickerOverlay.setFilter("");
-        itemPickerOverlay.show(this.width / 2, this.height / 2, this.width);
+        openPicker(entry, new SearchableItemList(itemId -> {
+            entry.value = itemId;
+            closePicker();
+        }));
     }
 
-    private void handleEntryClick(ConfigEntry entry) {
+    private void openTexturePicker(ConfigEntry entry) {
+        openPicker(entry, new SearchableTextureList(texture -> {
+            entry.value = texture;
+            closePicker();
+        }));
+    }
+
+    private void openPicker(ConfigEntry entry, PickerOverlay picker) {
+        pickingItemEntry = entry;
+        itemPickerOverlay = picker;
+        picker.show(this.width / 2, this.height / 2, this.width);
+    }
+
+    /**
+     * @param contentLeft left edge of the row, and {@code rowY} its screen y — only the ENUM
+     *                    case needs them, to anchor its popup to the row that was clicked.
+     */
+    private void handleEntryClick(ConfigEntry entry, int contentLeft, int rowY) {
         playClick();
         switch (entry.type) {
             case BOOLEAN -> {
@@ -1003,15 +944,19 @@ public class ConfigEditorScreen extends Screen {
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case BOOSTER_LIST -> this.minecraft.setScreen(new BoosterListEditorScreen(this, entry));
             case EFFECT_LIST -> this.minecraft.setScreen(new EffectListEditorScreen(this, entry));
-            case MULTI_STAGE_POLICY -> {
-                boolean strict = !"LENIENT".equalsIgnoreCase(entry.value);
-                entry.value = strict ? "LENIENT" : "STRICT";
-            }
+            case ENUM -> openEnumDropdown(entry, contentLeft, rowY);
+            case COLOR -> this.minecraft.setScreen(new ColorInputScreen(this, entry));
+            case SUBSCREEN -> this.minecraft.setScreen(new GraphStyleScreen(this));
+            case TEXTURE -> openTexturePicker(entry);
         }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        // The popup is anchored to a fixed screen position, so scrolling would slide the list
+        // out from under it. Closing is the honest answer.
+        closeDropdown();
+
         syncPickerState();
         if (itemPickerOverlay != null && itemPickerOverlay.mouseScrolled(mouseX, mouseY, delta))
             return true;
@@ -1021,6 +966,10 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        // The picker sits on top and owns the pointer while it is open. Without this its
+        // scrollbar takes the press, sets itself dragging, and then never hears another mouse
+        // move — the thumb stays where it jumped to and nothing follows the cursor.
+        syncPickerState();
         if (itemPickerOverlay != null && itemPickerOverlay.isVisible()
                 && itemPickerOverlay.mouseDragged(mouseX, mouseY))
             return true;
@@ -1035,7 +984,10 @@ public class ConfigEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (itemPickerOverlay != null && itemPickerOverlay.isVisible() && itemPickerOverlay.mouseReleased())
+        // Likewise: without this the picker's drag flag is never cleared, so its thumb keeps
+        // rendering as held and the next press behaves as though the button were still down.
+        syncPickerState();
+        if (itemPickerOverlay != null && itemPickerOverlay.mouseReleased())
             return true;
         if (draggingScrollbar) {
             draggingScrollbar = false;
@@ -1102,7 +1054,11 @@ public class ConfigEditorScreen extends Screen {
         }
     }
 
-    private void saveConfig() {
+    /**
+     * Package-private: {@link GraphStyleScreen} has its own Save button, and it has to be the
+     * same save — one that covers every tab, not just the block on screen.
+     */
+    void saveConfig() {
         // Save client config locally
         Map<String, String> clientValues = new HashMap<>();
         for (ConfigSection section : clientSections) {
@@ -1121,14 +1077,17 @@ public class ConfigEditorScreen extends Screen {
         }
         PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
 
+        // Send graph.toml to the server, keyed by toml path. The style rows come along here
+        // too — GraphStyleScreen edits these very objects rather than keeping its own copies.
+        Map<String, String> graphValues = new HashMap<>();
+        for (ConfigEntry entry : graphEntries()) {
+            if (entry.path != null) graphValues.put(entry.path, entry.value);
+        }
+        PacketHandler.sendToServer(new SaveGraphConfigPacket(graphValues));
+
         // Update initial values so hasChanges() returns false
-        List<ConfigSection> allSections = new ArrayList<>();
-        allSections.addAll(clientSections);
-        allSections.addAll(commonSections);
-        for (ConfigSection section : allSections) {
-            for (ConfigEntry entry : section.entries) {
-                entry.initialValue = entry.value;
-            }
+        for (ConfigEntry entry : allEntries()) {
+            entry.initialValue = entry.value;
         }
 
         // JEI hiding (Issue #64): live-apply config changes if JEI is loaded.
@@ -1183,8 +1142,38 @@ public class ConfigEditorScreen extends Screen {
         }
     }
 
+    /**
+     * The graph counterpart of {@link #onCommonConfigSynced()}. Save sends every graph row that has
+     * a toml path, style blocks included, so an editor still holding its build-time snapshot would
+     * push that snapshot back and undo whichever admin saved first.
+     */
+    public static void onGraphConfigSynced() {
+        ConfigEditorScreen screen = active.get();
+        if (screen != null && screen.graphSections != null) screen.refreshGraphValues();
+    }
+
+    /**
+     * Merges the freshly synced graph values into every graph row, the six style blocks included —
+     * {@link GraphStyleScreen} edits those very objects rather than copies. Same split as
+     * {@link #refreshCommonValues()}: untouched rows follow the server, edited rows keep the edit
+     * and only get a new baseline.
+     */
+    private void refreshGraphValues() {
+        Map<String, String> fresh = GraphConfigCodec.collect();
+        for (ConfigEntry entry : graphEntries()) {
+            // Null on the SUBSCREEN row, which holds no value of its own.
+            if (entry.path == null) continue;
+            String synced = fresh.get(entry.path);
+            if (synced == null) continue;
+            boolean untouched = entry.value.equals(entry.initialValue);
+            entry.initialValue = synced;
+            if (untouched) entry.value = synced;
+        }
+    }
+
     @Override
     public void onClose() {
+        closeDropdown();
         this.minecraft.setScreen(parent);
     }
 
@@ -1195,9 +1184,11 @@ public class ConfigEditorScreen extends Screen {
 
     // --- Inner data classes ---
 
-    enum ConfigType {
-        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM, ITEM_LIST, TAG_LIST, MULTI_STAGE_POLICY, BOOSTER_LIST,
-        EFFECT_LIST
+    public enum ConfigType {
+        BOOLEAN, INTEGER, DOUBLE, STRING, ITEM_LIST, TAG_LIST, ITEM, BOOSTER_LIST, EFFECT_LIST,
+        ENUM, COLOR, TEXTURE,
+        /** A row that opens another screen instead of editing a value of its own. */
+        SUBSCREEN
     }
 
     /** Encode the live booster config list as the editor's internal string: "block,speed,cost;block,speed,cost". */
@@ -1218,35 +1209,68 @@ public class ConfigEditorScreen extends Screen {
                 .collect(java.util.stream.Collectors.joining(";"));
     }
 
-    static class ConfigEntry {
-        final String key;
-        final ConfigType type;
-        String value;
+    public static class ConfigEntry {
+        public final String key;
+        public final ConfigType type;
+        public String value;
         String initialValue;
         final boolean isClient;
         final String defaultValue;
-        final String description;
+        /** Lang key of the hover tooltip. */
+        final String descKey;
         /** Inclusive bounds for INTEGER / DOUBLE entries, mirroring Config.java's defineInRange. */
         final double min;
         final double max;
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient, String defaultValue,
-                String description) {
-            this(key, type, value, isClient, defaultValue, description,
+        /**
+         * Dotted toml path for graph entries, null for Client and Common ones. Graph values are
+         * addressed by path on the wire; {@link #key} stays the editor-side identity used for
+         * lang lookup and hover state.
+         */
+        final String path;
+        /** Lang key of the row label. Split from {@link #key} so the ten style rows can share
+         *  one set of labels across all six blocks instead of repeating them sixty times. */
+        public final String labelKey;
+        /** Allowed values for an ENUM row; empty otherwise. */
+        public final List<String> enumConstants;
+        /**
+         * Simple name of the enum type behind an ENUM row, null otherwise. Part of the lang key
+         * because constant names are not unique across the graph's enums: {@code SOLID} is both
+         * an edge style and a canvas background, and German calls those two different things.
+         */
+        public final String enumType;
+
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue) {
+            this(key, type, value, isClient, defaultValue,
                     Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         }
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient, String defaultValue,
-                String description, double min, double max) {
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, double min, double max) {
+            this(key, type, value, isClient, defaultValue,
+                    "editor.historystages.config." + key,
+                    "editor.historystages.config." + key + ".desc",
+                    min, max, null, List.of(), null);
+        }
+
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, String labelKey, String descKey,
+                    double min, double max, String path, List<String> enumConstants,
+                    String enumType) {
             this.key = key;
             this.type = type;
             this.value = value;
             this.initialValue = value;
             this.isClient = isClient;
             this.defaultValue = defaultValue;
-            this.description = description;
+            this.labelKey = labelKey;
+            this.descKey = descKey;
             this.min = min;
             this.max = max;
+            this.path = path;
+            this.enumConstants = enumConstants == null ? List.of() : enumConstants;
+            this.enumType = enumType;
         }
     }
 
@@ -1286,7 +1310,7 @@ public class ConfigEditorScreen extends Screen {
         private static final int LIST_TOP = 50;
 
         ItemListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
-            super(Component.translatable("editor.historystages.config." + entry.key));
+            super(Component.translatable(entry.labelKey));
             this.parent = parent;
             this.entry = entry;
             this.items = new ArrayList<>();
@@ -1588,7 +1612,7 @@ public class ConfigEditorScreen extends Screen {
         private static final int LIST_TOP = 50;
 
         TagListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
-            super(Component.translatable("editor.historystages.config." + entry.key));
+            super(Component.translatable(entry.labelKey));
             this.parent = parent;
             this.entry = entry;
             this.tags = new ArrayList<>();
@@ -1863,13 +1887,16 @@ public class ConfigEditorScreen extends Screen {
      * Modal dialog for editing integer, decimal or string config values. Numeric entries get
      * the range declared on the ConfigEntry, so the dialog cannot produce a value that the
      * underlying ForgeConfigSpec would reject.
+     *
+     * <p>Takes any {@link Screen} as its parent, not just the config editor: {@link GraphStyleScreen}
+     * shows the same rows and a value edited there has to come back to it rather than to the tab.
      */
     static class ValueInputScreen extends AbstractInputScreen {
-        private final ConfigEditorScreen parent;
+        private final Screen parent;
         private final ConfigEntry entry;
 
-        ValueInputScreen(ConfigEditorScreen parent, ConfigEntry entry) {
-            super(parent, Component.translatable("editor.historystages.config." + entry.key));
+        ValueInputScreen(Screen parent, ConfigEntry entry) {
+            super(parent, Component.translatable(entry.labelKey));
             this.parent = parent;
             this.entry = entry;
         }
@@ -1915,7 +1942,7 @@ public class ConfigEditorScreen extends Screen {
         private static final int LIST_TOP = 50;
 
         EffectListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
-            super(Component.translatable("editor.historystages.config." + entry.key));
+            super(Component.translatable(entry.labelKey));
             this.parent = parent;
             this.entry = entry;
             decode(entry.value);
@@ -2294,7 +2321,7 @@ public class ConfigEditorScreen extends Screen {
         private long hoverStartTime = 0L;
 
         BoosterListEditorScreen(ConfigEditorScreen parent, ConfigEntry entry) {
-            super(Component.translatable("editor.historystages.config." + entry.key));
+            super(Component.translatable(entry.labelKey));
             this.parent = parent;
             this.entry = entry;
             decode(entry.value);

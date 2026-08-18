@@ -79,8 +79,6 @@ public final class GraphCanvas {
     private static final int BEZIER_SEGMENTS = 16;
     /** Accent used for the focused-node highlight ring, matching the editor's gold accent. */
     private static final int FOCUS_RING_COLOR = 0xFFFFCC00;
-    /** Dark interior colour for the small checkmark badge's outer ring. */
-    private static final int CHECKMARK_RING_COLOR = 0xFF17171A;
 
     /** Screen pixels a press must travel before it counts as a drag rather than a click. */
     private static final int DRAG_THRESHOLD = 4;
@@ -241,8 +239,10 @@ public final class GraphCanvas {
         g.pose().pushPose();
         g.pose().translate(panX - (float) Math.floor(panX), panY - (float) Math.floor(panY), 0f);
 
-        if (GraphConfig.GRAPH.background.get() == GraphConfig.CanvasBackground.GRID) {
-            drawGrid(g);
+        switch (GraphConfig.GRAPH.background.get()) {
+            case GRID -> drawGrid(g);
+            case TEXTURE -> drawBackgroundTexture(g);
+            case SOLID -> { /* the flat fill drawn above is the whole background */ }
         }
 
         if (model != null) {
@@ -301,6 +301,40 @@ public final class GraphCanvas {
      */
     private static final int CANVAS_BG = 0xFF17171A;
 
+    /**
+     * Tiles {@code canvas.backgroundTexture} across the viewport, panning and zooming with the
+     * graph exactly as the grid does — a background that stayed still while the map moved would
+     * read as a window rather than as ground.
+     *
+     * <p>One quad with a repeating UV range, not one blit per tile. {@code GuiGraphics.blit} is
+     * not batched: every call is its own draw, so a screenful of tiles cost hundreds of draws a
+     * frame and made the whole graph, sidebar included, feel sluggish. This is a single draw at
+     * any zoom, with no loop to bound.
+     *
+     * <p>One tile covers one grid cell, so the texture lines up with the grid instead of drifting
+     * against it. Anything unusable — blank, unparseable, or a texture the pack does not ship —
+     * leaves the plain fill that is already on screen; a missing-texture chequerboard behind the
+     * whole graph would be far worse than a colour.
+     */
+    private void drawBackgroundTexture(GuiGraphics g) {
+        ResourceLocation tex = ResourceLocation.tryParse(
+                GraphConfig.GRAPH.backgroundTexture.get().trim());
+        if (tex == null) return;
+
+        float tile = cellSize() * zoom;
+        if (tile < 1.0f) return; // below a pixel per tile there is nothing left to see
+
+        // Floored like screenX/screenY: the fractional part of the pan is supplied by the pose
+        // this runs inside, and counting it twice would make the texture crawl under the grid.
+        float originX = (int) Math.floor(panX);
+        float originY = (int) Math.floor(panY);
+
+        float u1 = (viewX - originX) / tile;
+        float v1 = (viewY - originY) / tile;
+        NodeTextures.repeatingQuad(g, tex, viewX, viewY, viewX + viewW, viewY + viewH,
+                u1, v1, u1 + viewW / tile, v1 + viewH / tile);
+    }
+
     private void drawGrid(GuiGraphics g) {
         double cellSpacing = (double) cellSize() * zoom;
         if (cellSpacing <= 0.0) return;
@@ -350,29 +384,6 @@ public final class GraphCanvas {
         return Math.max(3, Math.round(BASE_NODE_RADIUS * (float) style.size() * zoom));
     }
 
-    /**
-     * Builds the fill colour with the style's opacity applied. Deliberately not
-     * {@link net.bananemdnsa.historystages.client.editor.anim.Fade#rgba} — {@link NodeTextures#blit}
-     * treats a fully-zero alpha byte as "no alpha given" and renders opaque, so a literal
-     * {@code fillOpacity = 0} would otherwise paint a solid node instead of an invisible one.
-     */
-    private static int fillColor(ResolvedStyle style) {
-        double opacity = Math.max(0.0, Math.min(1.0, style.fillOpacity()));
-        int a = Math.max(1, Math.round(0xFF * (float) opacity));
-        return (a << 24) | style.fill();
-    }
-
-    private static void drawShape(GuiGraphics g, String shape, int cx, int cy, int r,
-                                  int fill, int border, int bw) {
-        switch (shape) {
-            case "CIRCLE" -> NodeShapes.circle(g, cx, cy, r, fill, border, bw);
-            case "DIAMOND" -> NodeShapes.diamond(g, cx, cy, r, fill, border, bw);
-            case "HEXAGON" -> NodeShapes.hexagon(g, cx, cy, r, fill, border, bw);
-            case "ROUNDED" -> NodeShapes.rounded(g, cx, cy, r, fill, border, bw);
-            default -> NodeShapes.rect(g, cx, cy, r, fill, border, bw); // RECT, or anything unknown
-        }
-    }
-
     private void drawNodeShape(GuiGraphics g, StageGraphModel.Node node, float hoverT) {
         ResolvedStyle style = StageGraphConfig.styleFor(node.stageId(), node.individual(), node.state());
         int cx = screenX(node.pos().x());
@@ -389,7 +400,7 @@ public final class GraphCanvas {
         }
 
         int bw = Math.max(0, Math.round(style.borderWidth() * zoom));
-        drawShape(g, style.shape(), cx, cy, r, fillColor(style), style.border(), bw);
+        NodeShapes.draw(g, style.shape(), cx, cy, r, style.fillArgb(), style.border(), bw);
         drawNodeIcon(g, node, cx, cy, r);
         if (style.checkmark()) {
             drawCheckmark(g, cx, cy, r, style.border());
@@ -433,19 +444,7 @@ public final class GraphCanvas {
 
     /** Small status-tick badge in the node's bottom-right corner. */
     private void drawCheckmark(GuiGraphics g, int cx, int cy, int r, int badgeColor) {
-        int br = Math.max(4, Math.round(r * 0.45f));
-        int bx = cx + r - br / 2;
-        int by = cy + r - br / 2;
-        int ringW = Math.max(1, Math.round(br * 0.22f));
-        NodeShapes.circle(g, bx, by, br, badgeColor, CHECKMARK_RING_COLOR, ringW);
-
-        // One generated glyph, like every other shape on this canvas. Stroking it at render time
-        // meant either a bare corner where the arms meet, or a round cap patching that corner
-        // that is wider than the stroke itself — the tick was the only thing here still being
-        // drawn by hand instead of blitted, and it looked like it.
-        int glyph = Math.max(3, Math.round(br * 1.6f));
-        NodeTextures.blit(g, NodeTextures.check(), bx - glyph / 2, by - glyph / 2, glyph, glyph,
-                NodeTextures.SIZE, NodeTextures.SIZE, 0xFFFFFFFF);
+        NodeShapes.checkmark(g, cx, cy, r, badgeColor);
     }
 
     private void drawLabel(GuiGraphics g, Font font, StageGraphModel.Node node) {
@@ -470,7 +469,7 @@ public final class GraphCanvas {
         int cy = screenY(node.pos().y());
         int r = nodeRadius(style);
         int ringW = Math.max(2, Math.round(3f * zoom));
-        drawShape(g, style.shape(), cx, cy, r + ringW, FOCUS_RING_COLOR, FOCUS_RING_COLOR, ringW);
+        NodeShapes.draw(g, style.shape(), cx, cy, r + ringW, FOCUS_RING_COLOR, FOCUS_RING_COLOR, ringW);
     }
 
     // --- Drag authoring (editor mode only) ---------------------------------------------------

@@ -115,6 +115,9 @@ public class PacketHandler {
                 INSTANCE.registerMessage(id++, SaveStageGraphInfoPacket.class,
                                 SaveStageGraphInfoPacket::encode,
                                 SaveStageGraphInfoPacket::decode, SaveStageGraphInfoPacket::handle);
+                INSTANCE.registerMessage(id++, SaveGraphConfigPacket.class,
+                                SaveGraphConfigPacket::encode,
+                                SaveGraphConfigPacket::decode, SaveGraphConfigPacket::handle);
         }
 
         // Send the locked-structure border BBs to a specific player.

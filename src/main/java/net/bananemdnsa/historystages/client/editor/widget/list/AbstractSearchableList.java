@@ -34,7 +34,7 @@ import java.util.function.Supplier;
  * The select callback is exposed as {@code Consumer<String>} for API parity with the
  * pre-refactor widgets; subclasses use {@link #emitSelection(String)} to fire it.
  */
-public abstract class AbstractSearchableList<T> {
+public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     protected static final int ROW_HEIGHT = 16;
     protected static final int VISIBLE_ROWS = 10;
