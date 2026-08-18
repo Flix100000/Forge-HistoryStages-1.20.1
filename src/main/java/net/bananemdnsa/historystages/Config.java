@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages;
 
+import net.bananemdnsa.historystages.data.ScrollCompletion;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.common.Mod;
 import org.apache.commons.lang3.tuple.Pair;
@@ -220,6 +221,7 @@ public class Config {
         public final ForgeConfigSpec.IntValue researchTimeInSeconds;
         public final ForgeConfigSpec.BooleanValue showDependencyScreenInPedestal;
         public final ForgeConfigSpec.BooleanValue lockScrollWhileResearching;
+        public final ForgeConfigSpec.ConfigValue<String> defaultScrollCompletion;
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
 
         // Loot-Ersetzungen
@@ -381,6 +383,17 @@ public class Config {
             lockScrollWhileResearching = builder
                     .comment("Lock the scroll in the pedestal once research has started? Prevents players (and hoppers) from removing the scroll until research completes or the pedestal is broken. [Default: false]")
                     .define("lockScrollWhileResearching", false);
+
+            defaultScrollCompletion = builder
+                    .comment(
+                            "What happens to a research scroll when its research finishes.",
+                            "  consume: the scroll is used up (behaviour before this option existed).",
+                            "  replace: a fresh scroll for the same stage is placed back into the pedestal,",
+                            "           so the next player can research it without needing a second copy.",
+                            "  open:    an open scroll is placed into the pedestal as a keepsake. No refill.",
+                            "A single stage can override this with its own 'scroll_completion'. [Default: consume]")
+                    .define("defaultScrollCompletion", "consume",
+                            o -> o instanceof String s && ScrollCompletion.isKnown(s));
 
             researchBoosters = builder
                     .comment(

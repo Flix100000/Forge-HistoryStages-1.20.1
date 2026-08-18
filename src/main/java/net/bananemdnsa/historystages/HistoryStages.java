@@ -13,11 +13,11 @@ import net.bananemdnsa.historystages.network.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
 import net.bananemdnsa.historystages.screen.ResearchPedestalScreen;
 import net.bananemdnsa.historystages.util.DebugLogger;
+import net.bananemdnsa.historystages.util.ScrollVariants;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.renderer.item.ItemProperties;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -155,18 +155,12 @@ public class HistoryStages {
             for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
                     : StageManager.getStages().entrySet()) {
                 if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-                CompoundTag nbt = book.getOrCreateTag();
-                nbt.putString("StageResearch", stageEntry.getKey());
-                event.accept(book);
+                event.accept(ScrollVariants.createScroll(stageEntry.getKey()));
             }
             for (java.util.Map.Entry<String, net.bananemdnsa.historystages.data.StageEntry> stageEntry
                     : StageManager.getIndividualStages().entrySet()) {
                 if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                ItemStack book = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-                CompoundTag nbt = book.getOrCreateTag();
-                nbt.putString("StageResearch", stageEntry.getKey());
-                event.accept(book);
+                event.accept(ScrollVariants.createScroll(stageEntry.getKey()));
             }
         }
     }

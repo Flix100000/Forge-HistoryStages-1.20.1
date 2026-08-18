@@ -3,8 +3,8 @@ package net.bananemdnsa.historystages.init;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
+import net.bananemdnsa.historystages.util.ScrollVariants;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
@@ -34,19 +34,13 @@ public class ModCreativeTabs {
                         // 2. Global stage scrolls (skip AUTO-mode: those have no scroll)
                         for (var stageEntry : StageManager.getStages().entrySet()) {
                             if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-                            CompoundTag nbt = scroll.getOrCreateTag();
-                            nbt.putString("StageResearch", stageEntry.getKey());
-                            output.accept(scroll);
+                            output.accept(ScrollVariants.createScroll(stageEntry.getKey()));
                         }
 
                         // 3. Individual stage scrolls (skip AUTO-mode)
                         for (var stageEntry : StageManager.getIndividualStages().entrySet()) {
                             if (stageEntry.getValue().getMode().usesAutoTrigger()) continue;
-                            ItemStack scroll = new ItemStack(ModItems.RESEARCH_SCROLL.get());
-                            CompoundTag nbt = scroll.getOrCreateTag();
-                            nbt.putString("StageResearch", stageEntry.getKey());
-                            output.accept(scroll);
+                            output.accept(ScrollVariants.createScroll(stageEntry.getKey()));
                         }
                     })
                     .build());

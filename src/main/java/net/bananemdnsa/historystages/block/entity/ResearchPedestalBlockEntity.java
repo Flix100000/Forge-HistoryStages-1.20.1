@@ -11,6 +11,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
+import net.bananemdnsa.historystages.data.ScrollCompletion;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -23,6 +24,7 @@ import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.SyncStagesPacket;
+import net.bananemdnsa.historystages.util.ScrollVariants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -64,26 +66,6 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     // research is paused in tick() and the GUI shows a "not researchable"
                     // message instead of progress.
                     loadProgressFromItem(stack);
-                    // Set owner UUID for individual stages ONLY if not already set
-                    if (isCurrentScrollIndividual()) {
-                        CompoundTag tag = stack.getOrCreateTag();
-                        if (tag.hasUUID("OwnerUUID")) {
-                            // Keep existing owner
-                            ResearchPedestalBlockEntity.this.ownerUUID = tag.getUUID("OwnerUUID");
-                        } else if (lastInteractingPlayer != null) {
-                            // Assign new owner
-                            ResearchPedestalBlockEntity.this.ownerUUID = lastInteractingPlayer;
-                            tag.putUUID("OwnerUUID", ResearchPedestalBlockEntity.this.ownerUUID);
-                            // Store owner name for client-side display
-                            if (level != null && level.getServer() != null) {
-                                net.minecraft.server.level.ServerPlayer ownerPlayer = level.getServer().getPlayerList()
-                                        .getPlayer(ResearchPedestalBlockEntity.this.ownerUUID);
-                                if (ownerPlayer != null) {
-                                    tag.putString("OwnerName", ownerPlayer.getName().getString());
-                                }
-                            }
-                        }
-                    }
                 } else {
                     ResearchPedestalBlockEntity.this.ownerUUID = null;
                     ResearchPedestalBlockEntity.this.resetResearchState();
@@ -111,9 +93,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
     };
 
-    /** True when the scroll cannot be removed: lock-config on AND research has begun. */
+    /** True when the scroll cannot be removed: a research is actively running. Pausing
+     *  releases it, which is how a scroll is handed to the next player. */
     public boolean isScrollLocked() {
-        return Config.COMMON.lockScrollWhileResearching.get() && this.progress > 0;
+        return this.running;
     }
 
     private void tryProcessDeposit(ItemStack depositStack) {
@@ -179,7 +162,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             // Push update to watching players immediately
             if (entry != null && level != null && !level.isClientSide) {
-                UUID checkUUID = isCurrentScrollIndividual() ? this.ownerUUID : this.lastInteractingPlayer;
+                // Same fallback as tick(): before a start there is no owner, and the player
+                // depositing still needs their checklist refreshed.
+                UUID checkUUID = isCurrentScrollIndividual() && this.ownerUUID != null
+                        ? this.ownerUUID
+                        : this.lastInteractingPlayer;
                 if (checkUUID != null) {
                     var player = level.getServer().getPlayerList().getPlayer(checkUUID);
                     if (player != null) {
@@ -209,6 +196,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private UUID ownerUUID = null;
     private UUID lastInteractingPlayer = null;
     private boolean dependenciesMet = true; // Tracks if current stage's dependencies are fulfilled
+    private boolean running = false;
     private double progressAccumulator = 0.0;
     private int currentSpeedPercent = 0;
     private boolean tierMismatch = false;
@@ -275,6 +263,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         this.tierMismatch = false;
         this.requiredTier = 1;
         this.requiredTierMode = TierMode.MIN;
+        this.running = false;
     }
 
     public ResearchPedestalBlockEntity(BlockPos pPos, BlockState pBlockState) {
@@ -293,6 +282,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 7 -> ResearchPedestalBlockEntity.this.tierMismatch ? 1 : 0;
                     case 8 -> ResearchPedestalBlockEntity.this.requiredTier;
                     case 9 -> ResearchPedestalBlockEntity.this.requiredTierMode.ordinal();
+                    case 10 -> ResearchPedestalBlockEntity.this.running ? 1 : 0;
                     default -> 0;
                 };
             }
@@ -309,12 +299,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     case 8 -> ResearchPedestalBlockEntity.this.requiredTier = pValue;
                     case 9 -> ResearchPedestalBlockEntity.this.requiredTierMode =
                             pValue == TierMode.EXACT.ordinal() ? TierMode.EXACT : TierMode.MIN;
+                    case 10 -> ResearchPedestalBlockEntity.this.running = pValue == 1;
                 }
             }
 
             @Override
             public int getCount() {
-                return 10;
+                return 11;
             }
         };
     }
@@ -359,6 +350,16 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
     public ItemStack getScrollStack() {
         return this.itemHandler.getStackInSlot(0);
+    }
+
+    /**
+     * True for the scroll types the pedestal may research. An open scroll carries the same
+     * {@code StageResearch} tag as a fresh one, so the tag alone is not enough: without this
+     * check an {@code open} completion would leave a scroll the next player could research
+     * again, turning the mode into an endless refill.
+     */
+    private static boolean isResearchable(ItemStack stack) {
+        return stack.is(ModItems.RESEARCH_SCROLL.get()) || stack.is(ModItems.CREATIVE_SCROLL.get());
     }
 
     public boolean hasScrollWithDependencies() {
@@ -410,7 +411,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         ItemStack stack = entity.itemHandler.getStackInSlot(0);
         int maxProgress = entity.getMaxProgressForCurrentStage();
 
-        boolean hasValidBook = !stack.isEmpty() && stack.hasTag() && stack.getTag().contains("StageResearch");
+        boolean hasValidBook = isResearchable(stack) && stack.hasTag() && stack.getTag().contains("StageResearch");
         boolean isResearching = false;
 
         if (hasValidBook) {
@@ -468,7 +469,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         if (stageEntry.hasDependencies()) {
                             // Find the researching player for dependency checks
                             net.minecraft.server.level.ServerPlayer researchPlayer = null;
-                            UUID checkUUID = isIndividual ? entity.ownerUUID : entity.lastInteractingPlayer;
+                            // Before anyone has started, an individual scroll has no owner yet,
+                            // so fall back to whoever is at the pedestal. Checking against a
+                            // null owner would report "requirements not met", which disables the
+                            // start button — and only starting can set the owner.
+                            UUID checkUUID = isIndividual && entity.ownerUUID != null
+                                    ? entity.ownerUUID
+                                    : entity.lastInteractingPlayer;
                             if (checkUUID != null && level.getServer() != null) {
                                 researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
                             }
@@ -504,8 +511,17 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                     metTotal = false;
                 }
 
+                // What the screen shows and what the start button tests: the requirements
+                // themselves, deliberately independent of whether anyone pressed start.
+                // Folding `running` into this would report "requirements not met" for every
+                // paused pedestal and leave the start button permanently disabled.
                 entity.dependenciesMet = metTotal;
-                if (metTotal) {
+
+                // Research only advances after a player pressed start. This is also what
+                // guarantees an owner exists: an ownerless individual scroll would otherwise
+                // research to completion, unlock nothing, and — under REPLACE — refill itself
+                // forever.
+                if (metTotal && entity.running) {
                     isResearching = true;
                     if (entity.progress < maxProgress) {
                         entity.progressAccumulator += BoosterUtil.speedMultiplier(activeBooster.speedReduction());
@@ -557,9 +573,11 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     private void finishResearch(ItemStack stack) {
-        if (!level.isClientSide && stack.hasTag() && stack.getTag().contains("StageResearch")) {
-            String stageId = stack.getTag().getString("StageResearch");
+        String stageId = (stack.hasTag() && stack.getTag().contains("StageResearch"))
+                ? stack.getTag().getString("StageResearch")
+                : null;
 
+        if (!level.isClientSide && stageId != null) {
             // Consuming items and XP is now handled when depositing into the scroll
             // so we don't need to do it here anymore.
 
@@ -572,11 +590,44 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
         }
 
-        // Station zurücksetzen und Buch verbrauchen
+        // Station zurücksetzen und Buch entsprechend dem Completion-Modus behandeln
         this.resetResearchState();
         this.finishDelay = 0;
-        stack.shrink(1);
+        applyCompletion(stack, stageId);
         setChanged();
+    }
+
+    /**
+     * Dispose of the finished scroll according to the stage's completion mode. The creative
+     * scroll is always consumed: refilling it would let the pedestal feed itself forever.
+     */
+    private void applyCompletion(ItemStack finished, String stageId) {
+        finished.shrink(1);
+
+        // The finished research is over either way, so the pedestal must forget who owned it
+        // before anything else happens here. Shrinking the stack in place fires no slot
+        // change, so nothing else would clear it — and a leftover owner would be handed the
+        // next player's research.
+        this.ownerUUID = null;
+        this.lastInteractingPlayer = null;
+
+        if (stageId == null || ModItems.CREATIVE_STAGE_ID.equals(stageId)) return;
+
+        StageEntry entry = StageManager.isIndividualStage(stageId)
+                ? StageManager.getIndividualStages().get(stageId)
+                : StageManager.getStages().get(stageId);
+        ScrollCompletion mode = ScrollCompletion.resolve(
+                entry != null ? entry.getScrollCompletion() : null,
+                Config.COMMON.defaultScrollCompletion.get());
+
+        ItemStack replacement = switch (mode) {
+            case CONSUME -> ItemStack.EMPTY;
+            case REPLACE -> ScrollVariants.createScroll(stageId);
+            case OPEN -> ScrollVariants.createOpenScroll(stageId);
+        };
+        if (replacement.isEmpty()) return;
+
+        this.itemHandler.setStackInSlot(0, replacement);
     }
 
     private void finishGlobalResearch(ItemStack stack, String stageId) {
@@ -783,6 +834,84 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return false;
     }
 
+    /**
+     * Try to start research for {@code player}. Returns false and changes nothing when the
+     * pedestal is not in a state that can research. The first player to start becomes the
+     * owner; a research already running is left alone.
+     */
+    public boolean tryStart(net.minecraft.server.level.ServerPlayer player) {
+        if (level == null || level.isClientSide) return false;
+        if (this.running) return false;
+
+        ItemStack scroll = getScrollStack();
+        if (!isResearchable(scroll)) return false;
+        if (!scroll.hasTag() || !scroll.getTag().contains("StageResearch")) return false;
+        CompoundTag tag = scroll.getOrCreateTag();
+        String stageId = tag.getString("StageResearch");
+
+        if (!ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
+            boolean individual = StageManager.isIndividualStage(stageId);
+            StageEntry entry = individual
+                    ? StageManager.getIndividualStages().get(stageId)
+                    : StageManager.getStages().get(stageId);
+            // Only DEFAULT stages are researchable here; AUTO/EXTERNAL/TEMPORARY are not.
+            if (entry == null || entry.getMode() != StageMode.DEFAULT) return false;
+
+            // The same two conditions the screen greys the button out for. Both are kept
+            // current by tick(). Without them a start would latch `running` on and lock the
+            // scroll into a pedestal where progress can never advance.
+            if (this.tierMismatch || !this.dependenciesMet) return false;
+
+            if (individual) {
+                // Anyone may press start, but the research belongs to whoever started it
+                // first: resuming a paused scroll does not take it over.
+                // Only the scroll decides. A pedestal-level fallback would hand the next
+                // player's fresh scroll to whoever researched here last.
+                UUID owner = tag.hasUUID("OwnerUUID") ? tag.getUUID("OwnerUUID") : null;
+                boolean claiming = owner == null;
+                if (claiming) owner = player.getUUID();
+                // Refuse an unlock the owner already has, so a scroll is not burned for nothing.
+                if (IndividualStageData.hasStageCached(owner, stageId)) return false;
+                this.ownerUUID = owner;
+                if (claiming) {
+                    // The owner is written onto the scroll, not just onto the pedestal: it has
+                    // to survive being carried away, and the deposit gate, the item tooltip and
+                    // the screen all read it back from there.
+                    tag.putUUID("OwnerUUID", owner);
+                    tag.putString("OwnerName", player.getName().getString());
+                    scroll.setTag(tag);
+                }
+            } else {
+                if (StageData.get(level).getUnlockedStages().contains(stageId)) return false;
+                this.ownerUUID = null;
+            }
+        }
+
+        this.lastInteractingPlayer = player.getUUID();
+        this.running = true;
+        setChanged();
+        return true;
+    }
+
+    /** Stop advancing progress. Owner and progress are kept; the scroll becomes removable. */
+    public void pause() {
+        if (level == null || level.isClientSide) return;
+        this.running = false;
+        // tick() only writes progress onto the scroll every 10 ticks, and pausing is exactly
+        // when the scroll may be carried off — flush it so nothing is lost on the way out.
+        ItemStack scroll = getScrollStack();
+        if (!scroll.isEmpty() && scroll.hasTag() && scroll.getTag().contains("StageResearch")) {
+            CompoundTag tag = scroll.getOrCreateTag();
+            tag.putInt("ResearchProgress", this.progress);
+            tag.putInt("MaxProgress", getMaxProgressForCurrentStage());
+        }
+        setChanged();
+    }
+
+    public boolean isRunning() {
+        return this.running;
+    }
+
     private void performGlobalSync() {
         StageData data = StageData.get(this.level);
         StageData.refreshCache(data.getUnlockedStages());
@@ -813,8 +942,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         nbt.put("inventory", itemHandler.serializeNBT());
         nbt.putInt("research.progress", progress);
         nbt.putInt("research.finishDelay", finishDelay);
+        nbt.putBoolean("research.running", running);
         if (ownerUUID != null) {
             nbt.putUUID("research.ownerUUID", ownerUUID);
+        }
+        // A global research resolves its dependency checks against this player, so losing it
+        // over a restart would silently freeze a running research until someone reopens the GUI.
+        if (lastInteractingPlayer != null) {
+            nbt.putUUID("research.lastPlayer", lastInteractingPlayer);
         }
         super.saveAdditional(nbt);
     }
@@ -843,8 +978,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         progress = nbt.getInt("research.progress");
         finishDelay = nbt.getInt("research.finishDelay");
+        running = nbt.getBoolean("research.running");
         if (nbt.hasUUID("research.ownerUUID")) {
             ownerUUID = nbt.getUUID("research.ownerUUID");
+        }
+        if (nbt.hasUUID("research.lastPlayer")) {
+            lastInteractingPlayer = nbt.getUUID("research.lastPlayer");
         }
     }
 

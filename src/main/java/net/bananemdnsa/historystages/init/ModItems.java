@@ -167,6 +167,33 @@ public class ModItems {
                 }
             });
 
+    public static final RegistryObject<Item> RESEARCH_SCROLL_OPEN = ITEMS.register("research_scroll_open",
+            () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
+
+                @Override
+                public Component getName(ItemStack stack) {
+                    if (stack.hasTag() && stack.getTag().contains("StageResearch")) {
+                        String stageId = stack.getTag().getString("StageResearch");
+                        var stage = StageManager.getStages().get(stageId);
+                        if (stage == null) {
+                            stage = StageManager.getIndividualStages().get(stageId);
+                        }
+                        if (stage != null) {
+                            return Component.translatable("tooltip.historystages.research_scroll.named", stage.getDisplayName())
+                                    .withStyle(ChatFormatting.AQUA);
+                        }
+                    }
+                    return super.getName(stack);
+                }
+
+                @Override
+                public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip,
+                        TooltipFlag flag) {
+                    tooltip.add(Component.translatable("tooltip.historystages.research_scroll_open.info")
+                            .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                }
+            });
+
     public static final RegistryObject<Item> CREATIVE_SCROLL = ITEMS.register("creative_scroll",
             () -> new Item(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)) {
 

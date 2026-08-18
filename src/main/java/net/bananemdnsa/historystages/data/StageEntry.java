@@ -51,6 +51,9 @@ public class StageEntry {
     @SerializedName("icon")
     private String icon; // item id, null = use default (research scroll)
 
+    @SerializedName("scroll_completion")
+    private String scrollCompletion; // "consume" | "replace" | "open"; null → use config default
+
     @JsonAdapter(ItemEntryListAdapter.class)
     private List<ItemEntry> items;
 
@@ -148,6 +151,11 @@ public class StageEntry {
     /** Returns the custom icon item id, or "" if not set (use default). Never null (matches neoforge). */
     public String getIcon() {
         return icon != null ? icon : "";
+    }
+
+    /** Returns the per-stage scroll completion override, or "" if not set (use config default). */
+    public String getScrollCompletion() {
+        return scrollCompletion != null ? scrollCompletion : "";
     }
 
     /** Returns item IDs of entries WITHOUT NBT criteria (simple ID-only locks). */
@@ -324,6 +332,10 @@ public class StageEntry {
         this.icon = (icon != null && !icon.isEmpty()) ? icon : null;
     }
 
+    public void setScrollCompletion(String value) {
+        this.scrollCompletion = (value != null && !value.isEmpty()) ? value : null;
+    }
+
     /** Sets items from simple string IDs (no NBT). */
     public void setItems(List<String> items) {
         if (items == null) {
@@ -436,6 +448,7 @@ public class StageEntry {
         copy.setMinPedestalTier(getMinPedestalTier());
         copy.setPedestalTierMode(getPedestalTierMode());
         copy.setIcon(icon);
+        copy.setScrollCompletion(scrollCompletion);
         copy.setItemEntries(getItemEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
         copy.setTagEntries(getTagEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));
         copy.setModEntries(getModEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));

@@ -72,6 +72,7 @@ public final class CommonConfigSync {
         list("researchBoosters", Config.COMMON.researchBoosters, ";",
                 net.bananemdnsa.historystages.research.ResearchBoosterRegistry::rebuildFromConfig);
         bool("lockScrollWhileResearching", Config.COMMON.lockScrollWhileResearching);
+        str("defaultScrollCompletion", Config.COMMON.defaultScrollCompletion);
 
         // loot_replacements
         bool("useReplacements", Config.COMMON.useReplacements);

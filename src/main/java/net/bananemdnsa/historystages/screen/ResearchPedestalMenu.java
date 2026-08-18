@@ -27,10 +27,10 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
 
     // Client-Konstruktor
     public ResearchPedestalMenu(int pContainerId, Inventory inv, FriendlyByteBuf extraData) {
-        // Slots 0..9: progress, max, finishDelay, individualMode, depsMet, depositDelay,
-        // speedPercent, tierMismatch, requiredTier, requiredTierMode
+        // Slots 0..10: progress, max, finishDelay, individualMode, depsMet, depositDelay,
+        // speedPercent, tierMismatch, requiredTier, requiredTierMode, running
         this(pContainerId, inv, inv.player.level().getBlockEntity(extraData.readBlockPos()),
-                new SimpleContainerData(10));
+                new SimpleContainerData(11));
     }
 
     // Server-Konstruktor
@@ -51,15 +51,21 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
                 .orElse(new ItemStackHandler(2));
 
         // Internal Slot 0: Scroll
-        this.addSlot(new SlotItemHandler(handler, 0, 26, 35) {
+        this.addSlot(new SlotItemHandler(handler, 0,
+                PedestalLayout.SCROLL_SLOT_X, PedestalLayout.SCROLL_SLOT_Y) {
             @Override
             public boolean mayPickup(@NotNull Player player) {
-                return !ResearchPedestalMenu.this.blockEntity.isScrollLocked() && super.mayPickup(player);
+                // Read the synced data slot, not the block entity field: the client's copy of
+                // the block entity never learns about `running`, so it would let the player
+                // lift the scroll and only snap it back once the server disagrees.
+                return !ResearchPedestalMenu.this.isRunning() && super.mayPickup(player);
             }
         });
 
         // Internal Slot 1: Deposit (Inside the dependency panel)
-        this.addSlot(new SlotItemHandler(handler, 1, 246, 142) {
+        this.addSlot(new SlotItemHandler(handler, 1,
+                PedestalLayout.WIDTH + PedestalLayout.DEP_GAP + PedestalLayout.DEP_SLOT_X,
+                PedestalLayout.DEP_SLOT_Y) {
             @Override
             public boolean mayPlace(@NotNull ItemStack stack) {
                 if (ResearchPedestalMenu.this.blockEntity == null)
@@ -133,14 +139,18 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     private void addPlayerInventory(Inventory playerInventory) {
         for (int i = 0; i < 3; ++i) {
             for (int l = 0; l < 9; ++l) {
-                this.addSlot(new Slot(playerInventory, l + i * 9 + 9, 8 + l * 18, 84 + i * 18));
+                this.addSlot(new Slot(playerInventory, l + i * 9 + 9,
+                        PedestalLayout.INV_X + l * PedestalLayout.SLOT_PITCH,
+                        PedestalLayout.INV_Y + i * PedestalLayout.SLOT_PITCH));
             }
         }
     }
 
     private void addPlayerHotbar(Inventory playerInventory) {
         for (int i = 0; i < 9; ++i) {
-            this.addSlot(new Slot(playerInventory, i, 8 + i * 18, 142));
+            this.addSlot(new Slot(playerInventory, i,
+                    PedestalLayout.INV_X + i * PedestalLayout.SLOT_PITCH,
+                    PedestalLayout.HOTBAR_Y));
         }
     }
 
@@ -208,5 +218,9 @@ public class ResearchPedestalMenu extends AbstractContainerMenu {
     /** @return 0 = MIN, 1 = EXACT. */
     public int getRequiredTierMode() {
         return data.get(9);
+    }
+
+    public boolean isRunning() {
+        return this.data.get(10) == 1;
     }
 }
