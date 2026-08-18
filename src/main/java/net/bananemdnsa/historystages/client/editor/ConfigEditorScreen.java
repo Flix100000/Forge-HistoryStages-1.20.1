@@ -1215,7 +1215,8 @@ public class ConfigEditorScreen extends Screen {
         public String value;
         String initialValue;
         final boolean isClient;
-        final String defaultValue;
+        /** Public so dialogs outside this package can offer a reset-to-default control. */
+        public final String defaultValue;
         /** Lang key of the hover tooltip. */
         final String descKey;
         /** Inclusive bounds for INTEGER / DOUBLE entries, mirroring Config.java's defineInRange. */

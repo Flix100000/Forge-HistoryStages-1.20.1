@@ -766,6 +766,8 @@
   "editor.historystages.config.texture_none": "§7(none)",
   "editor.historystages.color.hex": "Colour (#RRGGBB)",
   "editor.historystages.color.invalid": "Needs exactly six hex digits, e.g. #44CC99",
+  "editor.historystages.color.previous": "Previous",
+  "editor.historystages.color.default": "Default",
   "editor.historystages.config.graph.general.enabled": "Show graph button",
   "editor.historystages.config.graph.general.enabled.desc": "Show the 'Stage Graph' button in the pause screen for players? Off by default: the graph reveals how the pack is structured. Admins can always reach it through the editor.",
   "editor.historystages.config.graph.general.title": "Screen title",
