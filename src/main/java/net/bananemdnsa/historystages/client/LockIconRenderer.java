@@ -12,9 +12,9 @@ import net.minecraft.world.item.ItemStack;
  * icon selection and drawing stay identical across surfaces.
  */
 public final class LockIconRenderer {
-    private static final ResourceLocation LOCK_ICON            = new ResourceLocation("historystages", "textures/gui/lock_overlay_global.png");
-    private static final ResourceLocation SILVER_LOCK_ICON     = new ResourceLocation("historystages", "textures/gui/lock_overlay_individual.png");
-    private static final ResourceLocation DUAL_PHASE_LOCK_ICON = new ResourceLocation("historystages", "textures/gui/lock_overlay_dual.png");
+    private static final ResourceLocation LOCK_ICON            = new ResourceLocation("historystages", "textures/gui/lock/overlay_global.png");
+    private static final ResourceLocation SILVER_LOCK_ICON     = new ResourceLocation("historystages", "textures/gui/lock/overlay_individual.png");
+    private static final ResourceLocation DUAL_PHASE_LOCK_ICON = new ResourceLocation("historystages", "textures/gui/lock/overlay_dual.png");
 
     private LockIconRenderer() {}
 

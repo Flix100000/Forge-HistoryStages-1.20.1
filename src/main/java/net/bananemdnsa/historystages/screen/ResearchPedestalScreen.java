@@ -28,9 +28,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.registries.ForgeRegistries;
 
 public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPedestalMenu> {
-    private static final ResourceLocation TEXTURE = HistoryStages.location("textures/gui/research_pedestal_gui.png");
+    private static final ResourceLocation TEXTURE = HistoryStages.location("textures/gui/pedestal/gui_legacy.png");
     private static final ResourceLocation TEXTURE_DEP = HistoryStages
-            .location("textures/gui/research_pedestal_depen-gui.png");
+            .location("textures/gui/pedestal/dep_gui_legacy.png");
 
     // The dependency PNG is 512x512; the GUI sits at (113,140) with total size
     // 271x163
