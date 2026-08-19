@@ -21,7 +21,7 @@ import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.GenerationPhase;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.StringListCategoryTab;
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
@@ -112,7 +112,6 @@ public class StageDetailScreen extends Screen {
     private final Map<Integer, List<String>> editModLockActions;
     private final List<String> editModExceptions;
     private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
-    private final List<String> editRecipes;
     /**
      * Tabs already driven by their lock category, keyed by tab index. Anything absent here is
      * still handled by the hardcoded branches below; migrating a tab means adding it here and
@@ -149,7 +148,6 @@ public class StageDetailScreen extends Screen {
     private SearchableModList modSearch;
     private SearchableEntityList entitySearch;
     private SearchableTagList tagSearch;
-    private SearchableRecipeList recipeSearch;
     private SearchableStructureList structureSearch;
     private SearchableBiomeList biomeSearch;
     private SearchableItemList iconSearch;
@@ -415,13 +413,30 @@ public class StageDetailScreen extends Screen {
                 editModExceptionNbt.put(idx, me.getNbt().deepCopy());
             }
         }
-        this.editRecipes = new ArrayList<>(e.getRecipes());
+        // Safe cast: the built-in recipes category stores bare ids.
+        @SuppressWarnings("unchecked")
+        LockCategory<String> recipeCategory =
+                (LockCategory<String>) LockCategories.byId("historystages:recipes");
+        // Recipes are global-only; there is no per-player recipe gate in the data model.
+        CategoryTab recipeTab = new StringListCategoryTab(recipeCategory, false,
+                (onSelect, alreadyAdded) -> {
+                    SearchableRecipeList list = new SearchableRecipeList(onSelect, alreadyAdded);
+                    list.setKeepVisibleOnSelect(true);
+                    return list;
+                },
+                () -> { hasChanges = true; updateMaxScroll(); });
+        recipeTab.load(e);
+        this.categoryTabs.put(4, recipeTab);
         // Safe cast: the built-in dimensions category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> dimensionCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:dimensions");
         CategoryTab dimensionTab = new StringListCategoryTab(dimensionCategory, true,
-                SearchableDimensionList::new,
+                (onSelect, alreadyAdded) -> {
+                    SearchableDimensionList list = new SearchableDimensionList(onSelect, alreadyAdded);
+                    list.setMultiSelect(true);
+                    return list;
+                },
                 () -> { hasChanges = true; updateMaxScroll(); });
         dimensionTab.load(e);
         this.categoryTabs.put(5, dimensionTab);
@@ -835,15 +850,6 @@ public class StageDetailScreen extends Screen {
         }, () -> editBiomes, true);
         biomeSearch.setMultiSelect(true);
 
-        recipeSearch = new SearchableRecipeList(recipeId -> {
-            showRecipePreview(recipeId, () -> {
-                if (!editRecipes.contains(recipeId))
-                    editRecipes.add(recipeId);
-                hasChanges = true;
-                updateMaxScroll();
-            });
-        }, () -> editRecipes);
-        recipeSearch.setKeepVisibleOnSelect(true);
 
         contextMenu = new ContextMenu();
         // Returning from the NBT sub-screen re-runs init(); restore the item filter popup so the
@@ -900,7 +906,7 @@ public class StageDetailScreen extends Screen {
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || anyCategoryPickerVisible() || structureSearch.isVisible()
                 || biomeSearch.isVisible()
-                || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
+                || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
@@ -1012,6 +1018,13 @@ public class StageDetailScreen extends Screen {
         }
     }
 
+    /** Closes any open category-driven picker. */
+    private void hideCategoryPickers() {
+        for (CategoryTab tab : categoryTabs.values()) {
+            if (tab.picker() != null && tab.picker().isVisible()) tab.picker().hide();
+        }
+    }
+
     /** True when any category-driven picker is open. */
     private boolean anyCategoryPickerVisible() {
         for (CategoryTab tab : categoryTabs.values()) {
@@ -1021,7 +1034,7 @@ public class StageDetailScreen extends Screen {
     }
 
     /** Forwards one input call to whichever category-driven picker is open. */
-    private boolean anyCategoryPicker(java.util.function.Predicate<AbstractSearchableList<?>> action) {
+    private boolean anyCategoryPicker(java.util.function.Predicate<PickerOverlay> action) {
         for (CategoryTab tab : categoryTabs.values()) {
             if (tab.picker() != null && tab.picker().isVisible() && action.test(tab.picker())) return true;
         }
@@ -1075,7 +1088,6 @@ public class StageDetailScreen extends Screen {
             case 1 -> editTags;
             case 2 -> editMods;
             case 3 -> editModExceptions;
-            case 4 -> editRecipes;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
@@ -1643,7 +1655,6 @@ public class StageDetailScreen extends Screen {
         for (CategoryTab tab : categoryTabs.values()) {
             if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
         }
-        recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
         biomeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -2578,7 +2589,7 @@ public class StageDetailScreen extends Screen {
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     if (recipePopupAddAction != null) recipePopupAddAction.run();
                     closeRecipePopup();
-                    if (recipeSearch.isVisible()) recipeSearch.hide();
+                    hideCategoryPickers();
                     return true;
                 }
             }
@@ -2586,7 +2597,7 @@ public class StageDetailScreen extends Screen {
             if (mouseX < cachedPopupX || mouseX > cachedPopupX + cachedPopupW
                     || mouseY < cachedPopupY || mouseY > cachedPopupY + cachedPopupH) {
                 closeRecipePopup();
-                if (recipeSearch.isVisible()) recipeSearch.hide();
+                hideCategoryPickers();
                 return true;
             }
             return true; // consume clicks inside popup
@@ -2601,7 +2612,6 @@ public class StageDetailScreen extends Screen {
         if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (tagSearch.isVisible()) { if (tagSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
-        if (recipeSearch.isVisible()) { if (recipeSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (structureSearch.isVisible()) { if (structureSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (biomeSearch.isVisible()) { if (biomeSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -2897,7 +2907,6 @@ public class StageDetailScreen extends Screen {
         else if (activeTab == 1) { tagSearch.setFilter(""); tagSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 2) { modSearch.setFilter(""); modSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 4) { recipeSearch.setFilter(""); recipeSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 9) { structureSearch.setFilter(""); structureSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 10) { biomeSearch.setFilter(""); biomeSearch.show(this.width / 2, this.height / 2, cw); }
@@ -3077,8 +3086,6 @@ public class StageDetailScreen extends Screen {
             return true;
         if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseDragged(mouseX, mouseY))
             return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseDragged(mouseX, mouseY))
-            return true;
         if (modBiomePopup.isVisible() && modBiomePopup.mouseDragged(mouseX, mouseY))
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
@@ -3110,7 +3117,7 @@ public class StageDetailScreen extends Screen {
             return true;
         if (tagSearch.isVisible() && tagSearch.mouseReleased())
             return true;
-        if (anyCategoryPicker(AbstractSearchableList::mouseReleased))
+        if (anyCategoryPicker(PickerOverlay::mouseReleased))
             return true;
         if (biomeSearch.isVisible() && biomeSearch.mouseReleased())
             return true;
@@ -3121,8 +3128,6 @@ public class StageDetailScreen extends Screen {
         if (filterTagSearch.isVisible() && filterTagSearch.mouseReleased())
             return true;
         if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseReleased())
-            return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseReleased())
             return true;
         if (scrollBarDragging) {
             scrollBarDragging = false;
@@ -3180,7 +3185,6 @@ public class StageDetailScreen extends Screen {
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
-        if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (structureSearch.isVisible() && structureSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (biomeSearch.isVisible() && biomeSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -3230,7 +3234,6 @@ public class StageDetailScreen extends Screen {
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode)) return true;
         if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
-        if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode)) return true;
         if (structureSearch.isVisible() && structureSearch.keyPressed(keyCode)) return true;
         if (biomeSearch.isVisible() && biomeSearch.keyPressed(keyCode)) return true;
         if (iconSearch.isVisible() && iconSearch.keyPressed(keyCode)) return true;
@@ -3269,7 +3272,6 @@ public class StageDetailScreen extends Screen {
         if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (tagSearch.isVisible() && tagSearch.charTyped(c)) return true;
         if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
-        if (recipeSearch.isVisible() && recipeSearch.charTyped(c)) return true;
         if (structureSearch.isVisible() && structureSearch.charTyped(c)) return true;
         if (biomeSearch.isVisible() && biomeSearch.charTyped(c)) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c)) return true;
@@ -3518,7 +3520,6 @@ public class StageDetailScreen extends Screen {
             modExceptionEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editModExceptions.get(idx), nbt));
         }
         newEntry.setModExceptionEntries(modExceptionEntries);
-        newEntry.setRecipes(editRecipes);
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
         newEntry.setStructureGenerationRules(editStructureGenerationRules);

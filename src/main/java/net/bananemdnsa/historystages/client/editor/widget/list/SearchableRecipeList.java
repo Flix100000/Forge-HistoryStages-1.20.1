@@ -29,7 +29,7 @@ import java.util.function.Supplier;
  * Phase 1: Item grid showing all items that have recipes.
  * Phase 2: Recipe list for the selected item with ingredient icons.
  */
-public class SearchableRecipeList {
+public class SearchableRecipeList implements PickerOverlay {
     // Grid phase constants
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLS = 9;

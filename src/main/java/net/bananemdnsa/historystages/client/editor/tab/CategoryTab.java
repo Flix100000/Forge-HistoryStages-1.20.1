@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.client.editor.tab;
 
 import java.util.List;
 
-import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.data.StageEntry;
 import org.jetbrains.annotations.Nullable;
 
@@ -54,7 +54,7 @@ public interface CategoryTab {
 
     /** The picker this tab opens on Add, or null before the first {@code init()}. */
     @Nullable
-    AbstractSearchableList<?> picker();
+    PickerOverlay picker();
 
     void openPicker(int centerX, int centerY, int parentWidth);
 }

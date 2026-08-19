@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.lock.category.LockCategory;
 import org.jetbrains.annotations.Nullable;
@@ -22,11 +22,15 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class StringListCategoryTab implements CategoryTab {
 
-    /** Builds the picker in whatever concrete searchable list the category needs. */
+    /**
+     * Builds the picker in whatever concrete searchable list the category needs, already
+     * configured. Configuration belongs to the factory rather than here because it genuinely
+     * differs per category: dimensions wants multi-select, recipes wants to stay open on select.
+     */
     @FunctionalInterface
     public interface PickerFactory {
-        AbstractSearchableList<String> create(Consumer<String> onSelect,
-                                              Supplier<Collection<String>> alreadyAdded);
+        PickerOverlay create(Consumer<String> onSelect,
+                             Supplier<Collection<String>> alreadyAdded);
     }
 
     private final LockCategory<String> category;
@@ -34,7 +38,7 @@ public final class StringListCategoryTab implements CategoryTab {
     private final List<String> edit = new ArrayList<>();
     private final PickerFactory pickerFactory;
     private final Runnable onChanged;
-    private AbstractSearchableList<String> picker;
+    private PickerOverlay picker;
 
     /**
      * @param onChanged what the editor wants to happen when an entry is added — marking the
@@ -57,7 +61,6 @@ public final class StringListCategoryTab implements CategoryTab {
             if (!edit.contains(id)) edit.add(id);
             onChanged.run();
         }, () -> edit);
-        picker.setMultiSelect(true);
     }
 
     @Override
@@ -103,7 +106,7 @@ public final class StringListCategoryTab implements CategoryTab {
 
     @Override
     @Nullable
-    public AbstractSearchableList<?> picker() {
+    public PickerOverlay picker() {
         return picker;
     }
 

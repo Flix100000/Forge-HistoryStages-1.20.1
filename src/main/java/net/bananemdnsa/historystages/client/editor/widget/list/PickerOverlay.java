@@ -13,7 +13,7 @@ import net.minecraft.client.gui.GuiGraphics;
  * rows and the texture picker for TEXTURE ones — would otherwise need two fields and two copies
  * of every dismiss, render and input path.
  *
- * <p>Both implementations already had every method; this only names the set.
+ * <p>The implementations already had every method; this only names the set.
  */
 public interface PickerOverlay {
 
@@ -22,6 +22,9 @@ public interface PickerOverlay {
     void hide();
 
     boolean isVisible();
+
+    /** Resets what the picker is filtered by, so it opens showing everything. */
+    void setFilter(String filter);
 
     void render(GuiGraphics g, Font font, int mouseX, int mouseY);
 
