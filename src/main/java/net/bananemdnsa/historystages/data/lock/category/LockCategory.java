@@ -37,15 +37,35 @@ public interface LockCategory<T> {
     void write(StageEntry stage, List<T> entries);
 
     /**
-     * The entry ids this category contributes to dual-phase overlap detection — the check that
-     * spots the same thing being gated by a global stage <em>and</em> an individual one.
+     * The entry ids this category contributes when scanning <em>global</em> stages for
+     * dual-phase overlaps — the check that spots the same thing being gated by a global stage
+     * and an individual one at once.
      *
-     * <p>Returning an empty list opts the category out, which is the right answer for
-     * categories where an overlap is meaningless (mod exceptions) or was never tracked
-     * (recipes, spawn locks). Some categories contribute ids that are not simply
-     * {@link #read}'s entry ids — see the attack-lock implementation.
+     * <p>Returning an empty list opts the category out, which is the right answer where an
+     * overlap is meaningless (mod exceptions) or was never tracked (recipes, spawn locks).
      */
-    default List<String> dualPhaseIds(StageEntry stage) {
+    default List<String> globalDualPhaseIds(StageEntry stage) {
         return List.of();
+    }
+
+    /**
+     * The same, for <em>individual</em> stages.
+     *
+     * <p>Separate from {@link #globalDualPhaseIds} because the two sides are not always
+     * symmetric: a spawn lock that blocks every source implies an attack lock globally, but the
+     * individual side has never counted it. Categories where both sides agree return the same
+     * list from both methods.
+     */
+    default List<String> individualDualPhaseIds(StageEntry stage) {
+        return List.of();
+    }
+
+    /**
+     * How this category is named in the "dual-phase lock registered" loading message, e.g.
+     * {@code "item"}. These strings are shown to the maintainer on load, so the wording is a
+     * compatibility surface, not a label to tidy up.
+     */
+    default String dualPhaseLabel() {
+        return "";
     }
 }
