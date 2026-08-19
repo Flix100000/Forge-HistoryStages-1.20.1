@@ -91,9 +91,18 @@ public abstract class AbstractCategoryTab implements CategoryTab {
         return picker;
     }
 
+    /**
+     * Whether the picker has to be rebuilt every time it opens. True for a picker whose contents
+     * depend on state that changes while the editor is open — the mod-exception picker is filtered
+     * to the currently locked mods, so a cached one would show a stale list.
+     */
+    protected boolean rebuildPickerOnOpen() {
+        return false;
+    }
+
     @Override
     public void openPicker(int centerX, int centerY, int parentWidth) {
-        if (picker == null) return;
+        if (rebuildPickerOnOpen() || picker == null) rebuildPicker();
         picker.setFilter("");
         picker.show(centerX, centerY, parentWidth);
     }

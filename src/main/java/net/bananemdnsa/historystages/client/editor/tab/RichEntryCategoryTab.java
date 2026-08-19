@@ -101,6 +101,16 @@ public class RichEntryCategoryTab<T> extends AbstractCategoryTab {
         shift(tooltipText, index);
     }
 
+    /**
+     * Appends an entry together with the NBT it should match on. Always appends rather than
+     * merging with an existing row of the same id, so the same item can be locked once per NBT
+     * variant — that is the whole point of keying the extras by position.
+     */
+    public void addEntryWithNbt(String id, @Nullable JsonObject entryNbt) {
+        entries().add(id);
+        if (entryNbt != null && entryNbt.size() > 0) nbt.put(entries().size() - 1, entryNbt);
+    }
+
     public Map<Integer, JsonObject> nbtByIndex() {
         return nbt;
     }
