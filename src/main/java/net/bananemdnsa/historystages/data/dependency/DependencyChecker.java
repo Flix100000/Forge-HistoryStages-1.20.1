@@ -100,7 +100,7 @@ public class DependencyChecker {
             }
             StageEntry stageEntry = StageManager.getStages().get(stageId);
             String name = stageEntry != null ? stageEntry.getDisplayName() : stageId;
-            entries.add(new DependencyResult.EntryResult("stage", name, met));
+            entries.add(new DependencyResult.EntryResult("stage", stageId, name, met, met ? 1 : 0, 1));
         }
 
         // Individual Stages (all online / all ever)
@@ -109,7 +109,8 @@ public class DependencyChecker {
             StageEntry stageEntry = StageManager.getIndividualStages().get(dep.getStageId());
             String name = stageEntry != null ? stageEntry.getDisplayName() : dep.getStageId();
             String modeLabel = dep.isAllEver() ? " (all ever)" : " (all online)";
-            entries.add(new DependencyResult.EntryResult("individual_stage", name + modeLabel, met));
+            entries.add(new DependencyResult.EntryResult("individual_stage", dep.getStageId(),
+                    name + modeLabel, met, met ? 1 : 0, 1));
         }
 
         // Advancements (individual stages only)
