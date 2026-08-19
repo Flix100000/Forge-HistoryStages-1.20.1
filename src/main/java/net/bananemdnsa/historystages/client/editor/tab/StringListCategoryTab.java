@@ -20,7 +20,7 @@ import org.jetbrains.annotations.Nullable;
  * carry source and action filters. Those need a richer tab than this one, and trying to stretch
  * this class to cover them is the wrong move: give them their own implementation.
  */
-public final class StringListCategoryTab implements CategoryTab {
+public class StringListCategoryTab implements CategoryTab {
 
     /**
      * Builds the picker in whatever concrete searchable list the category needs, already

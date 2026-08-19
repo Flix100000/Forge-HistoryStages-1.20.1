@@ -23,6 +23,7 @@ import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.ModLinkedCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.StringListCategoryTab;
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
 import net.bananemdnsa.historystages.data.lock.category.LockCategory;
@@ -118,11 +119,11 @@ public class StageDetailScreen extends Screen {
      * deleting its old field, picker and branches, one category at a time.
      */
     private final java.util.LinkedHashMap<Integer, CategoryTab> categoryTabs = new java.util.LinkedHashMap<>();
+    /** Typed handle on the biomes tab; the mod-lock chain needs its mod-linked satellite. */
+    private final ModLinkedCategoryTab biomeTab;
     private final List<String> editStructures;
     private final List<String> editStructureModLinked;
     private final List<StructureGenerationRule> editStructureGenerationRules;
-    private final List<String> editBiomes;
-    private final List<String> editBiomeModLinked;
     private final List<String> editAttacklock;
     private final List<String> editInteractionlock;
     private final Map<String, List<String>> editInteractionlockActions;
@@ -149,7 +150,6 @@ public class StageDetailScreen extends Screen {
     private SearchableEntityList entitySearch;
     private SearchableTagList tagSearch;
     private SearchableStructureList structureSearch;
-    private SearchableBiomeList biomeSearch;
     private SearchableItemList iconSearch;
     private IconPickerButton iconPickerBtn;
     private ContextMenu contextMenu;
@@ -443,8 +443,21 @@ public class StageDetailScreen extends Screen {
         this.editStructures = new ArrayList<>(e.getStructures());
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
         this.editStructureGenerationRules = new ArrayList<>(e.getStructureGenerationRules());
-        this.editBiomes = new ArrayList<>(e.getBiomes());
-        this.editBiomeModLinked = new ArrayList<>(e.getBiomeModLinked());
+        // Safe cast: the built-in biomes category stores bare ids.
+        @SuppressWarnings("unchecked")
+        LockCategory<String> biomeCategory =
+                (LockCategory<String>) LockCategories.byId("historystages:biomes");
+        ModLinkedCategoryTab biomeTabLocal = new ModLinkedCategoryTab(biomeCategory, true,
+                (onSelect, alreadyAdded) -> {
+                    SearchableBiomeList list = new SearchableBiomeList(onSelect, alreadyAdded, true);
+                    list.setMultiSelect(true);
+                    return list;
+                },
+                () -> { hasChanges = true; updateMaxScroll(); },
+                StageEntry::getBiomeModLinked, StageEntry::setBiomeModLinked);
+        biomeTabLocal.load(e);
+        this.biomeTab = biomeTabLocal;
+        this.categoryTabs.put(10, biomeTabLocal);
         this.editIcon = e.getIcon();
         this.editScrollCompletion = e.getScrollCompletion();
         this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
@@ -655,21 +668,9 @@ public class StageDetailScreen extends Screen {
                 Component.translatable("editor.historystages.popup.kind.biomes"),
                 StageDetailScreen::allKnownBiomeIds,
                 selectedIds -> {
-            if (editingModId != null) {
-                String prefix = editingModId + ":";
-                boolean removedAny = editBiomes.removeIf(
-                        id -> id.startsWith(prefix) && editBiomeModLinked.contains(id));
-                boolean removedLink = editBiomeModLinked.removeIf(id -> id.startsWith(prefix));
-                if (removedAny || removedLink)
-                    hasChanges = true;
-            }
-            for (String id : selectedIds) {
-                if (!editBiomes.contains(id))
-                    editBiomes.add(id);
-                if (!editBiomeModLinked.contains(id))
-                    editBiomeModLinked.add(id);
-            }
-            if (!selectedIds.isEmpty())
+            if (editingModId != null && biomeTab.replaceModSelection(editingModId, selectedIds))
+                hasChanges = true;
+            else if (!selectedIds.isEmpty())
                 hasChanges = true;
             editingModId = null;
             updateMaxScroll();
@@ -842,13 +843,6 @@ public class StageDetailScreen extends Screen {
         }, () -> editStructures);
         structureSearch.setMultiSelect(true);
 
-        biomeSearch = new SearchableBiomeList(biomeId -> {
-            if (!editBiomes.contains(biomeId))
-                editBiomes.add(biomeId);
-            hasChanges = true;
-            updateMaxScroll();
-        }, () -> editBiomes, true);
-        biomeSearch.setMultiSelect(true);
 
 
         contextMenu = new ContextMenu();
@@ -881,7 +875,7 @@ public class StageDetailScreen extends Screen {
     /** Final step of the mod-lock chain. Clears the edit marker when there is nothing to show. */
     private boolean showModBiomePopup() {
         if (pendingModId != null && modBiomePopup.showForMod(pendingModId, pendingModDisplayName,
-                this.width / 2, this.height / 2, editBiomes)) {
+                this.width / 2, this.height / 2, biomeTab.entries())) {
             return true;
         }
         editingModId = null;
@@ -905,7 +899,6 @@ public class StageDetailScreen extends Screen {
                 || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
                 || tagSearch.isVisible() || anyCategoryPickerVisible() || structureSearch.isVisible()
-                || biomeSearch.isVisible()
                 || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
@@ -1092,7 +1085,6 @@ public class StageDetailScreen extends Screen {
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
             case 9 -> editStructures;
-            case 10 -> editBiomes;
             default -> new ArrayList<>();
         };
     }
@@ -1459,7 +1451,7 @@ public class StageDetailScreen extends Screen {
                 // Mod badge for entity/structure tabs: shows entry was added via mod popup
                 if ((isEntityTab && editModLinked.contains(list.get(i)))
                         || (activeTab == 9 && editStructureModLinked.contains(list.get(i)))
-                        || (activeTab == 10 && editBiomeModLinked.contains(list.get(i)))) {
+                        || (activeTab == 10 && biomeTab.modLinkedEntries().contains(list.get(i)))) {
                     String badge = "\u00A77[mod]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0x999999, false);
@@ -1656,7 +1648,6 @@ public class StageDetailScreen extends Screen {
             if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
         }
         structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
-        biomeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         iconSearch.render(guiGraphics, this.font, mouseX, mouseY);
         // Lifted above the popups it can be opened from, so it never gets drawn under their content.
         guiGraphics.pose().pushPose();
@@ -2613,7 +2604,6 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible()) { if (tagSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
         if (structureSearch.isVisible()) { if (structureSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (biomeSearch.isVisible()) { if (biomeSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
 
         // Unfocus/clear category search when clicking outside the box + dropdown
@@ -2866,8 +2856,7 @@ public class StageDetailScreen extends Screen {
                             editStructures.removeIf(id -> id.startsWith(prefix) && editStructureModLinked.contains(id));
                             editStructureModLinked.removeIf(id -> id.startsWith(prefix));
                             editStructureGenerationRules.removeIf(r -> r.id().startsWith(prefix));
-                            editBiomes.removeIf(id -> id.startsWith(prefix) && editBiomeModLinked.contains(id));
-                            editBiomeModLinked.removeIf(id -> id.startsWith(prefix));
+                            biomeTab.removeModSelectionByPrefix(prefix);
                             // Remove mod exceptions belonging to this mod
                             for (int j = editModExceptions.size() - 1; j >= 0; j--) {
                                 if (editModExceptions.get(j).startsWith(prefix)) {
@@ -2909,7 +2898,6 @@ public class StageDetailScreen extends Screen {
         else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 9) { structureSearch.setFilter(""); structureSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 10) { biomeSearch.setFilter(""); biomeSearch.show(this.width / 2, this.height / 2, cw); }
     }
 
 
@@ -3076,8 +3064,6 @@ public class StageDetailScreen extends Screen {
             return true;
         if (anyCategoryPicker(pk -> pk.mouseDragged(mouseX, mouseY)))
             return true;
-        if (biomeSearch.isVisible() && biomeSearch.mouseDragged(mouseX, mouseY))
-            return true;
         if (structureSearch.isVisible() && structureSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseDragged(mouseX, mouseY))
@@ -3118,8 +3104,6 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.mouseReleased())
             return true;
         if (anyCategoryPicker(PickerOverlay::mouseReleased))
-            return true;
-        if (biomeSearch.isVisible() && biomeSearch.mouseReleased())
             return true;
         if (structureSearch.isVisible() && structureSearch.mouseReleased())
             return true;
@@ -3186,7 +3170,6 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
         if (structureSearch.isVisible() && structureSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        if (biomeSearch.isVisible() && biomeSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (filterTagSearch.isVisible() && filterTagSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (interactionItemsPopup.isVisible() && interactionItemsPopup.mouseScrolled(mouseX, mouseY, scrollY)) return true;
@@ -3235,7 +3218,6 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode)) return true;
         if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
         if (structureSearch.isVisible() && structureSearch.keyPressed(keyCode)) return true;
-        if (biomeSearch.isVisible() && biomeSearch.keyPressed(keyCode)) return true;
         if (iconSearch.isVisible() && iconSearch.keyPressed(keyCode)) return true;
 
         // Forward all key events to the category search box when it has focus
@@ -3273,7 +3255,6 @@ public class StageDetailScreen extends Screen {
         if (tagSearch.isVisible() && tagSearch.charTyped(c)) return true;
         if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
         if (structureSearch.isVisible() && structureSearch.charTyped(c)) return true;
-        if (biomeSearch.isVisible() && biomeSearch.charTyped(c)) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c)) return true;
         if (filterTagSearch.isVisible() && filterTagSearch.charTyped(c)) return true;
         if (iconSearch.isVisible() && iconSearch.charTyped(c)) return true;
@@ -3523,8 +3504,6 @@ public class StageDetailScreen extends Screen {
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
         newEntry.setStructureGenerationRules(editStructureGenerationRules);
-        newEntry.setBiomes(editBiomes);
-        newEntry.setBiomeModLinked(editBiomeModLinked);
         newEntry.setIcon(editIcon);
         newEntry.setScrollCompletion(editScrollCompletion);
         EntityLocks locks = new EntityLocks();
