@@ -21,6 +21,11 @@ import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.GenerationPhase;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.StringListCategoryTab;
+import net.bananemdnsa.historystages.data.lock.category.LockCategories;
+import net.bananemdnsa.historystages.data.lock.category.LockCategory;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
@@ -108,7 +113,12 @@ public class StageDetailScreen extends Screen {
     private final List<String> editModExceptions;
     private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
     private final List<String> editRecipes;
-    private final List<String> editDimensions;
+    /**
+     * Tabs already driven by their lock category, keyed by tab index. Anything absent here is
+     * still handled by the hardcoded branches below; migrating a tab means adding it here and
+     * deleting its old field, picker and branches, one category at a time.
+     */
+    private final java.util.LinkedHashMap<Integer, CategoryTab> categoryTabs = new java.util.LinkedHashMap<>();
     private final List<String> editStructures;
     private final List<String> editStructureModLinked;
     private final List<StructureGenerationRule> editStructureGenerationRules;
@@ -139,7 +149,6 @@ public class StageDetailScreen extends Screen {
     private SearchableModList modSearch;
     private SearchableEntityList entitySearch;
     private SearchableTagList tagSearch;
-    private SearchableDimensionList dimensionSearch;
     private SearchableRecipeList recipeSearch;
     private SearchableStructureList structureSearch;
     private SearchableBiomeList biomeSearch;
@@ -309,6 +318,8 @@ public class StageDetailScreen extends Screen {
 
     // Tabs that are disabled for individual stages (Recipes=4, Spawnlock=7)
     private boolean isTabDisabled(int tab) {
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        if (categoryTab != null) return isIndividual && !categoryTab.availableForIndividualStages();
         return isIndividual && (tab == 4 || tab == 7);
     }
 
@@ -405,7 +416,15 @@ public class StageDetailScreen extends Screen {
             }
         }
         this.editRecipes = new ArrayList<>(e.getRecipes());
-        this.editDimensions = new ArrayList<>(e.getDimensions());
+        // Safe cast: the built-in dimensions category stores bare ids.
+        @SuppressWarnings("unchecked")
+        LockCategory<String> dimensionCategory =
+                (LockCategory<String>) LockCategories.byId("historystages:dimensions");
+        CategoryTab dimensionTab = new StringListCategoryTab(dimensionCategory, true,
+                SearchableDimensionList::new,
+                () -> { hasChanges = true; updateMaxScroll(); });
+        dimensionTab.load(e);
+        this.categoryTabs.put(5, dimensionTab);
         this.editStructures = new ArrayList<>(e.getStructures());
         this.editStructureModLinked = new ArrayList<>(e.getStructureModLinked());
         this.editStructureGenerationRules = new ArrayList<>(e.getStructureGenerationRules());
@@ -797,13 +816,8 @@ public class StageDetailScreen extends Screen {
         }, () -> editTags);
         tagSearch.setMultiSelect(true);
 
-        dimensionSearch = new SearchableDimensionList(dimId -> {
-            if (!editDimensions.contains(dimId))
-                editDimensions.add(dimId);
-            hasChanges = true;
-            updateMaxScroll();
-        }, () -> editDimensions);
-        dimensionSearch.setMultiSelect(true);
+        // init() runs again on every resize; the tabs survive, only their pickers are rebuilt.
+        for (CategoryTab tab : categoryTabs.values()) tab.rebuildPicker();
 
         structureSearch = new SearchableStructureList(structId -> {
             if (!editStructures.contains(structId))
@@ -884,7 +898,7 @@ public class StageDetailScreen extends Screen {
         return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
                 || modExceptionSearch.isVisible() || modSearch.isVisible()
                 || entitySearch.isVisible()
-                || tagSearch.isVisible() || dimensionSearch.isVisible() || structureSearch.isVisible()
+                || tagSearch.isVisible() || anyCategoryPickerVisible() || structureSearch.isVisible()
                 || biomeSearch.isVisible()
                 || recipeSearch.isVisible() || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
@@ -998,18 +1012,70 @@ public class StageDetailScreen extends Screen {
         }
     }
 
+    /** True when any category-driven picker is open. */
+    private boolean anyCategoryPickerVisible() {
+        for (CategoryTab tab : categoryTabs.values()) {
+            if (tab.picker() != null && tab.picker().isVisible()) return true;
+        }
+        return false;
+    }
+
+    /** Forwards one input call to whichever category-driven picker is open. */
+    private boolean anyCategoryPicker(java.util.function.Predicate<AbstractSearchableList<?>> action) {
+        for (CategoryTab tab : categoryTabs.values()) {
+            if (tab.picker() != null && tab.picker().isVisible() && action.test(tab.picker())) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Dual-phase entries for the tab being rendered. Looking at an individual stage, the map holds
+     * entry to global stage ids, and the other way round for a global stage — that inversion is
+     * deliberate and predates the category registry.
+     */
+    private Map<String, Set<String>> dualPhaseMapForTab(int tab) {
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        if (categoryTab != null) {
+            return isIndividual
+                    ? StageManager.getDualPhaseGlobal(categoryTab.categoryId())
+                    : StageManager.getDualPhaseIndividual(categoryTab.categoryId());
+        }
+        return isIndividual
+            ? switch (tab) {
+                case 0 -> StageManager.getDualPhaseItems();
+                case 1 -> StageManager.getDualPhaseTags();
+                case 2 -> StageManager.getDualPhaseMods();
+                case 6 -> StageManager.getDualPhaseAttacklock();
+                case 8 -> StageManager.getDualPhaseInteractionlock();
+                case 9 -> StageManager.getDualPhaseStructures();
+                case 10 -> StageManager.getDualPhaseBiomes();
+                default -> null;
+            }
+            : switch (tab) {
+                case 0 -> StageManager.getDualPhaseItemsInd();
+                case 1 -> StageManager.getDualPhaseTagsInd();
+                case 2 -> StageManager.getDualPhaseModsInd();
+                case 6 -> StageManager.getDualPhaseAttacklockInd();
+                case 8 -> StageManager.getDualPhaseInteractionlockInd();
+                case 9 -> StageManager.getDualPhaseStructuresInd();
+                case 10 -> StageManager.getDualPhaseBiomesInd();
+                default -> null;
+            };
+    }
+
     private List<String> getActiveList() {
         return getListForSection(activeTab);
     }
 
     List<String> getListForSection(int sectionIndex) {
+        CategoryTab tab = categoryTabs.get(sectionIndex);
+        if (tab != null) return tab.entries();
         return switch (sectionIndex) {
             case 0 -> editItems;
             case 1 -> editTags;
             case 2 -> editMods;
             case 3 -> editModExceptions;
             case 4 -> editRecipes;
-            case 5 -> editDimensions;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
@@ -1227,29 +1293,7 @@ public class StageDetailScreen extends Screen {
                     String entry = list.get(i);
                     // Individual view: map holds entry → global stage IDs
                     // Global view: map holds entry → individual stage IDs
-                    Map<String, Set<String>> dualMap = isIndividual
-                        ? switch (activeTab) {
-                            case 0 -> StageManager.getDualPhaseItems();
-                            case 1 -> StageManager.getDualPhaseTags();
-                            case 2 -> StageManager.getDualPhaseMods();
-                            case 5 -> StageManager.getDualPhaseDimensions();
-                            case 6 -> StageManager.getDualPhaseAttacklock();
-                            case 8 -> StageManager.getDualPhaseInteractionlock();
-                            case 9 -> StageManager.getDualPhaseStructures();
-                            case 10 -> StageManager.getDualPhaseBiomes();
-                            default -> null;
-                        }
-                        : switch (activeTab) {
-                            case 0 -> StageManager.getDualPhaseItemsInd();
-                            case 1 -> StageManager.getDualPhaseTagsInd();
-                            case 2 -> StageManager.getDualPhaseModsInd();
-                            case 5 -> StageManager.getDualPhaseDimensionsInd();
-                            case 6 -> StageManager.getDualPhaseAttacklockInd();
-                            case 8 -> StageManager.getDualPhaseInteractionlockInd();
-                            case 9 -> StageManager.getDualPhaseStructuresInd();
-                            case 10 -> StageManager.getDualPhaseBiomesInd();
-                            default -> null;
-                        };
+                    Map<String, Set<String>> dualMap = dualPhaseMapForTab(activeTab);
                     if (dualMap != null) {
                         isDualPhase = dualMap.containsKey(entry);
                         if (isDualPhase && entryHovered) {
@@ -1596,7 +1640,9 @@ public class StageDetailScreen extends Screen {
         modSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         tagSearch.render(guiGraphics, this.font, mouseX, mouseY);
-        dimensionSearch.render(guiGraphics, this.font, mouseX, mouseY);
+        for (CategoryTab tab : categoryTabs.values()) {
+            if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
+        }
         recipeSearch.render(guiGraphics, this.font, mouseX, mouseY);
         structureSearch.render(guiGraphics, this.font, mouseX, mouseY);
         biomeSearch.render(guiGraphics, this.font, mouseX, mouseY);
@@ -2554,7 +2600,7 @@ public class StageDetailScreen extends Screen {
         if (modSearch.isVisible()) { if (modSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (tagSearch.isVisible()) { if (tagSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (dimensionSearch.isVisible()) { if (dimensionSearch.mouseClicked(mouseX, mouseY)) return true; }
+        if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
         if (recipeSearch.isVisible()) { if (recipeSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (structureSearch.isVisible()) { if (structureSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (biomeSearch.isVisible()) { if (biomeSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -2845,12 +2891,13 @@ public class StageDetailScreen extends Screen {
         int contentLeft = 30;
         int contentRight = this.width - 30;
         int cw = contentRight - contentLeft;
+        CategoryTab categoryTab = categoryTabs.get(activeTab);
+        if (categoryTab != null) { categoryTab.openPicker(this.width / 2, this.height / 2, cw); return; }
         if (activeTab == 0) { itemSearch.setFilter(""); itemSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 1) { tagSearch.setFilter(""); tagSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 2) { modSearch.setFilter(""); modSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 4) { recipeSearch.setFilter(""); recipeSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 5) { dimensionSearch.setFilter(""); dimensionSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 9) { structureSearch.setFilter(""); structureSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 10) { biomeSearch.setFilter(""); biomeSearch.show(this.width / 2, this.height / 2, cw); }
@@ -3018,7 +3065,7 @@ public class StageDetailScreen extends Screen {
             return true;
         if (tagSearch.isVisible() && tagSearch.mouseDragged(mouseX, mouseY))
             return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseDragged(mouseX, mouseY))
+        if (anyCategoryPicker(pk -> pk.mouseDragged(mouseX, mouseY)))
             return true;
         if (biomeSearch.isVisible() && biomeSearch.mouseDragged(mouseX, mouseY))
             return true;
@@ -3063,7 +3110,7 @@ public class StageDetailScreen extends Screen {
             return true;
         if (tagSearch.isVisible() && tagSearch.mouseReleased())
             return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseReleased())
+        if (anyCategoryPicker(AbstractSearchableList::mouseReleased))
             return true;
         if (biomeSearch.isVisible() && biomeSearch.mouseReleased())
             return true;
@@ -3132,7 +3179,7 @@ public class StageDetailScreen extends Screen {
         if (modSearch.isVisible() && modSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (tagSearch.isVisible() && tagSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
+        if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
         if (recipeSearch.isVisible() && recipeSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (structureSearch.isVisible() && structureSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (biomeSearch.isVisible() && biomeSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -3182,7 +3229,7 @@ public class StageDetailScreen extends Screen {
         if (modSearch.isVisible() && modSearch.keyPressed(keyCode)) return true;
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (tagSearch.isVisible() && tagSearch.keyPressed(keyCode)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.keyPressed(keyCode)) return true;
+        if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
         if (recipeSearch.isVisible() && recipeSearch.keyPressed(keyCode)) return true;
         if (structureSearch.isVisible() && structureSearch.keyPressed(keyCode)) return true;
         if (biomeSearch.isVisible() && biomeSearch.keyPressed(keyCode)) return true;
@@ -3221,7 +3268,7 @@ public class StageDetailScreen extends Screen {
         if (modSearch.isVisible() && modSearch.charTyped(c)) return true;
         if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (tagSearch.isVisible() && tagSearch.charTyped(c)) return true;
-        if (dimensionSearch.isVisible() && dimensionSearch.charTyped(c)) return true;
+        if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
         if (recipeSearch.isVisible() && recipeSearch.charTyped(c)) return true;
         if (structureSearch.isVisible() && structureSearch.charTyped(c)) return true;
         if (biomeSearch.isVisible() && biomeSearch.charTyped(c)) return true;
@@ -3472,7 +3519,6 @@ public class StageDetailScreen extends Screen {
         }
         newEntry.setModExceptionEntries(modExceptionEntries);
         newEntry.setRecipes(editRecipes);
-        newEntry.setDimensions(editDimensions);
         newEntry.setStructures(editStructures);
         newEntry.setStructureModLinked(editStructureModLinked);
         newEntry.setStructureGenerationRules(editStructureGenerationRules);
@@ -3497,6 +3543,9 @@ public class StageDetailScreen extends Screen {
         locks.setModLinked(editModLinked);
         newEntry.setEntities(locks);
         newEntry.setDependencies(editDependencies);
+        for (CategoryTab tab : categoryTabs.values()) {
+            tab.store(newEntry);
+        }
         return newEntry;
     }
 
