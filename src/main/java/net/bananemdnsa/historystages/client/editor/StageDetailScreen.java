@@ -98,12 +98,7 @@ public class StageDetailScreen extends Screen {
     private String editScrollCompletion = "";
     private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
     private boolean editLoseOnDeath;
-    private final List<String> editItems;
-    private final Map<Integer, com.google.gson.JsonObject> editItemNbt;
-    private final Map<Integer, List<String>> editItemLockActions;
     // Per-entry REPLACE text overrides (entry index → text); absent = follow stage default.
-    private final Map<Integer, String> editItemNameText = new HashMap<>();
-    private final Map<Integer, String> editItemTooltipText = new HashMap<>();
     /**
      * Tabs already driven by their lock category, keyed by tab index. Anything absent here is
      * still handled by the hardcoded branches below; migrating a tab means adding it here and
@@ -120,6 +115,12 @@ public class StageDetailScreen extends Screen {
     private final RichEntryCategoryTab<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modTab;
     /** Typed handle on the mod-exceptions tab; its NBT extras are edited from the context menu. */
     private final RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> modExceptionTab;
+    /**
+     * Typed handle on the items tab; its extras drive badges, the NBT editor and overrides.
+     * Not final: the picker factory reads it, and Java will not let a lambda in the constructor
+     * touch a blank final even though the lambda only runs long after assignment.
+     */
+    private RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> itemTab;
     private final List<String> editAttacklock;
     private final List<String> editInteractionlock;
     private final Map<String, List<String>> editInteractionlockActions;
@@ -140,7 +141,6 @@ public class StageDetailScreen extends Screen {
     private int activeTab = 0;
 
     // Widgets
-    private SearchableItemList itemSearch;
     /**
      * The mods picker doubles as a lookup for a mod's display name, which the context menu
      * needs outside any picker interaction — so the tab's factory parks it here as well.
@@ -357,25 +357,30 @@ public class StageDetailScreen extends Screen {
         this.editTemporary = e.getTemporary() != null ? e.getTemporary().copy() : null;
         this.editHiddenDisplay = e.getHiddenDisplay().copy();
         this.editLoseOnDeath = e.isLoseOnDeath();
-        this.editItems = new ArrayList<>(e.getAllItemIds());
-        this.editItemNbt = new HashMap<>();
-        this.editItemLockActions = new HashMap<>();
-        List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = e.getItemEntries();
-        for (int idx = 0; idx < itemEntries.size(); idx++) {
-            net.bananemdnsa.historystages.data.ItemEntry ie = itemEntries.get(idx);
-            if (ie.hasNbt()) {
-                editItemNbt.put(idx, ie.getNbt().deepCopy());
-            }
-            if (ie.hasLockActions()) {
-                editItemLockActions.put(idx, new ArrayList<>(ie.getLockActions()));
-            }
-            if (ie.hasNameTextOverride()) {
-                editItemNameText.put(idx, ie.getNameTextOverride());
-            }
-            if (ie.hasTooltipTextOverride()) {
-                editItemTooltipText.put(idx, ie.getTooltipTextOverride());
-            }
-        }
+        // Safe cast: the built-in items category stores ItemEntry.
+        @SuppressWarnings("unchecked")
+        LockCategory<net.bananemdnsa.historystages.data.ItemEntry> itemCategory =
+                (LockCategory<net.bananemdnsa.historystages.data.ItemEntry>)
+                        LockCategories.byId("historystages:items");
+        RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> itemTabLocal =
+                new RichEntryCategoryTab<>(itemCategory, true,
+                        (onSelect, alreadyAdded) -> {
+                            SearchableItemList list = new SearchableItemList(onSelect::accept, alreadyAdded::get);
+                            list.setMultiSelect(true);
+                            // Ctrl-add dumps the held stack's components as match criteria, and
+                            // always appends so the same item can be locked once per NBT variant.
+                            list.setOnSelectWithNbt((itemId, nbt) -> {
+                                itemTab.addEntryWithNbt(itemId, nbt);
+                                hasChanges = true;
+                                updateMaxScroll();
+                            });
+                            return list;
+                        },
+                        () -> { hasChanges = true; updateMaxScroll(); },
+                        ITEM_ENTRY_ADAPTER);
+        itemTabLocal.load(e);
+        this.itemTab = itemTabLocal;
+        this.categoryTabs.put(0, itemTabLocal);
         // Safe cast: the built-in tags category stores NamedLockEntry.
         @SuppressWarnings("unchecked")
         LockCategory<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagCategory =
@@ -654,26 +659,6 @@ public class StageDetailScreen extends Screen {
         overrideDoneBtn.visible = false;
         this.addWidget(overrideDoneBtn);
 
-        itemSearch = new SearchableItemList(itemId -> {
-            if (!getActiveList().contains(itemId)) {
-                getActiveList().add(itemId);
-                hasChanges = true;
-            }
-            updateMaxScroll();
-        }, () -> getActiveList());
-        itemSearch.setMultiSelect(true);
-        // Ctrl-add: dump the inventory ItemStack's custom_data + components as
-        // the new entry's match criteria. Always creates a fresh entry (rather
-        // than coalescing by ID) so the user can lock specific NBT variants of
-        // the same item separately.
-        itemSearch.setOnSelectWithNbt((itemId, nbt) -> {
-            editItems.add(itemId);
-            if (nbt != null && nbt.size() > 0) {
-                editItemNbt.put(editItems.size() - 1, nbt);
-            }
-            hasChanges = true;
-            updateMaxScroll();
-        });
 
 
         modStructurePopup = new ModEntrySelectionPopup(
@@ -894,7 +879,7 @@ public class StageDetailScreen extends Screen {
     }
 
     private boolean isAnyOverlayVisible() {
-        return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
+        return (iconSearch != null && iconSearch.isVisible())
                 || entitySearch.isVisible()
                 || anyCategoryPickerVisible()
                 || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
@@ -1104,7 +1089,6 @@ public class StageDetailScreen extends Screen {
         CategoryTab tab = categoryTabs.get(sectionIndex);
         if (tab != null) return tab.entries();
         return switch (sectionIndex) {
-            case 0 -> editItems;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
@@ -1382,7 +1366,7 @@ public class StageDetailScreen extends Screen {
                 // NBT badge for items tab, tags tab, and exceptions tab
                 int badgeW = 0;
                 boolean isTagsTab = activeTab == 1;
-                if (isItemsTab && editItemNbt.containsKey(i)
+                if (isItemsTab && itemTab.nbtByIndex().containsKey(i)
                         || isTagsTab && tagTab.nbtByIndex().containsKey(i)
                         || isExceptionsTab && modExceptionTab.nbtByIndex().containsKey(i)) {
                     String badge = "\u00A76[NBT]";
@@ -1392,7 +1376,7 @@ public class StageDetailScreen extends Screen {
 
                 // Lock-Actions badge: shows how many actions are blocked out of total
                 List<String> entryLockActions = null;
-                if (activeTab == 0) entryLockActions = editItemLockActions.get(i);
+                if (activeTab == 0) entryLockActions = itemTab.lockActionsByIndex().get(i);
                 else if (activeTab == 1) entryLockActions = tagTab.lockActionsByIndex().get(i);
                 else if (activeTab == 2) entryLockActions = modTab.lockActionsByIndex().get(i);
                 if (entryLockActions != null) {
@@ -1662,7 +1646,6 @@ public class StageDetailScreen extends Screen {
             }
         }
 
-        itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         for (CategoryTab tab : categoryTabs.values()) {
             if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
@@ -2224,7 +2207,7 @@ public class StageDetailScreen extends Screen {
 
     private Map<Integer, List<String>> getLockActionsMapForTab(int tab) {
         return switch (tab) {
-            case 0 -> editItemLockActions;
+            case 0 -> itemTab.lockActionsByIndex();
             case 1 -> tagTab.lockActionsByIndex();
             case 2 -> modTab.lockActionsByIndex();
             default -> null;
@@ -2616,7 +2599,6 @@ public class StageDetailScreen extends Screen {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
         }
-        if (itemSearch.isVisible()) { if (itemSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -2797,19 +2779,6 @@ public class StageDetailScreen extends Screen {
                         if (migratedTab != null) migratedTab.removeAt(entryIdx);
                         else getListForSection(tabIdx).remove(entryIdx);
                         // When removing an item, shift NBT and lockActions indices
-                        if (tabIdx == 0) {
-                            editItemNbt.remove(entryIdx);
-                            Map<Integer, com.google.gson.JsonObject> shifted = new HashMap<>();
-                            for (var e : editItemNbt.entrySet()) {
-                                int key = e.getKey();
-                                shifted.put(key > entryIdx ? key - 1 : key, e.getValue());
-                            }
-                            editItemNbt.clear();
-                            editItemNbt.putAll(shifted);
-                            shiftLockActionsMap(editItemLockActions, entryIdx);
-                            shiftStringMap(editItemNameText, entryIdx);
-                            shiftStringMap(editItemTooltipText, entryIdx);
-                        }
                         // When removing a tag, shift NBT, lockActions + override indices
                         // When removing a mod, shift lockActions + override indices
                         // When removing a spawnlock entry, drop its sources + dimensions entry (keyed by entity ID)
@@ -2868,7 +2837,6 @@ public class StageDetailScreen extends Screen {
         int cw = contentRight - contentLeft;
         CategoryTab categoryTab = categoryTabs.get(activeTab);
         if (categoryTab != null) { categoryTab.openPicker(this.width / 2, this.height / 2, cw); return; }
-        if (activeTab == 0) { itemSearch.setFilter(""); itemSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
     }
 
@@ -2959,12 +2927,12 @@ public class StageDetailScreen extends Screen {
     }
 
     private void openNbtEditScreen(int entryIdx, String itemId) {
-        com.google.gson.JsonObject currentNbt = editItemNbt.get(entryIdx);
+        com.google.gson.JsonObject currentNbt = itemTab.nbtByIndex().get(entryIdx);
         this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, currentNbt, nbt -> {
             if (nbt != null) {
-                editItemNbt.put(entryIdx, nbt);
+                itemTab.nbtByIndex().put(entryIdx, nbt);
             } else {
-                editItemNbt.remove(entryIdx);
+                itemTab.nbtByIndex().remove(entryIdx);
             }
             hasChanges = true;
             saveStage();
@@ -3018,8 +2986,6 @@ public class StageDetailScreen extends Screen {
             return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseDragged(mouseX, mouseY))
             return true;
-        if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY))
-            return true;
         if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY))
             return true;
         if (anyCategoryPicker(pk -> pk.mouseDragged(mouseX, mouseY)))
@@ -3048,8 +3014,6 @@ public class StageDetailScreen extends Screen {
         if (modBiomePopup.isVisible() && modBiomePopup.mouseReleased())
             return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseReleased())
-            return true;
-        if (itemSearch.isVisible() && itemSearch.mouseReleased())
             return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseReleased())
             return true;
@@ -3113,7 +3077,6 @@ public class StageDetailScreen extends Screen {
             recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
             return true;
         }
-        if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -3157,7 +3120,6 @@ public class StageDetailScreen extends Screen {
             closeRecipePopup();
             return true;
         }
-        if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode)) return true;
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
         if (iconSearch.isVisible() && iconSearch.keyPressed(keyCode)) return true;
@@ -3190,7 +3152,6 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (generationLimitPopup.isVisible() && generationLimitPopup.charTyped(c)) return true;
-        if (itemSearch.isVisible() && itemSearch.charTyped(c)) return true;
         if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c)) return true;
@@ -3241,11 +3202,11 @@ public class StageDetailScreen extends Screen {
     }
 
     private Map<Integer, String> overrideNameMap(int tab) {
-        return tab == 1 ? tagTab.nameTextByIndex() : tab == 2 ? modTab.nameTextByIndex() : editItemNameText;
+        return tab == 1 ? tagTab.nameTextByIndex() : tab == 2 ? modTab.nameTextByIndex() : itemTab.nameTextByIndex();
     }
 
     private Map<Integer, String> overrideTooltipMap(int tab) {
-        return tab == 1 ? tagTab.tooltipTextByIndex() : tab == 2 ? modTab.tooltipTextByIndex() : editItemTooltipText;
+        return tab == 1 ? tagTab.tooltipTextByIndex() : tab == 2 ? modTab.tooltipTextByIndex() : itemTab.tooltipTextByIndex();
     }
 
     private void openOverridePopup(int tab, int entryIdx) {
@@ -3407,15 +3368,6 @@ public class StageDetailScreen extends Screen {
         newEntry.setMode(editMode);
         newEntry.setAutoTrigger(editAutoTrigger);
         newEntry.setTemporary(editTemporary);
-        List<net.bananemdnsa.historystages.data.ItemEntry> itemEntries = new ArrayList<>();
-        for (int idx = 0; idx < editItems.size(); idx++) {
-            com.google.gson.JsonObject nbt = editItemNbt.get(idx);
-            List<String> lockActions = editItemLockActions.get(idx);
-            itemEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(
-                    editItems.get(idx), nbt, lockActions,
-                    editItemNameText.get(idx), editItemTooltipText.get(idx)));
-        }
-        newEntry.setItemEntries(itemEntries);
         newEntry.setHiddenDisplay(editHiddenDisplay);
         newEntry.setLoseOnDeath(editLoseOnDeath);
         newEntry.setIcon(editIcon);
