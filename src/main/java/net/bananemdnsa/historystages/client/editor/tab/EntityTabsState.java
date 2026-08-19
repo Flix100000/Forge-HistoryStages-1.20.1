@@ -94,7 +94,11 @@ public final class EntityTabsState {
                 interactionActions.put(entry.getId(), new ArrayList<>(entry.getLockActions()));
             }
             if (entry.getLockItems() != null && !entry.getLockItems().isEmpty()) {
-                interactionItems.put(entry.getId(), new ArrayList<>(entry.getLockItems()));
+                // Deep copy: these are edited in place by the item-filter popup, and the stage we
+                // loaded from must not change underneath us.
+                List<ItemEntry> filters = new ArrayList<>(entry.getLockItems().size());
+                for (ItemEntry filter : entry.getLockItems()) filters.add(filter.copy());
+                interactionItems.put(entry.getId(), filters);
             }
         }
 

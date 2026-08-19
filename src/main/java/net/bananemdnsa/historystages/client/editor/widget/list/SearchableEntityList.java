@@ -42,7 +42,7 @@ import java.util.function.Supplier;
  * tab lists every chosen entity for review/deselection, and {@link #onSelect}
  * fires once per entity on confirm. Mirrors {@link SearchableItemList}.
  */
-public class SearchableEntityList {
+public class SearchableEntityList implements PickerOverlay {
     private static final int SLOT_SIZE = 18;
     private static final int ROW_HEIGHT = 20;
     private static final int PADDING = 6;

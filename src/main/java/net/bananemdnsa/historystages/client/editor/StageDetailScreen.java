@@ -23,6 +23,8 @@ import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.EntityTabsState;
 import net.bananemdnsa.historystages.client.editor.tab.ModLinkedCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.RichEntryCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.StructureCategoryTab;
@@ -121,14 +123,20 @@ public class StageDetailScreen extends Screen {
      * touch a blank final even though the lambda only runs long after assignment.
      */
     private RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> itemTab;
-    private final List<String> editAttacklock;
-    private final List<String> editInteractionlock;
-    private final Map<String, List<String>> editInteractionlockActions;
-    private final Map<String, List<net.bananemdnsa.historystages.data.ItemEntry>> editInteractionlockItems;
-    private final List<String> editSpawnlock;
-    private final Map<String, List<String>> editSpawnlockSources;
-    private final Map<String, List<String>> editSpawnlockDimensions;
-    private final List<String> editModLinked;
+    /**
+     * Attack, spawn and interaction locks share one EntityLocks object, so they share one
+     * state holder. The fields below are names for its lists rather than lists of their own.
+     */
+    private final EntityTabsState entityState = new EntityTabsState();
+    private final List<String> editAttacklock = entityState.attacklock();
+    private final List<String> editInteractionlock = entityState.interactionlock();
+    private final Map<String, List<String>> editInteractionlockActions = entityState.interactionActions();
+    private final Map<String, List<net.bananemdnsa.historystages.data.ItemEntry>> editInteractionlockItems =
+            entityState.interactionItems();
+    private final List<String> editSpawnlock = entityState.spawnlock();
+    private final Map<String, List<String>> editSpawnlockSources = entityState.spawnSources();
+    private final Map<String, List<String>> editSpawnlockDimensions = entityState.spawnDimensions();
+    private final List<String> editModLinked = entityState.modLinked();
     private List<DependencyGroup> editDependencies;
 
     // UI state
@@ -146,7 +154,6 @@ public class StageDetailScreen extends Screen {
      * needs outside any picker interaction — so the tab's factory parks it here as well.
      */
     private SearchableModList modPickerForNames;
-    private SearchableEntityList entitySearch;
     private SearchableItemList iconSearch;
     private IconPickerButton iconPickerBtn;
     private ContextMenu contextMenu;
@@ -314,8 +321,7 @@ public class StageDetailScreen extends Screen {
     // Tabs that are disabled for individual stages (Recipes=4, Spawnlock=7)
     private boolean isTabDisabled(int tab) {
         CategoryTab categoryTab = categoryTabs.get(tab);
-        if (categoryTab != null) return isIndividual && !categoryTab.availableForIndividualStages();
-        return isIndividual && (tab == 4 || tab == 7);
+        return categoryTab != null && isIndividual && !categoryTab.availableForIndividualStages();
     }
 
     public StageDetailScreen(Screen parent, String stageId, StageEntry entry, boolean isIndividual) {
@@ -472,34 +478,24 @@ public class StageDetailScreen extends Screen {
         this.categoryTabs.put(10, biomeTabLocal);
         this.editIcon = e.getIcon();
         this.editScrollCompletion = e.getScrollCompletion();
-        this.editAttacklock = new ArrayList<>(e.getEntities().getAttacklock());
-        this.editInteractionlock = new ArrayList<>();
-        this.editInteractionlockActions = new HashMap<>();
-        this.editInteractionlockItems = new HashMap<>();
-        for (net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry ie : e.getEntities().getInteractionlock()) {
-            this.editInteractionlock.add(ie.getId());
-            if (ie.hasLockActions()) {
-                this.editInteractionlockActions.put(ie.getId(), new ArrayList<>(ie.getLockActions()));
-            }
-            if (ie.hasLockItems()) {
-                List<net.bananemdnsa.historystages.data.ItemEntry> copy = new ArrayList<>(ie.getLockItems().size());
-                for (net.bananemdnsa.historystages.data.ItemEntry fi : ie.getLockItems()) copy.add(fi.copy());
-                this.editInteractionlockItems.put(ie.getId(), copy);
-            }
-        }
-        this.editSpawnlock = new ArrayList<>();
-        this.editSpawnlockSources = new HashMap<>();
-        this.editSpawnlockDimensions = new HashMap<>();
-        for (net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry se : e.getEntities().getSpawnlock()) {
-            this.editSpawnlock.add(se.getId());
-            if (se.hasLockSources()) {
-                this.editSpawnlockSources.put(se.getId(), new ArrayList<>(se.getLockSources()));
-            }
-            if (se.hasUnlockDimensions()) {
-                this.editSpawnlockDimensions.put(se.getId(), new ArrayList<>(se.getUnlockDimensions()));
-            }
-        }
-        this.editModLinked = new ArrayList<>(e.getEntities().getModLinked());
+        entityState.load(e);
+        @SuppressWarnings("unchecked")
+        LockCategory<String> attackCategory =
+                (LockCategory<String>) LockCategories.byId("historystages:attacklock");
+        this.categoryTabs.put(6, new EntityCategoryTab(attackCategory, true,
+                (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
+                () -> { hasChanges = true; updateMaxScroll(); },
+                entityState, entityState.attacklock()));
+        this.categoryTabs.put(7, new EntityCategoryTab(
+                LockCategories.byId("historystages:spawnlock"), false,
+                (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
+                () -> { hasChanges = true; updateMaxScroll(); },
+                entityState, entityState.spawnlock()));
+        this.categoryTabs.put(8, new EntityCategoryTab(
+                LockCategories.byId("historystages:interactionlock"), true,
+                (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
+                () -> { hasChanges = true; updateMaxScroll(); },
+                entityState, entityState.interactionlock()));
         // Built after the entity lists, because adding a mod starts the mod-lock chain and
         // that chain reads them.
         // Safe cast: the built-in mods category stores NamedLockEntry.
@@ -814,13 +810,6 @@ public class StageDetailScreen extends Screen {
         filterTagSearch.setMultiSelect(true);
 
 
-        entitySearch = new SearchableEntityList(entityId -> {
-            if (!getActiveList().contains(entityId))
-                getActiveList().add(entityId);
-            hasChanges = true;
-            updateMaxScroll();
-        }, () -> getActiveList());
-        entitySearch.setMultiSelect(true);
 
 
         // init() runs again on every resize; the tabs survive, only their pickers are rebuilt.
@@ -880,7 +869,6 @@ public class StageDetailScreen extends Screen {
 
     private boolean isAnyOverlayVisible() {
         return (iconSearch != null && iconSearch.isVisible())
-                || entitySearch.isVisible()
                 || anyCategoryPickerVisible()
                 || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
@@ -1020,32 +1008,12 @@ public class StageDetailScreen extends Screen {
      */
     private Map<String, Set<String>> dualPhaseMapForTab(int tab) {
         CategoryTab categoryTab = categoryTabs.get(tab);
-        if (categoryTab != null) {
-            return isIndividual
-                    ? StageManager.getDualPhaseGlobal(categoryTab.categoryId())
-                    : StageManager.getDualPhaseIndividual(categoryTab.categoryId());
-        }
+        if (categoryTab == null) return null;
+        // Looking at an individual stage the map holds entry to global stage ids, and the other
+        // way round for a global stage — that inversion is deliberate and predates the registry.
         return isIndividual
-            ? switch (tab) {
-                case 0 -> StageManager.getDualPhaseItems();
-                case 1 -> StageManager.getDualPhaseTags();
-                case 2 -> StageManager.getDualPhaseMods();
-                case 6 -> StageManager.getDualPhaseAttacklock();
-                case 8 -> StageManager.getDualPhaseInteractionlock();
-                case 9 -> StageManager.getDualPhaseStructures();
-                case 10 -> StageManager.getDualPhaseBiomes();
-                default -> null;
-            }
-            : switch (tab) {
-                case 0 -> StageManager.getDualPhaseItemsInd();
-                case 1 -> StageManager.getDualPhaseTagsInd();
-                case 2 -> StageManager.getDualPhaseModsInd();
-                case 6 -> StageManager.getDualPhaseAttacklockInd();
-                case 8 -> StageManager.getDualPhaseInteractionlockInd();
-                case 9 -> StageManager.getDualPhaseStructuresInd();
-                case 10 -> StageManager.getDualPhaseBiomesInd();
-                default -> null;
-            };
+                ? StageManager.getDualPhaseGlobal(categoryTab.categoryId())
+                : StageManager.getDualPhaseIndividual(categoryTab.categoryId());
     }
 
     /** Splits and rebuilds an ItemEntry, which is how items and mod exceptions store their rows. */
@@ -1080,20 +1048,24 @@ public class StageDetailScreen extends Screen {
         }
     };
 
+    /** One entity picker per entity tab, each adding to the list of the tab that opened it. */
+    private SearchableEntityList createEntityPicker(
+            java.util.function.Consumer<String> onSelect,
+            java.util.function.Supplier<java.util.Collection<String>> alreadyAdded) {
+        SearchableEntityList picker = new SearchableEntityList(onSelect::accept, alreadyAdded::get);
+        picker.setMultiSelect(true);
+        return picker;
+    }
+
     private List<String> getActiveList() {
+
 
         return getListForSection(activeTab);
     }
 
     List<String> getListForSection(int sectionIndex) {
         CategoryTab tab = categoryTabs.get(sectionIndex);
-        if (tab != null) return tab.entries();
-        return switch (sectionIndex) {
-            case 6 -> editAttacklock;
-            case 7 -> editSpawnlock;
-            case 8 -> editInteractionlock;
-            default -> new ArrayList<>();
-        };
+        return tab != null ? tab.entries() : new ArrayList<>();
     }
 
     void updateMaxScroll() {
@@ -1646,7 +1618,6 @@ public class StageDetailScreen extends Screen {
             }
         }
 
-        entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         for (CategoryTab tab : categoryTabs.values()) {
             if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
         }
@@ -2599,7 +2570,6 @@ public class StageDetailScreen extends Screen {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
         }
-        if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
 
@@ -2782,15 +2752,7 @@ public class StageDetailScreen extends Screen {
                         // When removing a tag, shift NBT, lockActions + override indices
                         // When removing a mod, shift lockActions + override indices
                         // When removing a spawnlock entry, drop its sources + dimensions entry (keyed by entity ID)
-                        if (tabIdx == 7 && removedValue != null) {
-                            editSpawnlockSources.remove(removedValue);
-                            editSpawnlockDimensions.remove(removedValue);
-                        }
                         // When removing an interactionlock entry, drop its action + item filters (keyed by entity ID)
-                        if (tabIdx == 8 && removedValue != null) {
-                            editInteractionlockActions.remove(removedValue);
-                            editInteractionlockItems.remove(removedValue);
-                        }
                         // When removing a mod exception, shift NBT indices
                         // When removing a mod, also remove mod-linked entities and exceptions from that mod
                         if (tabIdx == 2 && removedValue != null) {
@@ -2837,7 +2799,6 @@ public class StageDetailScreen extends Screen {
         int cw = contentRight - contentLeft;
         CategoryTab categoryTab = categoryTabs.get(activeTab);
         if (categoryTab != null) { categoryTab.openPicker(this.width / 2, this.height / 2, cw); return; }
-        else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
     }
 
 
@@ -2986,8 +2947,6 @@ public class StageDetailScreen extends Screen {
             return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseDragged(mouseX, mouseY))
             return true;
-        if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY))
-            return true;
         if (anyCategoryPicker(pk -> pk.mouseDragged(mouseX, mouseY)))
             return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseDragged(mouseX, mouseY))
@@ -3016,8 +2975,6 @@ public class StageDetailScreen extends Screen {
         if (modStructurePopup.isVisible() && modStructurePopup.mouseReleased())
             return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseReleased())
-            return true;
-        if (entitySearch.isVisible() && entitySearch.mouseReleased())
             return true;
         if (anyCategoryPicker(PickerOverlay::mouseReleased))
             return true;
@@ -3077,7 +3034,6 @@ public class StageDetailScreen extends Screen {
             recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
             return true;
         }
-        if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (filterTagSearch.isVisible() && filterTagSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -3120,7 +3076,6 @@ public class StageDetailScreen extends Screen {
             closeRecipePopup();
             return true;
         }
-        if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
         if (iconSearch.isVisible() && iconSearch.keyPressed(keyCode)) return true;
 
@@ -3152,7 +3107,6 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (generationLimitPopup.isVisible() && generationLimitPopup.charTyped(c)) return true;
-        if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c)) return true;
         if (filterTagSearch.isVisible() && filterTagSearch.charTyped(c)) return true;
@@ -3372,22 +3326,6 @@ public class StageDetailScreen extends Screen {
         newEntry.setLoseOnDeath(editLoseOnDeath);
         newEntry.setIcon(editIcon);
         newEntry.setScrollCompletion(editScrollCompletion);
-        EntityLocks locks = new EntityLocks();
-        locks.setAttacklock(editAttacklock);
-        List<net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry> interactionlockEntries = new ArrayList<>();
-        for (String entityId : editInteractionlock) {
-            interactionlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry(
-                    entityId, editInteractionlockActions.get(entityId), editInteractionlockItems.get(entityId)));
-        }
-        locks.setInteractionlock(interactionlockEntries);
-        List<net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry> spawnlockEntries = new ArrayList<>();
-        for (String entityId : editSpawnlock) {
-            spawnlockEntries.add(new net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry(
-                    entityId, editSpawnlockSources.get(entityId), editSpawnlockDimensions.get(entityId)));
-        }
-        locks.setSpawnlock(spawnlockEntries);
-        locks.setModLinked(editModLinked);
-        newEntry.setEntities(locks);
         newEntry.setDependencies(editDependencies);
         for (CategoryTab tab : categoryTabs.values()) {
             tab.store(newEntry);
