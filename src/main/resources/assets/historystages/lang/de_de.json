@@ -1118,5 +1118,9 @@
   "editor.historystages.field.description": "Beschreibung",
   "editor.historystages.field.description.empty": "Beschreibung hinzufügen…",
   "editor.historystages.open_scroll.sample_stage": "Bronzezeit",
-  "editor.historystages.open_scroll.sample_description": "Das Schmelzen von Kupfer und Zinn öffnet die erste Tür: Werkzeuge, die nicht mehr aus Stein sind, und Klingen, die eine Schneide halten."
+  "editor.historystages.open_scroll.sample_description": "Das Schmelzen von Kupfer und Zinn öffnet die erste Tür: Werkzeuge, die nicht mehr aus Stein sind, und Klingen, die eine Schneide halten.",
+  "graph.historystages.button": "Stufen-Graph",
+  "graph.historystages.title": "Stufen-Graph",
+  "editor.historystages.toast.individual_lock_changed.message": "%s → %s",
+  "editor.historystages.toast.individual_lock_changed_all.message": "%s → %s Spieler"
 }

@@ -1119,5 +1119,9 @@
   "editor.historystages.field.description": "Description",
   "editor.historystages.field.description.empty": "Add a description…",
   "editor.historystages.open_scroll.sample_stage": "Bronze Age",
-  "editor.historystages.open_scroll.sample_description": "Smelting copper and tin opens the first door: tools that are no longer stone, and blades that hold an edge."
+  "editor.historystages.open_scroll.sample_description": "Smelting copper and tin opens the first door: tools that are no longer stone, and blades that hold an edge.",
+  "graph.historystages.button": "Stage Graph",
+  "graph.historystages.title": "Stage Graph",
+  "editor.historystages.toast.individual_lock_changed.message": "%s → %s",
+  "editor.historystages.toast.individual_lock_changed_all.message": "%s → %s player(s)"
 }
