@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A tab for a category whose entries are bare ids and nothing else.
@@ -31,7 +32,9 @@ public final class StringListCategoryTab implements CategoryTab {
     private final LockCategory<String> category;
     private final boolean availableForIndividualStages;
     private final List<String> edit = new ArrayList<>();
-    private final AbstractSearchableList<String> picker;
+    private final PickerFactory pickerFactory;
+    private final Runnable onChanged;
+    private AbstractSearchableList<String> picker;
 
     /**
      * @param onChanged what the editor wants to happen when an entry is added — marking the
@@ -44,11 +47,17 @@ public final class StringListCategoryTab implements CategoryTab {
                                  Runnable onChanged) {
         this.category = category;
         this.availableForIndividualStages = availableForIndividualStages;
-        this.picker = pickerFactory.create(id -> {
+        this.pickerFactory = pickerFactory;
+        this.onChanged = onChanged;
+    }
+
+    @Override
+    public void rebuildPicker() {
+        picker = pickerFactory.create(id -> {
             if (!edit.contains(id)) edit.add(id);
             onChanged.run();
         }, () -> edit);
-        this.picker.setMultiSelect(true);
+        picker.setMultiSelect(true);
     }
 
     @Override
@@ -93,12 +102,14 @@ public final class StringListCategoryTab implements CategoryTab {
     }
 
     @Override
+    @Nullable
     public AbstractSearchableList<?> picker() {
         return picker;
     }
 
     @Override
     public void openPicker(int centerX, int centerY, int parentWidth) {
+        if (picker == null) return;
         picker.setFilter("");
         picker.show(centerX, centerY, parentWidth);
     }

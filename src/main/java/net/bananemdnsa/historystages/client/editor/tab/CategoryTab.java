@@ -4,6 +4,7 @@ import java.util.List;
 
 import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
 import net.bananemdnsa.historystages.data.StageEntry;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Everything the stage editor needs in order to show one lock category as a tab, without knowing
@@ -44,7 +45,15 @@ public interface CategoryTab {
 
     void removeAt(int index);
 
-    /** The picker this tab opens on Add. Never null; the editor renders it and forwards input. */
+    /**
+     * Rebuilds the picker. Called from the screen's {@code init()}, which Minecraft runs again on
+     * every window resize — the picker is rebuilt each time, while this tab and its entries are
+     * created once and must survive, or a resize would throw the player's edits away.
+     */
+    void rebuildPicker();
+
+    /** The picker this tab opens on Add, or null before the first {@code init()}. */
+    @Nullable
     AbstractSearchableList<?> picker();
 
     void openPicker(int centerX, int centerY, int parentWidth);
