@@ -33,5 +33,11 @@ forge*changelog.txt
 .vscode/
 CLAUDE.md
 docs/superpowers/
-docs/AStages_vs_HistoryStages_Vergleich.docx
 .superpowers/
+
+# Word documents in docs/ are local notes, never part of the repo.
+docs/*.docx
+
+# Unit tests are kept local: the maintainer verifies in-game, and the suite is not
+# part of what ships.
+src/test/
