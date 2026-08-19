@@ -99,6 +99,15 @@ public class HistoryStages {
                     net.neoforged.fml.ModLoader.postEvent(
                             new net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent());
                     net.bananemdnsa.historystages.data.lock.category.LockCategories.freeze();
+
+                    // Logged here rather than inside freeze(): LockCategories is unit-tested, and
+                    // the test runtime classpath has no Minecraft or NeoForge on it. This line is
+                    // also how an in-game check confirms the event actually fired.
+                    var addonCategories =
+                            net.bananemdnsa.historystages.data.lock.category.LockCategories.addonIds();
+                    LOGGER.info("[HistoryStages] Lock categories closed: {} total, {} from other mods {}",
+                            net.bananemdnsa.historystages.data.lock.category.LockCategories.all().size(),
+                            addonCategories.size(), addonCategories);
                 }));
 
         // Conditional FTB Quests integration

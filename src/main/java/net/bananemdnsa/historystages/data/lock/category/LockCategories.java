@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.bananemdnsa.historystages.util.DebugLogger;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -113,20 +112,22 @@ public final class LockCategories {
     /**
      * Closes registration for good. Idempotent — calling it again is a no-op.
      *
-     * <p>Logs unconditionally through {@link DebugLogger} — not gated behind any config flag —
-     * because this line is how in-game verification confirms {@link RegisterLockCategoriesEvent}
-     * actually fired and closed the window. Grep the debug log for "Lock Categories" to find it.
+     * <p>Deliberately silent: this class is exercised by unit tests, and the test runtime
+     * classpath carries no Minecraft or NeoForge, so anything logging through those would blow
+     * up on class load. The caller does the reporting — see {@code HistoryStages}.
      */
     public static void freeze() {
         synchronized (LOCK) {
-            if (frozen) return;
             frozen = true;
+        }
+    }
 
-            List<String> addonIds = BY_ID.keySet().stream()
+    /** The ids registered by other mods, in registration order. Empty before anyone registers. */
+    public static List<String> addonIds() {
+        synchronized (LOCK) {
+            return BY_ID.keySet().stream()
                     .filter(id -> !BUILT_IN_IDS.contains(id))
                     .toList();
-            DebugLogger.info("Lock Categories", "Registration closed with " + BY_ID.size()
-                    + " categories registered (" + addonIds.size() + " addon: " + addonIds + ").");
         }
     }
 
