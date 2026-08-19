@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.util.ScrollVariants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.LecternBlock;
@@ -28,7 +29,10 @@ import net.minecraftforge.network.PacketDistributor;
  * itself the moment it opens. The block entity also never syncs its item, so the reader's client
  * cannot learn the stage on its own — the server has to say it.
  *
- * <p>Server-side only, for that same reason: a client sees an empty {@code getBook()} and could
+ * <p>Also puts an open scroll onto an empty lectern, which 1.20.1 will not do on its own — see
+ * {@link #tryPlaceScroll}.
+ *
+ * <p>The reading half is server-side only, for that same reason: a client sees an empty {@code getBook()} and could
  * never recognise the case. Nothing is lost by it. {@code ServerPlayerGameMode.useItemOn} sends
  * the interaction packet regardless of what the local prediction returns, so the server always
  * sees the click, and {@code LecternBlock.use} guards {@code openScreen} behind
@@ -46,15 +50,17 @@ public final class LecternScrollHandler {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-
         Level level = event.getLevel();
         BlockPos pos = event.getPos();
         BlockState state = level.getBlockState(pos);
 
         if (!(state.getBlock() instanceof LecternBlock)) return;
-        // Empty lectern: let vanilla run, so the lectern_books tag places the scroll as usual.
-        if (!state.getValue(LecternBlock.HAS_BOOK)) return;
+        if (!state.getValue(LecternBlock.HAS_BOOK)) {
+            tryPlaceScroll(event, level, pos, state);
+            return;
+        }
+
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (!(level.getBlockEntity(pos) instanceof LecternBlockEntity lectern)) return;
 
         ItemStack book = lectern.getBook();
@@ -83,5 +89,33 @@ public final class LecternScrollHandler {
         // lectern that silently does nothing when you click it.
         PacketHandler.INSTANCE.send(PacketDistributor.PLAYER.with(() -> player),
                 new OpenLecternScrollPacket(stageId == null ? "" : stageId, pos));
+    }
+
+    /**
+     * Puts an open scroll on an empty lectern. The {@code minecraft:lectern_books} tag does not
+     * do this on 1.20.1: the only thing that reads it is {@code LecternBlock.use}, which uses it
+     * to decide between CONSUME and PASS, while the placement itself lives in
+     * {@code WritableBookItem.useOn} and {@code WrittenBookItem.useOn} — two item classes no mod
+     * item can be. (1.21 moved placement into the block, keyed on the tag, which is why the
+     * NeoForge branch needs nothing here.) Without this, the click falls through to
+     * {@code useItem} and the scroll opens its reader in the player's hands instead.
+     *
+     * <p>Runs on both sides, like the vanilla book items: the client has to consume the click
+     * too, or its own fall-through opens the reader before the server's placement lands.
+     */
+    private static void tryPlaceScroll(PlayerInteractEvent.RightClickBlock event, Level level,
+            BlockPos pos, BlockState state) {
+        ItemStack held = event.getItemStack();
+        if (!held.is(ModItems.RESEARCH_SCROLL_OPEN.get())) return;
+        // Placing is an item action, so it answers to the item half of the interaction gate —
+        // this mod's own lock handlers write DENY there for an item the player may not use.
+        if (event.getUseItem() == Event.Result.DENY) return;
+
+        // A no-op on the client, exactly as it is for a vanilla book; the server does the work.
+        LecternBlock.tryPlaceBook(event.getEntity(), level, pos, state, held);
+        event.setCanceled(true);
+        // sidedSuccess: the client swings and sends the swing packet, the server stays quiet
+        // instead of animating the arm twice.
+        event.setCancellationResult(InteractionResult.sidedSuccess(level.isClientSide()));
     }
 }
