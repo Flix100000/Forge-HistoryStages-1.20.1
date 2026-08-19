@@ -250,6 +250,40 @@ public class StageLockHelper {
     }
 
     // =============================================
+    // RECIPE LOCK CHECKS
+    // =============================================
+
+    /** Global-scope recipe check against the server's unlocked set. */
+    public static boolean isRecipeLockedForServer(String recipeId) {
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.GLOBAL),
+                StageLocks.serverGlobal());
+    }
+
+    /**
+     * Global-scope-only recipe check on the client. Kept separate from
+     * {@link #isRecipeLockedForClient} (both scopes) because {@code RecipeManagerMixin} feeds
+     * this into live recipe resolution (crafting-grid output prediction, recipe book), where
+     * consulting individual stages would newly filter recipes that were never gated there
+     * before — a real verdict change, not just a tidiness one. Matches the legacy behavior of
+     * {@code RecipeHandler.isRecipeIdLocked}'s client branch exactly.
+     */
+    public static boolean isRecipeLockedForClientGlobalOnly(String recipeId) {
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.GLOBAL),
+                ClientStageStates.global());
+    }
+
+    /** Client-side recipe check across both scopes — what JEI, EMI and the mixin ask. */
+    public static boolean isRecipeLockedForClient(String recipeId) {
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.GLOBAL),
+                ClientStageStates.global(),
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
+    }
+
+    // =============================================
     // ITEM DROP ON STAGE REVOCATION
     // =============================================
 

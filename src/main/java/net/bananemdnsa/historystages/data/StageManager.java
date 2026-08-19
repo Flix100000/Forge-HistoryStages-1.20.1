@@ -1596,41 +1596,10 @@ public class StageManager {
         return order;
     }
 
+    /** @deprecated Phase 0 seam: use {@link net.bananemdnsa.historystages.util.lock.StageLockHelper}. */
+    @Deprecated
     public static boolean isRecipeIdLockedForServer(String recipeId) {
-        return isRecipeIdLocked(recipeId, false);
-    }
-
-    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (isClientSide) {
-                    if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(entry.getKey())) {
-                        return true;
-                    }
-                } else {
-                    if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(entry.getKey())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Client-side check whether a recipe ID is locked by any not-yet-unlocked
-     * individual stage. Mirrors {@link #isRecipeIdLocked} for individual stages,
-     * which the global check ignores.
-     */
-    public static boolean isRecipeIdLockedByIndividualStageClient(String recipeId) {
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (!net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache.isStageUnlocked(entry.getKey())) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return net.bananemdnsa.historystages.util.lock.StageLockHelper.isRecipeLockedForServer(recipeId);
     }
 
     public static boolean isItemLockedForServer(ItemStack stack) {
