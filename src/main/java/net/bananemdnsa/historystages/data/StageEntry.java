@@ -11,13 +11,18 @@ import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
 import net.bananemdnsa.historystages.research.TierMode;
+import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class StageEntry {
@@ -81,6 +86,20 @@ public class StageEntry {
     /** Individual stages only: revoke the stage as soon as the player dies. Absent = off. */
     @SerializedName("lose_on_death")
     private Boolean loseOnDeath;
+
+    /**
+     * Raw storage for lock categories registered by other mods, keyed by category id.
+     *
+     * <p>Deliberately {@link JsonElement} and not a parsed type: a stage file must survive being
+     * loaded and saved by an instance that does not have the owning addon installed. Anything
+     * typed here would be dropped on read and gone on the next save, which is exactly the bug
+     * this block exists to prevent.
+     *
+     * <p>Null rather than empty when unused, so saving a stage that has no addon data does not
+     * add an {@code "addons": {}} key to the file.
+     */
+    @SerializedName("addons")
+    private Map<String, JsonElement> addons;
 
     public StageEntry() {
         this.items = new ArrayList<>();
@@ -266,6 +285,30 @@ public class StageEntry {
     public boolean hasDependencies() {
         if (dependencies == null || dependencies.isEmpty()) return false;
         return dependencies.stream().anyMatch(g -> !g.isEmpty());
+    }
+
+    /** This category's raw entries, or null when the stage has none. */
+    @Nullable
+    public JsonElement addonEntries(String categoryId) {
+        return addons == null ? null : addons.get(categoryId);
+    }
+
+    /** Replaces one category's raw entries. A null element removes the category from the stage. */
+    public void setAddonEntries(String categoryId, @Nullable JsonElement entries) {
+        if (entries == null) {
+            if (addons != null) {
+                addons.remove(categoryId);
+                if (addons.isEmpty()) addons = null;
+            }
+            return;
+        }
+        if (addons == null) addons = new LinkedHashMap<>();
+        addons.put(categoryId, entries);
+    }
+
+    /** Every addon category id this stage carries data for, installed or not. */
+    public Set<String> addonCategoryIds() {
+        return addons == null ? Set.of() : Set.copyOf(addons.keySet());
     }
 
     // --- Setters ---
@@ -455,6 +498,13 @@ public class StageEntry {
         copy.temporary = (this.temporary != null) ? this.temporary.copy() : null;
         copy.hiddenDisplay = (this.hiddenDisplay != null) ? this.hiddenDisplay.copy() : null;
         copy.loseOnDeath = this.loseOnDeath;
+        if (this.addons != null) {
+            Map<String, JsonElement> addonsCopy = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> e : this.addons.entrySet()) {
+                addonsCopy.put(e.getKey(), e.getValue().deepCopy());
+            }
+            copy.addons = addonsCopy;
+        }
         return copy;
     }
 
