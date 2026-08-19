@@ -75,4 +75,17 @@ public final class CategoryLockResolver {
         }
         return false;
     }
+
+    /**
+     * Combines the global and individual halves of a query, global first. Returns the input list
+     * itself when the other side is empty, so the common "gated in one scope only" case allocates
+     * nothing.
+     */
+    public static List<String> join(List<String> global, List<String> individual) {
+        if (individual.isEmpty()) return global;
+        if (global.isEmpty()) return individual;
+        List<String> all = new ArrayList<>(global);
+        all.addAll(individual);
+        return all;
+    }
 }
