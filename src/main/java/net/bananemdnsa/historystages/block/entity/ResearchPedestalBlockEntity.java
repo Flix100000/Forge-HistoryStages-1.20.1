@@ -175,9 +175,12 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                         var result = net.bananemdnsa.historystages.data.dependency.DependencyChecker.checkAll(entry,
                                 player, level, scroll.getTag().getCompound("DepositedDependencies"),
                                 tickCost);
+                        // To the one player the result was computed for, not the chunk: the
+                        // status is personal (their inventory, their stages, their deposits), so
+                        // a broadcast would have every client nearby cache someone else's answer
+                        // under this stage id.
                         net.bananemdnsa.historystages.network.PacketHandler.INSTANCE.send(
-                                net.minecraftforge.network.PacketDistributor.TRACKING_CHUNK
-                                        .with(() -> level.getChunkAt(this.worldPosition)),
+                                net.minecraftforge.network.PacketDistributor.PLAYER.with(() -> player),
                                 new net.bananemdnsa.historystages.network.SyncDependencyStatusPacket(
                                         stageId, isCurrentScrollIndividual(), result));
                     }
