@@ -3,13 +3,14 @@ package net.bananemdnsa.historystages.events.lock;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.data.lock.engine.StageStateView;
+import net.bananemdnsa.historystages.client.cache.ClientStageStates;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.client.cache.ClientStageCache;
-import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
-import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
-import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,11 +33,9 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -77,31 +76,24 @@ public class InteractionLockHandler {
         String entityId = entityType.toString();
         String action = classifyAction(target, held);
 
-        List<String> globalStageIds = StageManager.getAllStagesForInteractionLockedEntity(entityId, action, held);
-        List<String> individualStageIds = StageManager.getAllIndividualStagesForInteractionLockedEntity(entityId, action, held);
+        List<String> globalStageIds = StageLocks.engine()
+                .gatingStagesForEntityInteraction(entityId, action, held, StageScope.GLOBAL);
+        List<String> individualStageIds = StageLocks.engine()
+                .gatingStagesForEntityInteraction(entityId, action, held, StageScope.INDIVIDUAL);
         if (globalStageIds.isEmpty() && individualStageIds.isEmpty()) return;
 
         boolean isClient = interactor.level().isClientSide();
 
-        List<String> lockedStages = new ArrayList<>();
-        if (isClient) {
-            for (String stageId : globalStageIds) {
-                if (!ClientStageCache.isStageUnlocked(stageId)) lockedStages.add(stageId);
-            }
-            for (String stageId : individualStageIds) {
-                if (!ClientIndividualStageCache.isStageUnlocked(stageId)) lockedStages.add(stageId);
-            }
-        } else {
-            for (String stageId : globalStageIds) {
-                if (!StageData.SERVER_CACHE.contains(stageId)) lockedStages.add(stageId);
-            }
-            if (!individualStageIds.isEmpty()) {
-                Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(interactor.getUUID(), Collections.emptySet());
-                for (String stageId : individualStageIds) {
-                    if (!playerStages.contains(stageId)) lockedStages.add(stageId);
-                }
-            }
-        }
+        // This handler runs on both sides, so the viewer differs per side. The ternary keeps the
+        // client caches off the server's execution path, exactly as the old if/else branch did.
+        StageStateView globalState = isClient ? ClientStageStates.global() : StageLocks.serverGlobal();
+        StageStateView individualState = isClient
+                ? ClientStageStates.individual()
+                : StageLocks.serverIndividual(interactor.getUUID());
+
+        List<String> lockedStages =
+                new ArrayList<>(LockResolution.missingStages(globalStageIds, globalState));
+        lockedStages.addAll(LockResolution.missingStages(individualStageIds, individualState));
 
         if (lockedStages.isEmpty()) return;
 

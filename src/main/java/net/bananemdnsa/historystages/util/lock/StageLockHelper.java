@@ -144,49 +144,19 @@ public class StageLockHelper {
      * Server-side only.
      */
     public static boolean isDimensionLockedForPlayer(String dimensionId, UUID playerUuid) {
-        // Check global
-        List<String> globalStages = StageManager.getAllStagesForDimension(dimensionId);
-        for (String stage : globalStages) {
-            if (!StageData.SERVER_CACHE.contains(stage)) {
-                return true;
-            }
-        }
-
-        // Check individual
-        List<String> individualStages = StageManager.getAllIndividualStagesForDimension(dimensionId);
-        if (!individualStages.isEmpty()) {
-            Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
-            for (String stage : individualStages) {
-                if (!playerStages.contains(stage)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForDimension(dimensionId, StageScope.GLOBAL),
+                StageLocks.serverGlobal(),
+                StageLocks.engine().gatingStagesForDimension(dimensionId, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
     }
 
     public static boolean isEntityAttackLockedForPlayer(String entityId, UUID playerUuid) {
-        // Check global
-        List<String> globalStages = StageManager.getAllStagesForAttackLockedEntity(entityId);
-        for (String stage : globalStages) {
-            if (!StageData.SERVER_CACHE.contains(stage)) {
-                return true;
-            }
-        }
-
-        // Check individual (attacklock only, no spawnlock)
-        List<String> individualStages = StageManager.getAllIndividualStagesForAttackLockedEntity(entityId);
-        if (!individualStages.isEmpty()) {
-            Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
-            for (String stage : individualStages) {
-                if (!playerStages.contains(stage)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForEntityAttack(entityId, StageScope.GLOBAL),
+                StageLocks.serverGlobal(),
+                StageLocks.engine().gatingStagesForEntityAttack(entityId, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
     }
 
     // =============================================
