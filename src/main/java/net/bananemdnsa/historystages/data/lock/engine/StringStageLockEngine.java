@@ -129,9 +129,15 @@ public class StringStageLockEngine implements StageLockEngine {
 
     @Override
     public List<String> gatingStagesForEnchantment(String enchantmentId, int level, StageScope scope) {
-        // Filled in by a later task, when the enchantment matcher is extracted out of
-        // StageLockHelper into its own testable class. Until then no caller uses this method.
-        return List.of();
+        Map<String, StageEntry> stages = scope == StageScope.GLOBAL
+                ? StageManager.getStages() : StageManager.getIndividualStages();
+        List<String> found = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> entry : stages.entrySet()) {
+            if (EnchantmentLockMatcher.locksEnchantment(entry.getValue(), enchantmentId, level)) {
+                found.add(entry.getKey());
+            }
+        }
+        return found;
     }
 
     @Override

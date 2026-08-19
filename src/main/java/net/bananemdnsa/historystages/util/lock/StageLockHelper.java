@@ -1,8 +1,5 @@
 package net.bananemdnsa.historystages.util.lock;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import net.bananemdnsa.historystages.client.cache.ClientStageStates;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
@@ -11,8 +8,6 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
 import net.bananemdnsa.historystages.data.lock.engine.StageScope;
-import net.bananemdnsa.historystages.data.saveddata.StageData;
-import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,9 +15,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -293,58 +286,11 @@ public class StageLockHelper {
     // =============================================
 
     public static boolean isEnchantmentLockedForPlayer(String enchantmentId, int level, UUID playerUuid) {
-        // Check global stages
-        for (var entry : StageManager.getStages().entrySet()) {
-            if (StageData.SERVER_CACHE.contains(entry.getKey())) continue;
-            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
-        }
-
-        // Check individual stages
-        Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
-        for (var entry : StageManager.getIndividualStages().entrySet()) {
-            if (playerStages.contains(entry.getKey())) continue;
-            if (stageLocksEnchantment(entry.getValue(), enchantmentId, level)) return true;
-        }
-
-        return false;
-    }
-
-    private static boolean stageLocksEnchantment(StageEntry stage, String enchantmentId, int level) {
-        for (ItemEntry itemEntry : stage.getItemEntries()) {
-            if (!itemEntry.hasNbt()) continue;
-            if (!itemEntry.getId().equals("minecraft:enchanted_book")) continue;
-
-            JsonObject nbt = itemEntry.getNbt();
-            if (!nbt.has("StoredEnchantments") || !nbt.get("StoredEnchantments").isJsonArray()) continue;
-
-            JsonArray enchantments = nbt.getAsJsonArray("StoredEnchantments");
-            for (JsonElement el : enchantments) {
-                if (!el.isJsonObject()) continue;
-                JsonObject enchObj = el.getAsJsonObject();
-                if (!enchObj.has("id")) continue;
-
-                String lockedId = enchObj.get("id").getAsString();
-                if (!lockedId.equals(enchantmentId)) continue;
-
-                if (!enchObj.has("lvl")) return true; // no level restriction = all levels locked
-
-                JsonElement lvlEl = enchObj.get("lvl");
-                if (lvlEl.isJsonPrimitive()) {
-                    if (lvlEl.getAsJsonPrimitive().isNumber()) {
-                        if (lvlEl.getAsInt() == level) return true;
-                    } else if (lvlEl.getAsJsonPrimitive().isString()) {
-                        String lvlStr = lvlEl.getAsString();
-                        if (lvlStr.matches("\\d+-\\d+")) {
-                            String[] parts = lvlStr.split("-");
-                            int min = Integer.parseInt(parts[0]);
-                            int max = Integer.parseInt(parts[1]);
-                            if (level >= min && level <= max) return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForEnchantment(enchantmentId, level, StageScope.GLOBAL),
+                StageLocks.serverGlobal(),
+                StageLocks.engine().gatingStagesForEnchantment(enchantmentId, level, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
     }
 
     private static boolean isItemInStage(String itemId, String modId, ItemStack stack, StageEntry entry) {
