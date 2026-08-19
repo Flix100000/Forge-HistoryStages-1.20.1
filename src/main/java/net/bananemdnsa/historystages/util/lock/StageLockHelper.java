@@ -19,9 +19,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Combines global and individual stage lock checks into a single utility.
- * Use this instead of calling StageManager.isItemLocked() directly when
- * individual stage support is needed.
+ * Combines the global and individual halves of a lock check into one answer per subject.
+ *
+ * <p>Every method here asks the lock engine which stages gate the subject and resolves that
+ * against the right viewer, so callers never touch the stage maps or the unlock caches
+ * themselves. That is what keeps the engine swappable.
  */
 public class StageLockHelper {
 
@@ -56,7 +58,7 @@ public class StageLockHelper {
                 StageLocks.serverIndividual(playerUuid));
     }
 
-    /** Global-scope item check without a player. Replaces StageManager.isItemLockedForServer. */
+    /** Global-scope item check without a player, for paths that have no player context. */
     public static boolean isItemLockedForServer(ItemStack stack) {
         ResourceLocation res = itemKey(stack);
         if (res == null) return false;
