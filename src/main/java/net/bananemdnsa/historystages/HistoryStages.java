@@ -371,7 +371,7 @@ public class HistoryStages {
         }
 
         // Global stages: log only (existing behavior)
-        if (StageManager.isItemLockedForServer(stack)) {
+        if (StageLockHelper.isItemLockedForServer(stack)) {
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
                     "<" + player.getName().getString() + "> Picked up locked '" + itemRL + "' x" + stack.getCount() + " [action: pickup]");
@@ -383,7 +383,7 @@ public class HistoryStages {
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
             if (stack.isEmpty()) continue;
-            if (StageManager.isItemLockedForServer(stack)) {
+            if (StageLockHelper.isItemLockedForServer(stack)) {
                 ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 lockedItems.add(itemRL + " x" + stack.getCount());
             }

@@ -3,29 +3,27 @@ package net.bananemdnsa.historystages.util.lock;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import net.bananemdnsa.historystages.client.cache.ClientStageStates;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.client.cache.ClientStageCache;
-import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
+import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
 
 /**
  * Combines global and individual stage lock checks into a single utility.
@@ -43,48 +41,44 @@ public class StageLockHelper {
     }
 
     public static boolean isItemLockedForPlayer(ItemStack stack, UUID playerUuid) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
-
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        if (isGlobalItemLocked(itemId, modId, stack)) return true;
-        if (isIndividualItemLocked(itemId, modId, stack, playerUuid)) return true;
-
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.GLOBAL),
+                StageLocks.serverGlobal(),
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
     }
 
     public static boolean isItemLockedByIndividualStage(ItemStack stack, UUID playerUuid) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
 
-        return isIndividualItemLocked(res.toString(), res.getNamespace(), stack, playerUuid);
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItem(res.toString(), res.getNamespace(),
+                        stack, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
     }
 
-    private static boolean isGlobalItemLocked(String itemId, String modId, ItemStack stack) {
-        List<String> requiredStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
-        for (String stage : requiredStages) {
-            if (!StageData.SERVER_CACHE.contains(stage)) {
-                return true;
-            }
-        }
-        return false;
+    /** Global-scope item check without a player. Replaces StageManager.isItemLockedForServer. */
+    public static boolean isItemLockedForServer(ItemStack stack) {
+        ResourceLocation res = itemKey(stack);
+        if (res == null) return false;
+
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItem(res.toString(), res.getNamespace(),
+                        stack, StageScope.GLOBAL),
+                StageLocks.serverGlobal());
     }
 
-    private static boolean isIndividualItemLocked(String itemId, String modId, ItemStack stack, UUID playerUuid) {
-        List<String> requiredStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
-        if (requiredStages.isEmpty()) return false;
-
-        Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(playerUuid, Collections.emptySet());
-        for (String stage : requiredStages) {
-            if (!playerStages.contains(stage)) {
-                return true;
-            }
-        }
-        return false;
+    /** Null for an empty stack or an unregistered item — every item check starts here. */
+    @Nullable
+    private static ResourceLocation itemKey(ItemStack stack) {
+        if (stack.isEmpty()) return null;
+        return BuiltInRegistries.ITEM.getKey(stack.getItem());
     }
 
     // =============================================
@@ -92,60 +86,23 @@ public class StageLockHelper {
     // =============================================
 
     /**
-     * Walks only the stages the index says could reference this item, skipping the ones the
-     * caller reports as unlocked. Replaces the former full scan over every stage — see
-     * {@link net.bananemdnsa.historystages.data.lock.LockRelevanceIndex} for why that mattered.
-     */
-    private static boolean isActionLockedInGlobalStages(ItemStack stack, String action,
-                                                        Predicate<String> stageUnlocked) {
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
-        for (String stageId : StageManager.globalStageCandidates(itemId, modId, stack.getItem())) {
-            if (stageUnlocked.test(stageId)) continue;
-            StageEntry entry = StageManager.getStages().get(stageId);
-            if (entry == null) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, entry)) return true;
-        }
-        return false;
-    }
-
-    /** Individual-stage counterpart of {@link #isActionLockedInGlobalStages}. */
-    private static boolean isActionLockedInIndividualStages(ItemStack stack, String action,
-                                                            Predicate<String> stageUnlocked) {
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-        String itemId = res.toString();
-        String modId = res.getNamespace();
-
-        for (String stageId : StageManager.individualStageCandidates(itemId, modId, stack.getItem())) {
-            if (stageUnlocked.test(stageId)) continue;
-            StageEntry entry = StageManager.getIndividualStages().get(stageId);
-            if (entry == null) continue;
-            if (StageManager.isItemActionLockedForStage(itemId, modId, stack, action, entry)) return true;
-        }
-        return false;
-    }
-
-    /**
      * Checks if a specific action is locked for an item in any locked global stage.
      * Server-side only.
      */
     public static boolean isActionLockedForPlayer(ItemStack stack, UUID playerUuid, String action) {
         if (stack.isEmpty()) return false;
-        return isActionLockedInGlobalStages(stack, action, StageData.SERVER_CACHE::contains);
+        return StageLocks.engine().isItemActionLocked(stack, action, StageScope.GLOBAL,
+                StageLocks.serverGlobal());
     }
 
     /**
-     * Checks if a specific action is locked for an item in any locked global stage.
-     * Server-side only. Does not require a player UUID — uses the global SERVER_CACHE.
-     * Used for loot/recipe checks where no player context is available.
+     * Global-scope action check without a player, for loot and recipe paths where no player
+     * context exists.
      */
     public static boolean isActionLockedForServer(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        return isActionLockedInGlobalStages(stack, action, StageData.SERVER_CACHE::contains);
+        return StageLocks.engine().isItemActionLocked(stack, action, StageScope.GLOBAL,
+                StageLocks.serverGlobal());
     }
 
     /**
@@ -154,9 +111,8 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedByIndividualStage(ItemStack stack, UUID playerUuid, String action) {
         if (stack.isEmpty()) return false;
-        Set<String> playerStages = IndividualStageData.SERVER_CACHE
-                .getOrDefault(playerUuid, Collections.emptySet());
-        return isActionLockedInIndividualStages(stack, action, playerStages::contains);
+        return StageLocks.engine().isItemActionLocked(stack, action, StageScope.INDIVIDUAL,
+                StageLocks.serverIndividual(playerUuid));
     }
 
     // =============================================
@@ -169,7 +125,8 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedForClient(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        return isActionLockedInGlobalStages(stack, action, ClientStageCache::isStageUnlocked);
+        return StageLocks.engine().isItemActionLocked(stack, action, StageScope.GLOBAL,
+                ClientStageStates.global());
     }
 
     /**
@@ -178,7 +135,8 @@ public class StageLockHelper {
      */
     public static boolean isActionLockedByIndividualStageClient(ItemStack stack, String action) {
         if (stack.isEmpty()) return false;
-        return isActionLockedInIndividualStages(stack, action, ClientIndividualStageCache::isStageUnlocked);
+        return StageLocks.engine().isItemActionLocked(stack, action, StageScope.INDIVIDUAL,
+                ClientStageStates.individual());
     }
 
     /**
@@ -236,73 +194,44 @@ public class StageLockHelper {
     // =============================================
 
     public static boolean isItemLockedForClient(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
-
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        // Check global stages
-        List<String> globalStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
-        for (String stage : globalStages) {
-            if (!ClientStageCache.isStageUnlocked(stage)) {
-                return true;
-            }
-        }
-
-        // Check individual stages
-        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
-        for (String stage : individualStages) {
-            if (!ClientIndividualStageCache.isStageUnlocked(stage)) {
-                return true;
-            }
-        }
-
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.GLOBAL),
+                ClientStageStates.global(),
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
     }
 
     /**
-     * Lenient client-side lock check: returns true only if the item has at least one
-     * assigned stage AND none of its assigned stages (global or individual) is unlocked.
-     * If the item has no assigned stages at all, returns false.
-     *
-     * Used by JEI hiding when Config.CLIENT.lockedItemMultiStagePolicy == LENIENT.
+     * Lenient client check: an item counts as locked only when it is gated at all and none of
+     * its gating stages is unlocked. Used by JEI/EMI hiding when
+     * {@code Config.CLIENT.lockedItemMultiStagePolicy == LENIENT}.
      */
     public static boolean isItemLockedForClientLenient(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
-
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        List<String> globalStages = StageManager.getAllStagesForItemOrMod(itemId, modId, stack);
-        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(itemId, modId, stack);
-
-        if (globalStages.isEmpty() && individualStages.isEmpty()) return false;
-
-        for (String stage : globalStages) {
-            if (ClientStageCache.isStageUnlocked(stage)) return false;
-        }
-        for (String stage : individualStages) {
-            if (ClientIndividualStageCache.isStageUnlocked(stage)) return false;
-        }
-        return true;
+        return LockResolution.isLockedLenient(
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.GLOBAL),
+                ClientStageStates.global(),
+                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
     }
 
     public static boolean isItemLockedByIndividualStageClient(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
 
-        List<String> individualStages = StageManager.getAllIndividualStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-        for (String stage : individualStages) {
-            if (!ClientIndividualStageCache.isStageUnlocked(stage)) {
-                return true;
-            }
-        }
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItem(res.toString(), res.getNamespace(),
+                        stack, StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
     }
 
     /**
@@ -311,37 +240,13 @@ public class StageLockHelper {
      * Returns true when at least one of the paired global stages is not yet unlocked client-side.
      */
     public static boolean isDualPhaseGloballyLockedClient(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation res = itemKey(stack);
         if (res == null) return false;
-        String itemId = res.toString();
-        String modId  = res.getNamespace();
 
-        Set<String> itemStages = StageManager.getDualPhaseItems().get(itemId);
-        if (itemStages != null) {
-            for (String stage : itemStages) {
-                if (!ClientStageCache.isStageUnlocked(stage)) return true;
-            }
-        }
-
-        Set<String> modStages = StageManager.getDualPhaseMods().get(modId);
-        if (modStages != null) {
-            for (String stage : modStages) {
-                if (!ClientStageCache.isStageUnlocked(stage)) return true;
-            }
-        }
-
-        Item item = stack.getItem();
-        for (Map.Entry<String, Set<String>> tagEntry : StageManager.getDualPhaseTags().entrySet()) {
-            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, ResourceLocation.parse(tagEntry.getKey()));
-            if (item.builtInRegistryHolder().is(tagKey)) {
-                for (String stage : tagEntry.getValue()) {
-                    if (!ClientStageCache.isStageUnlocked(stage)) return true;
-                }
-            }
-        }
-
-        return false;
+        return LockResolution.isLocked(
+                StageLocks.engine().globalDualPhaseStagesForItem(
+                        res.toString(), res.getNamespace(), stack.getItem()),
+                ClientStageStates.global());
     }
 
     // =============================================
@@ -367,7 +272,7 @@ public class StageLockHelper {
 
             if (!isItemInStage(itemId, modId, stack, entry)) continue;
 
-            if (isIndividualItemLocked(itemId, modId, stack, player.getUUID())) {
+            if (isItemLockedByIndividualStage(stack, player.getUUID())) {
                 player.drop(stack.copy(), false);
                 inv.setItem(i, ItemStack.EMPTY);
                 dropped = true;
