@@ -1858,6 +1858,19 @@ public class StageManager {
         }
     }
 
+    /**
+     * Dual-phase entries of any category, by id — what a category-driven consumer asks instead of
+     * naming one of the sixteen getters below. Empty when the category has none.
+     */
+    public static Map<String, Set<String>> getDualPhaseGlobal(String categoryId) {
+        return DUAL_PHASE.global(categoryId);
+    }
+
+    /** Individual-scope counterpart of {@link #getDualPhaseGlobal}. */
+    public static Map<String, Set<String>> getDualPhaseIndividual(String categoryId) {
+        return DUAL_PHASE.individual(categoryId);
+    }
+
     public static Map<String, Set<String>> getDualPhaseItems()         { return DUAL_PHASE.global("historystages:items"); }
     public static Map<String, Set<String>> getDualPhaseTags()          { return DUAL_PHASE.global("historystages:tags"); }
     public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE.global("historystages:mods"); }
