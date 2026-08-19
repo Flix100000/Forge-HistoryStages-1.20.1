@@ -265,34 +265,23 @@ public class StageDetailScreen extends Screen {
     private boolean recipeInfoBuilt = false;
 
     // Short tab label keys
-    private static final String[] TAB_KEYS = {
-            "editor.historystages.tab.items",
-            "editor.historystages.tab.tags",
-            "editor.historystages.tab.mods",
-            "editor.historystages.tab.exceptions",
-            "editor.historystages.tab.recipes",
-            "editor.historystages.tab.dimensions",
-            "editor.historystages.tab.attack",
-            "editor.historystages.tab.spawn",
-            "editor.historystages.tab.interaction",
-            "editor.historystages.tab.structures",
-            "editor.historystages.tab.biomes"
-    };
+    /**
+     * The tab strip is built from the registered tabs rather than a fixed array, so a category
+     * the editor has never heard of takes its place in the strip like any other.
+     */
+    private int tabCount() {
+        return categoryTabs.size();
+    }
 
-    // Tooltip descriptions for tabs
-    private static final String[] TAB_TOOLTIPS = {
-            "editor.historystages.tooltip.items",
-            "editor.historystages.tooltip.tags",
-            "editor.historystages.tooltip.mods",
-            "editor.historystages.tooltip.exceptions",
-            "editor.historystages.tooltip.recipes",
-            "editor.historystages.tooltip.dimensions",
-            "editor.historystages.tooltip.attack",
-            "editor.historystages.tooltip.spawn",
-            "editor.historystages.tooltip.interaction",
-            "editor.historystages.tooltip.structures",
-            "editor.historystages.tooltip.biomes"
-    };
+    private String tabKey(int index) {
+        CategoryTab tab = categoryTabs.get(index);
+        return tab != null ? tab.tabLangKey() : "";
+    }
+
+    private String tabTooltipKey(int index) {
+        CategoryTab tab = categoryTabs.get(index);
+        return tab != null ? tab.tooltipLangKey() : "";
+    }
 
     // Tab layout (computed in init)
     private int[] tabX;
@@ -536,28 +525,28 @@ public class StageDetailScreen extends Screen {
     @Override
     protected void init() {
         tabY = 44;
-        tabX = new int[TAB_KEYS.length];
-        tabW = new int[TAB_KEYS.length];
+        tabX = new int[tabCount()];
+        tabW = new int[tabCount()];
         int tabMargin = 20;
         int totalAvail = this.width - tabMargin * 2;
         int gap = 2;
 
         // Compute natural width for each tab based on its text content (label + count)
-        int[] naturalW = new int[TAB_KEYS.length];
+        int[] naturalW = new int[tabCount()];
         int totalNaturalW = 0;
-        for (int i = 0; i < TAB_KEYS.length; i++) {
-            String label = Component.translatable(TAB_KEYS[i]).getString();
+        for (int i = 0; i < tabCount(); i++) {
+            String label = Component.translatable(tabKey(i)).getString();
             int count = getListForSection(i).size();
             String tabText = label + " (" + count + ")";
             naturalW[i] = (int)(this.font.width(tabText) * SMALL_SCALE) + TAB_PAD * 2;
             totalNaturalW += naturalW[i];
         }
-        int totalGaps = (TAB_KEYS.length - 1) * gap;
+        int totalGaps = (tabCount() - 1) * gap;
 
         if (totalNaturalW + totalGaps <= totalAvail) {
             // All tabs fit without scrolling - use natural widths
             int x = tabMargin;
-            for (int i = 0; i < TAB_KEYS.length; i++) {
+            for (int i = 0; i < tabCount(); i++) {
                 tabX[i] = x;
                 tabW[i] = naturalW[i];
                 x += tabW[i] + gap;
@@ -567,7 +556,7 @@ public class StageDetailScreen extends Screen {
             // Tabs need scrolling - use natural widths, offset by arrow width
             int scrollAreaAvail = totalAvail - TAB_ARROW_WIDTH * 2;
             int x = tabMargin + TAB_ARROW_WIDTH;
-            for (int i = 0; i < TAB_KEYS.length; i++) {
+            for (int i = 0; i < tabCount(); i++) {
                 tabX[i] = x;
                 tabW[i] = naturalW[i];
                 x += naturalW[i] + gap;
@@ -1158,7 +1147,7 @@ public class StageDetailScreen extends Screen {
         }
 
         // Render tabs
-        for (int i = 0; i < TAB_KEYS.length; i++) {
+        for (int i = 0; i < tabCount(); i++) {
             int scrolledTabX = tabX[i] - tabScrollOffset;
             boolean disabled = isTabDisabled(i);
             boolean active = (i == activeTab);
@@ -1174,7 +1163,7 @@ public class StageDetailScreen extends Screen {
             }
             guiGraphics.fill(scrolledTabX, tabY, scrolledTabX + tabW[i], tabY + TAB_HEIGHT, bg);
 
-            String label = Component.translatable(TAB_KEYS[i]).getString();
+            String label = Component.translatable(tabKey(i)).getString();
             int entryCount = getListForSection(i).size();
             String tabText = label + " (" + entryCount + ")";
             int textColor;
@@ -1187,7 +1176,7 @@ public class StageDetailScreen extends Screen {
 
             if (hovered) {
                 currentTooltipKey = "tab." + i;
-                currentTooltipText = Component.translatable(TAB_TOOLTIPS[i]).getString();
+                currentTooltipText = Component.translatable(tabTooltipKey(i)).getString();
             } else if (disabled && !overlayOpen && mouseX >= Math.max(scrolledTabX, tabClipLeft)
                     && mouseX < Math.min(scrolledTabX + tabW[i], tabClipRight)
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
@@ -2633,7 +2622,7 @@ public class StageDetailScreen extends Screen {
                     return true;
                 }
             }
-            for (int i = 0; i < TAB_KEYS.length; i++) {
+            for (int i = 0; i < tabCount(); i++) {
                 int scrolledTabX = tabX[i] - tabScrollOffset;
                 if (mouseX >= scrolledTabX && mouseX < scrolledTabX + tabW[i]) { Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F)); switchTab(i); return true; }
             }
