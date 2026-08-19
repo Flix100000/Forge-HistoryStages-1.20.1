@@ -87,6 +87,20 @@ public class HistoryStages {
         ConfigHandler.setupConfig();
         StageManager.load();
 
+        // Registration window for addon lock categories. StageManager.load() above already
+        // parsed every stage's `addons` block into raw JsonElement — that needs no registry at
+        // all — so nothing upstream of this point ever needed a category to exist. Firing here,
+        // once every mod has been constructed and FMLCommonSetupEvent's own parallel dispatch has
+        // fully returned (postEvent is called from the deferred work queue, not from inside that
+        // dispatch), lets every mod's RegisterLockCategoriesEvent listener run before the
+        // registry closes for good.
+        modEventBus.addListener((net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent event) ->
+                event.enqueueWork(() -> {
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent());
+                    net.bananemdnsa.historystages.data.lock.category.LockCategories.freeze();
+                }));
+
         // Conditional FTB Quests integration
         if (ModList.get().isLoaded("ftbquests")) {
             try {
