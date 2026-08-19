@@ -68,4 +68,15 @@ public interface LockCategory<T> {
     default String dualPhaseLabel() {
         return "";
     }
+
+    /**
+     * Whether this entry gates the given subject.
+     *
+     * <p>Defaults to "no", which is right for the built-ins: they are queried through their own
+     * typed paths on the lock engine, not through this generic one. Addon categories override it
+     * with the matcher they registered.
+     */
+    default boolean matches(T entry, Object subject) {
+        return false;
+    }
 }

@@ -33,12 +33,16 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
     private final String tabLangKey;
     private final String tooltipLangKey;
     private final CategoryStorage<T> storage;
+    private final Class<?> subjectType;
+    private final CategoryMatcher<T, Object> matcher;
 
     private AddonLockCategory(Builder<T> builder) {
         this.id = builder.id;
         this.tabLangKey = builder.tabLangKey;
         this.tooltipLangKey = builder.tooltipLangKey;
         this.storage = builder.storage;
+        this.subjectType = builder.subjectType;
+        this.matcher = builder.matcher;
     }
 
     public static <T> Builder<T> builder(String id) {
@@ -74,11 +78,24 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
     // globalDualPhaseIds, individualDualPhaseIds and dualPhaseLabel keep LockCategory's opt-out
     // defaults. Addon participation in dual-phase detection is a later question.
 
+    @Override
+    public boolean matches(T entry, Object subject) {
+        if (matcher == null || subject == null) return false;
+        if (!subjectType.isInstance(subject)) {
+            throw new IllegalArgumentException("Category '" + id + "' was asked about a "
+                    + subject.getClass().getName() + ", but it matches "
+                    + subjectType.getName() + ".");
+        }
+        return matcher.matches(entry, subject);
+    }
+
     public static final class Builder<T> {
         private final String id;
         private String tabLangKey;
         private String tooltipLangKey;
         private CategoryStorage<T> storage;
+        private Class<?> subjectType;
+        private CategoryMatcher<T, Object> matcher;
 
         private Builder(String id) {
             this.id = Objects.requireNonNull(id, "id");
@@ -96,6 +113,21 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
 
         public Builder<T> storage(CategoryStorage<T> storage) {
             this.storage = storage;
+            return this;
+        }
+
+        /**
+         * Teaches the category how to recognise its own subjects at runtime. Optional: a category
+         * without one can still store entries and appear in the editor, it just never gates
+         * anything.
+         *
+         * @param subjectType the runtime type this category is asked about; checked before the
+         *                    matcher is called so a wrong-type query fails with a clear message
+         */
+        @SuppressWarnings("unchecked")
+        public <S> Builder<T> matcher(Class<S> subjectType, CategoryMatcher<T, S> matcher) {
+            this.subjectType = Objects.requireNonNull(subjectType, "subjectType");
+            this.matcher = (CategoryMatcher<T, Object>) Objects.requireNonNull(matcher, "matcher");
             return this;
         }
 
