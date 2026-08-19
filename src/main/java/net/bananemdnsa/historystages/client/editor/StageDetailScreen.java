@@ -69,6 +69,11 @@ import java.util.Set;
 public class StageDetailScreen extends Screen {
     private final Screen parent;
     private final String originalStageId;
+    /**
+     * The stage exactly as it was opened, or null for a new one. Kept so a save can start
+     * from it instead of from a blank stage — see {@link #buildEntrySnapshot()}.
+     */
+    private final StageEntry originalEntry;
     private final boolean isNewStage;
 
     // Editable data
@@ -326,6 +331,7 @@ public class StageDetailScreen extends Screen {
         super(Component.translatable("editor.historystages.detail_title"));
         this.parent = parent;
         this.originalStageId = stageId;
+        this.originalEntry = entry;
         this.isIndividual = isIndividual;
         this.targetFolder = targetFolder == null ? "" : targetFolder;
         this.isNewStage = (stageId == null
@@ -3421,7 +3427,11 @@ public class StageDetailScreen extends Screen {
      * the "Hide stage-locked" filter against the live, unsaved lock data).
      */
     private StageEntry buildEntrySnapshot() {
-        StageEntry newEntry = new StageEntry();
+        // Start from the stage as it was, not from a blank one. Everything below overwrites the
+        // fields the editor owns; anything it does not model — an addon category's entries, say —
+        // would otherwise be erased on every save, because this snapshot is what gets written to
+        // disk. A blank base makes that loss silent and applies to every field added in future.
+        StageEntry newEntry = originalEntry != null ? originalEntry.copy() : new StageEntry();
         newEntry.setDisplayName(editDisplayName);
         newEntry.setResearchTime(editResearchTime);
         newEntry.setMinPedestalTier(editMinPedestalTier);
