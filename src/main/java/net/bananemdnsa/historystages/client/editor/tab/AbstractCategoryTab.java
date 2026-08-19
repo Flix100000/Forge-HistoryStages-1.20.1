@@ -36,6 +36,7 @@ public abstract class AbstractCategoryTab implements CategoryTab {
     private final PickerFactory pickerFactory;
     private final Runnable onChanged;
     private PickerOverlay picker;
+    private boolean rebuildPickerOnOpen;
 
     protected AbstractCategoryTab(LockCategory<?> category,
                                   boolean availableForIndividualStages,
@@ -92,17 +93,17 @@ public abstract class AbstractCategoryTab implements CategoryTab {
     }
 
     /**
-     * Whether the picker has to be rebuilt every time it opens. True for a picker whose contents
-     * depend on state that changes while the editor is open — the mod-exception picker is filtered
-     * to the currently locked mods, so a cached one would show a stale list.
+     * Say that this picker has to be rebuilt every time it opens, because its contents depend on
+     * state that changes while the editor is open — the mod-exception picker is filtered to the
+     * currently locked mods, so a cached one would show a stale list.
      */
-    protected boolean rebuildPickerOnOpen() {
-        return false;
+    public void setRebuildPickerOnOpen(boolean rebuild) {
+        this.rebuildPickerOnOpen = rebuild;
     }
 
     @Override
     public void openPicker(int centerX, int centerY, int parentWidth) {
-        if (rebuildPickerOnOpen() || picker == null) rebuildPicker();
+        if (rebuildPickerOnOpen || picker == null) rebuildPicker();
         picker.setFilter("");
         picker.show(centerX, centerY, parentWidth);
     }

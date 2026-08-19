@@ -104,8 +104,6 @@ public class StageDetailScreen extends Screen {
     // Per-entry REPLACE text overrides (entry index → text); absent = follow stage default.
     private final Map<Integer, String> editItemNameText = new HashMap<>();
     private final Map<Integer, String> editItemTooltipText = new HashMap<>();
-    private final List<String> editModExceptions;
-    private final Map<Integer, com.google.gson.JsonObject> editModExceptionNbt;
     /**
      * Tabs already driven by their lock category, keyed by tab index. Anything absent here is
      * still handled by the hardcoded branches below; migrating a tab means adding it here and
@@ -120,6 +118,8 @@ public class StageDetailScreen extends Screen {
     private final RichEntryCategoryTab<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagTab;
     /** Typed handle on the mods tab; the exception picker filters by whatever it holds. */
     private final RichEntryCategoryTab<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modTab;
+    /** Typed handle on the mod-exceptions tab; its NBT extras are edited from the context menu. */
+    private final RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> modExceptionTab;
     private final List<String> editAttacklock;
     private final List<String> editInteractionlock;
     private final Map<String, List<String>> editInteractionlockActions;
@@ -141,7 +141,6 @@ public class StageDetailScreen extends Screen {
 
     // Widgets
     private SearchableItemList itemSearch;
-    private SearchableItemList modExceptionSearch;
     /**
      * The mods picker doubles as a lookup for a mod's display name, which the context menu
      * needs outside any picker interaction — so the tab's factory parks it here as well.
@@ -394,15 +393,22 @@ public class StageDetailScreen extends Screen {
         tagTabLocal.load(e);
         this.tagTab = tagTabLocal;
         this.categoryTabs.put(1, tagTabLocal);
-        this.editModExceptions = new ArrayList<>(e.getAllModExceptionIds());
-        this.editModExceptionNbt = new HashMap<>();
-        List<net.bananemdnsa.historystages.data.ItemEntry> modExEntries = e.getModExceptionEntries();
-        for (int idx = 0; idx < modExEntries.size(); idx++) {
-            net.bananemdnsa.historystages.data.ItemEntry me = modExEntries.get(idx);
-            if (me.hasNbt()) {
-                editModExceptionNbt.put(idx, me.getNbt().deepCopy());
-            }
-        }
+        // Safe cast: the built-in mod-exceptions category stores ItemEntry.
+        @SuppressWarnings("unchecked")
+        LockCategory<net.bananemdnsa.historystages.data.ItemEntry> exceptionCategory =
+                (LockCategory<net.bananemdnsa.historystages.data.ItemEntry>)
+                        LockCategories.byId("historystages:mod_exceptions");
+        RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> exceptionTabLocal =
+                new RichEntryCategoryTab<>(exceptionCategory, true,
+                        (onSelect, alreadyAdded) -> createModExceptionSearch(onSelect, alreadyAdded),
+                        () -> { hasChanges = true; updateMaxScroll(); },
+                        ITEM_ENTRY_ADAPTER);
+        // Its picker is filtered to the mods that are locked right now, and that changes while
+        // the editor is open — so it cannot be cached between opens.
+        exceptionTabLocal.setRebuildPickerOnOpen(true);
+        exceptionTabLocal.load(e);
+        this.modExceptionTab = exceptionTabLocal;
+        this.categoryTabs.put(3, exceptionTabLocal);
         // Safe cast: the built-in recipes category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> recipeCategory =
@@ -669,7 +675,6 @@ public class StageDetailScreen extends Screen {
             updateMaxScroll();
         });
 
-        modExceptionSearch = createModExceptionSearch();
 
         modStructurePopup = new ModEntrySelectionPopup(
                 Component.translatable("editor.historystages.popup.kind.structures"),
@@ -890,7 +895,6 @@ public class StageDetailScreen extends Screen {
 
     private boolean isAnyOverlayVisible() {
         return itemSearch.isVisible() || (iconSearch != null && iconSearch.isVisible())
-                || modExceptionSearch.isVisible()
                 || entitySearch.isVisible()
                 || anyCategoryPickerVisible()
                 || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
@@ -1059,7 +1063,23 @@ public class StageDetailScreen extends Screen {
             };
     }
 
+    /** Splits and rebuilds an ItemEntry, which is how items and mod exceptions store their rows. */
+    private static final RichEntryCategoryTab.EntryAdapter<net.bananemdnsa.historystages.data.ItemEntry>
+            ITEM_ENTRY_ADAPTER = new RichEntryCategoryTab.EntryAdapter<>() {
+        @Override public String id(net.bananemdnsa.historystages.data.ItemEntry e) { return e.getId(); }
+        @Override public com.google.gson.JsonObject nbt(net.bananemdnsa.historystages.data.ItemEntry e) { return e.getNbt(); }
+        @Override public List<String> lockActions(net.bananemdnsa.historystages.data.ItemEntry e) { return e.getLockActions(); }
+        @Override public String nameText(net.bananemdnsa.historystages.data.ItemEntry e) { return e.getNameTextOverride(); }
+        @Override public String tooltipText(net.bananemdnsa.historystages.data.ItemEntry e) { return e.getTooltipTextOverride(); }
+        @Override public net.bananemdnsa.historystages.data.ItemEntry build(
+                String id, com.google.gson.JsonObject nbt, List<String> lockActions,
+                String nameText, String tooltipText) {
+            return new net.bananemdnsa.historystages.data.ItemEntry(id, nbt, lockActions, nameText, tooltipText);
+        }
+    };
+
     /** Splits and rebuilds a NamedLockEntry, which is how tags and mods store their rows. */
+
     private static final RichEntryCategoryTab.EntryAdapter<net.bananemdnsa.historystages.data.lock.NamedLockEntry>
             NAMED_LOCK_ENTRY_ADAPTER = new RichEntryCategoryTab.EntryAdapter<>() {
         @Override public String id(net.bananemdnsa.historystages.data.lock.NamedLockEntry e) { return e.getId(); }
@@ -1085,7 +1105,6 @@ public class StageDetailScreen extends Screen {
         if (tab != null) return tab.entries();
         return switch (sectionIndex) {
             case 0 -> editItems;
-            case 3 -> editModExceptions;
             case 6 -> editAttacklock;
             case 7 -> editSpawnlock;
             case 8 -> editInteractionlock;
@@ -1365,7 +1384,7 @@ public class StageDetailScreen extends Screen {
                 boolean isTagsTab = activeTab == 1;
                 if (isItemsTab && editItemNbt.containsKey(i)
                         || isTagsTab && tagTab.nbtByIndex().containsKey(i)
-                        || isExceptionsTab && editModExceptionNbt.containsKey(i)) {
+                        || isExceptionsTab && modExceptionTab.nbtByIndex().containsKey(i)) {
                     String badge = "\u00A76[NBT]";
                     badgeW = this.font.width(badge) + 4;
                     guiGraphics.drawString(this.font, badge, contentRight - badgeW, cardY + 7, 0xFFCC00, false);
@@ -1644,7 +1663,6 @@ public class StageDetailScreen extends Screen {
         }
 
         itemSearch.render(guiGraphics, this.font, mouseX, mouseY);
-        modExceptionSearch.render(guiGraphics, this.font, mouseX, mouseY);
         entitySearch.render(guiGraphics, this.font, mouseX, mouseY);
         for (CategoryTab tab : categoryTabs.values()) {
             if (tab.picker() != null) tab.picker().render(guiGraphics, this.font, mouseX, mouseY);
@@ -2599,7 +2617,6 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible()) { if (itemSearch.mouseClicked(mouseX, mouseY)) return true; }
-        if (modExceptionSearch.isVisible()) { if (modExceptionSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (entitySearch.isVisible()) { if (entitySearch.mouseClicked(mouseX, mouseY)) return true; }
         if (anyCategoryPicker(pk -> pk.mouseClicked(mouseX, mouseY))) return true;
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -2806,16 +2823,6 @@ public class StageDetailScreen extends Screen {
                             editInteractionlockItems.remove(removedValue);
                         }
                         // When removing a mod exception, shift NBT indices
-                        if (tabIdx == 3) {
-                            editModExceptionNbt.remove(entryIdx);
-                            Map<Integer, com.google.gson.JsonObject> shifted = new HashMap<>();
-                            for (var e : editModExceptionNbt.entrySet()) {
-                                int key = e.getKey();
-                                shifted.put(key > entryIdx ? key - 1 : key, e.getValue());
-                            }
-                            editModExceptionNbt.clear();
-                            editModExceptionNbt.putAll(shifted);
-                        }
                         // When removing a mod, also remove mod-linked entities and exceptions from that mod
                         if (tabIdx == 2 && removedValue != null) {
                             String prefix = removedValue + ":";
@@ -2840,20 +2847,7 @@ public class StageDetailScreen extends Screen {
                             structureTab.removeModSelectionByPrefix(prefix);
                             biomeTab.removeModSelectionByPrefix(prefix);
                             // Remove mod exceptions belonging to this mod
-                            for (int j = editModExceptions.size() - 1; j >= 0; j--) {
-                                if (editModExceptions.get(j).startsWith(prefix)) {
-                                    editModExceptions.remove(j);
-                                    editModExceptionNbt.remove(j);
-                                    // Shift remaining NBT indices
-                                    Map<Integer, com.google.gson.JsonObject> shiftedEx = new HashMap<>();
-                                    for (var ex : editModExceptionNbt.entrySet()) {
-                                        int key = ex.getKey();
-                                        shiftedEx.put(key > j ? key - 1 : key, ex.getValue());
-                                    }
-                                    editModExceptionNbt.clear();
-                                    editModExceptionNbt.putAll(shiftedEx);
-                                }
-                            }
+                            modExceptionTab.removeAllFromMod(prefix);
                         }
                         hasChanges = true; updateMaxScroll();
                     });
@@ -2875,7 +2869,6 @@ public class StageDetailScreen extends Screen {
         CategoryTab categoryTab = categoryTabs.get(activeTab);
         if (categoryTab != null) { categoryTab.openPicker(this.width / 2, this.height / 2, cw); return; }
         if (activeTab == 0) { itemSearch.setFilter(""); itemSearch.show(this.width / 2, this.height / 2, cw); }
-        else if (activeTab == 3) { modExceptionSearch = createModExceptionSearch(); modExceptionSearch.setFilter(""); modExceptionSearch.show(this.width / 2, this.height / 2, cw); }
         else if (activeTab == 6 || activeTab == 7 || activeTab == 8) { entitySearch.setFilter(""); entitySearch.show(this.width / 2, this.height / 2, cw); }
     }
 
@@ -2992,32 +2985,26 @@ public class StageDetailScreen extends Screen {
     }
 
     private void openModExceptionNbtEditScreen(int entryIdx, String itemId) {
-        com.google.gson.JsonObject currentNbt = editModExceptionNbt.get(entryIdx);
+        com.google.gson.JsonObject currentNbt = modExceptionTab.nbtByIndex().get(entryIdx);
         this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, currentNbt, nbt -> {
             if (nbt != null) {
-                editModExceptionNbt.put(entryIdx, nbt);
+                modExceptionTab.nbtByIndex().put(entryIdx, nbt);
             } else {
-                editModExceptionNbt.remove(entryIdx);
+                modExceptionTab.nbtByIndex().remove(entryIdx);
             }
             hasChanges = true;
             saveStage();
         }));
     }
 
-    private SearchableItemList createModExceptionSearch() {
-        SearchableItemList search = new SearchableItemList(itemId -> {
-            if (!editModExceptions.contains(itemId)) {
-                editModExceptions.add(itemId);
-                hasChanges = true;
-            }
-            updateMaxScroll();
-        }, () -> editModExceptions);
+    /** The exception picker: multi-select, NBT-aware, and filtered to the locked mods. */
+    private SearchableItemList createModExceptionSearch(
+            java.util.function.Consumer<String> onSelect,
+            java.util.function.Supplier<java.util.Collection<String>> alreadyAdded) {
+        SearchableItemList search = new SearchableItemList(onSelect::accept, alreadyAdded::get);
         search.setMultiSelect(true);
         search.setOnSelectWithNbt((itemId, nbt) -> {
-            editModExceptions.add(itemId);
-            if (nbt != null && nbt.size() > 0) {
-                editModExceptionNbt.put(editModExceptions.size() - 1, nbt);
-            }
+            modExceptionTab.addEntryWithNbt(itemId, nbt);
             hasChanges = true;
             updateMaxScroll();
         });
@@ -3032,8 +3019,6 @@ public class StageDetailScreen extends Screen {
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (itemSearch.isVisible() && itemSearch.mouseDragged(mouseX, mouseY))
-            return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseDragged(mouseX, mouseY))
             return true;
         if (entitySearch.isVisible() && entitySearch.mouseDragged(mouseX, mouseY))
             return true;
@@ -3067,8 +3052,6 @@ public class StageDetailScreen extends Screen {
         if (itemSearch.isVisible() && itemSearch.mouseReleased())
             return true;
         if (iconSearch != null && iconSearch.isVisible() && iconSearch.mouseReleased())
-            return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseReleased())
             return true;
         if (entitySearch.isVisible() && entitySearch.mouseReleased())
             return true;
@@ -3131,7 +3114,6 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (entitySearch.isVisible() && entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
@@ -3176,7 +3158,6 @@ public class StageDetailScreen extends Screen {
             return true;
         }
         if (itemSearch.isVisible() && itemSearch.keyPressed(keyCode)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.keyPressed(keyCode)) return true;
         if (entitySearch.isVisible() && entitySearch.keyPressed(keyCode)) return true;
         if (anyCategoryPicker(pk -> pk.keyPressed(keyCode))) return true;
         if (iconSearch.isVisible() && iconSearch.keyPressed(keyCode)) return true;
@@ -3210,7 +3191,6 @@ public class StageDetailScreen extends Screen {
         }
         if (generationLimitPopup.isVisible() && generationLimitPopup.charTyped(c)) return true;
         if (itemSearch.isVisible() && itemSearch.charTyped(c)) return true;
-        if (modExceptionSearch.isVisible() && modExceptionSearch.charTyped(c)) return true;
         if (entitySearch.isVisible() && entitySearch.charTyped(c)) return true;
         if (anyCategoryPicker(pk -> pk.charTyped(c))) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.charTyped(c)) return true;
@@ -3438,12 +3418,6 @@ public class StageDetailScreen extends Screen {
         newEntry.setItemEntries(itemEntries);
         newEntry.setHiddenDisplay(editHiddenDisplay);
         newEntry.setLoseOnDeath(editLoseOnDeath);
-        List<net.bananemdnsa.historystages.data.ItemEntry> modExceptionEntries = new ArrayList<>();
-        for (int idx = 0; idx < editModExceptions.size(); idx++) {
-            com.google.gson.JsonObject nbt = editModExceptionNbt.get(idx);
-            modExceptionEntries.add(new net.bananemdnsa.historystages.data.ItemEntry(editModExceptions.get(idx), nbt));
-        }
-        newEntry.setModExceptionEntries(modExceptionEntries);
         newEntry.setIcon(editIcon);
         newEntry.setScrollCompletion(editScrollCompletion);
         EntityLocks locks = new EntityLocks();
