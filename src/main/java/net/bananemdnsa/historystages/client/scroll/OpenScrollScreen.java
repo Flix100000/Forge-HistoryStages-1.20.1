@@ -76,6 +76,12 @@ public class OpenScrollScreen extends Screen {
 
     /** Laid over a locked item so its shape survives but its identity does not. */
     private static final int SILHOUETTE = 0xB0241A0F;
+    /**
+     * Depth for anything that has to cover an item. {@code GuiGraphics.renderItem} pushes the
+     * icon to +150 and a 3D block model spans a little further still, so draw order alone never
+     * puts a wash on top — it has to be lifted past the icon explicitly.
+     */
+    private static final float ITEM_OVERLAY_Z = 200.0f;
     /** Replaces the icon entirely when the stage hides even the name — a hole in the parchment. */
     private static final int HOLE = 0x8C3C2D1C;
 
@@ -819,8 +825,14 @@ public class OpenScrollScreen extends Screen {
         g.renderItem(cell.stack(), x + 1, y + 1);
         if (cell.hidden()) {
             // Inset by one so the wash darkens the item without swallowing the box around it.
+            // Lifted above the item: renderItem draws at +150 in the GUI matrix and the depth
+            // test is on here, so a wash at the ambient depth loses to the icon it is meant to
+            // hide no matter how late it is drawn.
+            g.pose().pushPose();
+            g.pose().translate(0.0f, 0.0f, ITEM_OVERLAY_Z);
             g.fill(x + 1, y + 1, x + OpenScrollGeometry.CELL - 1,
                     y + OpenScrollGeometry.CELL - 1, SILHOUETTE);
+            g.pose().popPose();
         }
     }
 
