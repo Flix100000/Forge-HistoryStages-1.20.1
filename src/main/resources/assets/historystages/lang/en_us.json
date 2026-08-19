@@ -1031,6 +1031,7 @@
   "gui.historystages.pedestal.searching": "Searching",
   "gui.historystages.pedestal.loading": "Loading...",
   "gui.historystages.pedestal.pay_xp": "Pay XP",
+  "gui.historystages.pedestal.pay_xp_missing": "Needs level %s — you have %s",
   "gui.historystages.pedestal.group": "Group %s",
   "gui.historystages.pedestal.finalizing": "Finalizing: %s",
   "gui.historystages.pedestal.researching": "Researching: %s",

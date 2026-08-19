@@ -1030,6 +1030,7 @@
   "gui.historystages.pedestal.searching": "Suche",
   "gui.historystages.pedestal.loading": "Lädt...",
   "gui.historystages.pedestal.pay_xp": "XP zahlen",
+  "gui.historystages.pedestal.pay_xp_missing": "Braucht Level %s — du hast %s",
   "gui.historystages.pedestal.group": "Gruppe %s",
   "gui.historystages.pedestal.finalizing": "Abschluss: %s",
   "gui.historystages.pedestal.researching": "Erforscht: %s",
