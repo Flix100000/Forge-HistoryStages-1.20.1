@@ -32,7 +32,7 @@ public abstract class AbstractCategoryTab implements CategoryTab {
 
     private final LockCategory<?> category;
     private final boolean availableForIndividualStages;
-    private final List<String> edit = new ArrayList<>();
+    private final List<String> edit;
     private final PickerFactory pickerFactory;
     private final Runnable onChanged;
     private PickerOverlay picker;
@@ -42,6 +42,19 @@ public abstract class AbstractCategoryTab implements CategoryTab {
                                   boolean availableForIndividualStages,
                                   PickerFactory pickerFactory,
                                   Runnable onChanged) {
+        this(category, availableForIndividualStages, pickerFactory, onChanged, new ArrayList<>());
+    }
+
+    /**
+     * @param rows the list this tab shows. Normally its own, but the three entity tabs read from
+     *             one shared state object, because they all live in the same {@code EntityLocks}.
+     */
+    protected AbstractCategoryTab(LockCategory<?> category,
+                                  boolean availableForIndividualStages,
+                                  PickerFactory pickerFactory,
+                                  Runnable onChanged,
+                                  List<String> rows) {
+        this.edit = rows;
         this.category = category;
         this.availableForIndividualStages = availableForIndividualStages;
         this.pickerFactory = pickerFactory;
