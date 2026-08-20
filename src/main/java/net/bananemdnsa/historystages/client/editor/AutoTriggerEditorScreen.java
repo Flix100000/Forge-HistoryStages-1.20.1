@@ -542,12 +542,15 @@ public class AutoTriggerEditorScreen extends Screen {
      * above the button when it would run off the bottom, so no row ends up unreachable.
      */
     private int[] addPopupGeometry() {
+        List<AddableTrigger> rows = addableTriggers();
+        // Measured over the rows actually shown, not over the built-in types: an addon's label is
+        // free text and is usually the longest one, and the popup scissors at its own right edge.
         int pw = addBtnW;
-        for (TriggerType t : TYPES) {
-            int w = this.font.width(typeLabel(t)) + 16;
+        for (AddableTrigger row : rows) {
+            int w = this.font.width(row.label()) + 16;
             if (w > pw) pw = w;
         }
-        int ph = addableTriggers().size() * ADD_ROW_H + ADD_POPUP_PAD * 2;
+        int ph = rows.size() * ADD_ROW_H + ADD_POPUP_PAD * 2;
         // Right-aligned with the button, which sits against the screen's right edge.
         int px = addBtnX + addBtnW - pw;
         int py = addBtnY + ADD_BTN_H + 2;
