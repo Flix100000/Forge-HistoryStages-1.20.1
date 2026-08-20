@@ -95,11 +95,26 @@ public class AutoTriggerEditorScreen extends Screen {
         for (TriggerEditor editor : TriggerEditors.all()) {
             rows.add(new AddableTrigger(
                     Component.translatable(editor.labelLangKey()).getString(),
-                    () -> showAbstract(new GenericIdPicker(editor.searchPlaceholderLangKey(),
-                            editor::candidates, editor.placingInto(this::placeTrigger), null),
-                            null, false)));
+                    () -> openAddonPicker(editor)));
         }
         return rows;
+    }
+
+    /**
+     * Opens the picker an addon registered for this trigger type. False when it registered none,
+     * which is the caller's cue that the trigger cannot be authored here.
+     */
+    private boolean openAddonEditorFor(String type) {
+        TriggerEditor editor = TriggerEditors.byType(type);
+        if (editor == null) return false;
+        openAddonPicker(editor);
+        return true;
+    }
+
+    /** Adding and editing go through the same overlay, so the two paths cannot drift apart. */
+    private void openAddonPicker(TriggerEditor editor) {
+        showAbstract(new GenericIdPicker(editor.searchPlaceholderLangKey(), editor::candidates,
+                editor.placingInto(this::placeTrigger), null), null, false);
     }
 
     private final Screen parent;
@@ -919,11 +934,17 @@ public class AutoTriggerEditorScreen extends Screen {
             case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case EntityTrigger e -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case PlaytimeTrigger p -> openPlaytimeDialog(idx, p.days());
-            // Nothing here knows what would satisfy an unparsed trigger, so there is no picker to
-            // open. The row stays visible and stays in the file; it just cannot be edited here.
-            default -> EditorToastHandler.show(EditorToast.Level.INFO,
-                    Component.translatable("editor.historystages.auto_trigger.unknown.title"),
-                    Component.translatable("editor.historystages.auto_trigger.unknown.message", t.type()));
+            // An addon that registered an editor for its type opens the same picker the add menu
+            // uses. Without one — an unparsed trigger, or a type registered without an editor —
+            // nothing here knows what would satisfy it, so there is no picker to open. The row
+            // stays visible and stays in the file; it just cannot be edited here.
+            default -> {
+                if (!openAddonEditorFor(t.type())) {
+                    EditorToastHandler.show(EditorToast.Level.INFO,
+                            Component.translatable("editor.historystages.auto_trigger.unknown.title"),
+                            Component.translatable("editor.historystages.auto_trigger.unknown.message", t.type()));
+                }
+            }
         }
     }
 
