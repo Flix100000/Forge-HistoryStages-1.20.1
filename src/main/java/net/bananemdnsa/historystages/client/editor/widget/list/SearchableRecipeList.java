@@ -1,4 +1,5 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+import net.minecraft.network.chat.Component;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
 
@@ -82,7 +83,7 @@ public class SearchableRecipeList implements PickerOverlay {
     public SearchableRecipeList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
-        this.searchBar = SearchPanelChrome.createSearchBar("Search recipes...", this::applyFilter, alreadyAddedSupplier);
+        this.searchBar = SearchPanelChrome.createSearchBar(Component.translatable("editor.historystages.search.placeholder.recipes").getString(), this::applyFilter, alreadyAddedSupplier);
         buildRecipeIndex();
     }
 

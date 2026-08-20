@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,7 +21,7 @@ public class SearchableTagList extends AbstractSearchableList<String> {
     }
 
     public SearchableTagList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
-        super("Search tags...", onSelect, alreadyAddedSupplier);
+        super(Component.translatable("editor.historystages.search.placeholder.tags").getString(), onSelect, alreadyAddedSupplier);
     }
 
     @Override
