@@ -804,10 +804,10 @@ public class StageManager {
             DebugLogger.info("Unused Temporary Config", "Stage '" + stageId + "' has a 'temporary' config but its mode is '" + resolvedMode.serialize() + "'. The config will be ignored (only mode=temporary uses it).");
         }
 
-        int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
-                + entry.getStructures().size() + entry.getEntities().getAttacklock().size()
-                + entry.getEntities().getInteractionlock().size() + entry.getEntities().getSpawnlock().size();
+        // Asked of the registry rather than added up here: this sum used to forget biomes, and it
+        // would have called a stage empty when everything in it belonged to an addon.
+        int totalEntries = net.bananemdnsa.historystages.data.lock.category.CategoryEntryCounter
+                .totalEntries(entry);
         if (totalEntries == 0) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
             DebugLogger.info("Empty Stages", "Stage '" + stageId + "' has no content at all. It will be loaded but won't lock anything.");
