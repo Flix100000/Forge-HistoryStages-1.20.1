@@ -360,7 +360,7 @@ public class StageDetailScreen extends Screen {
                 (LockCategory<net.bananemdnsa.historystages.data.ItemEntry>)
                         LockCategories.byId("historystages:items");
         RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> itemTabLocal =
-                new RichEntryCategoryTab<>(itemCategory, true,
+                new RichEntryCategoryTab<>(itemCategory,
                         (onSelect, alreadyAdded) -> {
                             SearchableItemList list = new SearchableItemList(onSelect::accept, alreadyAdded::get);
                             list.setMultiSelect(true);
@@ -384,7 +384,7 @@ public class StageDetailScreen extends Screen {
                 (LockCategory<net.bananemdnsa.historystages.data.lock.NamedLockEntry>)
                         LockCategories.byId("historystages:tags");
         RichEntryCategoryTab<net.bananemdnsa.historystages.data.lock.NamedLockEntry> tagTabLocal =
-                new RichEntryCategoryTab<>(tagCategory, true,
+                new RichEntryCategoryTab<>(tagCategory,
                         (onSelect, alreadyAdded) -> {
                             SearchableTagList list = new SearchableTagList(onSelect, alreadyAdded);
                             list.setMultiSelect(true);
@@ -401,7 +401,7 @@ public class StageDetailScreen extends Screen {
                 (LockCategory<net.bananemdnsa.historystages.data.ItemEntry>)
                         LockCategories.byId("historystages:mod_exceptions");
         RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> exceptionTabLocal =
-                new RichEntryCategoryTab<>(exceptionCategory, true,
+                new RichEntryCategoryTab<>(exceptionCategory,
                         (onSelect, alreadyAdded) -> createModExceptionSearch(onSelect, alreadyAdded),
                         () -> { hasChanges = true; updateMaxScroll(); },
                         ITEM_ENTRY_ADAPTER);
@@ -416,7 +416,7 @@ public class StageDetailScreen extends Screen {
         LockCategory<String> recipeCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:recipes");
         // Recipes are global-only; there is no per-player recipe gate in the data model.
-        CategoryTab recipeTab = new StringListCategoryTab(recipeCategory, false,
+        CategoryTab recipeTab = new StringListCategoryTab(recipeCategory,
                 (onSelect, alreadyAdded) -> {
                     SearchableRecipeList list = new SearchableRecipeList(onSelect, alreadyAdded);
                     list.setKeepVisibleOnSelect(true);
@@ -429,7 +429,7 @@ public class StageDetailScreen extends Screen {
         @SuppressWarnings("unchecked")
         LockCategory<String> dimensionCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:dimensions");
-        CategoryTab dimensionTab = new StringListCategoryTab(dimensionCategory, true,
+        CategoryTab dimensionTab = new StringListCategoryTab(dimensionCategory,
                 (onSelect, alreadyAdded) -> {
                     SearchableDimensionList list = new SearchableDimensionList(onSelect, alreadyAdded);
                     list.setMultiSelect(true);
@@ -456,7 +456,7 @@ public class StageDetailScreen extends Screen {
         @SuppressWarnings("unchecked")
         LockCategory<String> biomeCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:biomes");
-        ModLinkedCategoryTab biomeTabLocal = new ModLinkedCategoryTab(biomeCategory, true,
+        ModLinkedCategoryTab biomeTabLocal = new ModLinkedCategoryTab(biomeCategory,
                 (onSelect, alreadyAdded) -> {
                     SearchableBiomeList list = new SearchableBiomeList(onSelect, alreadyAdded, true);
                     list.setMultiSelect(true);
@@ -473,17 +473,17 @@ public class StageDetailScreen extends Screen {
         @SuppressWarnings("unchecked")
         LockCategory<String> attackCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:attacklock");
-        this.categoryTabs.put(6, new EntityCategoryTab(attackCategory, true,
+        this.categoryTabs.put(6, new EntityCategoryTab(attackCategory,
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
                 entityState, entityState.attacklock()));
         this.categoryTabs.put(7, new EntityCategoryTab(
-                LockCategories.byId("historystages:spawnlock"), false,
+                LockCategories.byId("historystages:spawnlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
                 entityState, entityState.spawnlock()));
         this.categoryTabs.put(8, new EntityCategoryTab(
-                LockCategories.byId("historystages:interactionlock"), true,
+                LockCategories.byId("historystages:interactionlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
                 entityState, entityState.interactionlock()));
@@ -495,7 +495,7 @@ public class StageDetailScreen extends Screen {
                 (LockCategory<net.bananemdnsa.historystages.data.lock.NamedLockEntry>)
                         LockCategories.byId("historystages:mods");
         RichEntryCategoryTab<net.bananemdnsa.historystages.data.lock.NamedLockEntry> modTabLocal =
-                new RichEntryCategoryTab<>(modCategory, true,
+                new RichEntryCategoryTab<>(modCategory,
                         (onSelect, alreadyAdded) -> {
                             // Adding a mod also starts the mod-lock chain, which is screen
                             // orchestration rather than tab bookkeeping — so it wraps the

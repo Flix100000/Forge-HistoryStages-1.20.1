@@ -6,6 +6,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 
@@ -40,8 +41,9 @@ final class BuiltInLockCategories {
                 StageEntry::getModExceptionEntries, StageEntry::setModExceptionEntries,
                 stage -> List.of()));
 
-        // Recipes were never part of dual-phase detection. Preserved as-is.
-        categories.add(new Simple<>("recipes", "recipes", "",
+        // Recipes were never part of dual-phase detection. Preserved as-is, and global-only:
+        // there is no per-player recipe gate to write to.
+        categories.add(new GlobalOnly<>("recipes", "recipes", "",
                 StageEntry::getRecipes, StageEntry::setRecipes,
                 stage -> List.of()));
 
@@ -80,6 +82,31 @@ final class BuiltInLockCategories {
         @Override public List<String> individualDualPhaseIds(StageEntry stage) { return dualPhase.apply(stage); }
     }
 
+    /** A {@link Simple} category that only means anything on a global stage. */
+    private static final class GlobalOnly<T> implements LockCategory<T> {
+        private final Simple<T> delegate;
+
+        GlobalOnly(String name, String tabName, String dualPhaseLabel,
+                   java.util.function.Function<StageEntry, List<T>> reader,
+                   java.util.function.BiConsumer<StageEntry, List<T>> writer,
+                   java.util.function.Function<StageEntry, List<String>> dualPhase) {
+            this.delegate = new Simple<>(name, tabName, dualPhaseLabel, reader, writer, dualPhase);
+        }
+
+        @Override public java.util.Set<StageScope> supportedScopes() {
+            return java.util.EnumSet.of(StageScope.GLOBAL);
+        }
+
+        @Override public String id() { return delegate.id(); }
+        @Override public String tabLangKey() { return delegate.tabLangKey(); }
+        @Override public String tooltipLangKey() { return delegate.tooltipLangKey(); }
+        @Override public String dualPhaseLabel() { return delegate.dualPhaseLabel(); }
+        @Override public List<T> read(StageEntry stage) { return delegate.read(stage); }
+        @Override public void write(StageEntry stage, List<T> entries) { delegate.write(stage, entries); }
+        @Override public List<String> globalDualPhaseIds(StageEntry stage) { return delegate.globalDualPhaseIds(stage); }
+        @Override public List<String> individualDualPhaseIds(StageEntry stage) { return delegate.individualDualPhaseIds(stage); }
+    }
+
     /**
      * Attack locks. Dual-phase also counts spawn-lock entries that block every source, because
      * such an entry implies an attack lock — the same rule the old detectOverlaps applied.
@@ -114,8 +141,15 @@ final class BuiltInLockCategories {
         }
     }
 
-    /** Spawn locks. Never took part in dual-phase detection; that is preserved. */
+    /**
+     * Spawn locks. Never took part in dual-phase detection, and global-only: the data model
+     * has no per-player spawn gate.
+     */
     private static final class SpawnLock implements LockCategory<EntitySpawnLockEntry> {
+        @Override public java.util.Set<StageScope> supportedScopes() {
+            return java.util.EnumSet.of(StageScope.GLOBAL);
+        }
+
         @Override public String id() { return "historystages:spawnlock"; }
         @Override public String tabLangKey() { return "editor.historystages.tab.spawn"; }
         @Override public String tooltipLangKey() { return "editor.historystages.tooltip.spawn"; }

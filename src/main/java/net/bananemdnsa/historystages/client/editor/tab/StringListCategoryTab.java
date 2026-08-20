@@ -22,10 +22,9 @@ public class StringListCategoryTab extends AbstractCategoryTab {
      *                  picker callbacks did inline
      */
     public StringListCategoryTab(LockCategory<String> category,
-                                 boolean availableForIndividualStages,
                                  PickerFactory pickerFactory,
                                  Runnable onChanged) {
-        super(category, availableForIndividualStages, pickerFactory, onChanged);
+        super(category, pickerFactory, onChanged);
         this.category = category;
     }
 

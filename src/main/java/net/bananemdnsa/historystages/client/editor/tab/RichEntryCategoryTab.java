@@ -53,11 +53,10 @@ public class RichEntryCategoryTab<T> extends AbstractCategoryTab {
     private final Map<Integer, String> tooltipText = new HashMap<>();
 
     public RichEntryCategoryTab(LockCategory<T> category,
-                                boolean availableForIndividualStages,
                                 PickerFactory pickerFactory,
                                 Runnable onChanged,
                                 EntryAdapter<T> adapter) {
-        super(category, availableForIndividualStages, pickerFactory, onChanged);
+        super(category, pickerFactory, onChanged);
         this.category = category;
         this.adapter = adapter;
     }

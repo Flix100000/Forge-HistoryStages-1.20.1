@@ -22,6 +22,13 @@ import net.bananemdnsa.historystages.data.lock.engine.StageStateView;
  */
 public final class CategoryLockResolver {
 
+    /** Whether asking this category about that scope means anything at all. */
+    public static boolean supports(LockCategory<?> category,
+            net.bananemdnsa.historystages.data.lock.engine.StageScope scope) {
+        return category.supportedScopes().contains(scope);
+    }
+
+
     private CategoryLockResolver() {}
 
     /**

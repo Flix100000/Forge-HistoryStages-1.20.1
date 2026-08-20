@@ -18,12 +18,11 @@ public final class EntityCategoryTab extends AbstractCategoryTab {
     private final List<String> rows;
 
     public EntityCategoryTab(LockCategory<?> category,
-                             boolean availableForIndividualStages,
                              PickerFactory pickerFactory,
                              Runnable onChanged,
                              EntityTabsState state,
                              List<String> rows) {
-        super(category, availableForIndividualStages, pickerFactory, onChanged, rows);
+        super(category, pickerFactory, onChanged, rows);
         this.state = state;
         this.rows = rows;
     }

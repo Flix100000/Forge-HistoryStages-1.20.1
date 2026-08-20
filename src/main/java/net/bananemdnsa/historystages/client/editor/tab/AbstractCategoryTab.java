@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 
 import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -31,7 +32,6 @@ public abstract class AbstractCategoryTab implements CategoryTab {
     }
 
     private final LockCategory<?> category;
-    private final boolean availableForIndividualStages;
     private final List<String> edit;
     private final PickerFactory pickerFactory;
     private final Runnable onChanged;
@@ -39,10 +39,9 @@ public abstract class AbstractCategoryTab implements CategoryTab {
     private boolean rebuildPickerOnOpen;
 
     protected AbstractCategoryTab(LockCategory<?> category,
-                                  boolean availableForIndividualStages,
                                   PickerFactory pickerFactory,
                                   Runnable onChanged) {
-        this(category, availableForIndividualStages, pickerFactory, onChanged, new ArrayList<>());
+        this(category, pickerFactory, onChanged, new ArrayList<>());
     }
 
     /**
@@ -50,13 +49,11 @@ public abstract class AbstractCategoryTab implements CategoryTab {
      *             one shared state object, because they all live in the same {@code EntityLocks}.
      */
     protected AbstractCategoryTab(LockCategory<?> category,
-                                  boolean availableForIndividualStages,
                                   PickerFactory pickerFactory,
                                   Runnable onChanged,
                                   List<String> rows) {
         this.edit = rows;
         this.category = category;
-        this.availableForIndividualStages = availableForIndividualStages;
         this.pickerFactory = pickerFactory;
         this.onChanged = onChanged;
     }
@@ -78,7 +75,7 @@ public abstract class AbstractCategoryTab implements CategoryTab {
 
     @Override
     public boolean availableForIndividualStages() {
-        return availableForIndividualStages;
+        return category.supportedScopes().contains(StageScope.INDIVIDUAL);
     }
 
     @Override

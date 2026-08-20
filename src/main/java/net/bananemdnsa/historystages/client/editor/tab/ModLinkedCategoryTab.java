@@ -27,12 +27,11 @@ public class ModLinkedCategoryTab extends StringListCategoryTab {
     private final BiConsumer<StageEntry, List<String>> modLinkedWriter;
 
     public ModLinkedCategoryTab(LockCategory<String> category,
-                                boolean availableForIndividualStages,
                                 PickerFactory pickerFactory,
                                 Runnable onChanged,
                                 Function<StageEntry, List<String>> modLinkedReader,
                                 BiConsumer<StageEntry, List<String>> modLinkedWriter) {
-        super(category, availableForIndividualStages, pickerFactory, onChanged);
+        super(category, pickerFactory, onChanged);
         this.modLinkedReader = modLinkedReader;
         this.modLinkedWriter = modLinkedWriter;
     }

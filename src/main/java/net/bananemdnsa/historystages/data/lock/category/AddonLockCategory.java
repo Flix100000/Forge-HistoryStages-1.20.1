@@ -33,6 +33,7 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
     private final String tabLangKey;
     private final String tooltipLangKey;
     private final CategoryStorage<T> storage;
+    private final java.util.Set<net.bananemdnsa.historystages.data.lock.engine.StageScope> supportedScopes;
     private final Class<?> subjectType;
     private final CategoryMatcher<T, Object> matcher;
 
@@ -41,6 +42,7 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
         this.tabLangKey = builder.tabLangKey;
         this.tooltipLangKey = builder.tooltipLangKey;
         this.storage = builder.storage;
+        this.supportedScopes = builder.supportedScopes;
         this.subjectType = builder.subjectType;
         this.matcher = builder.matcher;
     }
@@ -52,6 +54,11 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
     @Override
     public String id() {
         return id;
+    }
+
+    @Override
+    public java.util.Set<net.bananemdnsa.historystages.data.lock.engine.StageScope> supportedScopes() {
+        return supportedScopes;
     }
 
     @Override
@@ -90,6 +97,8 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
     }
 
     public static final class Builder<T> {
+        private java.util.Set<net.bananemdnsa.historystages.data.lock.engine.StageScope> supportedScopes =
+                java.util.EnumSet.allOf(net.bananemdnsa.historystages.data.lock.engine.StageScope.class);
         private final String id;
         private String tabLangKey;
         private String tooltipLangKey;
@@ -108,6 +117,21 @@ public final class AddonLockCategory<T> implements LockCategory<T> {
 
         public Builder<T> tooltipLangKey(String tooltipLangKey) {
             this.tooltipLangKey = tooltipLangKey;
+            return this;
+        }
+
+        /**
+         * Which stage scopes this category means anything in. Both unless said otherwise —
+         * pass only {@code StageScope.GLOBAL} for something that cannot sensibly be gated per
+         * player, the way recipes and spawn locks cannot.
+         */
+        public Builder<T> supportedScopes(net.bananemdnsa.historystages.data.lock.engine.StageScope... scopes) {
+            this.supportedScopes = java.util.EnumSet.noneOf(
+                    net.bananemdnsa.historystages.data.lock.engine.StageScope.class);
+            java.util.Collections.addAll(this.supportedScopes, scopes);
+            if (this.supportedScopes.isEmpty()) {
+                throw new IllegalArgumentException("A category that supports no scope can never gate anything.");
+            }
             return this;
         }
 

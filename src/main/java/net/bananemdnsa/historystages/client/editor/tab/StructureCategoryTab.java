@@ -22,7 +22,7 @@ public final class StructureCategoryTab extends ModLinkedCategoryTab {
     public StructureCategoryTab(LockCategory<String> category,
                                 PickerFactory pickerFactory,
                                 Runnable onChanged) {
-        super(category, true, pickerFactory, onChanged,
+        super(category, pickerFactory, onChanged,
                 StageEntry::getStructureModLinked, StageEntry::setStructureModLinked);
     }
 

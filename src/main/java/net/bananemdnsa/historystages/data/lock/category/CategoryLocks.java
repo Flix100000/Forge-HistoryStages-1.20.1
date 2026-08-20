@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -31,10 +32,14 @@ public final class CategoryLocks {
         LockCategory<?> category = LockCategories.byId(categoryId);
         if (category == null) return false;
 
-        return CategoryLockResolver.isLocked(category, subject,
-                        StageManager.getStages(), StageLocks.serverGlobal())
-                || CategoryLockResolver.isLocked(category, subject,
-                        StageManager.getIndividualStages(), StageLocks.serverIndividual(playerUuid));
+        // A category that means nothing per player is not asked about individual stages; the
+        // answer would be meaningless rather than merely empty.
+        return (CategoryLockResolver.supports(category, StageScope.GLOBAL)
+                        && CategoryLockResolver.isLocked(category, subject,
+                                StageManager.getStages(), StageLocks.serverGlobal()))
+                || (CategoryLockResolver.supports(category, StageScope.INDIVIDUAL)
+                        && CategoryLockResolver.isLocked(category, subject,
+                                StageManager.getIndividualStages(), StageLocks.serverIndividual(playerUuid)));
     }
 
     /**
@@ -46,10 +51,14 @@ public final class CategoryLocks {
         if (category == null) return List.of();
 
         return CategoryLockResolver.join(
-                CategoryLockResolver.missingStages(category, subject,
-                        StageManager.getStages(), StageLocks.serverGlobal()),
-                CategoryLockResolver.missingStages(category, subject,
-                        StageManager.getIndividualStages(), StageLocks.serverIndividual(playerUuid)));
+                CategoryLockResolver.supports(category, StageScope.GLOBAL)
+                        ? CategoryLockResolver.missingStages(category, subject,
+                                StageManager.getStages(), StageLocks.serverGlobal())
+                        : List.of(),
+                CategoryLockResolver.supports(category, StageScope.INDIVIDUAL)
+                        ? CategoryLockResolver.missingStages(category, subject,
+                                StageManager.getIndividualStages(), StageLocks.serverIndividual(playerUuid))
+                        : List.of());
     }
 
     /** Null when nothing is registered under this id — lets a mod check that it registered in time. */

@@ -60,7 +60,7 @@ public interface CategoryEditor {
                 }
                 @SuppressWarnings("unchecked")
                 LockCategory<String> idCategory = (LockCategory<String>) registered;
-                return new StringListCategoryTab(idCategory, true,
+                return new StringListCategoryTab(idCategory,
                         (onSelect, alreadyAdded) -> {
                             GenericIdPicker picker = new GenericIdPicker(
                                     searchPlaceholderLangKey, candidates, onSelect, alreadyAdded);
