@@ -168,7 +168,7 @@
   "editor.historystages.demo.tooltip.relics": "Stand-in addon category, only present with -Dhistorystages.demoCategory=true.",
   "editor.historystages.demo.search.relics": "Search relics...",
   "editor.historystages.auto_trigger.unknown.title": "Trigger not editable",
-  "editor.historystages.auto_trigger.unknown.message": ""%s" comes from a mod that is not loaded. It is kept in the file untouched.",
+  "editor.historystages.auto_trigger.unknown.message": "'%s' comes from a mod that is not loaded. It is kept in the file untouched.",
   "editor.historystages.search.placeholder.biomes": "Search biomes...",
   "editor.historystages.search.placeholder.biome_tags": "Search biome tags...",
   "editor.historystages.search.placeholder.effects": "Search effects...",
