@@ -19,6 +19,7 @@ import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
@@ -608,7 +609,16 @@ public final class GraphDetailScreen extends AbstractModalScreen {
         };
     }
 
+    /**
+     * The lang key naming a trigger's kind.
+     *
+     * <p>Built-in types each have their own; a type from a mod that is not loaded has none, and
+     * building one from its id would print the raw key — long enough to run straight through the
+     * next column. Such a row says "unknown" and puts the actual type in the value column, where
+     * it is both readable and truncated.
+     */
     private static String triggerTypeKey(TriggerCondition t) {
+        if (t instanceof UnknownTrigger) return "editor.historystages.auto_trigger.type.unknown";
         return "editor.historystages.auto_trigger.type." + t.type();
     }
 

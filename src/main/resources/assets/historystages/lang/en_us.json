@@ -1012,6 +1012,7 @@
   "editor.historystages.auto_trigger.no_matches": "No triggers match the current search / filter.",
   "editor.historystages.auto_trigger.search": "Search triggers...",
 
+  "editor.historystages.auto_trigger.type.unknown": "Unknown",
   "editor.historystages.auto_trigger.type.biome": "Biome",
   "editor.historystages.auto_trigger.type.structure": "Structure",
   "editor.historystages.auto_trigger.type.dimension": "Dimension",

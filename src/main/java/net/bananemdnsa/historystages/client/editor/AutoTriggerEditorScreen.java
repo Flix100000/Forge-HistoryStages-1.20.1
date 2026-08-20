@@ -29,6 +29,7 @@ import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
@@ -396,6 +397,11 @@ public class AutoTriggerEditorScreen extends Screen {
 
         // Type name
         String typeName = Component.translatable(triggerTypeKey(t)).getString();
+        // Clipped to its column, exactly as the value below is: the type name is not ours to
+        // bound once other mods can add one.
+        if (this.font.width(typeName) > TYPE_COL_W - 6) {
+            typeName = this.font.plainSubstrByWidth(typeName, TYPE_COL_W - 12) + "...";
+        }
         g.drawString(this.font, typeName, iconX + ICON_W + 4, top + 7, 0xFFCCCCCC, false);
 
         // Value
@@ -455,7 +461,16 @@ public class AutoTriggerEditorScreen extends Screen {
         return stack.isEmpty() ? ItemStack.EMPTY : stack;
     }
 
+    /**
+     * The lang key naming a trigger's kind.
+     *
+     * <p>Built-in types each have their own; a type from a mod that is not loaded has none, and
+     * building one from its id would print the raw key — long enough to run straight through the
+     * next column. Such a row says "unknown" and puts the actual type in the value column, where
+     * it is both readable and truncated.
+     */
     private static String triggerTypeKey(TriggerCondition t) {
+        if (t instanceof UnknownTrigger) return "editor.historystages.auto_trigger.type.unknown";
         return "editor.historystages.auto_trigger.type." + t.type();
     }
 
@@ -472,8 +487,8 @@ public class AutoTriggerEditorScreen extends Screen {
             case BlockBreakTrigger bb -> bb.id();
             case AdvancementTrigger a -> a.id();
             case PlaytimeTrigger p -> Component.translatable("editor.historystages.auto_trigger.playtime.days", p.days()).getString();
-            // A trigger from a mod that is not loaded. Showing its type is the most this build
-            // can honestly say about it, and saying nothing would make the row look empty.
+            // A trigger from a mod that is not loaded: the type is the informative half, and it
+            // goes here rather than in the type column, which is narrow and now clipped.
             default -> t.type();
         };
     }
