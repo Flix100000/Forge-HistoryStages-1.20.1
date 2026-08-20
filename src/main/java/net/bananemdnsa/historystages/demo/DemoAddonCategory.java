@@ -1,0 +1,64 @@
+package net.bananemdnsa.historystages.demo;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.lock.category.AddonLockCategory;
+import net.bananemdnsa.historystages.data.lock.category.CategoryStorage;
+import net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+
+/**
+ * A stand-in addon, so the addon path can be exercised before a real addon exists — and so there
+ * is a worked example to point an addon author at.
+ *
+ * <p>Off unless the game is started with {@code -Dhistorystages.demoCategory=true}, which means it
+ * never exists for a player. It is written the way a real addon would write it, using only the
+ * public path: register a category, say how its entries serialise, say how to recognise one of its
+ * objects at runtime.
+ *
+ * <p>What it deliberately does not do is hook the game. A real addon owns the moment its thing is
+ * about to happen and asks {@code CategoryLocks} then; there is nothing here to hook.
+ */
+@EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
+public final class DemoAddonCategory {
+
+    /** Namespaced like any addon must be — {@code historystages} is reserved for the built-ins. */
+    public static final String CATEGORY_ID = "hsdemo:relics";
+
+    private static final String ENABLED_PROPERTY = "historystages.demoCategory";
+
+    private DemoAddonCategory() {}
+
+    public static boolean enabled() {
+        return Boolean.getBoolean(ENABLED_PROPERTY);
+    }
+
+    @SubscribeEvent
+    public static void onRegisterCategories(RegisterLockCategoriesEvent event) {
+        if (!enabled()) return;
+
+        event.register(AddonLockCategory.<String>builder(CATEGORY_ID)
+                .tabLangKey("editor.historystages.demo.tab.relics")
+                .tooltipLangKey("editor.historystages.demo.tooltip.relics")
+                .storage(CategoryStorage.gson(String.class))
+                .matcher(String.class, String::equals)
+                .build());
+    }
+
+    /**
+     * What a maintainer may pick from. A real addon would ask its own registry; this makes up
+     * enough rows that searching and scrolling are worth trying.
+     */
+    public static List<String> candidateRelics() {
+        List<String> relics = new ArrayList<>(List.of(
+                "hsdemo:amber_pendant", "hsdemo:bone_flute", "hsdemo:cracked_seal",
+                "hsdemo:dusty_ledger", "hsdemo:ember_shard"));
+        for (int i = 1; i <= 60; i++) {
+            relics.add(String.format("hsdemo:relic_%02d", i));
+        }
+        return relics;
+    }
+}

@@ -91,6 +91,10 @@ neoForge {
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+
+            // Adds the stand-in addon category so the addon path can be exercised in the dev
+            // client. Nothing ships with it: without this property the demo never registers.
+            systemProperty 'historystages.demoCategory', 'true'
         }
 
         server {
