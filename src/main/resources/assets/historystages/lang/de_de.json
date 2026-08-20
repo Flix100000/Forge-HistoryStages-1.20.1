@@ -1012,6 +1012,7 @@
   "editor.historystages.auto_trigger.no_matches": "Keine Trigger passen zur aktuellen Suche / zum Filter.",
   "editor.historystages.auto_trigger.search": "Trigger suchen...",
 
+  "editor.historystages.demo.auto_trigger.relic_found": "Relikt gefunden (Demo)",
   "editor.historystages.auto_trigger.type.unknown": "Unbekannt",
   "editor.historystages.auto_trigger.type.biome": "Biom",
   "editor.historystages.auto_trigger.type.structure": "Struktur",

@@ -28,6 +28,9 @@ public final class DemoAddonCategory {
     /** Namespaced like any addon must be — {@code historystages} is reserved for the built-ins. */
     public static final String CATEGORY_ID = "hsdemo:relics";
 
+    /** The stand-in addon's own auto-trigger type. Namespaced like any addon's must be. */
+    public static final String TRIGGER_TYPE = "hsdemo:relic_found";
+
     private static final String ENABLED_PROPERTY = "historystages.demoCategory";
 
     private DemoAddonCategory() {}
@@ -46,6 +49,13 @@ public final class DemoAddonCategory {
                 .storage(CategoryStorage.gson(String.class))
                 .matcher(String.class, String::equals)
                 .build());
+    }
+
+    @SubscribeEvent
+    public static void onRegisterTriggerTypes(
+            net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent event) {
+        if (!enabled()) return;
+        event.register(TRIGGER_TYPE, RelicFoundTrigger.class);
     }
 
     /**

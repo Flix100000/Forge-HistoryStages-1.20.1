@@ -28,6 +28,9 @@ import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditor;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
@@ -72,6 +75,28 @@ public class AutoTriggerEditorScreen extends Screen {
     private static final int ADD_POPUP_PAD = 2;
 
     private static final TriggerType[] TYPES = TriggerType.values();
+
+    /**
+     * A row in the add menu: a label and what happens when it is clicked. Built-in types and types
+     * another mod registered both become one of these, so the menu stops being a fixed list.
+     */
+    private record AddableTrigger(String label, Runnable open) {}
+
+    /** Built-ins first, in their long-standing order, then whatever addons registered. */
+    private List<AddableTrigger> addableTriggers() {
+        List<AddableTrigger> rows = new ArrayList<>(TYPES.length);
+        for (TriggerType type : TYPES) {
+            rows.add(new AddableTrigger(typeLabel(type), () -> openPickerFor(type)));
+        }
+        for (TriggerEditor editor : TriggerEditors.all()) {
+            rows.add(new AddableTrigger(
+                    Component.translatable(editor.labelLangKey()).getString(),
+                    () -> showAbstract(new GenericIdPicker(editor.searchPlaceholderLangKey(),
+                            editor::candidates, editor.placingInto(this::placeTrigger), null),
+                            null, false)));
+        }
+        return rows;
+    }
 
     private final Screen parent;
     private final AutoTrigger trigger;
@@ -503,7 +528,7 @@ public class AutoTriggerEditorScreen extends Screen {
             int w = this.font.width(typeLabel(t)) + 16;
             if (w > pw) pw = w;
         }
-        int ph = TYPES.length * ADD_ROW_H + ADD_POPUP_PAD * 2;
+        int ph = addableTriggers().size() * ADD_ROW_H + ADD_POPUP_PAD * 2;
         // Right-aligned with the button, which sits against the screen's right edge.
         int px = addBtnX + addBtnW - pw;
         int py = addBtnY + ADD_BTN_H + 2;
@@ -531,13 +556,14 @@ public class AutoTriggerEditorScreen extends Screen {
 
         if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < addBtnY)) return;
 
-        for (int i = 0; i < TYPES.length; i++) {
+        List<AddableTrigger> rows = addableTriggers();
+        for (int i = 0; i < rows.size(); i++) {
             int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
             boolean hov = addDropdownOpen && isOver(mx, my, px, rowY, pw, ADD_ROW_H);
             float rh = Ease.outCubic(addRowHover.computeIfAbsent(i, k -> new Anim())
                     .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
             DropdownChrome.drawRowHighlight(g, px + 1, rowY, pw - 2, ADD_ROW_H, rh);
-            g.drawString(this.font, typeLabel(TYPES[i]), px + 5 + Math.round(rh * 2.0f), rowY + 5,
+            g.drawString(this.font, rows.get(i).label(), px + 5 + Math.round(rh * 2.0f), rowY + 5,
                     0xFFEEEEEE, false);
         }
         DropdownChrome.end(g);
@@ -721,13 +747,14 @@ public class AutoTriggerEditorScreen extends Screen {
         }
         int[] geom = addPopupGeometry();
         int px = geom[0], py = geom[1], pw = geom[2];
-        for (int i = 0; i < TYPES.length; i++) {
+        List<AddableTrigger> clickable = addableTriggers();
+        for (int i = 0; i < clickable.size(); i++) {
             int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
             if (button == 0 && isOver((int) mouseX, (int) mouseY, px, rowY, pw, ADD_ROW_H)) {
                 addDropdownOpen = false;
                 editIndex = -1;
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                openPickerFor(TYPES[i]);
+                clickable.get(i).open();
                 return true;
             }
         }
