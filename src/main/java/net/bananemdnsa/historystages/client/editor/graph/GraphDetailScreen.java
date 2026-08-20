@@ -628,6 +628,8 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             case AdvancementTrigger a -> a.id();
             case PlaytimeTrigger p -> Component.translatable(
                     "editor.historystages.auto_trigger.playtime.days", p.days()).getString();
+            // Same as the editor: a trigger from an absent mod shows its type and nothing more.
+            default -> t.type();
         };
     }
 }

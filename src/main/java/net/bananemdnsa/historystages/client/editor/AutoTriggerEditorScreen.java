@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
@@ -470,6 +472,9 @@ public class AutoTriggerEditorScreen extends Screen {
             case BlockBreakTrigger bb -> bb.id();
             case AdvancementTrigger a -> a.id();
             case PlaytimeTrigger p -> Component.translatable("editor.historystages.auto_trigger.playtime.days", p.days()).getString();
+            // A trigger from a mod that is not loaded. Showing its type is the most this build
+            // can honestly say about it, and saying nothing would make the row look empty.
+            default -> t.type();
         };
     }
 
@@ -868,6 +873,11 @@ public class AutoTriggerEditorScreen extends Screen {
             case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case EntityTrigger e -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case PlaytimeTrigger p -> openPlaytimeDialog(idx, p.days());
+            // Nothing here knows what would satisfy an unparsed trigger, so there is no picker to
+            // open. The row stays visible and stays in the file; it just cannot be edited here.
+            default -> EditorToastHandler.show(EditorToast.Level.INFO,
+                    Component.translatable("editor.historystages.auto_trigger.unknown.title"),
+                    Component.translatable("editor.historystages.auto_trigger.unknown.message", t.type()));
         }
     }
 

@@ -9,20 +9,11 @@ package net.bananemdnsa.historystages.data.auto.conditions;
  * progress storage (NOT the JSON array index), so that editing a stage's
  * trigger list does not corrupt player progress.</p>
  *
- * <p>Note: this interface lives in the {@code conditions} subpackage rather
- * than {@code data.auto} so that the JLS sealed-permits-same-package rule
- * (for the unnamed module) is satisfied.</p>
+ <p>Deliberately not sealed. It was, and that was right while the set of triggers was closed;
+ * it stops being right the moment another mod may add one. {@link UnknownTrigger} also has to
+ * implement it, so that a trigger this build cannot parse still survives a load and a save.</p>
  */
-public sealed interface TriggerCondition permits
-        BiomeTrigger,
-        StructureTrigger,
-        DimensionTrigger,
-        ItemTrigger,
-        EntityTrigger,
-        BlockPlaceTrigger,
-        BlockBreakTrigger,
-        AdvancementTrigger,
-        PlaytimeTrigger {
+public interface TriggerCondition {
 
     /** Discriminator string used in JSON ({@code "biome"}, {@code "entity"}, ...). */
     String type();

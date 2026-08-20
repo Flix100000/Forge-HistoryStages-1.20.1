@@ -167,6 +167,8 @@
   "editor.historystages.demo.tab.relics": "Relikte (Demo)",
   "editor.historystages.demo.tooltip.relics": "Beispiel-Addon-Kategorie, nur mit -Dhistorystages.demoCategory=true vorhanden.",
   "editor.historystages.demo.search.relics": "Relikte suchen...",
+  "editor.historystages.auto_trigger.unknown.title": "Trigger nicht bearbeitbar",
+  "editor.historystages.auto_trigger.unknown.message": ""%s" stammt aus einer nicht geladenen Mod. Er bleibt unverändert in der Datei.",
   "editor.historystages.search.placeholder.biomes": "Biome suchen...",
   "editor.historystages.search.placeholder.biome_tags": "Biom-Tags suchen...",
   "editor.historystages.search.placeholder.effects": "Effekte suchen...",

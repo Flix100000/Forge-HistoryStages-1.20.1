@@ -99,6 +99,9 @@ public class HistoryStages {
                     net.neoforged.fml.ModLoader.postEvent(
                             new net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent());
                     net.bananemdnsa.historystages.data.lock.category.LockCategories.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent());
+                    net.bananemdnsa.historystages.data.auto.TriggerTypes.freeze();
 
                     // Logged here rather than inside freeze(): LockCategories is unit-tested, and
                     // the test runtime classpath has no Minecraft or NeoForge on it. This line is

@@ -2394,6 +2394,14 @@ public class StageManager {
                     DebugLogger.warn("Invalid AutoTrigger Days", "Playtime trigger in stage '" + stageId + "' has days=" + pt.days() + ". Negative values are clamped to 0 at runtime.");
                 }
             }
+            // Not a warning: a trigger whose mod is absent is expected, is kept untouched, and
+            // simply never fires. Calling it invalid would push someone to delete it.
+            default -> {
+                String msg = "Stage '" + stageId + "' has an auto_trigger of type '" + typeName
+                        + "' that no loaded mod understands. It is kept unchanged and never fires.";
+                addMessage(MessageLevel.INFO, msg);
+                DebugLogger.info("Unknown AutoTrigger", msg);
+            }
         }
     }
 
