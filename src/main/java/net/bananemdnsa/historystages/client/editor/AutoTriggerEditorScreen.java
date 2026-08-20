@@ -79,8 +79,12 @@ public class AutoTriggerEditorScreen extends Screen {
     /**
      * A row in the add menu: a label and what happens when it is clicked. Built-in types and types
      * another mod registered both become one of these, so the menu stops being a fixed list.
+     *
+     * <p>The component is deliberately not called {@code open}: {@code row.open()} would then read
+     * as opening the picker while actually being the accessor, and dropping the returned Runnable
+     * is silent. That is exactly how every row in this menu came to do nothing.
      */
-    private record AddableTrigger(String label, Runnable open) {}
+    private record AddableTrigger(String label, Runnable onClick) {}
 
     /** Built-ins first, in their long-standing order, then whatever addons registered. */
     private List<AddableTrigger> addableTriggers() {
@@ -754,7 +758,7 @@ public class AutoTriggerEditorScreen extends Screen {
                 addDropdownOpen = false;
                 editIndex = -1;
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                clickable.get(i).open();
+                clickable.get(i).onClick().run();
                 return true;
             }
         }
