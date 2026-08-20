@@ -22,6 +22,8 @@ import net.bananemdnsa.historystages.data.lock.GenerationPhase;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
+import net.bananemdnsa.historystages.client.editor.tab.CategoryEditor;
+import net.bananemdnsa.historystages.client.editor.tab.CategoryEditors;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityTabsState;
@@ -517,6 +519,18 @@ public class StageDetailScreen extends Screen {
         modTabLocal.load(e);
         this.modTab = modTabLocal;
         this.categoryTabs.put(2, modTabLocal);
+
+        // Addon categories take their place in the strip after the built-ins, provided they
+        // registered an editor. One without an editor still gates and still stores — it simply
+        // cannot be edited in game, which is a coherent state rather than an error.
+        int nextTabIndex = this.categoryTabs.size();
+        for (String addonCategoryId : LockCategories.addonIds()) {
+            CategoryEditor editor = CategoryEditors.byCategory(addonCategoryId);
+            if (editor == null) continue;
+            CategoryTab addonTab = editor.createTab(() -> { hasChanges = true; updateMaxScroll(); });
+            addonTab.load(e);
+            this.categoryTabs.put(nextTabIndex++, addonTab);
+        }
         this.editDependencies = e.getDependencies().stream()
                 .map(DependencyGroup::copy)
                 .collect(java.util.stream.Collectors.toList());
