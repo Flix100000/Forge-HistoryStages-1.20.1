@@ -41,6 +41,7 @@ public final class DemoAddonCategoryEditor {
                 "editor.historystages.demo.auto_trigger.relic_found",
                 "editor.historystages.demo.search.relics",
                 DemoAddonCategory::candidateRelics,
-                RelicFoundTrigger::new));
+                RelicFoundTrigger::new,
+                t -> t instanceof RelicFoundTrigger r ? r.relic() : ""));
     }
 }

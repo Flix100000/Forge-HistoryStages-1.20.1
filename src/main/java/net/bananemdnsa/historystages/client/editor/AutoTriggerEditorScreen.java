@@ -31,8 +31,8 @@ import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditor;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
@@ -404,8 +404,8 @@ public class AutoTriggerEditorScreen extends Screen {
             TriggerCondition t = triggers.get(i);
             if (activeType != null && !t.type().equals(activeType)) continue;
             if (!query.isEmpty()) {
-                String value = triggerValueText(t).toLowerCase();
-                String typeName = Component.translatable(triggerTypeKey(t)).getString().toLowerCase();
+                String value = TriggerLabels.valueText(t).toLowerCase();
+                String typeName = TriggerLabels.typeLabel(t).toLowerCase();
                 if (!value.contains(query) && !typeName.contains(query)) continue;
             }
             visibleIndices.add(i);
@@ -440,7 +440,7 @@ public class AutoTriggerEditorScreen extends Screen {
         renderTriggerIcon(g, t, iconX, iconY);
 
         // Type name
-        String typeName = Component.translatable(triggerTypeKey(t)).getString();
+        String typeName = TriggerLabels.typeLabel(t);
         // Clipped to its column, exactly as the value below is: the type name is not ours to
         // bound once other mods can add one.
         if (this.font.width(typeName) > TYPE_COL_W - 6) {
@@ -449,7 +449,7 @@ public class AutoTriggerEditorScreen extends Screen {
         g.drawString(this.font, typeName, iconX + ICON_W + 4, top + 7, 0xFFCCCCCC, false);
 
         // Value
-        String value = triggerValueText(t);
+        String value = TriggerLabels.valueText(t);
         int valueX = iconX + ICON_W + 4 + TYPE_COL_W;
         int valueAvail = (listX + listW - 12) - valueX;
         if (this.font.width(value) > valueAvail) {
@@ -513,30 +513,6 @@ public class AutoTriggerEditorScreen extends Screen {
      * next column. Such a row says "unknown" and puts the actual type in the value column, where
      * it is both readable and truncated.
      */
-    private static String triggerTypeKey(TriggerCondition t) {
-        if (t instanceof UnknownTrigger) return "editor.historystages.auto_trigger.type.unknown";
-        return "editor.historystages.auto_trigger.type." + t.type();
-    }
-
-    private String triggerValueText(TriggerCondition t) {
-        return switch (t) {
-            case BiomeTrigger b -> b.id();
-            case StructureTrigger s -> s.id();
-            case DimensionTrigger d -> d.id();
-            case ItemTrigger i -> i.id();
-            case EntityTrigger e -> e.id() + " ("
-                    + Component.translatable("editor.historystages.auto_trigger.entity." + e.resolvedSubMode().serialize()).getString()
-                    + ")";
-            case BlockPlaceTrigger bp -> bp.id();
-            case BlockBreakTrigger bb -> bb.id();
-            case AdvancementTrigger a -> a.id();
-            case PlaytimeTrigger p -> Component.translatable("editor.historystages.auto_trigger.playtime.days", p.days()).getString();
-            // A trigger from a mod that is not loaded: the type is the informative half, and it
-            // goes here rather than in the type column, which is narrow and now clipped.
-            default -> t.type();
-        };
-    }
-
     /**
      * Geometry of the add popup as {x, y, w, h}. Widened to its longest type label and flipped
      * above the button when it would run off the bottom, so no row ends up unreachable.

@@ -9,17 +9,8 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.auto.CombineMode;
-import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
@@ -398,7 +389,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             out.add(new LineRow(line, HINT_COLOR, LINE_H));
         }
         for (TriggerCondition t : trigger.getTriggers()) {
-            String line = Component.translatable(triggerTypeKey(t)).getString() + ": " + triggerValueText(t);
+            String line = TriggerLabels.typeLabel(t) + ": " + TriggerLabels.valueText(t);
             for (FormattedCharSequence wrapped : font.split(Component.literal(line), textWidth)) {
                 out.add(new LineRow(wrapped, TEXT_COLOR, LINE_H));
             }
@@ -609,37 +600,4 @@ public final class GraphDetailScreen extends AbstractModalScreen {
         };
     }
 
-    /**
-     * The lang key naming a trigger's kind.
-     *
-     * <p>Built-in types each have their own; a type from a mod that is not loaded has none, and
-     * building one from its id would print the raw key — long enough to run straight through the
-     * next column. Such a row says "unknown" and puts the actual type in the value column, where
-     * it is both readable and truncated.
-     */
-    private static String triggerTypeKey(TriggerCondition t) {
-        if (t instanceof UnknownTrigger) return "editor.historystages.auto_trigger.type.unknown";
-        return "editor.historystages.auto_trigger.type." + t.type();
-    }
-
-    /** Mirrors {@code AutoTriggerEditorScreen.triggerValueText}, as the docked panel did. */
-    private static String triggerValueText(TriggerCondition t) {
-        return switch (t) {
-            case BiomeTrigger b -> b.id();
-            case StructureTrigger s -> s.id();
-            case DimensionTrigger d -> d.id();
-            case ItemTrigger i -> i.id();
-            case EntityTrigger e -> e.id() + " ("
-                    + Component.translatable("editor.historystages.auto_trigger.entity."
-                            + e.resolvedSubMode().serialize()).getString()
-                    + ")";
-            case BlockPlaceTrigger bp -> bp.id();
-            case BlockBreakTrigger bb -> bb.id();
-            case AdvancementTrigger a -> a.id();
-            case PlaytimeTrigger p -> Component.translatable(
-                    "editor.historystages.auto_trigger.playtime.days", p.days()).getString();
-            // Same as the editor: a trigger from an absent mod shows its type and nothing more.
-            default -> t.type();
-        };
-    }
 }

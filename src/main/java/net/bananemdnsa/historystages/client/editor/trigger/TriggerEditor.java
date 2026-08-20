@@ -35,6 +35,17 @@ public interface TriggerEditor {
     TriggerCondition create(String chosenId);
 
     /**
+     * What this trigger holds, for the value column of a trigger list. The counterpart to
+     * {@link #create(String)}: only the addon can read its own trigger back out.
+     *
+     * <p>Empty by default, which lists render as the bare type — the honest answer when nothing
+     * here can say more.
+     */
+    default String valueText(TriggerCondition trigger) {
+        return "";
+    }
+
+    /**
      * The free tier: a searchable list of ids, and a trigger built from whichever is picked.
      *
      * @param type          the type string this was registered under
@@ -46,12 +57,26 @@ public interface TriggerEditor {
     static TriggerEditor ofIdList(String type, String labelLangKey, String searchLangKey,
                                   Supplier<Collection<String>> candidates,
                                   Function<String, TriggerCondition> factory) {
+        return ofIdList(type, labelLangKey, searchLangKey, candidates, factory, t -> "");
+    }
+
+    /**
+     * The same, plus the way back: the id a stored trigger was built from, so a list can show it
+     * instead of repeating the type.
+     *
+     * @param reader reads the chosen id back out of a trigger of this type
+     */
+    static TriggerEditor ofIdList(String type, String labelLangKey, String searchLangKey,
+                                  Supplier<Collection<String>> candidates,
+                                  Function<String, TriggerCondition> factory,
+                                  Function<TriggerCondition, String> reader) {
         return new TriggerEditor() {
             @Override public String type() { return type; }
             @Override public String labelLangKey() { return labelLangKey; }
             @Override public String searchPlaceholderLangKey() { return searchLangKey; }
             @Override public Collection<String> candidates() { return candidates.get(); }
             @Override public TriggerCondition create(String chosenId) { return factory.apply(chosenId); }
+            @Override public String valueText(TriggerCondition trigger) { return reader.apply(trigger); }
         };
     }
 
