@@ -102,7 +102,7 @@ public class StageManager {
             "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
             "mode", "auto_trigger", "temporary", "hidden_display", "lose_on_death",
-            "scroll_completion", "addons"
+            "scroll_completion", "addons", "addon_settings"
     );
 
 
@@ -1607,6 +1607,7 @@ public class StageManager {
 
                 if (entry != null) {
                     stripUnsupportedIndividualCategories(id, entry);
+                    warnUnsupportedScopeSettingsGroups(id, entry);
                     validateAndAddIndividual(id, entry);
                     // See load(): a rejected stage leaves no path entry behind.
                     if (INDIVIDUAL_STAGES.containsKey(id)) INDIVIDUAL_STAGE_PATHS.put(id, folder);
@@ -1710,6 +1711,33 @@ public class StageManager {
             addMessage(MessageLevel.ERROR, msg);
             DebugLogger.error("Individual Stage Loading", msg);
             entry.getEntities().getSpawnlock().clear();
+        }
+    }
+
+    /**
+     * Warns about (but does not remove) an addon settings block whose group does not support
+     * {@link net.bananemdnsa.historystages.data.lock.engine.StageScope#INDIVIDUAL}.
+     *
+     * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
+     * deliberately not deleting anything: that method operates on this mod's own built-in
+     * fields, where the meaning is fixed. Here the data belongs to another mod, and its scope
+     * declaration may change on the addon's next update — ignoring the block is reversible,
+     * deleting it is not. A group id that resolves to nothing (addon not installed) is skipped
+     * silently; that is not something to report on every world load.
+     */
+    private static void warnUnsupportedScopeSettingsGroups(String stageId, StageEntry entry) {
+        for (String groupId : entry.addonSettingsGroupIds()) {
+            net.bananemdnsa.historystages.data.settings.StageSettingsGroup group =
+                    net.bananemdnsa.historystages.data.settings.StageSettingsGroups.byId(groupId);
+            if (group == null) continue;
+            if (group.supportedScopes().contains(
+                    net.bananemdnsa.historystages.data.lock.engine.StageScope.INDIVIDUAL)) {
+                continue;
+            }
+            String msg = "Individual stage '" + stageId + "' has settings for group '" + groupId
+                    + "', which does not support individual stages. Values are ignored but kept in the file.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Individual Stage Loading", msg);
         }
     }
 

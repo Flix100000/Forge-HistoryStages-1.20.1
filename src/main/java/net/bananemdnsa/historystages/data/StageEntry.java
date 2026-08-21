@@ -101,6 +101,20 @@ public class StageEntry {
     @SerializedName("addons")
     private Map<String, JsonElement> addons;
 
+    /**
+     * Raw storage for settings groups registered by other mods, keyed by group id.
+     *
+     * <p>Deliberately {@link JsonElement} for the same reason as {@link #addons}: a stage file
+     * must survive being loaded and saved by an instance that does not have the owning addon
+     * installed. A separate block rather than a corner of {@code addons} because that block has
+     * one documented owner — the lock categories — and a group id that happened to match a
+     * category id would silently overwrite it.
+     *
+     * <p>Null rather than empty when unused, so a stage with no addon settings gains no key.
+     */
+    @SerializedName("addon_settings")
+    private Map<String, JsonElement> addonSettings;
+
     public StageEntry() {
         this.items = new ArrayList<>();
         this.tags = new ArrayList<>();
@@ -311,6 +325,30 @@ public class StageEntry {
         return addons == null ? Set.of() : Set.copyOf(addons.keySet());
     }
 
+    /** This group's raw values, or null when the stage has none. */
+    @Nullable
+    public JsonElement addonSettings(String groupId) {
+        return addonSettings == null ? null : addonSettings.get(groupId);
+    }
+
+    /** Replaces one group's raw values. A null element removes the group from the stage. */
+    public void setAddonSettings(String groupId, @Nullable JsonElement values) {
+        if (values == null) {
+            if (addonSettings != null) {
+                addonSettings.remove(groupId);
+                if (addonSettings.isEmpty()) addonSettings = null;
+            }
+            return;
+        }
+        if (addonSettings == null) addonSettings = new LinkedHashMap<>();
+        addonSettings.put(groupId, values);
+    }
+
+    /** Every settings-group id this stage carries values for, installed or not. */
+    public Set<String> addonSettingsGroupIds() {
+        return addonSettings == null ? Set.of() : Set.copyOf(addonSettings.keySet());
+    }
+
     // --- Setters ---
 
     public void setDisplayName(String displayName) { this.displayName = displayName; }
@@ -504,6 +542,13 @@ public class StageEntry {
                 addonsCopy.put(e.getKey(), e.getValue().deepCopy());
             }
             copy.addons = addonsCopy;
+        }
+        if (this.addonSettings != null) {
+            Map<String, JsonElement> settingsCopy = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> e : this.addonSettings.entrySet()) {
+                settingsCopy.put(e.getKey(), e.getValue().deepCopy());
+            }
+            copy.addonSettings = settingsCopy;
         }
         return copy;
     }
