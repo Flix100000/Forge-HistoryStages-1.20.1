@@ -20,6 +20,7 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.GenerationPhase;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryEditor;
@@ -33,6 +34,9 @@ import net.bananemdnsa.historystages.client.editor.tab.StructureCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.StringListCategoryTab;
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
 import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.data.settings.SettingsValues;
+import net.bananemdnsa.historystages.data.settings.StageSettingsGroup;
+import net.bananemdnsa.historystages.data.settings.StageSettingsGroups;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
@@ -72,6 +76,7 @@ import org.joml.Quaternionf;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import java.util.ArrayList;
@@ -102,6 +107,8 @@ public class StageDetailScreen extends Screen {
     private String editScrollCompletion = "";
     private net.bananemdnsa.historystages.data.display.HiddenDisplayConfig editHiddenDisplay;
     private boolean editLoseOnDeath;
+    /** Addon settings for this stage, keyed by group id. Only ever holds installed groups. */
+    private Map<String, SettingsValues> editAddonSettings = new LinkedHashMap<>();
     // Per-entry REPLACE text overrides (entry index → text); absent = follow stage default.
     /**
      * Tabs already driven by their lock category, keyed by tab index. Anything absent here is
@@ -530,6 +537,10 @@ public class StageDetailScreen extends Screen {
             CategoryTab addonTab = editor.createTab(() -> { hasChanges = true; updateMaxScroll(); });
             addonTab.load(e);
             this.categoryTabs.put(nextTabIndex++, addonTab);
+        }
+        StageScope loadScope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
+        for (StageSettingsGroup group : StageSettingsGroups.all()) {
+            this.editAddonSettings.put(group.id(), group.load(e, loadScope));
         }
         this.editDependencies = e.getDependencies().stream()
                 .map(DependencyGroup::copy)
@@ -3131,8 +3142,10 @@ public class StageDetailScreen extends Screen {
         this.minecraft.setScreen(new StageSettingsScreen(this,
                 editStageId, editDisplayName, editResearchTime,
                 editMinPedestalTier, editPedestalTierMode, editMode, editAutoTrigger, editTemporary,
-                editHiddenDisplay.copy(), editLoseOnDeath, editScrollCompletion, isNewStage, isIndividual,
-                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger, newTemporary, newHidden, newLoseOnDeath, newScrollCompletion) -> {
+                editHiddenDisplay.copy(), editLoseOnDeath, editScrollCompletion, editAddonSettings,
+                isNewStage, isIndividual,
+                (newId, newName, newTime, newTier, newTierMode, newStageMode, newAutoTrigger,
+                 newTemporary, newHidden, newLoseOnDeath, newScrollCompletion, newAddonSettings) -> {
                     editStageId = newId;
                     editDisplayName = newName;
                     editResearchTime = newTime;
@@ -3144,6 +3157,7 @@ public class StageDetailScreen extends Screen {
                     editHiddenDisplay = newHidden != null ? newHidden : new net.bananemdnsa.historystages.data.display.HiddenDisplayConfig();
                     editLoseOnDeath = newLoseOnDeath;
                     editScrollCompletion = newScrollCompletion == null ? "" : newScrollCompletion;
+                    editAddonSettings = newAddonSettings;
                     hasChanges = true;
                     // Saving in a sub-screen persists the whole stage, so the user never has to
                     // come back here and press Save again.
@@ -3332,6 +3346,9 @@ public class StageDetailScreen extends Screen {
         newEntry.setDependencies(editDependencies);
         for (CategoryTab tab : categoryTabs.values()) {
             tab.store(newEntry);
+        }
+        for (StageSettingsGroup group : StageSettingsGroups.all()) {
+            group.store(newEntry, editAddonSettings);
         }
         return newEntry;
     }
