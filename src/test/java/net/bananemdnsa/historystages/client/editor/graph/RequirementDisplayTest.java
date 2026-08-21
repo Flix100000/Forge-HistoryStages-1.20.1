@@ -1,0 +1,61 @@
+package net.bananemdnsa.historystages.client.editor.graph;
+
+import net.bananemdnsa.historystages.client.editor.graph.RequirementDisplay.Kind;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class RequirementDisplayTest {
+
+    @Test
+    void itemsAreDepositedRegardlessOfTheDepositFlag() {
+        // Items always come from deposited NBT, and DependencyChecker never sets canDeposit on
+        // them — so the type alone has to decide.
+        assertEquals(Kind.DEPOSITED, RequirementDisplay.kindOf("item", false));
+        assertEquals(Kind.DEPOSITED, RequirementDisplay.kindOf("item", true));
+    }
+
+    @Test
+    void consumingXpIsDepositedButPlainXpIsCounted() {
+        assertEquals(Kind.DEPOSITED, RequirementDisplay.kindOf("xp_level", true));
+        assertEquals(Kind.COUNTED, RequirementDisplay.kindOf("xp_level", false));
+    }
+
+    @Test
+    void livePlayerMinimumsAreCounted() {
+        assertEquals(Kind.COUNTED, RequirementDisplay.kindOf("entity_kill", false));
+        assertEquals(Kind.COUNTED, RequirementDisplay.kindOf("stat", false));
+    }
+
+    @Test
+    void comparisonAndYesNoRequirementsAreBinary() {
+        // Scoreboard is live but carries an operator, so a fraction would misread it.
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("scoreboard", false));
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("stage", false));
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("individual_stage", false));
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("advancement", false));
+    }
+
+    @Test
+    void unknownTypesFallBackToTheSafestPresentation() {
+        // A type this view has never heard of gets the glyph and no invented figures.
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("something_new", false));
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf(null, false));
+    }
+
+    @Test
+    void onlyDepositedRequirementsHideTheirStatus() {
+        assertFalse(RequirementDisplay.showsStatus(Kind.DEPOSITED));
+        assertTrue(RequirementDisplay.showsStatus(Kind.COUNTED));
+        assertTrue(RequirementDisplay.showsStatus(Kind.BINARY));
+    }
+
+    @Test
+    void onlyCountedRequirementsShowAnAmount() {
+        assertTrue(RequirementDisplay.showsAmount(Kind.COUNTED));
+        assertFalse(RequirementDisplay.showsAmount(Kind.DEPOSITED));
+        assertFalse(RequirementDisplay.showsAmount(Kind.BINARY));
+    }
+}
