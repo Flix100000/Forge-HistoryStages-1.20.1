@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.data.auto;
 
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.neoforged.bus.api.Event;
 import net.neoforged.fml.event.IModBusEvent;
 
@@ -13,12 +14,22 @@ import net.neoforged.fml.event.IModBusEvent;
  *
  * <pre>{@code
  * modEventBus.addListener(RegisterTriggerTypesEvent.class, event ->
- *         event.register("mymod:relic_found", RelicFoundTrigger.class));
+ *         event.register("mymod:relic_found", RelicFoundTrigger.class, StageScope.GLOBAL));
  * }</pre>
  */
 public class RegisterTriggerTypesEvent extends Event implements IModBusEvent {
 
     public void register(String type, Class<? extends TriggerCondition> conditionClass) {
         TriggerTypes.register(type, conditionClass);
+    }
+
+    /**
+     * Registers a trigger type restricted to the given scopes. See
+     * {@link TriggerTypes#register(String, Class, StageScope...)} for what that means and why
+     * both scopes apply by default.
+     */
+    public void register(String type, Class<? extends TriggerCondition> conditionClass,
+                         StageScope... scopes) {
+        TriggerTypes.register(type, conditionClass, scopes);
     }
 }

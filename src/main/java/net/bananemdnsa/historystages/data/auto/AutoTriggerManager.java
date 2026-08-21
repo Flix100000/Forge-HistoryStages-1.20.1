@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerGlobalData;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerProgressData;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
@@ -47,12 +48,17 @@ public final class AutoTriggerManager {
     }
 
     private static void addFrom(Map<String, StageEntry> stages, boolean isIndividual) {
+        StageScope scope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
         for (var entry : stages.entrySet()) {
             StageEntry se = entry.getValue();
             if (!se.getMode().usesAutoTrigger()) continue; // AUTO or TEMPORARY
             AutoTrigger at = se.getAutoTrigger();
             if (at == null || at.isEmpty()) continue;
             for (TriggerCondition t : at.getTriggers()) {
+                // A type that declared it does not apply here must not fire here either.
+                // Without this the declaration would only hide rows in the editor, which reads
+                // as a guarantee while being none.
+                if (!TriggerTypes.scopesOf(t.type()).contains(scope)) continue;
                 INDEX.computeIfAbsent(t.type(), k -> new ArrayList<>())
                         .add(new IndexedTrigger(entry.getKey(), isIndividual, t));
             }

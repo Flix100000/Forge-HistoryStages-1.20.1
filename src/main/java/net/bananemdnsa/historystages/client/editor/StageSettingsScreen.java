@@ -448,7 +448,8 @@ public class StageSettingsScreen extends Screen {
                                 if (autoTriggerButton != null) {
                                     autoTriggerButton.setMessage(buildAutoTriggerLabel());
                                 }
-                            }, lockSnapshot, this::save));
+                            }, lockSnapshot, this::save,
+                            isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL));
                 },
                 cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
         addContentWidget(autoTriggerButton);

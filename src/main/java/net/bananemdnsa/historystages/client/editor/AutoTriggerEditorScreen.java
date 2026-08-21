@@ -33,6 +33,8 @@ import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditor;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.auto.TriggerTypes;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
@@ -89,10 +91,13 @@ public class AutoTriggerEditorScreen extends Screen {
     /** Built-ins first, in their long-standing order, then whatever addons registered. */
     private List<AddableTrigger> addableTriggers() {
         List<AddableTrigger> rows = new ArrayList<>(TYPES.length);
+        // Not filtered by scope: all nine built-ins support both scopes (see TriggerTypes), so a
+        // filter here would be a no-op that only invites a later reader to wonder what it guards.
         for (TriggerType type : TYPES) {
             rows.add(new AddableTrigger(typeLabel(type), () -> openPickerFor(type)));
         }
         for (TriggerEditor editor : TriggerEditors.all()) {
+            if (!TriggerTypes.scopesOf(editor.type()).contains(scope)) continue;
             rows.add(new AddableTrigger(
                     Component.translatable(editor.labelLangKey()).getString(),
                     () -> openAddonPicker(editor)));
@@ -124,6 +129,8 @@ public class AutoTriggerEditorScreen extends Screen {
     private final Supplier<StageEntry> lockSnapshot;
     /** Persists the whole stage from the parent screen. May be null. */
     private final Runnable onPersist;
+    /** Scope of the stage being edited — narrows the add menu to types that apply here. */
+    private final StageScope scope;
 
     // Layout
     private int listX, listY, listW, listH;
@@ -161,26 +168,30 @@ public class AutoTriggerEditorScreen extends Screen {
     // Context menu
     private ContextMenu contextMenu = new ContextMenu();
 
-    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger, Consumer<AutoTrigger> onChanged) {
-        this(parent, trigger, onChanged, null, null);
-    }
-
-    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
-                                   Consumer<AutoTrigger> onChanged,
-                                   Supplier<StageEntry> lockSnapshot) {
-        this(parent, trigger, onChanged, lockSnapshot, null);
+    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger, Consumer<AutoTrigger> onChanged,
+                                   StageScope scope) {
+        this(parent, trigger, onChanged, null, null, scope);
     }
 
     public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
                                    Consumer<AutoTrigger> onChanged,
                                    Supplier<StageEntry> lockSnapshot,
-                                   Runnable onPersist) {
+                                   StageScope scope) {
+        this(parent, trigger, onChanged, lockSnapshot, null, scope);
+    }
+
+    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
+                                   Consumer<AutoTrigger> onChanged,
+                                   Supplier<StageEntry> lockSnapshot,
+                                   Runnable onPersist,
+                                   StageScope scope) {
         super(Component.translatable("editor.historystages.auto_trigger.title"));
         this.parent = parent;
         this.trigger = trigger;
         this.onChanged = onChanged;
         this.lockSnapshot = lockSnapshot;
         this.onPersist = onPersist;
+        this.scope = scope;
     }
 
     @Override

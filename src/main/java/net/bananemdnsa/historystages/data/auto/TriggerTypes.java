@@ -1,8 +1,10 @@
 package net.bananemdnsa.historystages.data.auto;
 
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
@@ -14,6 +16,7 @@ import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -32,6 +35,13 @@ public final class TriggerTypes {
     private static final Object LOCK = new Object();
     private static final Map<String, Class<? extends TriggerCondition>> BY_TYPE = new LinkedHashMap<>();
     private static final Map<String, Class<? extends TriggerCondition>> BUILT_IN = new LinkedHashMap<>();
+
+    /**
+     * Types that declared a narrower set of scopes. A type absent from here supports both, which
+     * is what makes one rule cover the built-ins (they never go through register), a two-argument
+     * registration, and a type from an addon that is not installed.
+     */
+    private static final Map<String, Set<StageScope>> DECLARED_SCOPES = new LinkedHashMap<>();
 
     private static boolean frozen;
 
@@ -76,6 +86,26 @@ public final class TriggerTypes {
         }
     }
 
+    /**
+     * Adds a trigger type restricted to the given scopes. Legal only while
+     * {@link RegisterTriggerTypesEvent} is being dispatched, same as the two-argument form.
+     *
+     * @param type            the discriminator, e.g. {@code "mymod:relic_found"}
+     * @param conditionClass  a Gson-deserialisable class implementing {@link TriggerCondition}
+     * @param scopes          the scopes this type applies to; must not be empty
+     */
+    public static void register(String type, Class<? extends TriggerCondition> conditionClass,
+                                StageScope... scopes) {
+        if (scopes.length == 0) {
+            throw new IllegalArgumentException("Trigger type '" + type
+                    + "' declares no scope; a type that applies nowhere can never fire.");
+        }
+        register(type, conditionClass);
+        synchronized (LOCK) {
+            DECLARED_SCOPES.put(type, Set.copyOf(Arrays.asList(scopes)));
+        }
+    }
+
     public static void freeze() {
         synchronized (LOCK) {
             frozen = true;
@@ -103,11 +133,29 @@ public final class TriggerTypes {
         }
     }
 
+    /** Both scopes unless the type declared otherwise — including for a type nothing knows. */
+    public static Set<StageScope> scopesOf(String type) {
+        synchronized (LOCK) {
+            Set<StageScope> declared = DECLARED_SCOPES.get(type);
+            return declared != null ? declared : Set.of(StageScope.GLOBAL, StageScope.INDIVIDUAL);
+        }
+    }
+
+    /** Every known type that applies to this scope, in the order {@link #allTypes()} uses. */
+    public static List<String> typesForScope(StageScope scope) {
+        synchronized (LOCK) {
+            return BY_TYPE.keySet().stream()
+                    .filter(type -> scopesOf(type).contains(scope))
+                    .toList();
+        }
+    }
+
     /** Test-only: drops addon registrations and reopens the window. */
     public static void resetForTesting() {
         synchronized (LOCK) {
             BY_TYPE.clear();
             BY_TYPE.putAll(BUILT_IN);
+            DECLARED_SCOPES.clear();
             frozen = false;
         }
     }

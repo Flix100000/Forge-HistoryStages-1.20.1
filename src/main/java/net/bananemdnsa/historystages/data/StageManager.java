@@ -1625,6 +1625,7 @@ public class StageManager {
                 if (entry != null) {
                     stripUnsupportedIndividualCategories(id, entry);
                     warnUnsupportedScopeSettingsGroups(id, entry);
+                    warnUnsupportedScopeTriggers(id, entry);
                     validateAndAddIndividual(id, entry);
                     // See load(): a rejected stage leaves no path entry behind.
                     if (INDIVIDUAL_STAGES.containsKey(id)) INDIVIDUAL_STAGE_PATHS.put(id, folder);
@@ -1753,6 +1754,33 @@ public class StageManager {
             }
             String msg = "Individual stage '" + stageId + "' has settings for group '" + groupId
                     + "', which does not support individual stages. Values are ignored but kept in the file.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Individual Stage Loading", msg);
+        }
+    }
+
+    /**
+     * Warns about (but does not remove) an auto-trigger whose type does not support
+     * {@link net.bananemdnsa.historystages.data.lock.engine.StageScope#INDIVIDUAL}.
+     *
+     * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
+     * deliberately not deleting anything, for the same reason {@link
+     * #warnUnsupportedScopeSettingsGroups}: the trigger type may belong to another mod whose
+     * scope declaration can change on its next update — ignoring the trigger is reversible,
+     * deleting it is not. A type that resolves to nothing (addon not installed) reports both
+     * scopes, so it never reaches the warning branch — that is not something to report on
+     * every world load.
+     */
+    private static void warnUnsupportedScopeTriggers(String stageId, StageEntry entry) {
+        if (!entry.getMode().usesAutoTrigger()) return;
+        AutoTrigger at = entry.getAutoTrigger();
+        if (at == null || at.isEmpty()) return;
+        for (TriggerCondition t : at.getTriggers()) {
+            if (net.bananemdnsa.historystages.data.auto.TriggerTypes.scopesOf(t.type()).contains(StageScope.INDIVIDUAL)) {
+                continue;
+            }
+            String msg = "Individual stage '" + stageId + "' has a trigger of type '" + t.type()
+                    + "', which does not support individual stages. Trigger is ignored but kept in the file.";
             addMessage(MessageLevel.WARN, msg);
             DebugLogger.warn("Individual Stage Loading", msg);
         }

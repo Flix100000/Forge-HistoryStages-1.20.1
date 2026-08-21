@@ -9,6 +9,10 @@ import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
  * signature derived only from its values, because player progress is stored against that hash
  * and must survive the stage being edited.
  *
+ * <p>Registered global-only ({@link DemoAddonCategory#onRegisterTriggerTypes}) purely to exercise
+ * the scope-narrowing rule at least once — not because finding a relic could not sensibly unlock
+ * an individual stage too. Do not copy the narrowing itself as a modelling example.
+ *
  * @param relic which relic, by the same ids the demo category offers
  */
 public record RelicFoundTrigger(String relic) implements TriggerCondition {
