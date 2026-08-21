@@ -19,6 +19,10 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          # Every compat dependency (Jade, Lootr, the FTB mods, Architectury) comes from
+          # cursemaven.com, which rate-limits the shared runner IPs — an uncached run asks for
+          # all of them and regularly gets HTTP 429 back. A cache hit never asks at all.
+          cache: 'gradle'
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
