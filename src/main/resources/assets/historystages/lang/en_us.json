@@ -82,6 +82,8 @@
   "editor.historystages.toast.individual_stage_saved.title": "Individual Stage Saved",
   "editor.historystages.toast.stage_save_failed.title": "Save Failed",
   "editor.historystages.toast.stage_save_failed.message": "Failed to save '%s'.",
+  "editor.historystages.toast.stage_changed_on_disk.title": "Stage Changed on Disk",
+  "editor.historystages.toast.stage_changed_on_disk.message": "'%s' was changed outside the editor. Save again to overwrite the file, or run /history reload to load the file version instead (discards your changes).",
   "editor.historystages.toast.stage_too_large.title": "Stage Too Large",
   "editor.historystages.toast.stage_too_large.message": "'%s' has too many entries to save. Split it into several stages or use item tags.",
   "editor.historystages.toast.stage_deleted.title": "Stage Deleted",

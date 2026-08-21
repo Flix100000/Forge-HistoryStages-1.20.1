@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.category.DualPhaseIndex;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -45,6 +46,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.jetbrains.annotations.Nullable;
 
 public class StageManager {
     // ConcurrentHashMap (not HashMap) so the render thread can iterate
@@ -158,7 +161,9 @@ public class StageManager {
             validateFileName(id, file.getName());
 
             try {
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                byte[] raw = java.nio.file.Files.readAllBytes(file.toPath());
+                StageFileGuard.recordLoaded(id, StageScope.GLOBAL, raw);
+                String content = new String(raw);
                 detectUnknownKeys(id, content);
 
                 StageEntry entry = GSON.fromJson(content, StageEntry.class);
@@ -1530,6 +1535,16 @@ public class StageManager {
             STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
+            // Re-read what actually landed on disk so the overwrite guard stays correct even
+            // if a future caller forgets to reload. The save already succeeded, so a failure
+            // here must not turn it into a reported failure.
+            try {
+                StageFileGuard.recordLoaded(stageId, StageScope.GLOBAL,
+                        java.nio.file.Files.readAllBytes(file.toPath()));
+            } catch (Exception e) {
+                DebugLogger.error("Stage Saving", "Failed to refresh overwrite guard for '"
+                        + stageId + "': " + e.getMessage());
+            }
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
@@ -1600,7 +1615,9 @@ public class StageManager {
             validateFileName(id, file.getName());
 
             try {
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                byte[] raw = java.nio.file.Files.readAllBytes(file.toPath());
+                StageFileGuard.recordLoaded(id, StageScope.INDIVIDUAL, raw);
+                String content = new String(raw);
                 detectUnknownKeys(id, content);
 
                 StageEntry entry = GSON.fromJson(content, StageEntry.class);
@@ -2041,6 +2058,16 @@ public class StageManager {
             INDIVIDUAL_STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
+            // Re-read what actually landed on disk so the overwrite guard stays correct even
+            // if a future caller forgets to reload. The save already succeeded, so a failure
+            // here must not turn it into a reported failure.
+            try {
+                StageFileGuard.recordLoaded(stageId, StageScope.INDIVIDUAL,
+                        java.nio.file.Files.readAllBytes(file.toPath()));
+            } catch (Exception e) {
+                DebugLogger.error("Individual Stage Saving", "Failed to refresh overwrite guard for '"
+                        + stageId + "': " + e.getMessage());
+            }
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save individual stage: " + stageId + " - " + e.getMessage());
@@ -2066,6 +2093,40 @@ public class StageManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * The bytes of this stage's file as they are on disk right now, or null when there is no
+     * file. Used by the overwrite guard, which has to compare against reality rather than
+     * against what this class believes it loaded.
+     *
+     * <p>{@code targetFolder} must be the exact same value the caller is about to pass to
+     * {@code saveStage}/{@code saveIndividualStage}, so this checks the file the save is about
+     * to write rather than a different one. See {@link #saveStage(String, StageEntry, String)}.
+     */
+    @Nullable
+    public static byte[] stageFileBytes(String stageId, boolean individual, @Nullable String targetFolder) {
+        Map<String, String> paths = individual ? INDIVIDUAL_STAGE_PATHS : STAGE_PATHS;
+        // Copied verbatim from saveStage/saveIndividualStage's folder resolution, not
+        // simplified to getOrDefault: the two must never be able to drift apart, because if
+        // they ever pointed at different files this guard would silently bless an overwrite.
+        String folder = paths.containsKey(stageId)
+                ? paths.get(stageId)
+                : (targetFolder == null ? "" : targetFolder);
+        File dir = StagePaths.resolve(treeRoot(individual), folder);
+        if (dir == null) return null;
+
+        File file = new File(dir, stageId + ".json");
+        if (!file.exists()) return null;
+
+        try {
+            return java.nio.file.Files.readAllBytes(file.toPath());
+        } catch (java.io.IOException e) {
+            // An unreadable file is not evidence that writing is safe, but it is not evidence
+            // of a hand edit either - failing every save over it would be worse than the
+            // problem this guard exists to prevent.
+            return null;
+        }
     }
 
     // =============================================

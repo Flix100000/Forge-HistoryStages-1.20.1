@@ -82,6 +82,8 @@
   "editor.historystages.toast.individual_stage_saved.title": "Individuelle Stage gespeichert",
   "editor.historystages.toast.stage_save_failed.title": "Speichern fehlgeschlagen",
   "editor.historystages.toast.stage_save_failed.message": "'%s' konnte nicht gespeichert werden.",
+  "editor.historystages.toast.stage_changed_on_disk.title": "Stage extern geändert",
+  "editor.historystages.toast.stage_changed_on_disk.message": "'%s' wurde außerhalb des Editors verändert. Erneut speichern überschreibt die Datei, /history reload lädt stattdessen die Dateiversion (verwirft deine Änderungen).",
   "editor.historystages.toast.stage_too_large.title": "Stage zu groß",
   "editor.historystages.toast.stage_too_large.message": "'%s' hat zu viele Einträge zum Speichern. Teile sie in mehrere Stages auf oder nutze Item-Tags.",
   "editor.historystages.toast.stage_deleted.title": "Stage gelöscht",
