@@ -4,6 +4,9 @@ import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.GraphConfig;
+import net.bananemdnsa.historystages.data.config.AddonConfigField;
+import net.bananemdnsa.historystages.data.config.AddonConfigSection;
+import net.bananemdnsa.historystages.data.config.AddonConfigSections;
 import net.bananemdnsa.historystages.data.graph.GraphConfigCodec;
 import net.bananemdnsa.historystages.data.graph.GraphConfigEntries;
 import net.bananemdnsa.historystages.data.graph.GraphKey;
@@ -26,6 +29,8 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -107,6 +112,19 @@ public class ConfigEditorScreen extends Screen {
     /** graph.toml's five non-style tables, generated from the spec. */
     private List<ConfigSection> graphSections;
     /**
+     * One section per addon-registered {@link AddonConfigSection}, in the order
+     * {@link AddonConfigSections#all()} returns. Empty (never null after {@link #init()}) when no
+     * addon has registered anything — that is what keeps the tab itself from appearing.
+     */
+    private List<ConfigSection> addonSections;
+    /**
+     * Row key ({@link ConfigEntry#key}) to the {@link AddonConfigField} it renders, for every row
+     * in {@link #addonSections}. Built alongside that list. {@link #saveConfig()} needs it to call
+     * a CLIENT field's own {@code write()} directly — COMMON fields are written on the server
+     * instead, reached through {@link AddonConfigSections#commonEntries()}, not through this map.
+     */
+    private Map<String, AddonConfigField> addonFieldsByKey;
+    /**
      * The six node-style blocks, keyed {@code "global.unlocked"} and so on. Edited by
      * {@link GraphStyleScreen} but owned here, so one Save covers them and the unsaved-changes
      * marker stays honest across both screens.
@@ -117,11 +135,21 @@ public class ConfigEditorScreen extends Screen {
     private final EditorTooltip tooltip = new EditorTooltip();
 
     // Tab layout
-    private static final String[] TAB_KEYS = {
+    /** The three tabs every install has. {@link #tabKeys} appends a fourth when an addon
+     *  registers a section — never fewer, never reordered, so indices 0-2 always mean what
+     *  they mean today. */
+    private static final String[] BASE_TAB_KEYS = {
             "editor.historystages.tab.client",
             "editor.historystages.tab.common",
             "editor.historystages.tab.graph"
     };
+    /**
+     * The tab bar actually shown, computed once in {@link #init()}. Not {@code static final}
+     * like {@link #BASE_TAB_KEYS} any more: whether the Addons tab exists depends on whether
+     * any addon has registered a section, which is only known once — and stable for — this
+     * screen's lifetime.
+     */
+    private String[] tabKeys;
     private int[] tabX;
     private int[] tabW;
     private int tabY;
@@ -144,20 +172,37 @@ public class ConfigEditorScreen extends Screen {
         // Staying stale is instead handled by onCommonConfigSynced().
         if (clientSections == null) buildConfigEntries();
         if (graphSections == null) buildGraphEntries();
+        if (addonSections == null) buildAddonConfigEntries();
+
+        // Addons tab only when it has something to show — a tab that opens onto nothing would
+        // promise a feature that isn't there. Built fresh every init() (not just guarded like
+        // the section lists above) since it only reads addonSections, which is already stable.
+        tabKeys = addonSections.isEmpty()
+                ? BASE_TAB_KEYS
+                : Arrays.copyOf(BASE_TAB_KEYS, BASE_TAB_KEYS.length + 1);
+        if (tabKeys.length > BASE_TAB_KEYS.length) {
+            tabKeys[BASE_TAB_KEYS.length] = "editor.historystages.tab.addons";
+        }
+        // A shorter bar must never leave activeTab pointing past its end — it starts at 1
+        // (Common), which every configuration has, so no clamp is needed here, but a tab that
+        // was active and then vanished (addon unregistered mid-session — never happens today,
+        // but the guard is cheap) falls back to Common rather than rendering nothing.
+        if (activeTab >= tabKeys.length) activeTab = 1;
 
         active = new java.lang.ref.WeakReference<>(this);
 
         // Compute tab positions
         tabY = 30;
-        tabX = new int[TAB_KEYS.length];
-        tabW = new int[TAB_KEYS.length];
-        // Three tabs now: 200 split three ways leaves 66px each, too narrow for the labels.
-        int tabTotalWidth = 300;
+        tabX = new int[tabKeys.length];
+        tabW = new int[tabKeys.length];
+        // 100px per tab is what the three built-in tabs have always split 300px three ways;
+        // a fourth tab extends the bar by the same amount instead of squeezing all four.
+        int tabTotalWidth = 100 * tabKeys.length;
         int gap = 2;
         int tabStartX = this.width / 2 - tabTotalWidth / 2;
-        int tabWidthEach = (tabTotalWidth - gap) / TAB_KEYS.length;
+        int tabWidthEach = (tabTotalWidth - gap) / tabKeys.length;
         int x = tabStartX;
-        for (int i = 0; i < TAB_KEYS.length; i++) {
+        for (int i = 0; i < tabKeys.length; i++) {
             tabX[i] = x;
             tabW[i] = tabWidthEach;
             x += tabWidthEach + gap;
@@ -559,6 +604,73 @@ public class ConfigEditorScreen extends Screen {
         warnAboutMissingLangKeys();
     }
 
+    /**
+     * Builds the Addons tab's rows straight from the registry, one {@link ConfigSection} per
+     * {@link AddonConfigSection} in {@link AddonConfigSections#all()}'s stable, id-sorted order.
+     *
+     * <p>Every value below comes from the addon's own {@code read()} callback. {@link #saveConfig()}
+     * routes each row back to its addon: CLIENT rows through {@link #addonFieldsByKey}, COMMON
+     * rows through {@link AddonConfigSections#commonEntries()}.
+     */
+    private void buildAddonConfigEntries() {
+        addonSections = new ArrayList<>();
+        addonFieldsByKey = new HashMap<>();
+        for (AddonConfigSection section : AddonConfigSections.all()) {
+            ConfigSection configSection = new ConfigSection(section.titleLangKey());
+            for (AddonConfigField field : section.fields()) {
+                // The same wire key AddonConfigSections.commonEntries() uses for this field,
+                // from the one place that builds it — so this row's key and a COMMON field's
+                // published wire key can never drift apart.
+                String entryKey = AddonConfigSections.wireKey(section, field);
+                String descKey = field.descLangKey() != null ? field.descLangKey() : "";
+                ConfigType type = mapAddonKind(field.kind());
+
+                List<String> enumConstants = List.of();
+                String enumType = null;
+                Map<String, String> enumLabels = null;
+                if (field.kind() == AddonConfigField.AddonConfigKind.CHOICE) {
+                    enumConstants = field.optionValues();
+                    // Only used as the enumLabel(String, String) fallback, which a fully
+                    // populated enumLabels map below never falls through to; any addon-unique
+                    // string is fine here.
+                    enumType = entryKey;
+                    enumLabels = new LinkedHashMap<>();
+                    for (String option : enumConstants) {
+                        String langKey = field.optionLangKey(option);
+                        if (langKey != null) enumLabels.put(option, langKey);
+                    }
+                }
+
+                configSection.add(ConfigEntry.addonRow(entryKey, type, field.read().get(),
+                        field.defaultValue(), field.labelLangKey(), descKey,
+                        field.min(), field.max(), enumConstants, enumType, enumLabels,
+                        field.placeholders()));
+                addonFieldsByKey.put(entryKey, field);
+            }
+            addonSections.add(configSection);
+        }
+    }
+
+    /**
+     * Exhaustive on purpose, with no {@code default}: a twelfth {@link AddonConfigField.AddonConfigKind}
+     * must fail this compile rather than silently render as whatever kind happens to fall through.
+     */
+    private static ConfigType mapAddonKind(AddonConfigField.AddonConfigKind kind) {
+        return switch (kind) {
+            case BOOL -> ConfigType.BOOLEAN;
+            case INTEGER -> ConfigType.INTEGER;
+            case DECIMAL -> ConfigType.DOUBLE;
+            case TEXT -> ConfigType.STRING;
+            case RICH_TEXT -> ConfigType.RICH_TEXT;
+            case COLOR -> ConfigType.COLOR;
+            case ITEM -> ConfigType.ITEM;
+            case ITEM_LIST -> ConfigType.ITEM_LIST;
+            case TAG_LIST -> ConfigType.TAG_LIST;
+            case TEXTURE -> ConfigType.TEXTURE;
+            case CHOICE -> ConfigType.ENUM;
+        };
+    }
+
     /** One generated row. The path is what goes on the wire; the key is the editor-side identity. */
     private ConfigEntry toEntry(GraphKey gk, Map<String, String> current, String labelKey) {
         ConfigType type = switch (gk.kind()) {
@@ -624,6 +736,9 @@ public class ConfigEditorScreen extends Screen {
         }
         all.addAll(commonSubEntries);
         all.addAll(graphEntries());
+        if (addonSections != null) {
+            for (ConfigSection section : addonSections) all.addAll(section.entries);
+        }
         return all;
     }
 
@@ -715,6 +830,8 @@ public class ConfigEditorScreen extends Screen {
         return switch (activeTab) {
             case 0 -> clientSections;
             case 2 -> graphSections;
+            // Only reachable once tabKeys actually has a fourth entry — see init().
+            case 3 -> addonSections;
             default -> commonSections;
         };
     }
@@ -784,7 +901,7 @@ public class ConfigEditorScreen extends Screen {
 
         // Render custom tabs (styled like stage tabs)
         String hoveredTabTooltip = null;
-        for (int i = 0; i < TAB_KEYS.length; i++) {
+        for (int i = 0; i < tabKeys.length; i++) {
             boolean active = (i == activeTab);
             boolean hovered = mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT;
@@ -798,12 +915,18 @@ public class ConfigEditorScreen extends Screen {
                 guiGraphics.fill(tabX[i], tabY + TAB_HEIGHT - 2, tabX[i] + tabW[i], tabY + TAB_HEIGHT, 0xFFFFCC00);
             }
 
-            String label = Component.translatable(TAB_KEYS[i]).getString();
+            String label = Component.translatable(tabKeys[i]).getString();
             int textColor = active ? 0xFFFFFF : Fade.mix(0xFF999999, 0xFFDDDDDD, th);
             drawSmallText(guiGraphics, label, tabX[i] + TAB_PAD, tabY + 4, textColor);
 
             if (hovered) {
-                hoveredTabTooltip = Component.translatable(TAB_KEYS[i] + ".tooltip").getString();
+                // Every built-in tab has a .tooltip key; an addon's Addons tab does not need
+                // one of its own, so this only shows a tooltip when the key actually resolves —
+                // the alternative is the raw, untranslated key string on hover.
+                String tooltipKey = tabKeys[i] + ".tooltip";
+                if (I18n.exists(tooltipKey)) {
+                    hoveredTabTooltip = Component.translatable(tooltipKey).getString();
+                }
             }
         }
 
@@ -960,7 +1083,7 @@ public class ConfigEditorScreen extends Screen {
 
         // Check tab clicks
         if (mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
-            for (int i = 0; i < TAB_KEYS.length; i++) {
+            for (int i = 0; i < tabKeys.length; i++) {
                 if (mouseX >= tabX[i] && mouseX < tabX[i] + tabW[i]) {
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     switchTab(i);
@@ -1040,7 +1163,7 @@ public class ConfigEditorScreen extends Screen {
         if (entry.enumConstants.isEmpty()) return;
         EnumDropdown dropdown = new EnumDropdown(
                 entry.enumConstants, entry.value, ConfigRowList.DROPDOWN_MIN_WIDTH,
-                constant -> ConfigRowList.enumLabel(entry.enumType, constant),
+                constant -> ConfigRowList.enumLabel(entry, constant),
                 picked -> entry.value = picked);
         // Placed exactly over the collapsed button the row drew, so the popup grows out of the
         // control the user clicked rather than appearing beside it.
@@ -1117,11 +1240,14 @@ public class ConfigEditorScreen extends Screen {
             "graph.general.title", List.of(GraphConfig.GRAPH.title.getDefault()));
 
     private void openRichTextEditor(ConfigEntry entry) {
+        List<String> placeholders = entry.placeholders != null
+                ? entry.placeholders
+                : RICH_TEXT_PLACEHOLDERS.getOrDefault(entry.key, List.of());
         this.minecraft.setScreen(new FormattedTextScreen(this,
                 Component.translatable(entry.labelKey),
                 entry.value,
                 entry.defaultValue,
-                RICH_TEXT_PLACEHOLDERS.getOrDefault(entry.key, List.of()),
+                placeholders,
                 text -> entry.value = text));
     }
 
@@ -1248,34 +1374,82 @@ public class ConfigEditorScreen extends Screen {
      * same save — one that covers every tab, not just the block on screen.
      */
     void saveConfig() {
-        // Save client config locally
+        // Save client config locally. Client-only, no packet: this is a local save with no
+        // server round trip, so the toast fires immediately rather than from a packet handler.
         Map<String, String> clientValues = new HashMap<>();
+        boolean clientChanged = false;
         for (ConfigSection section : clientSections) {
             for (ConfigEntry entry : section.entries) {
                 clientValues.put(entry.key, entry.value);
+                if (!entry.value.equals(entry.initialValue)) clientChanged = true;
             }
         }
         applyClientConfig(clientValues);
+        if (clientChanged) {
+            EditorToastHandler.show(EditorToast.Level.SUCCESS,
+                    Component.translatable("editor.historystages.toast.client_config_saved.title"),
+                    Component.translatable("editor.historystages.toast.client_config_saved.message"));
+        }
 
-        // Send common config to server
+        // Send common config to server — but only if something in it actually changed. Each
+        // packet's handler answers with its own toast, so sending both unconditionally reported
+        // two saves for one edit, and wrote and re-synced a file nobody had touched.
         Map<String, String> commonValues = new HashMap<>();
+        boolean commonChanged = false;
         for (ConfigSection section : commonSections) {
             for (ConfigEntry entry : section.entries) {
                 commonValues.put(entry.key, entry.value);
+                if (!entry.value.equals(entry.initialValue)) commonChanged = true;
             }
         }
         for (ConfigEntry entry : commonSubEntries) {
             commonValues.put(entry.key, entry.value);
+            if (!entry.value.equals(entry.initialValue)) commonChanged = true;
         }
-        PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
+
+        // Addon rows split by their section's side. COMMON membership is decided by
+        // AddonConfigSections.commonEntries() — the same list AddonConfigPublisher reads to
+        // register into CommonConfigSync — so the wire key travels here without ever being
+        // rebuilt by hand. Anything not in that list is a CLIENT row and is written straight
+        // back into the addon's own field; there is nothing else it could be, since
+        // AddonConfigSection only knows those two sides.
+        Map<String, AddonConfigSections.CommonEntry> addonCommonByWireKey = new HashMap<>();
+        for (AddonConfigSections.CommonEntry commonEntry : AddonConfigSections.commonEntries()) {
+            addonCommonByWireKey.put(commonEntry.wireKey(), commonEntry);
+        }
+        for (ConfigSection section : addonSections) {
+            for (ConfigEntry entry : section.entries) {
+                AddonConfigSections.CommonEntry commonEntry = addonCommonByWireKey.get(entry.key);
+                boolean changed = !entry.value.equals(entry.initialValue);
+                if (commonEntry != null) {
+                    commonValues.put(commonEntry.wireKey(), entry.value);
+                    if (changed) commonChanged = true;
+                } else if (changed) {
+                    // Only on a real change: an addon's write callback is its code, and calling
+                    // it for every field on every save would hand it work it never asked for.
+                    addonFieldsByKey.get(entry.key).write().accept(entry.value);
+                }
+            }
+        }
+
+        if (commonChanged) {
+            PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
+        }
 
         // Send graph.toml to the server, keyed by toml path. The style rows come along here
         // too — GraphStyleScreen edits these very objects rather than keeping its own copies.
+        // Same rule as above: untouched graph settings are not worth a write, a sync to every
+        // client, and a second toast.
         Map<String, String> graphValues = new HashMap<>();
+        boolean graphChanged = false;
         for (ConfigEntry entry : graphEntries()) {
-            if (entry.path != null) graphValues.put(entry.path, entry.value);
+            if (entry.path == null) continue;
+            graphValues.put(entry.path, entry.value);
+            if (!entry.value.equals(entry.initialValue)) graphChanged = true;
         }
-        PacketHandler.sendToServer(new SaveGraphConfigPacket(graphValues));
+        if (graphChanged) {
+            PacketHandler.sendToServer(new SaveGraphConfigPacket(graphValues));
+        }
 
         // Update initial values so hasChanges() returns false
         for (ConfigEntry entry : allEntries()) {
@@ -1396,6 +1570,22 @@ public class ConfigEditorScreen extends Screen {
          * an edge style and a canvas background, and German calls those two different things.
          */
         public final String enumType;
+        /**
+         * Constant to lang key, for an ENUM row whose options carry their own translation keys
+         * rather than ones derived from {@link #enumType}. Null for every row that predates
+         * addon config sections — those keep resolving through {@link #enumType} alone via
+         * {@link ConfigRowList#enumLabel(String, String)}. Non-null entries still fall back to
+         * that derivation for any constant the map has no key for.
+         */
+        public final Map<String, String> enumLabels;
+
+        /**
+         * Placeholder tokens for a RICH_TEXT row's dialog, in declaration order, or {@code null}
+         * when the row has none of its own. Null (rather than empty) is what tells
+         * {@link #openRichTextEditor(ConfigEntry)} to fall back to {@link #RICH_TEXT_PLACEHOLDERS}
+         * instead of showing no chips at all.
+         */
+        public final List<String> placeholders;
 
         /**
          * True while this row shows a value it does not own — the per-stage style editor draws
@@ -1436,6 +1626,22 @@ public class ConfigEditorScreen extends Screen {
                     String defaultValue, String labelKey, String descKey,
                     double min, double max, String path, List<String> enumConstants,
                     String enumType) {
+            this(key, type, value, isClient, defaultValue, labelKey, descKey,
+                    min, max, path, enumConstants, enumType, null, null);
+        }
+
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, String labelKey, String descKey,
+                    double min, double max, String path, List<String> enumConstants,
+                    String enumType, Map<String, String> enumLabels) {
+            this(key, type, value, isClient, defaultValue, labelKey, descKey,
+                    min, max, path, enumConstants, enumType, enumLabels, null);
+        }
+
+        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+                    String defaultValue, String labelKey, String descKey,
+                    double min, double max, String path, List<String> enumConstants,
+                    String enumType, Map<String, String> enumLabels, List<String> placeholders) {
             this.key = key;
             this.type = type;
             this.value = value;
@@ -1449,6 +1655,8 @@ public class ConfigEditorScreen extends Screen {
             this.path = path;
             this.enumConstants = enumConstants == null ? List.of() : enumConstants;
             this.enumType = enumType;
+            this.enumLabels = enumLabels;
+            this.placeholders = placeholders;
         }
 
         /**
@@ -1466,6 +1674,24 @@ public class ConfigEditorScreen extends Screen {
                     labelKey, labelKey + ".desc", min, max, null, enumConstants, enumType);
             entry.clearable = true;
             return entry;
+        }
+
+        /**
+         * A row for an addon-registered {@link AddonConfigField}. Not client- or common-owned in
+         * the sense {@link #isClient} otherwise distinguishes — that split is Task 3b's, once
+         * these rows are wired into {@link #saveConfig()}.
+         *
+         * @param enumLabels constant to lang key for a CHOICE field's options, or null for
+         *                    every non-CHOICE kind.
+         * @param placeholders the addon's own placeholder chips for a RICH_TEXT field, in
+         *                     declaration order (possibly empty); ignored for every other kind.
+         */
+        static ConfigEntry addonRow(String key, ConfigType type, String value, String defaultValue,
+                                     String labelKey, String descKey, double min, double max,
+                                     List<String> enumConstants, String enumType,
+                                     Map<String, String> enumLabels, List<String> placeholders) {
+            return new ConfigEntry(key, type, value, false, defaultValue, labelKey, descKey,
+                    min, max, null, enumConstants, enumType, enumLabels, placeholders);
         }
     }
 
