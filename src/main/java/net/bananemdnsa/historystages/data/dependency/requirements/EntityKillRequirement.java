@@ -2,12 +2,15 @@ package net.bananemdnsa.historystages.data.dependency.requirements;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
 import net.bananemdnsa.historystages.data.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementContext;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,6 +24,36 @@ public class EntityKillRequirement implements Requirement {
     @Override
     public String id() {
         return "entity_kill";
+    }
+
+    @Override
+    public String tabLangKey() {
+        return "editor.historystages.dep.tab.entity_kills";
+    }
+
+    @Override
+    public String tooltipLangKey() {
+        return "editor.historystages.dep.tooltip.entity_kills";
+    }
+
+    @Override
+    public String sectionLangKey() {
+        return "editor.historystages.graph.section.kills";
+    }
+
+    @Override
+    public Set<StageScope> supportedScopes() {
+        return Set.of(StageScope.INDIVIDUAL);
+    }
+
+    @Override
+    public RequirementDisplay.Kind displayKind() {
+        return RequirementDisplay.Kind.COUNTED;
+    }
+
+    @Override
+    public boolean declaredIn(DependencyGroup group) {
+        return !group.getEntityKills().isEmpty();
     }
 
     @Override

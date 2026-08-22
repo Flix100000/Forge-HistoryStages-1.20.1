@@ -26,6 +26,7 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -373,8 +374,9 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                 ? scrollTag.getCompound("DepositedDependencies") : null;
                         double scrollCost = scrollTag.contains("LockedCostReduction")
                                 ? scrollTag.getDouble("LockedCostReduction") : 0.0;
-                        var result = DependencyChecker.checkAll(entry, player, level, updatedDeposited,
-                                scrollCost);
+                        var result = DependencyChecker.checkAll(entry, player, level,
+                                isCurrentScrollIndividual() ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
+                                updatedDeposited, scrollCost);
                         PacketDistributor_sendToPlayer(player,
                                 new SyncDependencyStatusPacket(stageId, isCurrentScrollIndividual(), result));
                     }
@@ -533,6 +535,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                 double tickCost = stackTag.contains("LockedCostReduction")
                                         ? stackTag.getDouble("LockedCostReduction") : 0.0;
                                 DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
+                                        isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
                                         depositedTag, tickCost);
                                 metTotal = result.isFulfilled();
                             } else {

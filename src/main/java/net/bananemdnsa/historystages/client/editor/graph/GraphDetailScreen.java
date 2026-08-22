@@ -12,6 +12,9 @@ import net.bananemdnsa.historystages.data.auto.CombineMode;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,7 +28,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -268,20 +273,26 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             out.add(new SpacerRow(SPACER_H));
         }
 
-        addRequirements(out, font, width, cfg.showStageDeps.get(), dep,
-                "editor.historystages.graph.section.stage_deps", "stage", "individual_stage");
-        addRequirements(out, font, width, cfg.showItems.get(), dep,
-                "editor.historystages.graph.section.items", "item");
-        addRequirements(out, font, width, cfg.showXp.get(), dep,
-                "editor.historystages.graph.section.xp", "xp_level");
-        addRequirements(out, font, width, cfg.showAdvancements.get(), dep,
-                "editor.historystages.graph.section.advancements", "advancement");
-        addRequirements(out, font, width, cfg.showKills.get(), dep,
-                "editor.historystages.graph.section.kills", "entity_kill");
-        addRequirements(out, font, width, cfg.showStats.get(), dep,
-                "editor.historystages.graph.section.stats", "stat");
-        addRequirements(out, font, width, cfg.showScoreboard.get(), dep,
-                "editor.historystages.graph.section.scoreboard", "scoreboard");
+        // Sections come from the registry rather than seven fixed calls, so a requirement kind the
+        // graph has never heard of still lands somewhere instead of vanishing.
+        Map<String, List<String>> sections = new LinkedHashMap<>();
+        for (Requirement requirement : RequirementTypes.all()) {
+            sections.computeIfAbsent(requirement.sectionLangKey(), key -> new ArrayList<>())
+                    .add(requirement.id());
+        }
+        // The built-in sections keep the order players already know, which is deliberately not
+        // registry order — stage dependencies have always come first, and XP before advancements.
+        // Anything left over belongs to an addon and follows.
+        List<String> ordered = new ArrayList<>(BUILT_IN_SECTION_ORDER);
+        for (String sectionKey : sections.keySet()) {
+            if (!ordered.contains(sectionKey)) ordered.add(sectionKey);
+        }
+        for (String sectionKey : ordered) {
+            List<String> types = sections.get(sectionKey);
+            if (types == null) continue;
+            addRequirements(out, font, width, sectionVisible(cfg, sectionKey), dep, sectionKey,
+                    types.toArray(new String[0]));
+        }
 
         if (cfg.showTriggers.get()) addTriggers(out, font, width);
         if (cfg.showUnlocks.get()) addUnlocks(out, font, width);
@@ -306,6 +317,40 @@ public final class GraphDetailScreen extends AbstractModalScreen {
         rows = placed;
         rowsHeight = cursor;
         maxScroll = 0; // recomputed on the next render, once the drawn height is known
+    }
+
+    /** The seven built-in sections, in the order they have always been drawn. */
+    private static final List<String> BUILT_IN_SECTION_ORDER = List.of(
+            "editor.historystages.graph.section.stage_deps",
+            "editor.historystages.graph.section.items",
+            "editor.historystages.graph.section.xp",
+            "editor.historystages.graph.section.advancements",
+            "editor.historystages.graph.section.kills",
+            "editor.historystages.graph.section.stats",
+            "editor.historystages.graph.section.scoreboard");
+
+    /**
+     * Whether this section is switched on.
+     *
+     * <p>The seven built-in sections each have their own config toggle; an addon section has none
+     * and cannot get one, because NeoForge builds config specs at mod construction and the
+     * requirement registry does not close until common setup. Always showing it is the honest
+     * fallback — the alternative is a section nobody can turn on.
+     *
+     * <p>Yes, this is a fixed key table of the kind the rest of this phase removed. It stays,
+     * because it maps sections onto config values that genuinely only exist for those seven.
+     */
+    private static boolean sectionVisible(GraphConfig.Graph cfg, String sectionLangKey) {
+        return switch (sectionLangKey) {
+            case "editor.historystages.graph.section.stage_deps" -> cfg.showStageDeps.get();
+            case "editor.historystages.graph.section.items" -> cfg.showItems.get();
+            case "editor.historystages.graph.section.xp" -> cfg.showXp.get();
+            case "editor.historystages.graph.section.advancements" -> cfg.showAdvancements.get();
+            case "editor.historystages.graph.section.kills" -> cfg.showKills.get();
+            case "editor.historystages.graph.section.stats" -> cfg.showStats.get();
+            case "editor.historystages.graph.section.scoreboard" -> cfg.showScoreboard.get();
+            default -> true;
+        };
     }
 
     private void addRequirements(List<Row> out, Font font, int width, boolean enabled,

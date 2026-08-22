@@ -318,6 +318,26 @@ public class StageManager {
         DebugLogger.warn("Dependency Groups", msg);
     }
 
+    /**
+     * Reports requirements a stage declares that its scope cannot answer — a kill or an
+     * advancement on a global stage, for instance, where there is no single player to ask.
+     *
+     * <p>Reports only. The entry stays in the file and evaluation skips it. Hand editing is a
+     * supported path here, and quietly deleting what somebody wrote is the problem the stage-file
+     * overwrite guard exists to prevent.
+     */
+    private static void warnAboutScopeMismatches(String stageId, StageEntry entry, StageScope scope) {
+        for (DependencyGroup group : entry.getDependencies()) {
+            List<String> unusable = RequirementScopeScan.unusable(group, scope);
+            if (unusable.isEmpty()) continue;
+
+            String msg = "Stage '" + stageId + "' declares " + String.join(", ", unusable)
+                    + " requirements, which only work on individual stages. They are ignored.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Dependency Scope", msg);
+        }
+    }
+
     private static void validateFileName(String id, String fileName) {
         if (!id.equals(id.toLowerCase())) {
             addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
@@ -452,6 +472,7 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        warnAboutScopeMismatches(stageId, entry, StageScope.GLOBAL);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
@@ -1795,6 +1816,9 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        // No-op today, because every built-in works at INDIVIDUAL scope. Here anyway, so a
+        // requirement that later declares itself global-only is caught on this side too.
+        warnAboutScopeMismatches(stageId, entry, StageScope.INDIVIDUAL);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");

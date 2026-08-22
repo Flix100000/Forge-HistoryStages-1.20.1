@@ -2,12 +2,15 @@ package net.bananemdnsa.historystages.data.dependency.requirements;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.data.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementContext;
+import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 
 /**
  * An experience level the player has to reach, optionally consumed on deposit.
@@ -20,6 +23,36 @@ public class XpLevelRequirement implements Requirement {
     @Override
     public String id() {
         return "xp_level";
+    }
+
+    @Override
+    public String tabLangKey() {
+        return "editor.historystages.dep.tab.xp_level";
+    }
+
+    @Override
+    public String tooltipLangKey() {
+        return "editor.historystages.dep.tooltip.xp_level";
+    }
+
+    @Override
+    public String sectionLangKey() {
+        return "editor.historystages.graph.section.xp";
+    }
+
+    @Override
+    public Set<StageScope> supportedScopes() {
+        return Set.of(StageScope.INDIVIDUAL);
+    }
+
+    @Override
+    public RequirementDisplay.Kind displayKind() {
+        return RequirementDisplay.Kind.COUNTED;
+    }
+
+    @Override
+    public boolean declaredIn(DependencyGroup group) {
+        return group.getXpLevel() != null && group.getXpLevel().getLevel() > 0;
     }
 
     @Override

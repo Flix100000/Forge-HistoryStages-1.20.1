@@ -1,6 +1,6 @@
-package net.bananemdnsa.historystages.client.editor.graph;
+package net.bananemdnsa.historystages.data.dependency;
 
-import net.bananemdnsa.historystages.client.editor.graph.RequirementDisplay.Kind;
+import net.bananemdnsa.historystages.data.dependency.RequirementDisplay.Kind;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,6 +43,36 @@ class RequirementDisplayTest {
         // A type this view has never heard of gets the glyph and no invented figures.
         assertEquals(Kind.BINARY, RequirementDisplay.kindOf("something_new", false));
         assertEquals(Kind.BINARY, RequirementDisplay.kindOf(null, false));
+    }
+
+    @Test
+    void anAddonTypeIsPresentedTheWayItsAuthorDeclared() {
+        RequirementTypes.register(AddonRequirement.<IdCountEntry>builder("mymod:relic")
+                .tabLangKey("tab").tooltipLangKey("tip").sectionLangKey("section")
+                .storage(RequirementStorage.gson(IdCountEntry.class))
+                .displayKind(Kind.COUNTED)
+                .evaluator((entry, ctx) -> null)
+                .build());
+
+        assertEquals(Kind.COUNTED, RequirementDisplay.kindOf("mymod:relic", false));
+    }
+
+    @Test
+    void anAddonThatDeclaresNothingGetsTheSafeDefault() {
+        RequirementTypes.register(AddonRequirement.<IdCountEntry>builder("mymod:quiet")
+                .tabLangKey("tab").tooltipLangKey("tip").sectionLangKey("section")
+                .storage(RequirementStorage.gson(IdCountEntry.class))
+                .evaluator((entry, ctx) -> null)
+                .build());
+
+        assertEquals(Kind.BINARY, RequirementDisplay.kindOf("mymod:quiet", false));
+    }
+
+    @org.junit.jupiter.api.AfterEach
+    void reset() {
+        // Without this a type registered here would leak into whichever test runs next, and the
+        // failure would depend on execution order.
+        RequirementTypes.resetForTesting();
     }
 
     @Test

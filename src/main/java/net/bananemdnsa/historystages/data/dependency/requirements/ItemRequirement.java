@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.DependencyResult;
 import net.bananemdnsa.historystages.data.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementContext;
+import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -25,6 +26,31 @@ public class ItemRequirement implements Requirement {
     @Override
     public String id() {
         return "item";
+    }
+
+    @Override
+    public String tabLangKey() {
+        return "editor.historystages.dep.tab.items";
+    }
+
+    @Override
+    public String tooltipLangKey() {
+        return "editor.historystages.dep.tooltip.items";
+    }
+
+    @Override
+    public String sectionLangKey() {
+        return "editor.historystages.graph.section.items";
+    }
+
+    @Override
+    public RequirementDisplay.Kind displayKind() {
+        return RequirementDisplay.Kind.DEPOSITED;
+    }
+
+    @Override
+    public boolean declaredIn(DependencyGroup group) {
+        return !group.getItems().isEmpty();
     }
 
     @Override

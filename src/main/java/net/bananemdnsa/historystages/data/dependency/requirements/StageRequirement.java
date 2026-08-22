@@ -20,6 +20,26 @@ public class StageRequirement implements Requirement {
     }
 
     @Override
+    public String tabLangKey() {
+        return "editor.historystages.dep.tab.global_stages";
+    }
+
+    @Override
+    public String tooltipLangKey() {
+        return "editor.historystages.dep.tooltip.global_stages";
+    }
+
+    @Override
+    public String sectionLangKey() {
+        return "editor.historystages.graph.section.stage_deps";
+    }
+
+    @Override
+    public boolean declaredIn(DependencyGroup group) {
+        return !group.getStages().isEmpty();
+    }
+
+    @Override
     public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
         List<DependencyResult.EntryResult> results = new ArrayList<>();
         for (String stageId : group.getStages()) {

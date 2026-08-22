@@ -12,11 +12,17 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
+import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
+import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
 import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.client.editor.widget.list.*;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.*;
+import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
+import net.bananemdnsa.historystages.data.lock.engine.StageScope;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.gui.GuiGraphics;
@@ -60,34 +66,45 @@ public class DependencyEditorScreen extends Screen {
     private int maxScroll = 0;
     private boolean hasChanges = false;
 
-    // Tab definitions (translation keys)
-    private static final String[] GLOBAL_TAB_KEYS = {
-            "editor.historystages.dep.tab.items", "editor.historystages.dep.tab.global_stages",
-            "editor.historystages.dep.tab.individual_stages",
-            "editor.historystages.dep.tab.scoreboard"
-    };
-    private static final String[] INDIVIDUAL_TAB_KEYS = {
-            "editor.historystages.dep.tab.items", "editor.historystages.dep.tab.global_stages",
-            "editor.historystages.dep.tab.individual_stages",
-            "editor.historystages.dep.tab.advancements", "editor.historystages.dep.tab.xp_level",
-            "editor.historystages.dep.tab.entity_kills", "editor.historystages.dep.tab.stats",
-            "editor.historystages.dep.tab.scoreboard"
-    };
+    /**
+     * The requirement kinds this stage can express, in registry order.
+     *
+     * <p>Two hardcoded arrays of tab keys used to live here, one per scope. They were the only
+     * place the global/individual distinction existed, which meant the editor hid a kind while
+     * the checker went on evaluating it — a hand-written advancement on a global stage was
+     * checked against whichever player happened to trigger it. The scope now lives on the
+     * requirement, and both the tab strip and the checker read it from there.
+     */
+    private List<Requirement> visibleRequirements() {
+        return RequirementTypes.forScope(isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL);
+    }
 
-    private static final String[] GLOBAL_TOOLTIP_KEYS = {
-            "editor.historystages.dep.tooltip.items", "editor.historystages.dep.tooltip.global_stages",
-            "editor.historystages.dep.tooltip.individual_stages",
-            "editor.historystages.dep.tooltip.scoreboard"
-    };
-    private static final String[] INDIVIDUAL_TOOLTIP_KEYS = {
-            "editor.historystages.dep.tooltip.items", "editor.historystages.dep.tooltip.global_stages",
-            "editor.historystages.dep.tooltip.individual_stages",
-            "editor.historystages.dep.tooltip.advancements", "editor.historystages.dep.tooltip.xp_level",
-            "editor.historystages.dep.tooltip.entity_kills", "editor.historystages.dep.tooltip.stats",
-            "editor.historystages.dep.tooltip.scoreboard"
-    };
+    /**
+     * The requirement the active tab belongs to, or {@code ""} when the index is out of range.
+     *
+     * <p>Dispatching on this rather than on the raw index is the point of the rewrite: tab 3 used
+     * to mean advancements on an individual stage and scoreboard on a global one, and every
+     * branch had to remember which.
+     */
+    private String activeRequirementId() {
+        List<Requirement> visible = visibleRequirements();
+        return activeTab >= 0 && activeTab < visible.size() ? visible.get(activeTab).id() : "";
+    }
 
-    private int scoreboardTabIndex() { return isIndividual ? 7 : 3; }
+    /**
+     * Whether the active tab offers an Add row.
+     *
+     * <p>False for XP, which is a single value with nothing to add to, and false for an addon
+     * requirement whose mod registered no editor — there the button would open nothing, and a
+     * control that silently does nothing is worse than no control at all.
+     */
+    private boolean activeTabHasAddButton() {
+        String requirementId = activeRequirementId();
+        if (requirementId.isEmpty() || "xp_level".equals(requirementId)) return false;
+        boolean builtIn = RequirementTypes.builtIns().stream()
+                .anyMatch(requirement -> requirement.id().equals(requirementId));
+        return builtIn || RequirementEditors.byRequirement(requirementId) != null;
+    }
 
     // Layout
     private static final int LEFT_PANEL_W = 130;
@@ -128,6 +145,8 @@ public class DependencyEditorScreen extends Screen {
     private SearchableStageList individualStageSearch;
     private SearchableAdvancementList advancementSearch;
     private SearchableStatList statSearch;
+    /** Rebuilt whenever an addon tab opens its picker; see {@link #openAddonPicker}. */
+    private GenericIdPicker addonSearch;
 
     // Context menu
     private ContextMenu contextMenu;
@@ -165,11 +184,11 @@ public class DependencyEditorScreen extends Screen {
     }
 
     private String[] getTabKeys() {
-        return isIndividual ? INDIVIDUAL_TAB_KEYS : GLOBAL_TAB_KEYS;
+        return visibleRequirements().stream().map(Requirement::tabLangKey).toArray(String[]::new);
     }
 
     private String[] getTabTooltipKeys() {
-        return isIndividual ? INDIVIDUAL_TOOLTIP_KEYS : GLOBAL_TOOLTIP_KEYS;
+        return visibleRequirements().stream().map(Requirement::tooltipLangKey).toArray(String[]::new);
     }
 
     private String t(String key) {
@@ -363,7 +382,8 @@ public class DependencyEditorScreen extends Screen {
                 || (globalStageSearch != null && globalStageSearch.isVisible())
                 || (individualStageSearch != null && individualStageSearch.isVisible())
                 || (advancementSearch != null && advancementSearch.isVisible())
-                || (statSearch != null && statSearch.isVisible());
+                || (statSearch != null && statSearch.isVisible())
+                || (addonSearch != null && addonSearch.isVisible());
     }
 
     // --- Count dialog ---
@@ -562,6 +582,8 @@ public class DependencyEditorScreen extends Screen {
             advancementSearch.render(g, this.font, mouseX, mouseY);
         if (statSearch != null)
             statSearch.render(g, this.font, mouseX, mouseY);
+        if (addonSearch != null)
+            addonSearch.render(g, this.font, mouseX, mouseY);
 
         // Context menu on top of everything
         contextMenu.render(g, this.font, mouseX, mouseY);
@@ -730,69 +752,61 @@ public class DependencyEditorScreen extends Screen {
         int y = contentY - Math.round(smoothScroll.value());
         int currentHoveredCard = -1;
 
-        switch (activeTab) {
-            case 0 -> {
+        // Dispatched on the requirement id, not the tab index. The scope filter has already
+        // removed the tabs this stage cannot express, so no branch needs an isIndividual check.
+        switch (activeRequirementId()) {
+            case "item" -> {
                 int[] res = renderItemEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom, group);
                 y = res[0];
                 currentHoveredCard = res[1];
             }
-            case 1 -> {
+            case "stage" -> {
                 int[] res = renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
                         group.getStages(), false);
                 y = res[0];
                 currentHoveredCard = res[1];
             }
-            case 2 -> {
+            case "individual_stage" -> {
                 int[] res = renderIndividualStageEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
                         group);
                 y = res[0];
                 currentHoveredCard = res[1];
             }
-            case 3 -> {
-                if (isIndividual) {
-                    int[] res = renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
-                            group.getAdvancements(), true);
-                    y = res[0];
-                    currentHoveredCard = res[1];
-                } else {
-                    // Global mode: tab 3 is scoreboard
-                    int[] res = renderScoreboardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
-                            group);
-                    y = res[0];
-                    currentHoveredCard = res[1];
-                }
+            case "advancement" -> {
+                int[] res = renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
+                        group.getAdvancements(), true);
+                y = res[0];
+                currentHoveredCard = res[1];
             }
-            case 4 -> {
-                if (isIndividual)
-                    y = renderXpLevelEntry(g, mouseX, mouseY, rightX, rightW, y, group);
+            case "xp_level" -> y = renderXpLevelEntry(g, mouseX, mouseY, rightX, rightW, y, group);
+            case "entity_kill" -> {
+                int[] res = renderEntityKillEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
+                        group);
+                y = res[0];
+                currentHoveredCard = res[1];
             }
-            case 5 -> {
-                if (isIndividual) {
-                    int[] res = renderEntityKillEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
-                            group);
-                    y = res[0];
-                    currentHoveredCard = res[1];
-                }
+            case "stat" -> {
+                int[] res = renderStatEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom, group);
+                y = res[0];
+                currentHoveredCard = res[1];
             }
-            case 6 -> {
-                if (isIndividual) {
-                    int[] res = renderStatEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom, group);
-                    y = res[0];
-                    currentHoveredCard = res[1];
-                }
+            case "scoreboard" -> {
+                int[] res = renderScoreboardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
+                        group);
+                y = res[0];
+                currentHoveredCard = res[1];
             }
-            case 7 -> {
-                if (isIndividual) {
-                    int[] res = renderScoreboardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
-                            group);
-                    y = res[0];
-                    currentHoveredCard = res[1];
-                }
+            default -> {
+                // An addon requirement. It renders through the tab its mod registered; a
+                // requirement registered without an editor simply shows an empty tab.
+                int[] res = renderAddonEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom);
+                y = res[0];
+                currentHoveredCard = res[1];
             }
         }
 
         // Add button (matching StageDetailScreen style)
-        if (activeTab != 4) {
+        if (activeTabHasAddButton()) {
             int addY = y + 3;
             String addText = t("editor.historystages.dep.add");
             int addTextW = this.font.width(addText);
@@ -1326,6 +1340,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseClicked(mouseX, mouseY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseClicked(mouseX, mouseY);
+        if (addonSearch != null && addonSearch.isVisible())
+            return addonSearch.mouseClicked(mouseX, mouseY);
 
         int mx = (int) mouseX, my = (int) mouseY;
 
@@ -1448,8 +1464,9 @@ public class DependencyEditorScreen extends Screen {
         int y = contentY - Math.round(smoothScroll.value());
         int cx = this.width / 2, cy = this.height / 2;
 
-        switch (activeTab) {
-            case 0 -> { // Items
+        // Dispatched on the requirement id, for the same reason the render path is.
+        switch (activeRequirementId()) {
+            case "item" -> { // Items
                 for (int i = 0; i < group.getItems().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
                             && my < contentBottom) {
@@ -1464,7 +1481,7 @@ public class DependencyEditorScreen extends Screen {
                     itemSearch.show(cx, cy, this.width);
                 }
             }
-            case 1 -> { // Global Stages
+            case "stage" -> { // Global Stages
                 for (int i = 0; i < group.getStages().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
                             && my < contentBottom) {
@@ -1479,7 +1496,7 @@ public class DependencyEditorScreen extends Screen {
                     globalStageSearch.show(cx, cy, this.width);
                 }
             }
-            case 2 -> { // Individual Stages
+            case "individual_stage" -> { // Individual Stages
                 for (int i = 0; i < group.getIndividualStages().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
                             && my < contentBottom) {
@@ -1505,30 +1522,22 @@ public class DependencyEditorScreen extends Screen {
                     individualStageSearch.show(cx, cy, this.width);
                 }
             }
-            case 3 -> {
-                if (isIndividual) {
-                    // Advancements
-                    for (int i = 0; i < group.getAdvancements().size(); i++) {
-                        if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
-                                && my < contentBottom) {
-                            if (button == 1) {
-                                showSimpleContextMenu(mx, my, i, group.getAdvancements(), "advancement");
-                                return;
-                            }
+            case "advancement" -> {
+                for (int i = 0; i < group.getAdvancements().size(); i++) {
+                    if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
+                            && my < contentBottom) {
+                        if (button == 1) {
+                            showSimpleContextMenu(mx, my, i, group.getAdvancements(), "advancement");
+                            return;
                         }
-                        y += CARD_HEIGHT + CARD_GAP;
                     }
-                    if (button == 0 && my >= y + 3 && my < y + 3 + CARD_HEIGHT && mx >= rightX && mx < rightX + rightW) {
-                        advancementSearch.show(cx, cy, this.width);
-                    }
-                } else {
-                    // Global mode: scoreboard
-                    handleScoreboardClick(mx, my, button, rightX, rightW, contentY, contentBottom, y, group);
+                    y += CARD_HEIGHT + CARD_GAP;
+                }
+                if (button == 0 && my >= y + 3 && my < y + 3 + CARD_HEIGHT && mx >= rightX && mx < rightX + rightW) {
+                    advancementSearch.show(cx, cy, this.width);
                 }
             }
-            case 4 -> { // XP Level
-                if (!isIndividual)
-                    return;
+            case "xp_level" -> { // XP Level
                 XpLevelDep xp = group.getXpLevel();
                 y += 18;
                 if (xp != null && xp.getLevel() > 0) {
@@ -1553,9 +1562,7 @@ public class DependencyEditorScreen extends Screen {
                     }
                 }
             }
-            case 5 -> { // Entity Kills
-                if (!isIndividual)
-                    return;
+            case "entity_kill" -> { // Entity Kills
                 for (int i = 0; i < group.getEntityKills().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + ENTITY_CARD_HEIGHT && my >= contentY
                             && my < contentBottom) {
@@ -1570,9 +1577,7 @@ public class DependencyEditorScreen extends Screen {
                     entitySearch.show(cx, cy, this.width);
                 }
             }
-            case 6 -> { // Stats
-                if (!isIndividual)
-                    return;
+            case "stat" -> { // Stats
                 for (int i = 0; i < group.getStats().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
                             && my < contentBottom) {
@@ -1587,12 +1592,160 @@ public class DependencyEditorScreen extends Screen {
                     statSearch.show(cx, cy, this.width);
                 }
             }
-            case 7 -> { // Scoreboard (individual)
-                if (!isIndividual)
-                    return;
+            case "scoreboard" ->
                 handleScoreboardClick(mx, my, button, rightX, rightW, contentY, contentBottom, y, group);
-            }
+            default ->
+                handleAddonClick(mx, my, button, rightX, rightW, contentY, contentBottom, y, cx, cy);
         }
+    }
+
+    // --- Addon requirement tabs ---
+
+    /**
+     * The free tier's entry shape. Both {@code ofIdList} and {@code ofIdCount} store through this,
+     * so the editor reads one shape rather than two that differ by a field.
+     */
+    private static final RequirementStorage<IdCountEntry> ADDON_STORAGE =
+            RequirementStorage.gson(IdCountEntry.class);
+
+    private List<IdCountEntry> addonEntries(DependencyGroup group) {
+        return new ArrayList<>(ADDON_STORAGE.read(group.addonEntries(activeRequirementId())));
+    }
+
+    private void writeAddonEntries(DependencyGroup group, List<IdCountEntry> entries) {
+        group.setAddonEntries(activeRequirementId(),
+                entries.isEmpty() ? null : ADDON_STORAGE.write(entries));
+        hasChanges = true;
+    }
+
+    /**
+     * Renders the tab of a requirement registered by another mod.
+     *
+     * <p>Empty when no addon registered an editor for it: a requirement can be registered without
+     * one, which means it gates but cannot be edited in game.
+     */
+    private int[] renderAddonEntries(GuiGraphics g, int mouseX, int mouseY, int rightX, int rightW, int y,
+            int contentY, int contentBottom) {
+        RequirementEditor editor = RequirementEditors.byRequirement(activeRequirementId());
+        if (editor == null) {
+            // Say so rather than showing a blank tab. The requirement is real — it stores and it
+            // gates — but its mod registered no editor, so there is nothing to click here.
+            g.drawString(this.font, t("editor.historystages.dep.no_editor"), rightX, y + 4,
+                    0xFF888888, false);
+            return new int[] { y, -1 };
+        }
+        if (!hasGroup()) return new int[] { y, -1 };
+
+        boolean withAmount = editor.amountLangKey() != null;
+        List<String> rows = new ArrayList<>();
+        for (IdCountEntry entry : addonEntries(currentGroup())) {
+            rows.add(withAmount ? entry.count() + "x " + entry.id() : entry.id());
+        }
+        // Reuses the plain card renderer the advancement tab uses: same rows, same hover, and no
+        // stage-name lookup, which would be meaningless for an id only the addon understands.
+        return renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
+                rows, true);
+    }
+
+    /** The click half of {@link #renderAddonEntries}. */
+    private void handleAddonClick(int mx, int my, int button, int rightX, int rightW, int contentY,
+            int contentBottom, int y, int cx, int cy) {
+        RequirementEditor editor = RequirementEditors.byRequirement(activeRequirementId());
+        if (editor == null || !hasGroup()) return;
+
+        DependencyGroup group = currentGroup();
+        List<IdCountEntry> entries = addonEntries(group);
+        for (int i = 0; i < entries.size(); i++) {
+            if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
+                    && my < contentBottom) {
+                if (button == 1) {
+                    showAddonContextMenu(mx, my, i, group, editor);
+                    return;
+                }
+                if (button == 0 && editor.amountLangKey() != null) {
+                    openAddonCountDialog(editor, entries.get(i).id(), i);
+                    return;
+                }
+            }
+            y += CARD_HEIGHT + CARD_GAP;
+        }
+        if (button == 0 && my >= y + 3 && my < y + 3 + CARD_HEIGHT && mx >= rightX && mx < rightX + rightW) {
+            openAddonPicker(editor, cx, cy);
+        }
+    }
+
+    private void openAddonPicker(RequirementEditor editor, int cx, int cy) {
+        String requirementId = activeRequirementId();
+        List<String> alreadyAdded = addonEntries(currentGroup()).stream().map(IdCountEntry::id).toList();
+        // Rebuilt on every open rather than kept in init(): the active tab changes without the
+        // screen being re-initialised, and a picker built for another requirement would offer the
+        // wrong candidates.
+        addonSearch = new GenericIdPicker(editor.searchPlaceholderLangKey(), editor::candidates,
+                id -> {
+                    if (!hasGroup()) return;
+                    if (editor.amountLangKey() != null) {
+                        openAddonCountDialog(editor, id, -1);
+                        return;
+                    }
+                    List<IdCountEntry> current = addonEntries(currentGroup());
+                    current.add(new IdCountEntry(id, 1));
+                    writeAddonEntries(currentGroup(), current);
+                },
+                () -> alreadyAdded);
+        addonSearch.setMultiSelect(editor.amountLangKey() == null);
+        addonSearch.show(cx, cy, this.width);
+        // Guards against a picker outliving a tab switch, which would write into the wrong slot.
+        if (!requirementId.equals(activeRequirementId())) addonSearch = null;
+    }
+
+    private void showAddonContextMenu(int mx, int my, int idx, DependencyGroup group, RequirementEditor editor) {
+        contextMenu = new ContextMenu();
+        List<IdCountEntry> entries = addonEntries(group);
+        IdCountEntry entry = entries.get(idx);
+        if (editor.amountLangKey() != null) {
+            contextMenu.addEntry(t("editor.historystages.dep.context.count"),
+                    () -> openAddonCountDialog(editor, entry.id(), idx));
+        }
+        contextMenu.addEntry(t("editor.historystages.copy_id"),
+                () -> { Minecraft.getInstance().keyboardHandler.setClipboard(entry.id());
+                        EditorToastHandler.copiedToClipboard(entry.id()); });
+        contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
+            List<IdCountEntry> current = addonEntries(group);
+            if (idx < current.size()) current.add(idx + 1, current.get(idx));
+            writeAddonEntries(group, current);
+        });
+        contextMenu.addEntry(t("editor.historystages.remove"), () -> {
+            List<IdCountEntry> current = addonEntries(group);
+            if (idx < current.size()) current.remove(idx);
+            writeAddonEntries(group, current);
+        });
+        contextMenu.show(mx, my, this.font);
+    }
+
+    /**
+     * The amount dialog for an addon entry.
+     *
+     * <p>Its own method rather than a fifth case in {@link #openCountDialog}: that one switches on
+     * four built-in strings to find both the current value and the title, and neither lookup has
+     * an answer here — the value lives in the addon block and the title is a lang key the addon
+     * supplied.
+     */
+    private void openAddonCountDialog(RequirementEditor editor, String entryId, int editIndex) {
+        if (!hasGroup()) return;
+        DependencyGroup group = currentGroup();
+        List<IdCountEntry> entries = addonEntries(group);
+        int initial = editIndex >= 0 && editIndex < entries.size() ? entries.get(editIndex).count() : 1;
+        this.minecraft.setScreen(new CountInputScreen(this,
+                Component.translatable(editor.amountLangKey()), entryId, initial, 1, 999999,
+                num -> {
+                    List<IdCountEntry> current = addonEntries(group);
+                    if (editIndex >= 0 && editIndex < current.size()) {
+                        current.set(editIndex, new IdCountEntry(entryId, num));
+                    } else {
+                        current.add(new IdCountEntry(entryId, num));
+                    }
+                    writeAddonEntries(group, current);
+                }));
     }
 
     private void handleScoreboardClick(int mx, int my, int button, int rightX, int rightW, int contentY,
@@ -1789,6 +1942,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseDragged(mouseX, mouseY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseDragged(mouseX, mouseY);
+        if (addonSearch != null && addonSearch.isVisible())
+            return addonSearch.mouseDragged(mouseX, mouseY);
         if (draggingContentScrollbar) {
             int contentY = HEADER_HEIGHT + TAB_HEIGHT + 6;
             int contentBottom = this.height - 30;
@@ -1816,6 +1971,8 @@ public class DependencyEditorScreen extends Screen {
             return true;
         if (statSearch != null && statSearch.mouseReleased())
             return true;
+        if (addonSearch != null && addonSearch.mouseReleased())
+            return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
@@ -1833,6 +1990,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.keyPressed(keyCode);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.keyPressed(keyCode);
+        if (addonSearch != null && addonSearch.isVisible())
+            return addonSearch.keyPressed(keyCode);
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
@@ -1850,6 +2009,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.charTyped(codePoint);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.charTyped(codePoint);
+        if (addonSearch != null && addonSearch.isVisible())
+            return addonSearch.charTyped(codePoint);
         return super.charTyped(codePoint, modifiers);
     }
 
@@ -1868,6 +2029,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (addonSearch != null && addonSearch.isVisible())
+            return addonSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int) (delta * 30)));
             return true;
@@ -1899,6 +2062,9 @@ public class DependencyEditorScreen extends Screen {
                 + group.getScoreboard().size();
         if (group.getXpLevel() != null && group.getXpLevel().getLevel() > 0)
             count++;
+        // Addon requirements count too, otherwise a group holding nothing else reads as empty in
+        // the group list while the checker treats it as a real dependency.
+        count += group.addonRequirementIds().size();
         return count;
     }
 

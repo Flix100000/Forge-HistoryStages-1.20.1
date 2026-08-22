@@ -1,7 +1,7 @@
-package net.bananemdnsa.historystages.client.editor.graph;
+package net.bananemdnsa.historystages.data.dependency;
 
 /**
- * How a single dependency requirement may honestly be presented in {@link GraphDetailScreen}.
+ * How a single dependency requirement may honestly be presented in the graph detail panel.
  *
  * <p>The graph asks the server for a stage's requirements without a Research Pedestal, so
  * {@code DependencyChecker} runs with no deposited data. That is fine for anything it measures
@@ -37,13 +37,17 @@ public final class RequirementDisplay {
      *                   exactly.
      */
     public static Kind kindOf(String type, boolean canDeposit) {
-        if ("item".equals(type)) return Kind.DEPOSITED;
+        // XP is the one type whose presentation depends on the entry rather than the type: only
+        // canDeposit separates a consuming requirement from a plain level check, and the
+        // requirement itself cannot know which one a given entry is.
         if ("xp_level".equals(type)) return canDeposit ? Kind.DEPOSITED : Kind.COUNTED;
-        if ("entity_kill".equals(type) || "stat".equals(type)) return Kind.COUNTED;
-        // Scoreboard is measured live, but carries a comparison operator: a requirement of
-        // "score < 5" cannot be read as "3/5" without inverting its meaning. Its description
-        // already spells the condition out, so the glyph is left to say the rest.
-        return Kind.BINARY;
+
+        // Everything else declares its own kind, so a requirement from another mod is presented
+        // the way its author said rather than falling into whatever an if-chain here happened to
+        // cover. An unregistered type — an uninstalled addon's leftover entry — gets BINARY: a
+        // status glyph, and no invented count.
+        Requirement requirement = RequirementTypes.byId(type);
+        return requirement == null ? Kind.BINARY : requirement.displayKind();
     }
 
     /** Whether a status glyph may be drawn for this requirement. */

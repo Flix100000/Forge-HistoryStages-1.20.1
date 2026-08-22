@@ -125,7 +125,7 @@ public final class AutoTriggerManager {
         long sig = it.trigger().signature();
         if (set.contains(sig)) return;
 
-        if (!areDependenciesSatisfied(stage, player, level)) return;
+        if (!areDependenciesSatisfied(stage, it.isIndividual(), player, level)) return;
 
         if (!set.add(sig)) return;
         markDirty(it.isIndividual(), level);
@@ -185,10 +185,11 @@ public final class AutoTriggerManager {
         return StageData.SERVER_CACHE.contains(stageId);
     }
 
-    private static boolean areDependenciesSatisfied(StageEntry stage,
+    private static boolean areDependenciesSatisfied(StageEntry stage, boolean isIndividual,
                                                     ServerPlayer player, ServerLevel level) {
         if (!stage.hasDependencies()) return true;
-        DependencyResult result = DependencyChecker.checkAll(stage, player, level, null);
+        DependencyResult result = DependencyChecker.checkAll(stage, player, level,
+                isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL, null);
         return result.isFulfilled();
     }
 

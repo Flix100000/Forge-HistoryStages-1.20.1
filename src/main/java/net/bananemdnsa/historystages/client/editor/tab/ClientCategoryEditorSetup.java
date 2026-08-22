@@ -33,6 +33,10 @@ public final class ClientCategoryEditorSetup {
             ModLoader.postEvent(new net.bananemdnsa.historystages.client.editor.trigger
                     .RegisterTriggerEditorsEvent());
             net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors.freeze();
+
+            ModLoader.postEvent(new net.bananemdnsa.historystages.client.editor.dep
+                    .RegisterRequirementEditorsEvent());
+            net.bananemdnsa.historystages.client.editor.dep.RequirementEditors.freeze();
         });
     }
 }

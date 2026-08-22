@@ -103,6 +103,9 @@ public class HistoryStages {
                             new net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent());
                     net.bananemdnsa.historystages.data.auto.TriggerTypes.freeze();
                     net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.data.dependency.RegisterRequirementTypesEvent());
+                    net.bananemdnsa.historystages.data.dependency.RequirementTypes.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
                             new net.bananemdnsa.historystages.data.settings.RegisterStageSettingsGroupsEvent());
                     net.bananemdnsa.historystages.data.settings.StageSettingsGroups.freeze();
                     net.neoforged.fml.ModLoader.postEvent(
