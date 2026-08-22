@@ -34,5 +34,5 @@ CLAUDE.md
 docs/superpowers/
 .superpowers/
 
-# Word documents in docs/ are local notes, never part of the repo.
+# docs/ holds local notes and brainstorm specs, never part of the repo.
 docs/
