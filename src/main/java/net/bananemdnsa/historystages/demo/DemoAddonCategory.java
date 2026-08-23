@@ -57,6 +57,8 @@ public final class DemoAddonCategory {
             net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent event) {
         if (!enabled()) return;
         event.register(TRIGGER_TYPE, RelicFoundTrigger.class, StageScope.GLOBAL);
+        // Carries a number and no id, so it cannot be authored by picking from a list.
+        event.register(RelicHoardTrigger.TYPE, RelicHoardTrigger.class);
     }
 
     /**

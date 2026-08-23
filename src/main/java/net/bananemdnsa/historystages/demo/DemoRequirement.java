@@ -26,6 +26,9 @@ public final class DemoRequirement {
     /** Namespaced like any addon must be — {@code historystages} is reserved for the built-ins. */
     public static final String REQUIREMENT_ID = "hsdemo:relic";
 
+    /** The one whose entries are not id-and-count, so it needs a tab of its own. */
+    public static final String RELIC_SET_ID = "hsdemo:relic_set";
+
     private DemoRequirement() {}
 
     @SubscribeEvent
@@ -39,6 +42,19 @@ public final class DemoRequirement {
                 .storage(RequirementStorage.gson(IdCountEntry.class))
                 .displayKind(RequirementDisplay.Kind.COUNTED)
                 .evaluator(DemoRequirement::check)
+                .build());
+
+        // The interesting one: two fields, neither a count. Nothing about registering it differs
+        // from the simple case — the difference is entirely on the client, where its editor has to
+        // supply a tab rather than take the free one.
+        event.register(AddonRequirement.<RelicSetDep>builder(RELIC_SET_ID)
+                .tabLangKey("editor.historystages.demo.dep.tab.relic_sets")
+                .tooltipLangKey("editor.historystages.demo.dep.tooltip.relic_sets")
+                .sectionLangKey("editor.historystages.demo.graph.section.relics")
+                .storage(RequirementStorage.gson(RelicSetDep.class))
+                .evaluator((entry, ctx) -> new RequirementOutcome(entry.relic(),
+                        entry.rarity() + " " + entry.relic(),
+                        "common".equals(entry.rarity()), 0, 1))
                 .build());
     }
 

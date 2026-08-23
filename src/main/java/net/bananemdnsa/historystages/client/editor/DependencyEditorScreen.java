@@ -12,11 +12,16 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.dep.DependencyTab;
+import net.bananemdnsa.historystages.client.editor.dep.IdCountTab;
+import net.bananemdnsa.historystages.client.editor.dep.ItemRequirementTab;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
+import net.bananemdnsa.historystages.client.editor.tab.EntryAction;
 import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
 import net.bananemdnsa.historystages.client.editor.widget.*;
 import net.bananemdnsa.historystages.client.editor.widget.list.*;
+import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.*;
@@ -36,6 +41,7 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import org.joml.Quaternionf;
@@ -139,14 +145,11 @@ public class DependencyEditorScreen extends Screen {
     private int maxTabScroll = 0;
 
     // Searchable widget overlays
-    private SearchableItemList itemSearch;
     private SearchableEntityList entitySearch;
     private SearchableStageList globalStageSearch;
     private SearchableStageList individualStageSearch;
     private SearchableAdvancementList advancementSearch;
     private SearchableStatList statSearch;
-    /** Rebuilt whenever an addon tab opens its picker; see {@link #openAddonPicker}. */
-    private GenericIdPicker addonSearch;
 
     // Context menu
     private ContextMenu contextMenu;
@@ -162,7 +165,6 @@ public class DependencyEditorScreen extends Screen {
     private static final long TOOLTIP_DELAY_MS = Timing.TOOLTIP_DELAY_MS;
 
     // NBT editing for item dependencies
-    private final Map<Integer, JsonObject> itemNbtMap = new HashMap<>();
 
     // Content scrollbar
     private boolean draggingContentScrollbar = false;
@@ -216,8 +218,13 @@ public class DependencyEditorScreen extends Screen {
                 Component.translatable("editor.historystages.dep.add_group"),
                 btn -> {
                     if (atGroupLimit()) return;
+                    // Store into the group being left before the selection moves, or its addon
+                    // entries never reach it — the tabs hold them until told otherwise.
+                    if (hasGroup()) storeAddonTabs(currentGroup());
                     groups.add(new DependencyGroup());
                     selectedGroup = groups.size() - 1;
+                    // And load from the new one, which is empty and therefore clears the tabs.
+                    loadAddonTabs(currentGroup());
                     activeTab = 0;
                     scrollOffset = 0;
                     hasChanges = true;
@@ -230,14 +237,6 @@ public class DependencyEditorScreen extends Screen {
         // Searchable widgets. Already-added suppliers map the dependency-wrapper
         // lists (DependencyItem/EntityKillDep/etc.) back to plain string IDs so
         // the FilterDropdown's "Hide already added" toggle can match entries.
-        itemSearch = new SearchableItemList(id -> {
-            if (hasGroup()) {
-                currentGroup().getItems().add(new DependencyItem(id, 1));
-                hasChanges = true;
-            }
-        }, () -> hasGroup()
-                ? currentGroup().getItems().stream().map(DependencyItem::getId).toList()
-                : java.util.Collections.emptyList());
         entitySearch = new SearchableEntityList(id -> {
             if (hasGroup()) {
                 currentGroup().getEntityKills().add(new EntityKillDep(id, 1));
@@ -282,8 +281,8 @@ public class DependencyEditorScreen extends Screen {
         statSearch.setMultiSelect(true);
 
         contextMenu = new ContextMenu();
+        buildAddonTabs();
         computeTabLayout();
-        rebuildItemNbtMap();
     }
 
     private boolean hasGroup() {
@@ -331,33 +330,14 @@ public class DependencyEditorScreen extends Screen {
         }
     }
 
-    private void rebuildItemNbtMap() {
-        itemNbtMap.clear();
-        if (hasGroup()) {
-            for (int i = 0; i < currentGroup().getItems().size(); i++) {
-                DependencyItem item = currentGroup().getItems().get(i);
-                if (item.hasNbt())
-                    itemNbtMap.put(i, item.getNbt().deepCopy());
-            }
-        }
-    }
-
     private void save() {
-        syncNbtToItems();
+        // Addon tabs hold their entries and only write them on store. Without this the last edits
+        // made in the selected group never reach it, and removeIf below would then drop a group
+        // that only looks empty.
+        if (hasGroup()) storeAddonTabs(currentGroup());
         groups.removeIf(DependencyGroup::isEmpty);
         onSave.accept(groups.stream().map(DependencyGroup::copy).collect(Collectors.toList()));
         hasChanges = false;
-    }
-
-    private void syncNbtToItems() {
-        if (hasGroup()) {
-            for (var entry : itemNbtMap.entrySet()) {
-                int idx = entry.getKey();
-                if (idx < currentGroup().getItems().size()) {
-                    currentGroup().getItems().get(idx).setNbt(entry.getValue());
-                }
-            }
-        }
     }
 
     @Override
@@ -377,13 +357,12 @@ public class DependencyEditorScreen extends Screen {
     }
 
     private boolean isOverlayOpen() {
-        return (itemSearch != null && itemSearch.isVisible())
-                || (entitySearch != null && entitySearch.isVisible())
+        return (entitySearch != null && entitySearch.isVisible())
                 || (globalStageSearch != null && globalStageSearch.isVisible())
                 || (individualStageSearch != null && individualStageSearch.isVisible())
                 || (advancementSearch != null && advancementSearch.isVisible())
                 || (statSearch != null && statSearch.isVisible())
-                || (addonSearch != null && addonSearch.isVisible());
+                || (addonPicker() != null && addonPicker().isVisible());
     }
 
     // --- Count dialog ---
@@ -570,8 +549,6 @@ public class DependencyEditorScreen extends Screen {
         g.pose().pushPose();
         g.pose().translate(0, 0, 200);
 
-        if (itemSearch != null)
-            itemSearch.render(g, this.font, mouseX, mouseY);
         if (entitySearch != null)
             entitySearch.render(g, this.font, mouseX, mouseY);
         if (globalStageSearch != null)
@@ -582,8 +559,8 @@ public class DependencyEditorScreen extends Screen {
             advancementSearch.render(g, this.font, mouseX, mouseY);
         if (statSearch != null)
             statSearch.render(g, this.font, mouseX, mouseY);
-        if (addonSearch != null)
-            addonSearch.render(g, this.font, mouseX, mouseY);
+        if (addonPicker() != null)
+            addonPicker().render(g, this.font, mouseX, mouseY);
 
         // Context menu on top of everything
         contextMenu.render(g, this.font, mouseX, mouseY);
@@ -755,11 +732,6 @@ public class DependencyEditorScreen extends Screen {
         // Dispatched on the requirement id, not the tab index. The scope filter has already
         // removed the tabs this stage cannot express, so no branch needs an isIndividual check.
         switch (activeRequirementId()) {
-            case "item" -> {
-                int[] res = renderItemEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom, group);
-                y = res[0];
-                currentHoveredCard = res[1];
-            }
             case "stage" -> {
                 int[] res = renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
                         group.getStages(), false);
@@ -927,63 +899,6 @@ public class DependencyEditorScreen extends Screen {
     }
 
     // --- Entry renderers ---
-
-    private int[] renderItemEntries(GuiGraphics g, int mx, int my, int rx, int rw, int y, int cTop, int cBot,
-            DependencyGroup group) {
-        int hovered = -1;
-        for (int i = 0; i < group.getItems().size(); i++) {
-            DependencyItem item = group.getItems().get(i);
-            boolean isHovered = !isOverlayOpen() && !contextMenu.isVisible() && mx >= rx && mx < rx + rw && my >= y
-                    && my < y + CARD_HEIGHT && my >= cTop && my < cBot;
-            float cp = updateCardHover(i, isHovered);
-            if (isHovered)
-                hovered = i;
-
-            // Item icon
-            int badgeW = 0;
-            if (itemNbtMap.containsKey(i)) {
-                badgeW = this.font.width("\u00A76[NBT]") + 6;
-            }
-
-            String displayName = item.getId();
-            try {
-                ResourceLocation rl = ResourceLocation.tryParse(item.getId());
-                if (rl != null) {
-                    var mcItem = BuiltInRegistries.ITEM.get(rl);
-                    if (mcItem != null)
-                        displayName = mcItem.getDescription().getString();
-                }
-            } catch (Exception ignored) {
-            }
-
-            renderCardWithText(g, rx, rw, y, isHovered, cp, item.getCount() + "x " + displayName, 22, badgeW, i, cTop,
-                    cBot);
-
-            // Item icon on card
-            try {
-                ResourceLocation rl = ResourceLocation.tryParse(item.getId());
-                if (rl != null) {
-                    var mcItem = BuiltInRegistries.ITEM.get(rl);
-                    if (mcItem != null) {
-                        g.pose().pushPose();
-                        g.pose().scale(SMALL_SCALE, SMALL_SCALE, 1);
-                        g.renderItem(new ItemStack(mcItem), (int) ((rx + 3) / SMALL_SCALE),
-                                (int) ((y + 3) / SMALL_SCALE));
-                        g.pose().popPose();
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-
-            // NBT badge
-            if (itemNbtMap.containsKey(i)) {
-                g.drawString(this.font, "\u00A76[NBT]", rx + rw - badgeW, y + 7, 0xFFCC00, false);
-            }
-
-            y += CARD_HEIGHT + CARD_GAP;
-        }
-        return new int[] { y, hovered };
-    }
 
     private int[] renderStringCardEntries(GuiGraphics g, int mx, int my, int rx, int rw, int y, int cTop, int cBot,
             List<String> entries, boolean isAdvancement) {
@@ -1328,8 +1243,6 @@ public class DependencyEditorScreen extends Screen {
         }
 
         // Widget overlays
-        if (itemSearch != null && itemSearch.isVisible())
-            return itemSearch.mouseClicked(mouseX, mouseY);
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.mouseClicked(mouseX, mouseY);
         if (globalStageSearch != null && globalStageSearch.isVisible())
@@ -1340,8 +1253,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseClicked(mouseX, mouseY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseClicked(mouseX, mouseY);
-        if (addonSearch != null && addonSearch.isVisible())
-            return addonSearch.mouseClicked(mouseX, mouseY);
+        if (addonPicker() != null && addonPicker().isVisible())
+            return addonPicker().mouseClicked(mouseX, mouseY);
 
         int mx = (int) mouseX, my = (int) mouseY;
 
@@ -1380,13 +1293,19 @@ public class DependencyEditorScreen extends Screen {
                             hasChanges = true;
                         });
                         contextMenu.addEntry(t("editor.historystages.remove"), () -> {
-                            syncNbtToItems();
+                            // Only worth storing when the selected group is not the one going
+                            // away; into the doomed one it would be thrown out with it.
+                            if (hasGroup() && selectedGroup != gi) storeAddonTabs(currentGroup());
                             groups.remove(gi);
                             if (selectedGroup >= groups.size())
                                 selectedGroup = Math.max(0, groups.size() - 1);
+                            // Reload whatever is selected now. Note that removing a group before
+                            // the selected one shifts the indices without moving the selection —
+                            // that jump predates this and is not fixed here, but the tabs must at
+                            // least agree with whichever group the selection ended up on.
+                            reloadAddonTabsForSelection();
                             scrollOffset = 0;
                             hasChanges = true;
-                            rebuildItemNbtMap();
                         });
                         contextMenu.show(mx, my, this.font);
                         return true;
@@ -1403,11 +1322,14 @@ public class DependencyEditorScreen extends Screen {
                     }
                     // Left-click: select
                     if (selectedGroup != i) {
-                        syncNbtToItems();
+                        // Store before, load after — in that order. Reversed, the load overwrites
+                        // the tabs before they have been written back, and the edits made in the
+                        // group being left are gone with nothing to report it.
+                        if (hasGroup()) storeAddonTabs(currentGroup());
                         selectedGroup = i;
+                        loadAddonTabs(currentGroup());
                         activeTab = 0;
                         scrollOffset = 0;
-                        rebuildItemNbtMap();
                         Minecraft.getInstance().getSoundManager()
                                 .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     }
@@ -1466,21 +1388,6 @@ public class DependencyEditorScreen extends Screen {
 
         // Dispatched on the requirement id, for the same reason the render path is.
         switch (activeRequirementId()) {
-            case "item" -> { // Items
-                for (int i = 0; i < group.getItems().size(); i++) {
-                    if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
-                            && my < contentBottom) {
-                        if (button == 1) {
-                            showItemContextMenu(mx, my, i, group);
-                            return;
-                        }
-                    }
-                    y += CARD_HEIGHT + CARD_GAP;
-                }
-                if (button == 0 && my >= y + 3 && my < y + 3 + CARD_HEIGHT && mx >= rightX && mx < rightX + rightW) {
-                    itemSearch.show(cx, cy, this.width);
-                }
-            }
             case "stage" -> { // Global Stages
                 for (int i = 0; i < group.getStages().size(); i++) {
                     if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
@@ -1602,149 +1509,249 @@ public class DependencyEditorScreen extends Screen {
     // --- Addon requirement tabs ---
 
     /**
-     * The free tier's entry shape. Both {@code ofIdList} and {@code ofIdCount} store through this,
-     * so the editor reads one shape rather than two that differ by a field.
+     * One tab per addon requirement that has a registered editor, created once.
+     *
+     * <p>Created once and deliberately not in {@code init()}: Minecraft re-runs init on every
+     * window resize, and a tab rebuilt there would throw away whatever the maintainer had entered.
+     * Only the picker is rebuilt on init — the same rule {@code StageDetailScreen} follows.
      */
-    private static final RequirementStorage<IdCountEntry> ADDON_STORAGE =
-            RequirementStorage.gson(IdCountEntry.class);
+    private final Map<String, DependencyTab> addonTabs = new LinkedHashMap<>();
 
-    private List<IdCountEntry> addonEntries(DependencyGroup group) {
-        return new ArrayList<>(ADDON_STORAGE.read(group.addonEntries(activeRequirementId())));
+    /** The active tab, or null when the active requirement is built in or has no editor. */
+    private DependencyTab activeAddonTab() {
+        return addonTabs.get(activeRequirementId());
     }
 
-    private void writeAddonEntries(DependencyGroup group, List<IdCountEntry> entries) {
-        group.setAddonEntries(activeRequirementId(),
-                entries.isEmpty() ? null : ADDON_STORAGE.write(entries));
-        hasChanges = true;
+    /** The active addon tab's picker, or null when there is none to forward input to. */
+    private PickerOverlay addonPicker() {
+        DependencyTab tab = activeAddonTab();
+        return tab == null ? null : tab.picker();
+    }
+
+    private void buildAddonTabs() {
+        // The item requirement is a tab like any other, found the same way an addon's is. That is
+        // the point of the migration: one lookup path, not a built-in shortcut beside it.
+        if (!addonTabs.containsKey("item")) {
+            Requirement itemRequirement = RequirementTypes.byId("item");
+            if (itemRequirement != null) {
+                ItemRequirementTab itemTab = new ItemRequirementTab(itemRequirement,
+                        (onSelect, alreadyAdded) -> {
+                            SearchableItemList picker = new SearchableItemList(onSelect, alreadyAdded);
+                            picker.setMultiSelect(false); // every pick opens the count dialog
+                            return picker;
+                        },
+                        () -> hasChanges = true);
+                itemTab.setOnEditNbt(this::openNbtEditScreen);
+                itemTab.setOnCountNeeded(id -> openItemCountDialog(itemTab, id, -1));
+                if (hasGroup()) itemTab.load(currentGroup());
+                addonTabs.put("item", itemTab);
+            }
+        }
+
+        for (Requirement requirement : visibleRequirements()) {
+            if (addonTabs.containsKey(requirement.id())) continue;
+            RequirementEditor editor = RequirementEditors.byRequirement(requirement.id());
+            if (editor == null) continue;
+
+            DependencyTab tab = editor.createTab(() -> hasChanges = true);
+            if (tab instanceof IdCountTab counted && counted.hasAmount()) {
+                // A tab cannot push a screen, so it says it needs an amount and this does it.
+                counted.setOnAmountNeeded(id -> openAddonCountDialog(counted, id, -1));
+            }
+            if (hasGroup()) tab.load(currentGroup());
+            addonTabs.put(requirement.id(), tab);
+        }
+        for (DependencyTab tab : addonTabs.values()) tab.rebuildPicker();
+    }
+
+    /** Stores every addon tab's state into the given group. */
+    private void storeAddonTabs(DependencyGroup group) {
+        for (DependencyTab tab : addonTabs.values()) tab.store(group);
+    }
+
+    /** Loads every addon tab's state from the given group. */
+    private void loadAddonTabs(DependencyGroup group) {
+        for (DependencyTab tab : addonTabs.values()) tab.load(group);
+    }
+
+    /**
+     * Points the tabs at whichever group is selected now, emptying them when none is.
+     *
+     * <p>Loading from a throwaway empty group is how they are cleared: a tab that kept the last
+     * group's entries would write them into the next group it is stored into.
+     */
+    private void reloadAddonTabsForSelection() {
+        loadAddonTabs(hasGroup() ? currentGroup() : new DependencyGroup());
     }
 
     /**
      * Renders the tab of a requirement registered by another mod.
      *
-     * <p>Empty when no addon registered an editor for it: a requirement can be registered without
-     * one, which means it gates but cannot be edited in game.
+     * <p>Row text comes from the tab, the drawing stays here — see {@code EditorTab}. Empty when no
+     * addon registered an editor: a requirement can be registered without one, which means it
+     * gates but cannot be edited in game.
      */
     private int[] renderAddonEntries(GuiGraphics g, int mouseX, int mouseY, int rightX, int rightW, int y,
             int contentY, int contentBottom) {
-        RequirementEditor editor = RequirementEditors.byRequirement(activeRequirementId());
-        if (editor == null) {
-            // Say so rather than showing a blank tab. The requirement is real — it stores and it
-            // gates — but its mod registered no editor, so there is nothing to click here.
+        DependencyTab tab = activeAddonTab();
+        if (tab == null) {
             g.drawString(this.font, t("editor.historystages.dep.no_editor"), rightX, y + 4,
                     0xFF888888, false);
             return new int[] { y, -1 };
         }
-        if (!hasGroup()) return new int[] { y, -1 };
+        return renderTabEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom, tab);
+    }
 
-        boolean withAmount = editor.amountLangKey() != null;
-        List<String> rows = new ArrayList<>();
-        for (IdCountEntry entry : addonEntries(currentGroup())) {
-            rows.add(withAmount ? entry.count() + "x " + entry.id() : entry.id());
+    /**
+     * Draws one tab's rows: the text it supplies, plus the optional icon and badge it declares.
+     *
+     * <p>The one renderer every tab goes through, built-in or not. Row height is fixed at
+     * {@code CARD_HEIGHT} whatever the tab says, which is what keeps a tab from having to know
+     * anything about the scroll arithmetic.
+     */
+    private int[] renderTabEntries(GuiGraphics g, int mx, int my, int rx, int rw, int y, int cTop, int cBot,
+            DependencyTab tab) {
+        int hovered = -1;
+        List<String> rows = tab.entries();
+        for (int i = 0; i < rows.size(); i++) {
+            boolean isHovered = !isOverlayOpen() && !contextMenu.isVisible() && mx >= rx && mx < rx + rw
+                    && my >= y && my < y + CARD_HEIGHT && my >= cTop && my < cBot;
+            float cp = updateCardHover(i, isHovered);
+            if (isHovered) hovered = i;
+
+            String badge = tab.badgeText(i);
+            int badgeW = badge != null ? this.font.width(badge) + 6 : 0;
+            String iconId = tab.iconItemId(i);
+            int indent = iconId != null ? 22 : 6;
+
+            renderCardWithText(g, rx, rw, y, isHovered, cp, rows.get(i), indent, badgeW, i, cTop, cBot);
+
+            if (iconId != null) {
+                ResourceLocation rl = ResourceLocation.tryParse(iconId);
+                Item icon = rl == null ? null : BuiltInRegistries.ITEM.get(rl);
+                if (icon != null) {
+                    g.pose().pushPose();
+                    g.pose().scale(SMALL_SCALE, SMALL_SCALE, 1);
+                    g.renderItem(new ItemStack(icon), (int) ((rx + 3) / SMALL_SCALE),
+                            (int) ((y + 3) / SMALL_SCALE));
+                    g.pose().popPose();
+                }
+            }
+            if (badge != null) {
+                g.drawString(this.font, badge, rx + rw - badgeW, y + 7, 0xFFCC00, false);
+            }
+
+            y += CARD_HEIGHT + CARD_GAP;
         }
-        // Reuses the plain card renderer the advancement tab uses: same rows, same hover, and no
-        // stage-name lookup, which would be meaningless for an id only the addon understands.
-        return renderStringCardEntries(g, mouseX, mouseY, rightX, rightW, y, contentY, contentBottom,
-                rows, true);
+        return new int[] { y, hovered };
     }
 
     /** The click half of {@link #renderAddonEntries}. */
     private void handleAddonClick(int mx, int my, int button, int rightX, int rightW, int contentY,
             int contentBottom, int y, int cx, int cy) {
-        RequirementEditor editor = RequirementEditors.byRequirement(activeRequirementId());
-        if (editor == null || !hasGroup()) return;
+        DependencyTab tab = activeAddonTab();
+        if (tab == null || !hasGroup()) return;
 
-        DependencyGroup group = currentGroup();
-        List<IdCountEntry> entries = addonEntries(group);
-        for (int i = 0; i < entries.size(); i++) {
+        for (int i = 0; i < tab.entries().size(); i++) {
             if (mx >= rightX && mx < rightX + rightW && my >= y && my < y + CARD_HEIGHT && my >= contentY
                     && my < contentBottom) {
                 if (button == 1) {
-                    showAddonContextMenu(mx, my, i, group, editor);
+                    showAddonContextMenu(mx, my, i, tab);
                     return;
                 }
-                if (button == 0 && editor.amountLangKey() != null) {
-                    openAddonCountDialog(editor, entries.get(i).id(), i);
+                if (button == 0 && tab instanceof IdCountTab counted && counted.hasAmount()) {
+                    openAddonCountDialog(counted, counted.idAt(i), i);
                     return;
                 }
             }
             y += CARD_HEIGHT + CARD_GAP;
         }
         if (button == 0 && my >= y + 3 && my < y + 3 + CARD_HEIGHT && mx >= rightX && mx < rightX + rightW) {
-            openAddonPicker(editor, cx, cy);
+            tab.openPicker(cx, cy, this.width);
         }
     }
 
-    private void openAddonPicker(RequirementEditor editor, int cx, int cy) {
-        String requirementId = activeRequirementId();
-        List<String> alreadyAdded = addonEntries(currentGroup()).stream().map(IdCountEntry::id).toList();
-        // Rebuilt on every open rather than kept in init(): the active tab changes without the
-        // screen being re-initialised, and a picker built for another requirement would offer the
-        // wrong candidates.
-        addonSearch = new GenericIdPicker(editor.searchPlaceholderLangKey(), editor::candidates,
-                id -> {
-                    if (!hasGroup()) return;
-                    if (editor.amountLangKey() != null) {
-                        openAddonCountDialog(editor, id, -1);
-                        return;
-                    }
-                    List<IdCountEntry> current = addonEntries(currentGroup());
-                    current.add(new IdCountEntry(id, 1));
-                    writeAddonEntries(currentGroup(), current);
-                },
-                () -> alreadyAdded);
-        addonSearch.setMultiSelect(editor.amountLangKey() == null);
-        addonSearch.show(cx, cy, this.width);
-        // Guards against a picker outliving a tab switch, which would write into the wrong slot.
-        if (!requirementId.equals(activeRequirementId())) addonSearch = null;
-    }
-
-    private void showAddonContextMenu(int mx, int my, int idx, DependencyGroup group, RequirementEditor editor) {
+    private void showAddonContextMenu(int mx, int my, int idx, DependencyTab tab) {
         contextMenu = new ContextMenu();
-        List<IdCountEntry> entries = addonEntries(group);
-        IdCountEntry entry = entries.get(idx);
-        if (editor.amountLangKey() != null) {
+
+        if (tab instanceof ItemRequirementTab itemTab) {
+            String itemId = itemTab.idAt(idx);
+            contextMenu.addEntry(t("editor.historystages.dep.context.edit_nbt"),
+                    () -> itemTab.requestNbtEdit(idx));
             contextMenu.addEntry(t("editor.historystages.dep.context.count"),
-                    () -> openAddonCountDialog(editor, entry.id(), idx));
+                    () -> openItemCountDialog(itemTab, itemId, idx));
+            contextMenu.addEntry(t("editor.historystages.copy_id"),
+                    () -> { Minecraft.getInstance().keyboardHandler.setClipboard(itemId);
+                            EditorToastHandler.copiedToClipboard(itemId); });
+            contextMenu.addEntry(t("editor.historystages.duplicate"), () -> itemTab.duplicateAt(idx));
+            contextMenu.addEntry(t("editor.historystages.remove"), () -> itemTab.removeAt(idx));
+            contextMenu.show(mx, my, this.font);
+            return;
+        }
+
+        IdCountTab counted = tab instanceof IdCountTab c ? c : null;
+        String id = counted != null ? counted.idAt(idx) : tab.entries().get(idx);
+
+        if (counted != null && counted.hasAmount()) {
+            contextMenu.addEntry(t("editor.historystages.dep.context.count"),
+                    () -> openAddonCountDialog(counted, id, idx));
         }
         contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> { Minecraft.getInstance().keyboardHandler.setClipboard(entry.id());
-                        EditorToastHandler.copiedToClipboard(entry.id()); });
-        contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
-            List<IdCountEntry> current = addonEntries(group);
-            if (idx < current.size()) current.add(idx + 1, current.get(idx));
-            writeAddonEntries(group, current);
-        });
-        contextMenu.addEntry(t("editor.historystages.remove"), () -> {
-            List<IdCountEntry> current = addonEntries(group);
-            if (idx < current.size()) current.remove(idx);
-            writeAddonEntries(group, current);
-        });
+                () -> { Minecraft.getInstance().keyboardHandler.setClipboard(id);
+                        EditorToastHandler.copiedToClipboard(id); });
+        if (counted != null) {
+            contextMenu.addEntry(t("editor.historystages.duplicate"), () -> counted.duplicateAt(idx));
+        }
+        addDeclaredActions(tab.requirementId(), idx);
+        contextMenu.addEntry(t("editor.historystages.remove"), () -> tab.removeAt(idx));
         contextMenu.show(mx, my, this.font);
     }
 
     /**
-     * The amount dialog for an addon entry.
+     * Appends whatever extra menu entries the requirement's editor declared.
+     *
+     * <p>After the built-in ones, not instead of them: copy and remove stay where a maintainer
+     * expects them, and an addon adds to the menu rather than replacing it.
+     */
+    private void addDeclaredActions(String requirementId, int idx) {
+        RequirementEditor editor = RequirementEditors.byRequirement(requirementId);
+        if (editor == null) return;
+        for (EntryAction action : editor.entryActions()) {
+            contextMenu.addEntry(t(action.langKey()), () -> action.run(idx, () -> hasChanges = true));
+        }
+    }
+
+    /**
+     * The amount dialog for a free-tier entry.
      *
      * <p>Its own method rather than a fifth case in {@link #openCountDialog}: that one switches on
-     * four built-in strings to find both the current value and the title, and neither lookup has
-     * an answer here — the value lives in the addon block and the title is a lang key the addon
-     * supplied.
+     * four built-in strings to find both the current value and the title, and neither lookup has an
+     * answer here — the value lives in the tab and the title is a lang key the addon supplied.
      */
-    private void openAddonCountDialog(RequirementEditor editor, String entryId, int editIndex) {
-        if (!hasGroup()) return;
-        DependencyGroup group = currentGroup();
-        List<IdCountEntry> entries = addonEntries(group);
-        int initial = editIndex >= 0 && editIndex < entries.size() ? entries.get(editIndex).count() : 1;
+    /**
+     * The count dialog for an item entry.
+     *
+     * <p>Apart from {@link #openCountDialog}, which reads its current value out of the group. The
+     * item entries live in the tab now, so the lookup has to go there.
+     */
+    private void openItemCountDialog(ItemRequirementTab tab, String itemId, int editIndex) {
+        int initial = editIndex >= 0 ? tab.countAt(editIndex) : 1;
         this.minecraft.setScreen(new CountInputScreen(this,
-                Component.translatable(editor.amountLangKey()), entryId, initial, 1, 999999,
+                Component.translatable("editor.historystages.dep.dialog.item_count"), itemId,
+                initial, 1, 999999,
                 num -> {
-                    List<IdCountEntry> current = addonEntries(group);
-                    if (editIndex >= 0 && editIndex < current.size()) {
-                        current.set(editIndex, new IdCountEntry(entryId, num));
-                    } else {
-                        current.add(new IdCountEntry(entryId, num));
-                    }
-                    writeAddonEntries(group, current);
+                    if (editIndex >= 0) tab.setCountAt(editIndex, num);
+                    else tab.addItem(itemId, num);
+                }));
+    }
+
+    private void openAddonCountDialog(IdCountTab tab, String entryId, int editIndex) {
+        int initial = editIndex >= 0 ? tab.amountAt(editIndex) : 1;
+        this.minecraft.setScreen(new CountInputScreen(this,
+                Component.translatable(tab.amountLangKey()), entryId, initial, 1, 999999,
+                num -> {
+                    if (editIndex >= 0) tab.setAmountAt(editIndex, num);
+                    else tab.addEntry(entryId, num);
                 }));
     }
 
@@ -1788,41 +1795,6 @@ public class DependencyEditorScreen extends Screen {
     }
 
     // --- Context menus ---
-
-    private void showItemContextMenu(int mx, int my, int idx, DependencyGroup group) {
-        contextMenu = new ContextMenu();
-        contextMenu.addEntry(t("editor.historystages.dep.context.edit_nbt"),
-                () -> openNbtEditScreen(idx, group.getItems().get(idx).getId()));
-        contextMenu.addEntry(t("editor.historystages.dep.context.count"),
-                () -> openCountDialog("item_count", group.getItems().get(idx).getId(), idx));
-        contextMenu.addEntry(t("editor.historystages.copy_id"),
-                () -> { String v = group.getItems().get(idx).getId(); Minecraft.getInstance().keyboardHandler.setClipboard(v); EditorToastHandler.copiedToClipboard(v); });
-        contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
-            DependencyItem orig = group.getItems().get(idx);
-            group.getItems().add(idx + 1, orig.copy());
-            if (itemNbtMap.containsKey(idx)) {
-                // Shift indices and duplicate NBT
-                Map<Integer, JsonObject> shifted = new HashMap<>();
-                for (var e : itemNbtMap.entrySet())
-                    shifted.put(e.getKey() > idx ? e.getKey() + 1 : e.getKey(), e.getValue());
-                shifted.put(idx + 1, itemNbtMap.get(idx).deepCopy());
-                itemNbtMap.clear();
-                itemNbtMap.putAll(shifted);
-            }
-            hasChanges = true;
-        });
-        contextMenu.addEntry(t("editor.historystages.remove"), () -> {
-            group.getItems().remove(idx);
-            itemNbtMap.remove(idx);
-            Map<Integer, JsonObject> shifted = new HashMap<>();
-            for (var e : itemNbtMap.entrySet())
-                shifted.put(e.getKey() > idx ? e.getKey() - 1 : e.getKey(), e.getValue());
-            itemNbtMap.clear();
-            itemNbtMap.putAll(shifted);
-            hasChanges = true;
-        });
-        contextMenu.show(mx, my, this.font);
-    }
 
     private void showSimpleContextMenu(int mx, int my, int idx, List<String> list, String type) {
         contextMenu = new ContextMenu();
@@ -1911,27 +1883,17 @@ public class DependencyEditorScreen extends Screen {
     }
 
     private void openNbtEditScreen(int entryIdx, String itemId) {
-        syncNbtToItems();
-        DependencyItem item = currentGroup().getItems().get(entryIdx);
-        JsonObject currentNbt = item.hasNbt() ? item.getNbt().deepCopy() : null;
-        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, currentNbt, nbt -> {
-            if (nbt != null) {
-                itemNbtMap.put(entryIdx, nbt);
-                currentGroup().getItems().get(entryIdx).setNbt(nbt.deepCopy());
-            } else {
-                itemNbtMap.remove(entryIdx);
-                currentGroup().getItems().get(entryIdx).setNbt(null);
-            }
-            hasChanges = true;
-            // Routes through this screen's own save, so the whole stage is persisted.
+        ItemRequirementTab tab = (ItemRequirementTab) addonTabs.get("item");
+        if (tab == null) return;
+        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, tab.nbtAt(entryIdx), nbt -> {
+            tab.setNbtAt(entryIdx, nbt == null ? null : nbt.deepCopy());
+            // Routes through this screen own save, so the whole stage is persisted.
             save();
         }));
     }
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (itemSearch != null && itemSearch.isVisible())
-            return itemSearch.mouseDragged(mouseX, mouseY);
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.mouseDragged(mouseX, mouseY);
         if (globalStageSearch != null && globalStageSearch.isVisible())
@@ -1942,8 +1904,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseDragged(mouseX, mouseY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseDragged(mouseX, mouseY);
-        if (addonSearch != null && addonSearch.isVisible())
-            return addonSearch.mouseDragged(mouseX, mouseY);
+        if (addonPicker() != null && addonPicker().isVisible())
+            return addonPicker().mouseDragged(mouseX, mouseY);
         if (draggingContentScrollbar) {
             int contentY = HEADER_HEIGHT + TAB_HEIGHT + 6;
             int contentBottom = this.height - 30;
@@ -1959,8 +1921,6 @@ public class DependencyEditorScreen extends Screen {
             draggingContentScrollbar = false;
             return true;
         }
-        if (itemSearch != null && itemSearch.mouseReleased())
-            return true;
         if (entitySearch != null && entitySearch.mouseReleased())
             return true;
         if (globalStageSearch != null && globalStageSearch.mouseReleased())
@@ -1971,15 +1931,13 @@ public class DependencyEditorScreen extends Screen {
             return true;
         if (statSearch != null && statSearch.mouseReleased())
             return true;
-        if (addonSearch != null && addonSearch.mouseReleased())
+        if (addonPicker() != null && addonPicker().mouseReleased())
             return true;
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (itemSearch != null && itemSearch.isVisible())
-            return itemSearch.keyPressed(keyCode);
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.keyPressed(keyCode);
         if (globalStageSearch != null && globalStageSearch.isVisible())
@@ -1990,15 +1948,13 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.keyPressed(keyCode);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.keyPressed(keyCode);
-        if (addonSearch != null && addonSearch.isVisible())
-            return addonSearch.keyPressed(keyCode);
+        if (addonPicker() != null && addonPicker().isVisible())
+            return addonPicker().keyPressed(keyCode);
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (itemSearch != null && itemSearch.isVisible())
-            return itemSearch.charTyped(codePoint);
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.charTyped(codePoint);
         if (globalStageSearch != null && globalStageSearch.isVisible())
@@ -2009,16 +1965,14 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.charTyped(codePoint);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.charTyped(codePoint);
-        if (addonSearch != null && addonSearch.isVisible())
-            return addonSearch.charTyped(codePoint);
+        if (addonPicker() != null && addonPicker().isVisible())
+            return addonPicker().charTyped(codePoint);
         return super.charTyped(codePoint, modifiers);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         double delta = scrollY;
-        if (itemSearch != null && itemSearch.isVisible())
-            return itemSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (entitySearch != null && entitySearch.isVisible())
             return entitySearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (globalStageSearch != null && globalStageSearch.isVisible())
@@ -2029,8 +1983,8 @@ public class DependencyEditorScreen extends Screen {
             return advancementSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (statSearch != null && statSearch.isVisible())
             return statSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-        if (addonSearch != null && addonSearch.isVisible())
-            return addonSearch.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (addonPicker() != null && addonPicker().isVisible())
+            return addonPicker().mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (maxTabScroll > 0 && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
             tabScrollOffset = Math.max(0, Math.min(maxTabScroll, tabScrollOffset - (int) (delta * 30)));
             return true;

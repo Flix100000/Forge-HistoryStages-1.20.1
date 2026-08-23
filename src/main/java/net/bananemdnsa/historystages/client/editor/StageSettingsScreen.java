@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.field.CustomFieldScreens;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
@@ -665,6 +666,30 @@ public class StageSettingsScreen extends Screen {
                         0, 0, 100, FIELD_HEIGHT);
                 row.button = addContentWidget(button);
             }
+            case CUSTOM_SCREEN -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> customField = (Setting<String>) field;
+                CustomFieldScreens.Factory factory = CustomFieldScreens.forField(customField);
+                // Same shape as LONG_TEXT — a button whose label previews the value — but the
+                // screen behind it comes from the addon. Disabled when none was registered: the
+                // field is real and syncs, it just cannot be edited here, and a button that opens
+                // nothing would be worse than one that says it is unavailable.
+                StyledButton button = StyledButton.of(
+                        addonLongTextLabel(values, customField, 100),
+                        btn -> {
+                            if (factory == null) return;
+                            this.minecraft.setScreen(factory.create(this, values.get(customField),
+                                    text -> {
+                                        values.set(customField, text == null ? "" : text);
+                                        hasChanges = true;
+                                        row.button.setMessage(addonLongTextLabel(
+                                                values, customField, row.button.getWidth()));
+                                    }));
+                        },
+                        0, 0, 100, FIELD_HEIGHT);
+                button.active = factory != null;
+                row.button = addContentWidget(button);
+            }
             case CHOICE -> {
                 @SuppressWarnings("unchecked")
                 Setting<String> choiceField = (Setting<String>) field;
@@ -983,6 +1008,13 @@ public class StageSettingsScreen extends Screen {
                     row.button.setPosition(controlX, row.rowY);
                     row.button.setWidth(controlMaxW);
                     row.button.setMessage(addonLongTextLabel(card.values, longTextField, controlMaxW));
+                }
+                case CUSTOM_SCREEN -> {
+                    @SuppressWarnings("unchecked")
+                    Setting<String> customField = (Setting<String>) row.field;
+                    row.button.setPosition(controlX, row.rowY);
+                    row.button.setWidth(controlMaxW);
+                    row.button.setMessage(addonLongTextLabel(card.values, customField, controlMaxW));
                 }
                 case CHOICE -> row.dropdown.setPosition(controlX, row.rowY);
                 case ITEM -> {

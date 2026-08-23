@@ -80,6 +80,14 @@ public final class Setting<T> {
         return new Builder<>(key, SettingKind.LONG_TEXT);
     }
 
+    /**
+     * A value only the addon knows how to edit: stored as a string, edited in a screen the addon
+     * registers client-side. See {@link SettingKind#CUSTOM_SCREEN}.
+     */
+    public static Builder<String> customScreen(String key) {
+        return new Builder<>(key, SettingKind.CUSTOM_SCREEN);
+    }
+
     public String key() {
         return key;
     }

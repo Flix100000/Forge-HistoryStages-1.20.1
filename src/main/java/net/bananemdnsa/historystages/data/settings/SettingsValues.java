@@ -83,6 +83,7 @@ public final class SettingsValues {
             }
             case TEXT -> primitive.isString() ? primitive.getAsString() : field.defaultValue();
             case LONG_TEXT -> primitive.isString() ? primitive.getAsString() : field.defaultValue();
+            case CUSTOM_SCREEN -> primitive.isString() ? primitive.getAsString() : field.defaultValue();
             case CHOICE -> {
                 if (!primitive.isString()) yield field.defaultValue();
                 String value = primitive.getAsString();

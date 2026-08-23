@@ -3,6 +3,9 @@ package net.bananemdnsa.historystages.demo;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.client.editor.dep.RegisterRequirementEditorsEvent;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
+import net.bananemdnsa.historystages.client.editor.field.RegisterCustomFieldScreensEvent;
+import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
+import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -30,5 +33,26 @@ public final class DemoRequirementEditor {
                 "editor.historystages.demo.search.relics",
                 "editor.historystages.demo.dep.dialog.relic_count",
                 DemoAddonCategory::candidateRelics));
+    }
+
+    /**
+     * The screen behind the demo's {@code CUSTOM_SCREEN} setting.
+     *
+     * <p>A real addon would write its own; this one borrows the mod's formatted-text screen,
+     * because what is being demonstrated is the wiring — a field the host cannot render, edited by
+     * a screen the addon chose, with the value coming back as a string.
+     */
+    @SubscribeEvent
+    public static void onRegisterCustomFieldScreens(RegisterCustomFieldScreensEvent event) {
+        if (!DemoAddonCategory.enabled()) return;
+
+        event.register(DemoSettingsGroup.RELIC_LAYOUT, (parent, current, onDone) ->
+                new FormattedTextScreen(parent,
+                        Component.translatable("settings.hsdemo.settings.field.relic_layout"),
+                        current,
+                        Component.translatable("settings.hsdemo.settings.field.relic_layout.hint")
+                                .getString(),
+                        java.util.List.of("{relic}", "{rarity}"),
+                        onDone));
     }
 }

@@ -33,7 +33,13 @@ public final class AddonConfigField {
         ITEM_LIST,
         TAG_LIST,
         TEXTURE,
-        CHOICE
+        CHOICE,
+
+        /**
+         * Like {@link #TEXT} in storage, but edited in a screen the addon supplies through the
+         * client-side {@code CustomFieldScreens} registry. The escape hatch from the fixed kinds.
+         */
+        CUSTOM_SCREEN
     }
 
     private final String key;

@@ -27,6 +27,7 @@ import net.bananemdnsa.historystages.client.editor.tab.CategoryEditor;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryEditors;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.EntryAction;
 import net.bananemdnsa.historystages.client.editor.tab.EntityTabsState;
 import net.bananemdnsa.historystages.client.editor.tab.ModLinkedCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.RichEntryCategoryTab;
@@ -1069,6 +1070,23 @@ public class StageDetailScreen extends Screen {
         SearchableEntityList picker = new SearchableEntityList(onSelect::accept, alreadyAdded::get);
         picker.setMultiSelect(true);
         return picker;
+    }
+
+    /**
+     * Appends whatever extra menu entries the category's editor declared.
+     *
+     * <p>Placed after the category's own built-in entries and before copy and remove, so those two
+     * stay where a maintainer expects them and an addon adds to the menu rather than replacing it.
+     */
+    private void addDeclaredEntryActions(int tabIdx, int entryIdx) {
+        CategoryTab tab = categoryTabs.get(tabIdx);
+        if (tab == null) return;
+        CategoryEditor editor = CategoryEditors.byCategory(tab.categoryId());
+        if (editor == null) return;
+        for (EntryAction action : editor.entryActions()) {
+            contextMenu.addEntry(Component.translatable(action.langKey()).getString(),
+                    () -> action.run(entryIdx, () -> hasChanges = true));
+        }
     }
 
     private List<String> getActiveList() {
@@ -2755,6 +2773,7 @@ public class StageDetailScreen extends Screen {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
+                    addDeclaredEntryActions(tabIdx, entryIdx);
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> { Minecraft.getInstance().keyboardHandler.setClipboard(entryValue); EditorToastHandler.copiedToClipboard(entryValue); });
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
                         String removedValue = getListForSection(tabIdx).get(entryIdx);

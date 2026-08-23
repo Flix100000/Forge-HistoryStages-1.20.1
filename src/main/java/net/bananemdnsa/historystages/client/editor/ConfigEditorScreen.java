@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import org.slf4j.Logger;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.GraphConfig;
+import net.bananemdnsa.historystages.client.editor.field.CustomFieldScreens;
 import net.bananemdnsa.historystages.data.config.AddonConfigField;
 import net.bananemdnsa.historystages.data.config.AddonConfigSection;
 import net.bananemdnsa.historystages.data.config.AddonConfigSections;
@@ -668,6 +669,7 @@ public class ConfigEditorScreen extends Screen {
             case TAG_LIST -> ConfigType.TAG_LIST;
             case TEXTURE -> ConfigType.TEXTURE;
             case CHOICE -> ConfigType.ENUM;
+            case CUSTOM_SCREEN -> ConfigType.CUSTOM_SCREEN;
         };
     }
 
@@ -1203,6 +1205,7 @@ public class ConfigEditorScreen extends Screen {
             }
             case INTEGER, DOUBLE, STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry));
             case RICH_TEXT -> openRichTextEditor(entry);
+            case CUSTOM_SCREEN -> openCustomFieldScreen(entry);
             case ITEM_LIST -> this.minecraft.setScreen(new ItemListEditorScreen(this, entry));
             case TAG_LIST -> this.minecraft.setScreen(new TagListEditorScreen(this, entry));
             case ITEM -> openItemPicker(entry);
@@ -1238,6 +1241,21 @@ public class ConfigEditorScreen extends Screen {
             "structureLockMessageFormat", List.of("{structure}", "{stage}"),
             "biomeLockMessageFormat", List.of("{biome}", "{stage}"),
             "graph.general.title", List.of(GraphConfig.GRAPH.title.getDefault()));
+
+    /**
+     * Opens the screen an addon registered for this field.
+     *
+     * <p>Does nothing when none was registered. The row is still shown and still syncs — the
+     * declaration is common-side and does not depend on a client having supplied a screen — it
+     * simply cannot be edited here, which is the honest outcome.
+     */
+    private void openCustomFieldScreen(ConfigEntry entry) {
+        AddonConfigField field = addonFieldsByKey.get(entry.key);
+        if (field == null) return;
+        CustomFieldScreens.Factory factory = CustomFieldScreens.forField(field);
+        if (factory == null) return;
+        this.minecraft.setScreen(factory.create(this, entry.value, text -> entry.value = text == null ? "" : text));
+    }
 
     private void openRichTextEditor(ConfigEntry entry) {
         List<String> placeholders = entry.placeholders != null
@@ -1509,7 +1527,14 @@ public class ConfigEditorScreen extends Screen {
          */
         RICH_TEXT,
         /** A row that opens another screen instead of editing a value of its own. */
-        SUBSCREEN
+        SUBSCREEN,
+        /**
+         * An addon-declared value edited in a screen the addon registered for it.
+         *
+         * <p>Apart from {@link #SUBSCREEN}, which navigates somewhere and edits nothing of its
+         * own: this row has a value, stored as a string, and the addon's screen returns a new one.
+         */
+        CUSTOM_SCREEN
     }
 
     /** Encode the live biome-effect config list as the editor's internal string: "id,seconds,amp;...". */

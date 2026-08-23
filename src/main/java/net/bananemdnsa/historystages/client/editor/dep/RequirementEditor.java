@@ -4,7 +4,10 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
 import net.bananemdnsa.historystages.data.dependency.IdCountEntry;
+import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -15,12 +18,15 @@ import org.jetbrains.annotations.Nullable;
  * interface, and it is deliberately small — the addon says which ids exist and whether entries
  * carry an amount, and gets a tab that behaves like a built-in.
  *
- * <p><strong>The free tier has a fixed entry shape.</strong> It reads and writes
- * {@link IdCountEntry}, so a requirement using it must register with
- * {@code RequirementStorage.gson(IdCountEntry.class)}. That covers seven of the eight built-in
- * shapes — everything except scoreboard, with its comparison operator. A requirement whose
- * entries look different can still register and gate; it just has no tab yet. Giving it one means
- * a bespoke-tab seam the editor does not expose today, which is a design question of its own.
+ * <p><strong>The free tier has a fixed entry shape.</strong> {@link #ofIdList} and
+ * {@link #ofIdCount} read and write {@link IdCountEntry}, so a requirement using either must
+ * register with {@code RequirementStorage.gson(IdCountEntry.class)}. That covers seven of the
+ * eight built-in shapes — everything except scoreboard, with its comparison operator.
+ *
+ * <p><strong>Anything else implements {@link #createTab} directly</strong> and returns its own
+ * {@link DependencyTab}, built on {@code AbstractDependencyTab} the way the built-ins are. A tab
+ * supplies row text, a picker and load/store; the screen owns the drawing, so a tab that wants a
+ * bespoke look opens its own screen from a row rather than painting inline.
  */
 public interface RequirementEditor {
 
@@ -41,6 +47,28 @@ public interface RequirementEditor {
 
     /** The ids a maintainer may pick from. Queried fresh each time the picker opens. */
     Collection<String> candidates();
+
+    /**
+     * Builds the tab.
+     *
+     * <p>Added rather than replacing the factories, so an addon that already registered through
+     * {@code ofIdList} or {@code ofIdCount} needs no change: both produce an {@link IdCountTab}
+     * from here.
+     *
+     * @param onChanged what the tab must call after changing anything, so the editor knows the
+     *                  stage is dirty
+     */
+    DependencyTab createTab(Runnable onChanged);
+
+    /**
+     * Extra entries this requirement offers in a row right-click menu. Empty by default.
+     *
+     * <p>Appended after the built-in entries, so copy and remove stay where a maintainer expects
+     * them and an addon adds to the menu rather than replacing it.
+     */
+    default java.util.List<net.bananemdnsa.historystages.client.editor.tab.EntryAction> entryActions() {
+        return java.util.List.of();
+    }
 
     /**
      * Bare id rows — the shape of the stage requirements.
@@ -93,6 +121,25 @@ public interface RequirementEditor {
             @Override
             public Collection<String> candidates() {
                 return candidates.get();
+            }
+
+            @Override
+            public DependencyTab createTab(Runnable onChanged) {
+                Requirement registered = RequirementTypes.byId(requirementId);
+                if (registered == null) {
+                    throw new IllegalStateException("No requirement registered under '"
+                            + requirementId + "', so its editor has nothing to edit.");
+                }
+                return new IdCountTab(registered, amountLangKey,
+                        (onSelect, alreadyAdded) -> {
+                            GenericIdPicker picker = new GenericIdPicker(
+                                    searchPlaceholderLangKey, candidates, onSelect, alreadyAdded);
+                            // Multi-select only without an amount: with one, every pick opens the
+                            // amount dialog, and a second pick behind an open dialog is lost.
+                            picker.setMultiSelect(amountLangKey == null);
+                            return picker;
+                        },
+                        onChanged);
             }
         };
     }

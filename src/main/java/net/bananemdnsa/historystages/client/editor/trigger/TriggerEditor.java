@@ -6,6 +6,8 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.minecraft.client.gui.screens.Screen;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * How an addon's auto-trigger type becomes something a maintainer can actually add.
@@ -33,6 +35,25 @@ public interface TriggerEditor {
 
     /** Turns a chosen id into the trigger to store. */
     TriggerCondition create(String chosenId);
+
+    /**
+     * A screen for authoring this trigger, or null to use the built-in id picker.
+     *
+     * <p>The escape hatch from {@link #create(String)}, which can only ever express "pick one id".
+     * A trigger carrying more than that — the way the built-in entity trigger has a submode and
+     * the playtime trigger a duration and a unit — has no way to be authored through a picker, and
+     * before this it simply could not be authored by an addon at all.
+     *
+     * <p>Returning a screen rather than opening one: the editor owns how its overlays are shown,
+     * and an addon reaching for that would be reaching past the seam.
+     *
+     * @param parent    the screen to return to when authoring finishes or is cancelled
+     * @param onCreated call with the finished trigger; not calling it means cancelled
+     */
+    @Nullable
+    default Screen authoringScreen(Screen parent, Consumer<TriggerCondition> onCreated) {
+        return null;
+    }
 
     /**
      * What this trigger holds, for the value column of a trigger list. The counterpart to

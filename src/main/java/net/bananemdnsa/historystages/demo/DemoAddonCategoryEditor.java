@@ -43,5 +43,39 @@ public final class DemoAddonCategoryEditor {
                 DemoAddonCategory::candidateRelics,
                 RelicFoundTrigger::new,
                 t -> t instanceof RelicFoundTrigger r ? r.relic() : ""));
+
+        // The other kind: a trigger with a number and no id, which a picker cannot author because
+        // there is nothing to pick. It supplies a screen instead.
+        event.register(new net.bananemdnsa.historystages.client.editor.trigger.TriggerEditor() {
+            @Override public String type() { return RelicHoardTrigger.TYPE; }
+            @Override public String labelLangKey() {
+                return "editor.historystages.demo.auto_trigger.relic_hoard";
+            }
+            @Override public String searchPlaceholderLangKey() {
+                return "editor.historystages.demo.search.relics"; // unused; authoring is a screen
+            }
+            @Override public java.util.Collection<String> candidates() { return java.util.List.of(); }
+            @Override public net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition
+                    create(String chosenId) {
+                // Never reached while authoringScreen answers; a sane value rather than a throw,
+                // because a future caller finding this should get a trigger, not a crash.
+                return new RelicHoardTrigger(1);
+            }
+            @Override public net.minecraft.client.gui.screens.Screen authoringScreen(
+                    net.minecraft.client.gui.screens.Screen parent,
+                    java.util.function.Consumer<net.bananemdnsa.historystages.data.auto.conditions
+                            .TriggerCondition> onCreated) {
+                return new net.bananemdnsa.historystages.client.editor.dialog.CountInputScreen(
+                        parent,
+                        net.minecraft.network.chat.Component.translatable(
+                                "editor.historystages.demo.auto_trigger.relic_hoard"),
+                        "", 5, 1, 999,
+                        count -> onCreated.accept(new RelicHoardTrigger(count)));
+            }
+            @Override public String valueText(
+                    net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition trigger) {
+                return trigger instanceof RelicHoardTrigger h ? String.valueOf(h.count()) : "";
+            }
+        });
     }
 }

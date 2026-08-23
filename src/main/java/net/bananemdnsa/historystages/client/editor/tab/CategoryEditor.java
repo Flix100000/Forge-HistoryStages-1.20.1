@@ -31,6 +31,16 @@ public interface CategoryEditor {
     CategoryTab createTab(Runnable onChanged);
 
     /**
+     * Extra entries this category offers in a row right-click menu. Empty by default.
+     *
+     * <p>Appended after the built-in entries, so copy and remove stay where a maintainer expects
+     * them and an addon adds to the menu rather than replacing it.
+     */
+    default java.util.List<EntryAction> entryActions() {
+        return java.util.List.of();
+    }
+
+    /**
      * The free tier: a searchable picker over the ids the addon offers, and a tab that behaves
      * like any built-in id list.
      *

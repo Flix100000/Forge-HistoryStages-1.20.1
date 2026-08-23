@@ -58,6 +58,15 @@ public final class DemoSettingsGroup {
             .langKey("settings.hsdemo.settings.field.reward_item")
             .build();
 
+    /**
+     * The escape hatch: a value only the addon knows how to edit. Stored as a plain string, so
+     * nothing about reading, writing, syncing or scoping it is new.
+     */
+    public static final Setting<String> RELIC_LAYOUT = Setting.customScreen("relic_layout")
+            .defaultValue("")
+            .langKey("settings.hsdemo.settings.field.relic_layout")
+            .build();
+
     private DemoSettingsGroup() {}
 
     /** Builds the group fresh. Called both to register it and, without Minecraft, by tests. */
@@ -70,6 +79,7 @@ public final class DemoSettingsGroup {
                 .field(DIFFICULTY_MODE)
                 .field(LORE)
                 .field(REWARD_ITEM)
+                .field(RELIC_LAYOUT)
                 .build();
     }
 
