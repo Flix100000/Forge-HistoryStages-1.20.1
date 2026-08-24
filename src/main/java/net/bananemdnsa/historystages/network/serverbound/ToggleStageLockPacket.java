@@ -1,21 +1,17 @@
 package net.bananemdnsa.historystages.network.serverbound;
 import net.bananemdnsa.historystages.network.PacketHandler;
-import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.events.StageEvent;
-import net.bananemdnsa.historystages.data.saveddata.StageData;
+import net.bananemdnsa.historystages.data.StageUnlockHelper;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-import java.util.ArrayList;
 
 public record ToggleStageLockPacket(String stageId, boolean unlock) implements CustomPacketPayload {
 
@@ -41,30 +37,19 @@ public record ToggleStageLockPacket(String stageId, boolean unlock) implements C
 
             if (!StageManager.getStages().containsKey(msg.stageId)) return;
 
-            StageData data = StageData.get(player.serverLevel());
             var entry = StageManager.getStages().get(msg.stageId);
             String displayName = entry != null ? entry.getDisplayName() : msg.stageId;
 
+            // Through the helper, not rebuilt here. This handler used to do its own version of
+            // unlockGlobal and the two drifted in both directions: the editor never played the
+            // unlock sound or sent the toast, and every other caller — pedestal, command,
+            // auto-trigger, quest reward — never cleared the structure and biome caches or
+            // reloaded recipes. Everything either side had is now in the helper.
             if (msg.unlock) {
-                data.addStage(msg.stageId);
-                NeoForge.EVENT_BUS.post(new StageEvent.Unlocked(msg.stageId, displayName));
+                StageUnlockHelper.unlockGlobal(msg.stageId, player.serverLevel());
             } else {
-                data.removeStage(msg.stageId);
-                NeoForge.EVENT_BUS.post(new StageEvent.Locked(msg.stageId, displayName));
+                StageUnlockHelper.relockGlobal(msg.stageId, player.serverLevel());
             }
-
-            data.setDirty();
-            StageData.SERVER_CACHE.clear();
-            StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
-            // Structure-lock caches are keyed off lockedStructureIds — force every
-            // tracked player to recompute on the next tick so the force-field /
-            // screen overlay appear (or disappear) immediately when a stage's lock
-            // state changes, instead of lingering until the next chunk scan.
-            net.bananemdnsa.historystages.events.lock.StructureLockHandler.invalidateAll();
-            net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
-            net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
-            PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
-            PacketHandler.reloadRecipesOnly(player.server);
 
             String titleKey = msg.unlock
                     ? "editor.historystages.toast.stage_unlocked_editor.title"
