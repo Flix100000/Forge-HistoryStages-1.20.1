@@ -150,7 +150,7 @@ public abstract class AbstractDependencyTab implements DependencyTab {
 
     @Override
     @Nullable
-    public PickerOverlay picker() {
+    public PickerOverlay activeOverlay() {
         return picker;
     }
 

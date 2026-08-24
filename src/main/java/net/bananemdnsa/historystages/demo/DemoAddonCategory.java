@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent;
 import net.bananemdnsa.historystages.data.lock.category.AddonLockCategory;
 import net.bananemdnsa.historystages.data.lock.category.CategoryStorage;
 import net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent;
@@ -34,27 +35,41 @@ public final class DemoAddonCategory {
 
     private static final String ENABLED_PROPERTY = "historystages.demoCategory";
 
+    /**
+     * The category this addon built, kept so its editor can use it.
+     *
+     * <p>Worth copying: the builder already returns a fully typed {@code LockCategory<String>}.
+     * Looking it back up out of the registry hands back a {@code LockCategory<?>} and forces an
+     * unchecked cast — an addon should not have to cast to reach a thing it registered itself.
+     */
+    private static AddonLockCategory<String> category;
+
     private DemoAddonCategory() {}
 
     public static boolean enabled() {
         return Boolean.getBoolean(ENABLED_PROPERTY);
     }
 
+    /** The registered category. Null until the registration event has run. */
+    static AddonLockCategory<String> category() {
+        return category;
+    }
+
     @SubscribeEvent
     public static void onRegisterCategories(RegisterLockCategoriesEvent event) {
         if (!enabled()) return;
 
-        event.register(AddonLockCategory.<String>builder(CATEGORY_ID)
+        category = AddonLockCategory.<String>builder(CATEGORY_ID)
                 .tabLangKey("editor.historystages.demo.tab.relics")
                 .tooltipLangKey("editor.historystages.demo.tooltip.relics")
                 .storage(CategoryStorage.gson(String.class))
                 .matcher(String.class, String::equals)
-                .build());
+                .build();
+        event.register(category);
     }
 
     @SubscribeEvent
-    public static void onRegisterTriggerTypes(
-            net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent event) {
+    public static void onRegisterTriggerTypes(RegisterTriggerTypesEvent event) {
         if (!enabled()) return;
         event.register(TRIGGER_TYPE, RelicFoundTrigger.class, StageScope.GLOBAL);
         // Carries a number and no id, so it cannot be authored by picking from a list.

@@ -30,11 +30,13 @@ class EntryActionDeclarationTest {
         AtomicBoolean markedDirty = new AtomicBoolean(false);
 
         EntryAction action = EntryAction.of("editor.mymod.context.reroll",
-                (index, onChanged) -> { seenIndex.set(index); onChanged.run(); });
+                ctx -> { seenIndex.set(ctx.index()); ctx.markChanged(); });
 
         assertEquals("editor.mymod.context.reroll", action.langKey());
 
-        action.run(4, () -> markedDirty.set(true));
+        // dataOnly, not the canonical constructor: naming its two sinks from test source would
+        // mean naming Screen and PickerOverlay, and Minecraft is on neither test classpath.
+        action.run(EntryActionContext.dataOnly(4, () -> markedDirty.set(true)));
 
         assertEquals(4, seenIndex.get());
         assertTrue(markedDirty.get(), "the handler must be able to mark the stage dirty");
@@ -52,7 +54,7 @@ class EntryActionDeclarationTest {
                 throw new UnsupportedOperationException("not needed for this test");
             }
             @Override public List<EntryAction> entryActions() {
-                return List.of(EntryAction.of("a", (i, c) -> { }), EntryAction.of("b", (i, c) -> { }));
+                return List.of(EntryAction.of("a", ctx -> { }), EntryAction.of("b", ctx -> { }));
             }
         };
 

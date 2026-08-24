@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.dependency.AddonRequirement;
 import net.bananemdnsa.historystages.data.dependency.IdCountEntry;
 import net.bananemdnsa.historystages.data.dependency.RegisterRequirementTypesEvent;
+import net.bananemdnsa.historystages.data.dependency.RequirementContext;
 import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.RequirementOutcome;
 import net.bananemdnsa.historystages.data.dependency.RequirementStorage;
@@ -63,8 +64,7 @@ public final class DemoRequirement {
      * relic id, which is deterministic, needs no world state, and is enough to see a requirement
      * flip from open to met when the required amount is lowered past it.
      */
-    private static RequirementOutcome check(IdCountEntry entry, net.bananemdnsa.historystages.data
-            .dependency.RequirementContext ctx) {
+    private static RequirementOutcome check(IdCountEntry entry, RequirementContext ctx) {
         int found = entry.id().length();
         return new RequirementOutcome(entry.id(), entry.count() + "x " + entry.id(),
                 found >= entry.count(), found, entry.count());

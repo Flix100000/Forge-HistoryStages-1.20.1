@@ -32,6 +32,25 @@ class EditorTabContractTest {
     private static final Pattern TAB_INTERFACE =
             Pattern.compile("\\binterface\\s+(\\w*Tab)\\b([^{]*)\\{");
 
+    private static final Path TAB_CONTRACT = EDITOR.resolve("tab").resolve("EditorTab.java");
+
+    /**
+     * The hooks Phase 3b added: two for drawing, six for input, plus {@code rowAt} and
+     * {@code onShown}, which the implementation turned out to need — a tab that draws itself is
+     * the only thing that knows where its rows are and when to replay its entrance.
+     */
+    private static final List<String> PHASE_3B_HOOKS = List.of(
+            "int contentHeight(",
+            "boolean renderContent(",
+            "int rowAt(",
+            "void onShown(",
+            "boolean mouseClicked(",
+            "boolean mouseDragged(",
+            "boolean mouseReleased(",
+            "boolean mouseScrolled(",
+            "boolean keyPressed(",
+            "boolean charTyped(");
+
     @Test
     void everyTabInterfaceExtendsTheSharedContract() throws IOException {
         assertTrue(Files.isDirectory(EDITOR),
@@ -58,5 +77,32 @@ class EditorTabContractTest {
                         + "\nOne contract across the axes is what Phase 3 was for. A second one"
                         + " compiles and works, and means an addon author learns the same idea"
                         + " twice while the two are free to drift apart.");
+    }
+
+    /**
+     * Phase 3b's hooks live on the shared contract, and every one of them is defaulted.
+     *
+     * <p>The default is the compatibility promise: a tab written against Phase 3 declares none of
+     * these and must still compile. Dropping one {@code default} would be a silent break for every
+     * addon tab, and the compiler only says so once an addon exists to break.
+     */
+    @Test
+    void everyPhase3bHookExistsAndIsDefaulted() throws IOException {
+        assertTrue(Files.isRegularFile(TAB_CONTRACT),
+                "expected to find " + TAB_CONTRACT + " — if the contract moved, move this guard"
+                        + " with it, because a guard that cannot find its file passes for the"
+                        + " wrong reason");
+
+        String source = Files.readString(TAB_CONTRACT);
+        List<String> missing = new ArrayList<>();
+        for (String hook : PHASE_3B_HOOKS) {
+            if (!source.contains("default " + hook)) missing.add(hook);
+        }
+
+        assertTrue(missing.isEmpty(),
+                "these hooks are missing from EditorTab or are not defaulted:\n"
+                        + String.join("\n", missing)
+                        + "\nEvery one needs a default: a tab written against Phase 3 declares"
+                        + " none of them and must still compile.");
     }
 }

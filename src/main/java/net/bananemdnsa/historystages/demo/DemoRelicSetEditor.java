@@ -10,7 +10,10 @@ import net.bananemdnsa.historystages.client.editor.dep.DependencyTab;
 import net.bananemdnsa.historystages.client.editor.dep.RegisterRequirementEditorsEvent;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
 import net.bananemdnsa.historystages.client.editor.tab.EntryAction;
-import net.bananemdnsa.historystages.client.editor.tab.GenericIdPicker;
+import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
+import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
+import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.client.editor.widget.NumberStepper;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementStorage;
@@ -79,13 +82,12 @@ public final class DemoRelicSetEditor {
         public DependencyTab createTab(Runnable onChanged) {
             Requirement requirement = RequirementTypes.byId(DemoRequirement.RELIC_SET_ID);
             tab = new RelicSetTab(requirement,
-                    (onSelect, alreadyAdded) -> {
-                        GenericIdPicker picker = new GenericIdPicker(
-                                "editor.historystages.demo.search.relics",
-                                DemoAddonCategory::candidateRelics, onSelect, alreadyAdded);
-                        picker.setMultiSelect(true);
-                        return picker;
-                    },
+                    // Tier three: not one of the mod's lists, not a subclass of one, but a
+                    // panel this addon draws itself. It exists because a relic entry needs a relic
+                    // and a rarity, and a list of ids can only hand back one string.
+                    (onSelect, alreadyAdded) -> new RelicPickerOverlay(
+                            DemoAddonCategory::candidateRelics, alreadyAdded, onSelect,
+                            rarity -> tab.setPendingRarity(rarity)),
                     onChanged);
             return tab;
         }
@@ -93,23 +95,153 @@ public final class DemoRelicSetEditor {
         @Override
         public List<EntryAction> entryActions() {
             // The rarity is the field the free tier had no room for, so this is how it is set.
-            return List.of(EntryAction.of("editor.historystages.demo.context.cycle_rarity",
-                    (index, onChanged) -> {
-                        if (tab != null) tab.cycleRarity(index);
-                    }));
+            return List.of(
+                    EntryAction.of("editor.historystages.demo.context.cycle_rarity",
+                            ctx -> {
+                                if (tab != null) tab.cycleRarity(ctx.index());
+                            }),
+                    // One of the mod's own popups, asked for rather than rebuilt.
+                    EntryAction.dimensionFilter(
+                            index -> tab == null ? "" : tab.relicAt(index),
+                            index -> tab == null ? List.<String>of() : tab.dimensionsAt(index),
+                            (index, allowed) -> {
+                                if (tab != null) tab.setDimensionsAt(index, allowed);
+                            }));
         }
     }
 
-    /** Rows read "epic amber_pendant", with the rarity repeated as the badge on the right. */
+    /**
+     * A tab that draws itself, and the demo of everything Phase 3b opened.
+     *
+     * <p>Taller rows than the mod draws, a rarity swatch painted into the leading box, a button in
+     * the row that cycles the rarity, and below the rows a number stepper for the selected entry's
+     * count. That last part is what needs the input hooks: its arrows are clicks, but typing a
+     * value into it is a key press, and without keyPressed and charTyped it would draw and then
+     * refuse to be typed into.
+     */
     private static final class RelicSetTab extends AbstractDependencyTab {
 
         private static final RequirementStorage<RelicSetDep> STORAGE =
                 RequirementStorage.gson(RelicSetDep.class);
 
+        private static final int ROW_HEIGHT = 28;
+        private static final int STEPPER_TOP_GAP = 8;
+        private static final int STEPPER_HEIGHT = 20;
+
+        /** One colour per rarity, in the order RARITIES lists them. */
+        private static final int[] RARITY_COLOURS = { 0xFF9E9E9E, 0xFF4FA3FF, 0xFFC77DFF };
+
+        private final EditorRowList rows = new EditorRowList(ROW_HEIGHT);
         private final List<RelicSetDep> items = new ArrayList<>();
+        private final NumberStepper countStepper;
+        /**
+         * Where the built-in dimension filter puts what it collects.
+         *
+         * <p>The addon's own map, not something HistoryStages stores: the factory lends the popup,
+         * it does not take over the data behind it.
+         */
+        private final java.util.Map<Integer, List<String>> dimensions = new java.util.HashMap<>();
+        /** The rarity the picker chose, read by the next {@link #onSelected}. */
+        private String pendingRarity = RelicSetDep.RARITIES.get(0);
+        private int selected = 0;
 
         RelicSetTab(Requirement requirement, PickerFactory pickerFactory, Runnable onChanged) {
             super(requirement, pickerFactory, onChanged);
+            this.countStepper = new NumberStepper(1, 999, 1, 1, this::applyCount);
+        }
+
+        @Override
+        public void onShown() {
+            rows.resetSlideIn();
+        }
+
+        @Override
+        public int contentHeight(int width) {
+            return rows.heightForRows(items.size()) + STEPPER_TOP_GAP + STEPPER_HEIGHT;
+        }
+
+        @Override
+        public int rowAt(TabInputContext ctx) {
+            return rows.rowAt(ctx, items.size());
+        }
+
+        @Override
+        public boolean renderContent(TabRenderContext ctx) {
+            if (selected >= items.size()) selected = items.size() - 1;
+
+            int y = rows.render(ctx, items.size(), (row, i) -> {
+                RelicSetDep item = items.get(i);
+                int colour = RARITY_COLOURS[Math.max(0, RelicSetDep.RARITIES.indexOf(item.rarity()))];
+                // A four-pixel stripe rather than a square: a square at the left of a row reads as
+                // an item icon that failed to load, which is exactly what it is not.
+                row.leading(4, (g, x, top, w, h) -> g.fill(x, top + 1, x + w, top + h - 1, colour));
+                row.text((i == selected ? "▸ " : "  ") + item.count() + "x " + item.relic());
+                row.badge("§b" + item.rarity());
+                row.button(item.rarity(), () -> cycleRarity(i));
+            });
+
+            if (items.isEmpty()) return true;
+
+            // The stepper edits whichever row is marked, so it says which one rather than sitting
+            // there as an unlabelled pair of arrows.
+            y += STEPPER_TOP_GAP;
+            String caption = net.minecraft.network.chat.Component.translatable(
+                    "editor.historystages.demo.count_label", items.get(selected).relic()).getString();
+            ctx.graphics().drawString(ctx.font(), caption, ctx.x() + 6, y + 6, 0xAAAAAA, false);
+
+            countStepper.setEnabled(true);
+            countStepper.setPosition(ctx.x() + 12 + ctx.font().width(caption), y);
+            countStepper.render(ctx.graphics(), ctx.font(), ctx.mouseX(), ctx.mouseY());
+            return true;
+        }
+
+        @Override
+        public boolean mouseClicked(TabInputContext ctx, int button) {
+            if (button != 0) return false;
+            if (countStepper.mouseClicked(ctx.mouseX(), ctx.mouseY())) return true;
+            if (rows.mouseClicked(ctx)) return true;
+
+            int row = rows.rowAt(ctx, items.size());
+            if (row >= 0) {
+                // Selecting a row is what the stepper below then edits.
+                selected = row;
+                countStepper.setValue(items.get(row).count());
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            return countStepper.keyPressed(keyCode);
+        }
+
+        @Override
+        public boolean charTyped(char codePoint, int modifiers) {
+            return countStepper.charTyped(codePoint);
+        }
+
+        private void applyCount(int count) {
+            if (selected < 0 || selected >= items.size()) return;
+            items.set(selected, items.get(selected).withCount(count));
+            refreshRows();
+            markChanged();
+        }
+
+        /** The dimensions this entry counts in, which is what the built-in filter action edits. */
+        List<String> dimensionsAt(int index) {
+            return index >= 0 && index < items.size()
+                    ? dimensions.getOrDefault(index, List.of()) : List.of();
+        }
+
+        void setDimensionsAt(int index, List<String> allowed) {
+            if (index < 0 || index >= items.size()) return;
+            dimensions.put(index, List.copyOf(allowed));
+            markChanged();
+        }
+
+        String relicAt(int index) {
+            return index >= 0 && index < items.size() ? items.get(index).relic() : "";
         }
 
         void cycleRarity(int index) {
@@ -119,9 +251,16 @@ public final class DemoRelicSetEditor {
             markChanged();
         }
 
+        /** What the own picker parks before it hands the id over. */
+        void setPendingRarity(String rarity) {
+            this.pendingRarity = rarity;
+        }
+
         @Override
         protected void onSelected(String relic) {
-            items.add(new RelicSetDep(relic, RelicSetDep.RARITIES.get(0)));
+            items.add(new RelicSetDep(relic, pendingRarity, 1));
+            selected = items.size() - 1;
+            countStepper.setValue(1);
             refreshRows();
             markChanged();
         }

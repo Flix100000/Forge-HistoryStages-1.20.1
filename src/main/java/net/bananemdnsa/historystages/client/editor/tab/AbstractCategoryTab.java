@@ -35,6 +35,7 @@ public abstract class AbstractCategoryTab implements CategoryTab {
     private final List<String> edit;
     private final PickerFactory pickerFactory;
     private final Runnable onChanged;
+
     private PickerOverlay picker;
     private boolean rebuildPickerOnOpen;
 
@@ -88,6 +89,18 @@ public abstract class AbstractCategoryTab implements CategoryTab {
         if (index >= 0 && index < edit.size()) edit.remove(index);
     }
 
+    /**
+     * Call after changing anything, so the editor knows the stage is dirty and re-measures its
+     * scroll extent.
+     *
+     * <p>Its twin on {@code AbstractDependencyTab} also writes back into the bound group; there is
+     * nothing to write back to here, because a stage tab has exactly one container and stores into
+     * it on save.
+     */
+    protected void markChanged() {
+        onChanged.run();
+    }
+
     @Override
     public void rebuildPicker() {
         picker = pickerFactory.create(id -> {
@@ -98,7 +111,7 @@ public abstract class AbstractCategoryTab implements CategoryTab {
 
     @Override
     @Nullable
-    public PickerOverlay picker() {
+    public PickerOverlay activeOverlay() {
         return picker;
     }
 

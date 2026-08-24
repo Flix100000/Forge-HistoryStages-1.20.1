@@ -11,8 +11,19 @@ package net.bananemdnsa.historystages.demo;
  *
  * @param relic  which relic, by the same ids the demo category offers
  * @param rarity how rare a copy has to be — the field that makes this more than an id
+ * @param count  how many are needed. Edited inline by a number stepper the tab embeds, which is
+ *               what proves a tab can take typed input and not only clicks
  */
-public record RelicSetDep(String relic, String rarity) {
+public record RelicSetDep(String relic, String rarity, int count) {
+
+    /** An entry read from an older file has no count; one is the sensible reading of that. */
+    public RelicSetDep {
+        if (count < 1) count = 1;
+    }
+
+    public RelicSetDep withCount(int newCount) {
+        return new RelicSetDep(relic, rarity, newCount);
+    }
 
     /** The rarities a maintainer may cycle through, in order. */
     public static final java.util.List<String> RARITIES =
@@ -20,6 +31,6 @@ public record RelicSetDep(String relic, String rarity) {
 
     public RelicSetDep withNextRarity() {
         int next = (RARITIES.indexOf(rarity) + 1) % RARITIES.size();
-        return new RelicSetDep(relic, RARITIES.get(next));
+        return new RelicSetDep(relic, RARITIES.get(next), count);
     }
 }
