@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.List;
 
 import org.junit.jupiter.api.Test;

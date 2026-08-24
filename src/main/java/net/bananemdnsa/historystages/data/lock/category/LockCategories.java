@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;

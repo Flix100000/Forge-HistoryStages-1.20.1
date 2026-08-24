@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EntryActionFactoryTest {
 
     private static final Path SOURCE = Path.of("src", "main", "java", "net", "bananemdnsa",
-            "historystages", "client", "editor", "tab", "EntryAction.java");
+            "historystages", "api", "editor", "EntryAction.java");
 
     private static final List<String> FACTORIES =
             List.of("editNbt", "dimensionFilter", "spawnSources", "interactionActions");

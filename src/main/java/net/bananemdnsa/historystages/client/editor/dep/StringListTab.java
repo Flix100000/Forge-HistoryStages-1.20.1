@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -7,7 +9,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 
 /**
  * The two requirements that are a bare list of ids on the group: global stages and advancements.

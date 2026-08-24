@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.CategoryEditor;
+
+import net.bananemdnsa.historystages.api.editor.CategoryTab;
+
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;

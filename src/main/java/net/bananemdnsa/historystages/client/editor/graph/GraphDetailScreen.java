@@ -4,16 +4,16 @@ import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
 import net.bananemdnsa.historystages.client.editor.widget.Scrollbar;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractModalScreen;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractModalScreen;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.auto.CombineMode;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
@@ -46,7 +46,7 @@ import java.util.Set;
  * that {@code GuiGraphics.renderItem} draws at, which is what lets this screen show real item
  * icons without them punching through the frame.
  *
- * <p>Requirement rows render {@link DependencyResult} exactly as received from
+ * <p>Requirement rows render {@link RequirementResult} exactly as received from
  * {@link ClientDependencyCache} and never re-derive fulfilment — the same rule the docked panel
  * carried. Rows are rebuilt whenever the cache version changes, because the reply to a
  * dependency request can land while this screen is already open.
@@ -154,7 +154,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     /** Content height the box was last built for; a change means the box has to be rebuilt. */
     private int builtForHeight = -1;
     /** Dependency-cache state the rows were built from, so {@link #tick} knows when to rebuild. */
-    private DependencyResult builtFromDependency;
+    private RequirementResult builtFromDependency;
 
     private float scroll;
     private float maxScroll;
@@ -228,7 +228,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     @Override
     public void tick() {
         super.tick();
-        DependencyResult current = ClientDependencyCache.get(node.stageId(), node.individual());
+        RequirementResult current = ClientDependencyCache.get(node.stageId(), node.individual());
         if (current == builtFromDependency) return;
         rebuildRows();
         if (HEADER_BAND_H + listHeight() != builtForHeight) {
@@ -260,7 +260,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             }
         }
 
-        DependencyResult dep = ClientDependencyCache.get(node.stageId(), node.individual());
+        RequirementResult dep = ClientDependencyCache.get(node.stageId(), node.individual());
         builtFromDependency = dep;
         boolean anyRequirementSection = cfg.showStageDeps.get() || cfg.showItems.get() || cfg.showXp.get()
                 || cfg.showAdvancements.get() || cfg.showKills.get() || cfg.showStats.get()
@@ -354,13 +354,13 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     }
 
     private void addRequirements(List<Row> out, Font font, int width, boolean enabled,
-                                 DependencyResult dep, String headerKey, String... types) {
+                                 RequirementResult dep, String headerKey, String... types) {
         if (!enabled || dep == null) return;
 
         Set<String> typeSet = Set.of(types);
         List<Row> body = new ArrayList<>();
-        for (DependencyResult.GroupResult group : dep.getGroups()) {
-            for (DependencyResult.EntryResult e : group.getEntries()) {
+        for (RequirementResult.GroupResult group : dep.getGroups()) {
+            for (RequirementResult.EntryResult e : group.getEntries()) {
                 if (typeSet.contains(e.getType())) addRequirement(body, font, e, width);
             }
         }
@@ -379,7 +379,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
      * be a claim this screen cannot make. They are listed as what they are here — the shopping
      * list for the stage.
      */
-    private void addRequirement(List<Row> out, Font font, DependencyResult.EntryResult e, int width) {
+    private void addRequirement(List<Row> out, Font font, RequirementResult.EntryResult e, int width) {
         RequirementDisplay.Kind kind = RequirementDisplay.kindOf(e.getType(), e.canDeposit());
         boolean met = e.isFulfilled();
         String amount = RequirementDisplay.showsAmount(kind) && !met
@@ -406,7 +406,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
      * id names nothing. {@code BuiltInRegistries.ITEM.get} answers with air rather than null for
      * an unknown id, so the emptiness check is the real guard here.
      */
-    private static ItemStack iconFor(DependencyResult.EntryResult e) {
+    private static ItemStack iconFor(RequirementResult.EntryResult e) {
         if (!"item".equals(e.getType())) return ItemStack.EMPTY;
         ResourceLocation id = ResourceLocation.tryParse(e.getId());
         if (id == null) return ItemStack.EMPTY;

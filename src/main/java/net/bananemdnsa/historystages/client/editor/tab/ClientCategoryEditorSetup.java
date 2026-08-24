@@ -1,5 +1,13 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.CustomFieldScreens;
+import net.bananemdnsa.historystages.api.editor.RegisterCategoryEditorsEvent;
+import net.bananemdnsa.historystages.api.editor.RegisterCustomFieldScreensEvent;
+import net.bananemdnsa.historystages.api.editor.RegisterRequirementEditorsEvent;
+import net.bananemdnsa.historystages.api.editor.RegisterTriggerEditorsEvent;
+import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
+
 import net.bananemdnsa.historystages.HistoryStages;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -30,19 +38,16 @@ public final class ClientCategoryEditorSetup {
             ModLoader.postEvent(new RegisterCategoryEditorsEvent());
             CategoryEditors.freeze();
 
-            ModLoader.postEvent(new net.bananemdnsa.historystages.client.editor.trigger
-                    .RegisterTriggerEditorsEvent());
-            net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors.freeze();
+            ModLoader.postEvent(new RegisterTriggerEditorsEvent());
+            TriggerEditors.freeze();
 
-            ModLoader.postEvent(new net.bananemdnsa.historystages.client.editor.dep
-                    .RegisterRequirementEditorsEvent());
-            net.bananemdnsa.historystages.client.editor.dep.RequirementEditors.freeze();
+            ModLoader.postEvent(new RegisterRequirementEditorsEvent());
+            RequirementEditors.freeze();
 
             // One window for both declarative axes: a CUSTOM_SCREEN field on a stage setting and
             // one in the config screen ask the same question, which screen edits this value.
-            ModLoader.postEvent(new net.bananemdnsa.historystages.client.editor.field
-                    .RegisterCustomFieldScreensEvent());
-            net.bananemdnsa.historystages.client.editor.field.CustomFieldScreens.freeze();
+            ModLoader.postEvent(new RegisterCustomFieldScreensEvent());
+            CustomFieldScreens.freeze();
         });
     }
 }

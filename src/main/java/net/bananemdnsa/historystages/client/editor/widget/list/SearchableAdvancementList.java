@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+
 import net.minecraft.network.chat.Component;
 import net.bananemdnsa.historystages.mixin.ClientAdvancementsAccessor;
 import net.minecraft.advancements.AdvancementHolder;

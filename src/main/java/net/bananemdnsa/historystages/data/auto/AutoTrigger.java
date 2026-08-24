@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.data.auto;
 
 import com.google.gson.annotations.JsonAdapter;
 import com.google.gson.annotations.SerializedName;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 
 import java.util.ArrayList;
 import java.util.List;

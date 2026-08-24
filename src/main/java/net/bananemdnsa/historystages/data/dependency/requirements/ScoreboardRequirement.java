@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
 import net.bananemdnsa.historystages.data.dependency.ScoreboardDep;
 
 /** Scoreboard objectives compared against a value, either for the player or a named holder. */
@@ -38,14 +38,14 @@ public class ScoreboardRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         for (ScoreboardDep sb : group.getScoreboard()) {
             int current = ScoreboardLookup.valueOf(ctx.level(), ctx.player(), sb);
             boolean met = sb.compare(current);
             String holderSuffix = sb.isPlayerSelf() ? "" : " [" + sb.getScoreHolder() + "]";
             String desc = sb.getObjective() + " " + sb.getOp() + " " + sb.getValue() + holderSuffix;
-            results.add(new DependencyResult.EntryResult("scoreboard", sb.getObjective(),
+            results.add(new RequirementResult.EntryResult("scoreboard", sb.getObjective(),
                     desc, met, current, sb.getValue()));
         }
         return results;

@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.cache;
 
-import net.bananemdnsa.historystages.data.lock.engine.StageStateView;
+import net.bananemdnsa.historystages.api.stage.StageStateView;
 
 /**
  * Client-side {@link StageStateView} factories. Separate from

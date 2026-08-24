@@ -3,11 +3,11 @@ package net.bananemdnsa.historystages.data.auto;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
-import net.bananemdnsa.historystages.data.StageUnlockHelper;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.stage.StageStates;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerGlobalData;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerProgressData;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
@@ -188,7 +188,7 @@ public final class AutoTriggerManager {
     private static boolean areDependenciesSatisfied(StageEntry stage, boolean isIndividual,
                                                     ServerPlayer player, ServerLevel level) {
         if (!stage.hasDependencies()) return true;
-        DependencyResult result = DependencyChecker.checkAll(stage, player, level,
+        RequirementResult result = DependencyChecker.checkAll(stage, player, level,
                 isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL, null);
         return result.isFulfilled();
     }
@@ -209,9 +209,9 @@ public final class AutoTriggerManager {
     private static void unlockStage(String stageId, boolean isIndividual,
                                     ServerPlayer player, ServerLevel level) {
         if (isIndividual) {
-            StageUnlockHelper.unlockIndividual(stageId, player);
+            StageStates.unlockIndividual(stageId, player);
         } else {
-            StageUnlockHelper.unlockGlobal(stageId, level);
+            StageStates.unlockGlobal(stageId, level);
         }
     }
 

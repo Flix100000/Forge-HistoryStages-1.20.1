@@ -15,8 +15,8 @@ import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.jetbrains.annotations.Nullable;
 
 /**

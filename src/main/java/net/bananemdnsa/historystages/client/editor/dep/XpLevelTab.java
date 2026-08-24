@@ -1,10 +1,12 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
-import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
-import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
-import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
+import net.bananemdnsa.historystages.api.editor.TabInputContext;
+import net.bananemdnsa.historystages.api.editor.TabRenderContext;
+import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;

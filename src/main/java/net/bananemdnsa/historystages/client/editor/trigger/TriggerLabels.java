@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.trigger;
 
+import net.bananemdnsa.historystages.api.editor.TriggerEditor;
+
 import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
@@ -9,7 +11,7 @@ import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.minecraft.network.chat.Component;
 

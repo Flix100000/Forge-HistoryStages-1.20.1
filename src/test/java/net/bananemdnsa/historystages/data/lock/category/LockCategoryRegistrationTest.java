@@ -1,5 +1,11 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.CategoryStorage;
+
+import net.bananemdnsa.historystages.api.lock.AddonLockCategory;
+
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.StageEntry;

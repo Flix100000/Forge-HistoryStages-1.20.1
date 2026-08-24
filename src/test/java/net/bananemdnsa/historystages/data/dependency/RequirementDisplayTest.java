@@ -1,6 +1,14 @@
 package net.bananemdnsa.historystages.data.dependency;
 
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay.Kind;
+import net.bananemdnsa.historystages.api.dependency.IdCountEntry;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementStorage;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+
+import net.bananemdnsa.historystages.api.dependency.AddonRequirement;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay.Kind;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

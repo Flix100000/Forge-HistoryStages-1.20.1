@@ -5,10 +5,10 @@ import java.util.List;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.research.BoosterUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -54,8 +54,8 @@ public class ItemRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         for (DependencyItem item : group.getItems()) {
             int original = item.getCount();
             int required = BoosterUtil.effectiveCount(original, ctx.costReduction());
@@ -65,7 +65,7 @@ public class ItemRequirement implements Requirement {
             boolean met = current >= required;
             String itemName = getItemDisplayName(item.getId());
             int originalForUi = (required == original) ? 0 : original;
-            results.add(new DependencyResult.EntryResult("item", item.getId(),
+            results.add(new RequirementResult.EntryResult("item", item.getId(),
                     required + "x " + itemName, met, current, required, originalForUi, false));
         }
         return results;

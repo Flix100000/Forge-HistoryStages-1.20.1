@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.demo;
 
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 
 /**
  * The stand-in addon's second auto-trigger: "this many relics have been found".

@@ -5,7 +5,7 @@ import java.util.List;
 
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 import org.jetbrains.annotations.Nullable;
 
 /**

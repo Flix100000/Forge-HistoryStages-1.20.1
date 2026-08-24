@@ -1,12 +1,14 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.dependency.StatDep;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 
 /** The stat requirement: an id and a minimum, shown as {@code id >= n}. */
 public final class StatTab extends AbstractDependencyTab {

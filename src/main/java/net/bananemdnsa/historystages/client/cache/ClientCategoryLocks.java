@@ -5,7 +5,7 @@ import java.util.List;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.category.CategoryLockResolver;
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 
 /**
  * The client-side counterpart of {@code CategoryLocks}, for addons that need to grey something

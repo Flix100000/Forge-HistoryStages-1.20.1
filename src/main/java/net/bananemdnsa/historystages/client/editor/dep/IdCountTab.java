@@ -1,14 +1,16 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.IdCountEntry;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementStorage;
+import net.bananemdnsa.historystages.api.dependency.IdCountEntry;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementStorage;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -22,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
  * the other way round would mean parsing "3x thing" back apart, which breaks the moment an id
  * contains an x.
  */
-public final class IdCountTab extends AbstractDependencyTab {
+public class IdCountTab extends AbstractDependencyTab {
 
     private static final RequirementStorage<IdCountEntry> STORAGE =
             RequirementStorage.gson(IdCountEntry.class);
@@ -32,7 +34,7 @@ public final class IdCountTab extends AbstractDependencyTab {
     private final List<IdCountEntry> items = new ArrayList<>();
     private Consumer<String> onAmountNeeded = id -> { };
 
-    IdCountTab(Requirement requirement, @Nullable String amountLangKey,
+    public IdCountTab(Requirement requirement, @Nullable String amountLangKey,
                PickerFactory pickerFactory, Runnable onChanged) {
         super(requirement, pickerFactory, onChanged);
         this.requirementId = requirement.id();

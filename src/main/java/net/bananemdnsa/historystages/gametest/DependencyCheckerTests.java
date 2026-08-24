@@ -8,10 +8,10 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.StatDep;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -260,7 +260,7 @@ public final class DependencyCheckerTests {
      * empty group counts as fulfilled. Passing the wrong scope therefore produces a test that
      * passes while checking nothing, which is worse than one that fails.
      */
-    private static DependencyResult check(StageEntry stage, ServerPlayer player, StageScope scope,
+    private static RequirementResult check(StageEntry stage, ServerPlayer player, StageScope scope,
             CompoundTag deposited) {
         return DependencyChecker.checkAll(stage, player, player.level(), scope, deposited);
     }

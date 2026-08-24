@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -226,7 +228,7 @@ class BuiltInCategoryMatchingTest {
         // No per-player spawn gate exists in the data model, and the loader strips spawn locks
         // out of individual stages. The category says so rather than leaving it implicit.
         assertFalse(category("historystages:spawnlock").supportedScopes()
-                .contains(net.bananemdnsa.historystages.data.lock.engine.StageScope.INDIVIDUAL));
+                .contains(net.bananemdnsa.historystages.api.stage.StageScope.INDIVIDUAL));
     }
 
     // ---- shared contract -----------------------------------------------------------

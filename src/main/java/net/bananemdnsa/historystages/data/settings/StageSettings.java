@@ -1,8 +1,10 @@
 package net.bananemdnsa.historystages.data.settings;
 
+import net.bananemdnsa.historystages.api.settings.SettingsValues;
+
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
  * The entry point for an addon reading its own settings at runtime.

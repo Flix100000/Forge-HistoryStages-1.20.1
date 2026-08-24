@@ -9,7 +9,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.TieredPedestal;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -26,7 +26,7 @@ import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -534,7 +534,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                         : null;
                                 double tickCost = stackTag.contains("LockedCostReduction")
                                         ? stackTag.getDouble("LockedCostReduction") : 0.0;
-                                DependencyResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
+                                RequirementResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
                                         isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
                                         depositedTag, tickCost);
                                 metTotal = result.isFulfilled();
@@ -683,7 +683,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
             NeoForge.EVENT_BUS.post(
-                    new net.bananemdnsa.historystages.events.StageEvent.Unlocked(stageId, eventDisplayName));
+                    new net.bananemdnsa.historystages.api.stage.StageEvent.Unlocked(stageId, eventDisplayName));
 
             if (level.getServer() != null) {
                 level.getServer().getCommands().performPrefixedCommand(
@@ -728,7 +728,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
             String eventDisplayName = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
             NeoForge.EVENT_BUS.post(
-                    new net.bananemdnsa.historystages.events.StageEvent.IndividualUnlocked(stageId, eventDisplayName,
+                    new net.bananemdnsa.historystages.api.stage.StageEvent.IndividualUnlocked(stageId, eventDisplayName,
                             ownerUUID));
 
             if (level.getServer() != null) {

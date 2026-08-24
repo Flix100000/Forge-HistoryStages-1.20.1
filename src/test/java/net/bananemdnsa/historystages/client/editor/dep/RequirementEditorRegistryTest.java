@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.RequirementEditor;
+
 import java.util.List;
 import java.util.Set;
 

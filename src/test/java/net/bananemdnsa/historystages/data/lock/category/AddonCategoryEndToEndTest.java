@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.CategoryStorage;
+
+import net.bananemdnsa.historystages.api.lock.AddonLockCategory;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +11,7 @@ import java.util.Set;
 
 import com.google.gson.Gson;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageStateView;
+import net.bananemdnsa.historystages.api.stage.StageStateView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

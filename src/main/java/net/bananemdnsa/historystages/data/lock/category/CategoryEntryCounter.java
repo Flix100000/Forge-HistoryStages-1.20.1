@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import com.google.gson.JsonElement;
 import net.bananemdnsa.historystages.data.StageEntry;
 

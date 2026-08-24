@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.data.lock.engine;
 
+import net.bananemdnsa.historystages.api.stage.StageStateView;
+
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -10,7 +13,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.category.CategoryLockResolver;
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -21,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The engine the mod runs on: every lock question is answered by asking a
- * {@link net.bananemdnsa.historystages.data.lock.category.LockCategory} through
+ * {@link net.bananemdnsa.historystages.api.lock.LockCategory} through
  * {@link CategoryLockResolver}, over stages read from {@link StageManager}.
  *
  * <p>Still string-based — a stage is an id and a lock check is a walk over entries. What Phase 8

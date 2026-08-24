@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.settings;
 
+import net.bananemdnsa.historystages.api.settings.SettingsValues;
+
+import net.bananemdnsa.historystages.api.settings.StageSettingsGroup;
+
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -7,7 +11,7 @@ import java.util.TreeMap;
 import org.jetbrains.annotations.Nullable;
 
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
  * The settings groups the mod knows about.

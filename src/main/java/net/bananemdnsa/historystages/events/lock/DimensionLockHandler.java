@@ -5,7 +5,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;

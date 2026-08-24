@@ -1,17 +1,19 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
 
-import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
-import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
-import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.api.editor.TabInputContext;
+import net.bananemdnsa.historystages.api.editor.TabRenderContext;
+import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EntityType;

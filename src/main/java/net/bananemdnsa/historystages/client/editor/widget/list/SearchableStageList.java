@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
 import net.minecraft.network.chat.Component;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;

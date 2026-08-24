@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
-import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.SpawnSourcesPopup;
@@ -19,11 +19,11 @@ import net.minecraft.client.gui.GuiGraphics;
  * it: the host is the only thing that knows where the middle of the screen is, and a popup told to
  * appear at (0, 0) lands in the corner.
  */
-final class PopupOverlays {
+public final class PopupOverlays {
 
     private PopupOverlays() {}
 
-    static PickerOverlay wrap(DimensionFilterPopup popup, String entryId, java.util.List<String> current) {
+    public static PickerOverlay wrap(DimensionFilterPopup popup, String entryId, java.util.List<String> current) {
         return new Adapter() {
             @Override
             public void show(int centerX, int centerY, int parentWidth) {
@@ -62,7 +62,7 @@ final class PopupOverlays {
         };
     }
 
-    static PickerOverlay wrap(SpawnSourcesPopup popup, String entryId, java.util.List<String> current) {
+    public static PickerOverlay wrap(SpawnSourcesPopup popup, String entryId, java.util.List<String> current) {
         return new Adapter() {
             @Override
             public void show(int centerX, int centerY, int parentWidth) {
@@ -97,7 +97,7 @@ final class PopupOverlays {
         };
     }
 
-    static PickerOverlay wrap(InteractionActionsPopup popup, String entryId, java.util.List<String> current) {
+    public static PickerOverlay wrap(InteractionActionsPopup popup, String entryId, java.util.List<String> current) {
         return new Adapter() {
             @Override
             public void show(int centerX, int centerY, int parentWidth) {

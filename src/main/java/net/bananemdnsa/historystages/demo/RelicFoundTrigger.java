@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.demo;
 
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 
 /**
  * The stand-in addon's own auto-trigger: "this relic was found".

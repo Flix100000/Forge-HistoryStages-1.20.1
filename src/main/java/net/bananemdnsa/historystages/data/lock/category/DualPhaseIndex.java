@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;

@@ -1,8 +1,12 @@
 package net.bananemdnsa.historystages.data.settings;
 
+import net.bananemdnsa.historystages.api.settings.Setting;
+
+import net.bananemdnsa.historystages.api.settings.StageSettingsGroup;
+
 import com.google.gson.Gson;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

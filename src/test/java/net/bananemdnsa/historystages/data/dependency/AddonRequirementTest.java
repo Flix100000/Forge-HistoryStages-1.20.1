@@ -1,5 +1,13 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+import net.bananemdnsa.historystages.api.dependency.RequirementStorage;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementOutcome;
+
+import net.bananemdnsa.historystages.api.dependency.AddonRequirement;
+
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -8,7 +16,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

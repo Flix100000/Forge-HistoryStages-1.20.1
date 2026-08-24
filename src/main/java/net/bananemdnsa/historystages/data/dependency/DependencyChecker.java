@@ -1,8 +1,14 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
@@ -20,25 +26,25 @@ public class DependencyChecker {
      * @param scope         Which stage map this entry came from. No default is offered: guessing
      *                      wrong silently changes which requirement kinds are evaluated at all.
      * @param depositedData The tracking NBT from the scroll, if applicable
-     * @return DependencyResult with per-group and per-entry details
+     * @return RequirementResult with per-group and per-entry details
      */
-    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
+    public static RequirementResult checkAll(StageEntry entry, ServerPlayer player, Level level,
             StageScope scope, CompoundTag depositedData) {
         return checkAll(entry, player, level, scope, depositedData, 0.0);
     }
 
-    public static DependencyResult checkAll(StageEntry entry, ServerPlayer player, Level level,
+    public static RequirementResult checkAll(StageEntry entry, ServerPlayer player, Level level,
             StageScope scope, CompoundTag depositedData, double costReduction) {
         List<DependencyGroup> groups = entry.getDependencies();
         if (groups == null || groups.isEmpty()) {
-            return DependencyResult.noDependencies();
+            return RequirementResult.noDependencies();
         }
 
-        List<DependencyResult.GroupResult> groupResults = new ArrayList<>();
+        List<RequirementResult.GroupResult> groupResults = new ArrayList<>();
         boolean allFulfilled = true;
 
         for (int i = 0; i < groups.size(); i++) {
-            DependencyResult.GroupResult result = checkGroup(groups.get(i), i, player, level,
+            RequirementResult.GroupResult result = checkGroup(groups.get(i), i, player, level,
                     scope, depositedData, costReduction);
             groupResults.add(result);
             if (!result.isFulfilled()) {
@@ -46,10 +52,10 @@ public class DependencyChecker {
             }
         }
 
-        return new DependencyResult(allFulfilled, groupResults);
+        return new RequirementResult(allFulfilled, groupResults);
     }
 
-    public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex,
+    public static RequirementResult.GroupResult checkGroup(DependencyGroup group, int groupIndex,
             ServerPlayer player, Level level, StageScope scope, CompoundTag depositedData) {
         return checkGroup(group, groupIndex, player, level, scope, depositedData, 0.0);
     }
@@ -62,10 +68,10 @@ public class DependencyChecker {
      * global stage has no answer — there is no single player to measure it against — so it is
      * skipped rather than checked against whoever happened to trigger this.
      */
-    public static DependencyResult.GroupResult checkGroup(DependencyGroup group, int groupIndex,
+    public static RequirementResult.GroupResult checkGroup(DependencyGroup group, int groupIndex,
             ServerPlayer player, Level level, StageScope scope, CompoundTag depositedData,
             double costReduction) {
-        List<DependencyResult.EntryResult> entries = new ArrayList<>();
+        List<RequirementResult.EntryResult> entries = new ArrayList<>();
         boolean isActuallyOr = "OR".equalsIgnoreCase(group.getLogic());
 
         RequirementContext ctx = new RequirementContext(player, level, depositedData, groupIndex,
@@ -79,13 +85,13 @@ public class DependencyChecker {
         if (entries.isEmpty()) {
             fulfilled = true;
         } else if (isActuallyOr) {
-            fulfilled = entries.stream().anyMatch(DependencyResult.EntryResult::isFulfilled);
+            fulfilled = entries.stream().anyMatch(RequirementResult.EntryResult::isFulfilled);
         } else {
             // Must be AND
-            fulfilled = entries.stream().allMatch(DependencyResult.EntryResult::isFulfilled);
+            fulfilled = entries.stream().allMatch(RequirementResult.EntryResult::isFulfilled);
         }
 
-        return new DependencyResult.GroupResult(group.getLogic(), fulfilled, entries);
+        return new RequirementResult.GroupResult(group.getLogic(), fulfilled, entries);
     }
 
     // --- Consume methods removed: item/XP consumption is now handled via

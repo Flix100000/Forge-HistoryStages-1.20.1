@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.engine;
 
+import net.bananemdnsa.historystages.api.stage.StageScope;
+
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;

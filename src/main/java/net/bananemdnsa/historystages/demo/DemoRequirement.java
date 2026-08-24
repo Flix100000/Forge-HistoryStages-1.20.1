@@ -1,13 +1,13 @@
 package net.bananemdnsa.historystages.demo;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.dependency.AddonRequirement;
-import net.bananemdnsa.historystages.data.dependency.IdCountEntry;
-import net.bananemdnsa.historystages.data.dependency.RegisterRequirementTypesEvent;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
-import net.bananemdnsa.historystages.data.dependency.RequirementOutcome;
-import net.bananemdnsa.historystages.data.dependency.RequirementStorage;
+import net.bananemdnsa.historystages.api.dependency.AddonRequirement;
+import net.bananemdnsa.historystages.api.dependency.IdCountEntry;
+import net.bananemdnsa.historystages.api.dependency.RegisterRequirementTypesEvent;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.RequirementOutcome;
+import net.bananemdnsa.historystages.api.dependency.RequirementStorage;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
@@ -30,6 +30,21 @@ public final class DemoRequirement {
     /** The one whose entries are not id-and-count, so it needs a tab of its own. */
     public static final String RELIC_SET_ID = "hsdemo:relic_set";
 
+    /**
+     * Kept rather than looked up again.
+     *
+     * <p>An addon that wants its own requirement back should hold on to what it built, not ask
+     * the mod's registry for it. The registries are not part of the public surface, and this is
+     * why they do not need to be: everything an addon would look up there, it owned a moment
+     * earlier.
+     */
+    private static AddonRequirement<RelicSetDep> relicSet;
+
+    /** The relic-set requirement this addon registered. Null before registration runs. */
+    public static AddonRequirement<RelicSetDep> relicSet() {
+        return relicSet;
+    }
+
     private DemoRequirement() {}
 
     @SubscribeEvent
@@ -48,7 +63,7 @@ public final class DemoRequirement {
         // The interesting one: two fields, neither a count. Nothing about registering it differs
         // from the simple case — the difference is entirely on the client, where its editor has to
         // supply a tab rather than take the free one.
-        event.register(AddonRequirement.<RelicSetDep>builder(RELIC_SET_ID)
+        relicSet = AddonRequirement.<RelicSetDep>builder(RELIC_SET_ID)
                 .tabLangKey("editor.historystages.demo.dep.tab.relic_sets")
                 .tooltipLangKey("editor.historystages.demo.dep.tooltip.relic_sets")
                 .sectionLangKey("editor.historystages.demo.graph.section.relics")
@@ -56,7 +71,8 @@ public final class DemoRequirement {
                 .evaluator((entry, ctx) -> new RequirementOutcome(entry.relic(),
                         entry.rarity() + " " + entry.relic(),
                         "common".equals(entry.rarity()), 0, 1))
-                .build());
+                .build();
+        event.register(relicSet);
     }
 
     /**

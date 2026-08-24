@@ -1,9 +1,9 @@
 package net.bananemdnsa.historystages.demo;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.settings.RegisterStageSettingsGroupsEvent;
-import net.bananemdnsa.historystages.data.settings.Setting;
-import net.bananemdnsa.historystages.data.settings.StageSettingsGroup;
+import net.bananemdnsa.historystages.api.settings.RegisterStageSettingsGroupsEvent;
+import net.bananemdnsa.historystages.api.settings.Setting;
+import net.bananemdnsa.historystages.api.settings.StageSettingsGroup;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
@@ -14,7 +14,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
  * <p>Off unless the game is started with {@code -Dhistorystages.demoCategory=true}, which means it
  * never exists for a player. It is written the way a real addon would write it: declare a field
  * per setting, group them under a namespaced id, and register the group. This covers all six
- * field kinds, {@link net.bananemdnsa.historystages.data.settings.SettingKind#ITEM} included.
+ * field kinds, {@link net.bananemdnsa.historystages.api.settings.SettingKind#ITEM} included.
  */
 @EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public final class DemoSettingsGroup {

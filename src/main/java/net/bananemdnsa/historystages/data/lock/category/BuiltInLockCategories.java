@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -7,7 +9,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;

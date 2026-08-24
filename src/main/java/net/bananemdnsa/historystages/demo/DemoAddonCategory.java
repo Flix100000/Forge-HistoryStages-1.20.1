@@ -4,11 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.auto.RegisterTriggerTypesEvent;
-import net.bananemdnsa.historystages.data.lock.category.AddonLockCategory;
-import net.bananemdnsa.historystages.data.lock.category.CategoryStorage;
-import net.bananemdnsa.historystages.data.lock.category.RegisterLockCategoriesEvent;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.trigger.RegisterTriggerTypesEvent;
+import net.bananemdnsa.historystages.api.lock.AddonLockCategory;
+import net.bananemdnsa.historystages.api.lock.CategoryStorage;
+import net.bananemdnsa.historystages.api.lock.RegisterLockCategoriesEvent;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 

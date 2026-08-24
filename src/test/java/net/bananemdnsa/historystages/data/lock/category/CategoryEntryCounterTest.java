@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.CategoryStorage;
+
+import net.bananemdnsa.historystages.api.lock.AddonLockCategory;
+
 import java.util.List;
 
 import com.google.gson.Gson;

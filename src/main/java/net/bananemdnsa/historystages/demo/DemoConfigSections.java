@@ -3,10 +3,10 @@ package net.bananemdnsa.historystages.demo;
 import java.util.List;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.config.AddonConfigField;
-import net.bananemdnsa.historystages.data.config.AddonConfigSection;
-import net.bananemdnsa.historystages.data.config.ConfigSide;
-import net.bananemdnsa.historystages.data.config.RegisterConfigSectionsEvent;
+import net.bananemdnsa.historystages.api.config.AddonConfigField;
+import net.bananemdnsa.historystages.api.config.AddonConfigSection;
+import net.bananemdnsa.historystages.api.config.ConfigSide;
+import net.bananemdnsa.historystages.api.config.RegisterConfigSectionsEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 

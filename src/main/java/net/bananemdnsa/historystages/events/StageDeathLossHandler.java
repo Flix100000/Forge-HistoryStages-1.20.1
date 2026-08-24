@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.events;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.StageUnlockHelper;
+import net.bananemdnsa.historystages.api.stage.StageStates;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.data.saveddata.TemporaryStageData;
 import net.minecraft.server.level.ServerLevel;
@@ -53,7 +53,7 @@ public final class StageDeathLossHandler {
 
         TemporaryStageData temporary = TemporaryStageData.get(level);
         for (String stageId : lost) {
-            StageUnlockHelper.relockIndividual(stageId, player);
+            StageStates.relockIndividual(stageId, player);
             // No-op unless the stage is in temporary mode with a running timer.
             temporary.expireIndividualEarly(uuid, stageId, HistoryStages::resolveTemporaryConfig);
         }

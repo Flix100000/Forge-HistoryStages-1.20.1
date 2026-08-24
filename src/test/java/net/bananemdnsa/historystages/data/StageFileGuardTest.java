@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.data;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

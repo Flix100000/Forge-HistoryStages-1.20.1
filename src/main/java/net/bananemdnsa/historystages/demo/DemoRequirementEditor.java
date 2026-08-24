@@ -1,10 +1,10 @@
 package net.bananemdnsa.historystages.demo;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.client.editor.dep.RegisterRequirementEditorsEvent;
-import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
-import net.bananemdnsa.historystages.client.editor.field.RegisterCustomFieldScreensEvent;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
+import net.bananemdnsa.historystages.api.editor.RegisterRequirementEditorsEvent;
+import net.bananemdnsa.historystages.api.editor.RequirementEditor;
+import net.bananemdnsa.historystages.api.editor.RegisterCustomFieldScreensEvent;
+import net.bananemdnsa.historystages.api.editor.widget.FormattedTextScreen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;

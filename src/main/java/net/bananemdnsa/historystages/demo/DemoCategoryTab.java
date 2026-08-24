@@ -1,10 +1,10 @@
 package net.bananemdnsa.historystages.demo;
 
-import net.bananemdnsa.historystages.client.editor.tab.StringListCategoryTab;
-import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
-import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
-import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.editor.StringListCategoryTab;
+import net.bananemdnsa.historystages.api.editor.TabInputContext;
+import net.bananemdnsa.historystages.api.editor.TabRenderContext;
+import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 import net.minecraft.network.chat.Component;
 
 /**

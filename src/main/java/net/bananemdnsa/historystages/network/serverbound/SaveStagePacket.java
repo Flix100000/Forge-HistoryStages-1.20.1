@@ -10,7 +10,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageFileGuard;
 import net.bananemdnsa.historystages.data.StageJsonLimits;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;

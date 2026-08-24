@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.events.lock;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.MobSpawnType;

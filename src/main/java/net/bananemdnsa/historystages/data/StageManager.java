@@ -6,7 +6,7 @@ import net.bananemdnsa.historystages.data.lock.EntityLocks;
 import net.bananemdnsa.historystages.data.lock.category.DualPhaseIndex;
 import net.bananemdnsa.historystages.data.lock.engine.CategoryLockIndexes;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -23,7 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import net.bananemdnsa.historystages.data.dependency.*;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
@@ -1484,7 +1484,7 @@ public class StageManager {
 
     /**
      * Warns about (but does not remove) an addon settings block whose group does not support
-     * {@link net.bananemdnsa.historystages.data.lock.engine.StageScope#INDIVIDUAL}.
+     * {@link net.bananemdnsa.historystages.api.stage.StageScope#INDIVIDUAL}.
      *
      * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
      * deliberately not deleting anything: that method operates on this mod's own built-in
@@ -1495,11 +1495,11 @@ public class StageManager {
      */
     private static void warnUnsupportedScopeSettingsGroups(String stageId, StageEntry entry) {
         for (String groupId : entry.addonSettingsGroupIds()) {
-            net.bananemdnsa.historystages.data.settings.StageSettingsGroup group =
+            net.bananemdnsa.historystages.api.settings.StageSettingsGroup group =
                     net.bananemdnsa.historystages.data.settings.StageSettingsGroups.byId(groupId);
             if (group == null) continue;
             if (group.supportedScopes().contains(
-                    net.bananemdnsa.historystages.data.lock.engine.StageScope.INDIVIDUAL)) {
+                    net.bananemdnsa.historystages.api.stage.StageScope.INDIVIDUAL)) {
                 continue;
             }
             String msg = "Individual stage '" + stageId + "' has settings for group '" + groupId
@@ -1511,7 +1511,7 @@ public class StageManager {
 
     /**
      * Warns about (but does not remove) an auto-trigger whose type does not support
-     * {@link net.bananemdnsa.historystages.data.lock.engine.StageScope#INDIVIDUAL}.
+     * {@link net.bananemdnsa.historystages.api.stage.StageScope#INDIVIDUAL}.
      *
      * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
      * deliberately not deleting anything, for the same reason {@link

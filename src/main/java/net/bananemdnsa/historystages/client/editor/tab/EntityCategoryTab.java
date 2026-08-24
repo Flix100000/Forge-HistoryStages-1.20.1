@@ -1,9 +1,11 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.AbstractCategoryTab;
+
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 
 /**
  * One of the three entity tabs — attack, spawn or interaction locks.

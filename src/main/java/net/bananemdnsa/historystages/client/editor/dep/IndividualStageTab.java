@@ -1,17 +1,19 @@
 package net.bananemdnsa.historystages.client.editor.dep;
 
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
-import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
-import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.api.editor.TabInputContext;
+import net.bananemdnsa.historystages.api.editor.TabRenderContext;
+import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.minecraft.network.chat.Component;
 
 /**

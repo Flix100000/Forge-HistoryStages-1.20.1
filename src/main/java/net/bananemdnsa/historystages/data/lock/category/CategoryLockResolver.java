@@ -1,12 +1,14 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.engine.StageStateView;
+import net.bananemdnsa.historystages.api.stage.StageStateView;
 
 /**
  * Answers "which stages gate this subject, and are any of them still locked?" for a
@@ -25,7 +27,7 @@ public final class CategoryLockResolver {
 
     /** Whether asking this category about that scope means anything at all. */
     public static boolean supports(LockCategory<?> category,
-            net.bananemdnsa.historystages.data.lock.engine.StageScope scope) {
+            net.bananemdnsa.historystages.api.stage.StageScope scope) {
         return category.supportedScopes().contains(scope);
     }
 

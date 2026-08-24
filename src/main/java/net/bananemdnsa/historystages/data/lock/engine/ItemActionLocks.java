@@ -10,7 +10,7 @@ import net.bananemdnsa.historystages.data.lock.category.BuiltInLockMatching;
 
 /**
  * Whether one specific action on an item is blocked — the one lock question that is deliberately
- * not a {@link net.bananemdnsa.historystages.data.lock.category.LockCategory#gates} question.
+ * not a {@link net.bananemdnsa.historystages.api.lock.LockCategory#gates} question.
  *
  * <p>{@code gates} answers "does this stage lock this?". This asks something narrower and
  * order-dependent: <em>which entry matches first</em> — items, then mods, then tags — and what

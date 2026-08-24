@@ -8,10 +8,10 @@ import java.util.UUID;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.minecraft.world.level.Level;
 
@@ -44,14 +44,14 @@ public class IndividualStageRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         for (IndividualStageDep dep : group.getIndividualStages()) {
             boolean met = checkIndividualStageDep(dep, ctx.level());
             StageEntry stageEntry = StageManager.getIndividualStages().get(dep.getStageId());
             String name = stageEntry != null ? stageEntry.getDisplayName() : dep.getStageId();
             String modeLabel = dep.isAllEver() ? " (all ever)" : " (all online)";
-            results.add(new DependencyResult.EntryResult("individual_stage", dep.getStageId(),
+            results.add(new RequirementResult.EntryResult("individual_stage", dep.getStageId(),
                     name + modeLabel, met, met ? 1 : 0, 1));
         }
         return results;

@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.dependency.requirements.AdvancementRequirement;

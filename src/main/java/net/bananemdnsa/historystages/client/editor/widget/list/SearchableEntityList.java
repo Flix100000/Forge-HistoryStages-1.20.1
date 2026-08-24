@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 
 import net.bananemdnsa.historystages.client.editor.anim.Anim;

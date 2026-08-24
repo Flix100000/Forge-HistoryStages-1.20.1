@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import net.bananemdnsa.historystages.client.editor.widget.list.PickerOverlay;
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;

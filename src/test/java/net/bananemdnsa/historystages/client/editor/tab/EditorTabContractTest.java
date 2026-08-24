@@ -32,7 +32,8 @@ class EditorTabContractTest {
     private static final Pattern TAB_INTERFACE =
             Pattern.compile("\\binterface\\s+(\\w*Tab)\\b([^{]*)\\{");
 
-    private static final Path TAB_CONTRACT = EDITOR.resolve("tab").resolve("EditorTab.java");
+    private static final Path TAB_CONTRACT = Path.of("src", "main", "java", "net",
+            "bananemdnsa", "historystages", "api", "editor", "EditorTab.java");
 
     /**
      * The hooks Phase 3b added: two for drawing, six for input, plus {@code rowAt} and

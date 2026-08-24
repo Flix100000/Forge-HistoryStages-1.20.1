@@ -5,12 +5,12 @@ import java.util.List;
 import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.StatDep;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -55,12 +55,12 @@ public class StatRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         for (StatDep stat : group.getStats()) {
             int current = ctx.player() != null ? getStatValue(ctx.player(), stat.getStatId()) : 0;
             boolean met = current >= stat.getMinValue();
-            results.add(new DependencyResult.EntryResult("stat", stat.getStatId(),
+            results.add(new RequirementResult.EntryResult("stat", stat.getStatId(),
                     stat.getStatId() + " >= " + stat.getMinValue(), met, current, stat.getMinValue()));
         }
         return results;

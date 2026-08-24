@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.CategoryEditor;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

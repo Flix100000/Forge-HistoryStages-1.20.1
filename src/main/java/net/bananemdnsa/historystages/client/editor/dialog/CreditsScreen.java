@@ -2,7 +2,7 @@ package net.bananemdnsa.historystages.client.editor.dialog;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractModalScreen;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractModalScreen;
 import net.bananemdnsa.historystages.util.ModLinks;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;

@@ -1,9 +1,15 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
+import net.bananemdnsa.historystages.api.lock.CategoryStorage;
+
+import net.bananemdnsa.historystages.api.lock.AddonLockCategory;
+
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+
 import java.util.EnumSet;
 import java.util.Set;
 
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

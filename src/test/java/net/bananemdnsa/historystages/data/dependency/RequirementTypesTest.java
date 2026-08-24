@@ -1,11 +1,17 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +34,7 @@ class RequirementTypesTest {
                 return scopes.length == 0 ? EnumSet.allOf(StageScope.class) : Set.of(scopes);
             }
             @Override public boolean declaredIn(DependencyGroup group) { return false; }
-            @Override public List<DependencyResult.EntryResult> evaluate(
+            @Override public List<RequirementResult.EntryResult> evaluate(
                     DependencyGroup group, RequirementContext ctx) {
                 throw new UnsupportedOperationException("not needed for this test");
             }

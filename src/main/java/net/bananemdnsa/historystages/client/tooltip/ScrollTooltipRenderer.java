@@ -7,7 +7,7 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.bananemdnsa.historystages.data.graph.GraphColors;
@@ -125,7 +125,7 @@ public final class ScrollTooltipRenderer {
         }
 
         List<DependencyGroup> groups = List.of();
-        DependencyResult result = null;
+        RequirementResult result = null;
         if (stageId != null && stageEntry != null && stageEntry.hasDependencies()) {
             // Deliberately resolved as "not in the global map" rather than isIndividualStage() —
             // this mirrors the original code's own (different) resolution for this section, and
@@ -209,7 +209,7 @@ public final class ScrollTooltipRenderer {
     private static List<Component> dependencySection(Map<String, ScrollTooltipLine> byId, ScrollTooltipContext ctx) {
         if (ctx.groups().isEmpty()) return List.of();
 
-        DependencyResult result = ctx.result();
+        RequirementResult result = ctx.result();
         boolean hideFulfilled = Config.COMMON.hideFulfilledDependencies.get();
 
         ScrollTooltipLine headerLine = byId.get("dep.header");
@@ -254,7 +254,7 @@ public final class ScrollTooltipRenderer {
         return out;
     }
 
-    private static List<Component> renderGroup(DependencyGroup group, DependencyResult result, boolean hideFulfilled,
+    private static List<Component> renderGroup(DependencyGroup group, RequirementResult result, boolean hideFulfilled,
                                                  ScrollTooltipLine itemLine, ScrollTooltipLine stageLine,
                                                  ScrollTooltipLine individualLine, ScrollTooltipLine xpLine,
                                                  Icons icons, Colors colors) {
@@ -262,21 +262,21 @@ public final class ScrollTooltipRenderer {
 
         if (itemLine != null && itemLine.enabled()) {
             for (DependencyItem item : group.getItems()) {
-                DependencyResult.EntryResult er = findResult(result, "item", item.getId());
+                RequirementResult.EntryResult er = findResult(result, "item", item.getId());
                 if (hideFulfilled && er != null && er.isFulfilled()) continue;
                 lines.addAll(itemComponent(itemLine, item, er, icons, colors));
             }
         }
         if (stageLine != null && stageLine.enabled()) {
             for (String sid : group.getStages()) {
-                DependencyResult.EntryResult er = findResult(result, "stage", sid);
+                RequirementResult.EntryResult er = findResult(result, "stage", sid);
                 if (hideFulfilled && er != null && er.isFulfilled()) continue;
                 lines.addAll(stageComponent(stageLine, sid, er, icons, colors));
             }
         }
         if (individualLine != null && individualLine.enabled()) {
             for (IndividualStageDep dep : group.getIndividualStages()) {
-                DependencyResult.EntryResult er = findResult(result, "individual_stage", dep.getStageId());
+                RequirementResult.EntryResult er = findResult(result, "individual_stage", dep.getStageId());
                 if (hideFulfilled && er != null && er.isFulfilled()) continue;
                 lines.addAll(individualComponent(individualLine, dep, er, icons, colors));
             }
@@ -284,7 +284,7 @@ public final class ScrollTooltipRenderer {
         if (xpLine != null && xpLine.enabled()) {
             XpLevelDep xp = group.getXpLevel();
             if (xp != null && xp.getLevel() > 0) {
-                DependencyResult.EntryResult er = findResult(result, "xp_level", "xp");
+                RequirementResult.EntryResult er = findResult(result, "xp_level", "xp");
                 if (!(hideFulfilled && er != null && er.isFulfilled())) {
                     lines.addAll(xpComponent(xpLine, xp, er, icons, colors));
                 }
@@ -295,7 +295,7 @@ public final class ScrollTooltipRenderer {
 
     // --- dependency entry components ---
 
-    private static List<Component> itemComponent(ScrollTooltipLine line, DependencyItem item, DependencyResult.EntryResult er,
+    private static List<Component> itemComponent(ScrollTooltipLine line, DependencyItem item, RequirementResult.EntryResult er,
                                             Icons icons, Colors colors) {
         ResourceLocation rl = ResourceLocation.tryParse(item.getId());
         Item mcItem = rl != null ? BuiltInRegistries.ITEM.get(rl) : null;
@@ -325,7 +325,7 @@ public final class ScrollTooltipRenderer {
                 fulfilled ? ChatFormatting.GREEN : ChatFormatting.GRAY);
     }
 
-    private static List<Component> stageComponent(ScrollTooltipLine line, String sid, DependencyResult.EntryResult er,
+    private static List<Component> stageComponent(ScrollTooltipLine line, String sid, RequirementResult.EntryResult er,
                                              Icons icons, Colors colors) {
         boolean fulfilled = er != null && er.isFulfilled();
         String icon = er != null ? (fulfilled ? icons.fulfilled() : icons.open()) : icons.unknown();
@@ -343,7 +343,7 @@ public final class ScrollTooltipRenderer {
                 colour, fallback);
     }
 
-    private static List<Component> individualComponent(ScrollTooltipLine line, IndividualStageDep dep, DependencyResult.EntryResult er,
+    private static List<Component> individualComponent(ScrollTooltipLine line, IndividualStageDep dep, RequirementResult.EntryResult er,
                                                    Icons icons, Colors colors) {
         boolean fulfilled = er != null && er.isFulfilled();
         String icon = er != null ? (fulfilled ? icons.fulfilled() : icons.open()) : icons.unknown();
@@ -361,7 +361,7 @@ public final class ScrollTooltipRenderer {
                 fulfilled ? ChatFormatting.GREEN : ChatFormatting.GRAY);
     }
 
-    private static List<Component> xpComponent(ScrollTooltipLine line, XpLevelDep xp, DependencyResult.EntryResult er,
+    private static List<Component> xpComponent(ScrollTooltipLine line, XpLevelDep xp, RequirementResult.EntryResult er,
                                           Icons icons, Colors colors) {
         boolean fulfilled = er != null && er.isFulfilled();
         String icon = er != null ? (fulfilled ? icons.fulfilled() : icons.open()) : icons.unknown();
@@ -483,10 +483,10 @@ public final class ScrollTooltipRenderer {
     }
 
     /** Finds a specific entry result in the cached dependency data. */
-    private static @Nullable DependencyResult.EntryResult findResult(DependencyResult result, String type, String id) {
+    private static @Nullable RequirementResult.EntryResult findResult(RequirementResult result, String type, String id) {
         if (result == null) return null;
-        for (DependencyResult.GroupResult group : result.getGroups()) {
-            for (DependencyResult.EntryResult entry : group.getEntries()) {
+        for (RequirementResult.GroupResult group : result.getGroups()) {
+            for (RequirementResult.EntryResult entry : group.getEntries()) {
                 if (entry.getType().equals(type) && entry.getId().equals(id)) {
                     return entry;
                 }

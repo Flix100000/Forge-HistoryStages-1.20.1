@@ -5,12 +5,12 @@ import java.util.List;
 import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -57,13 +57,13 @@ public class EntityKillRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         for (EntityKillDep kill : group.getEntityKills()) {
             int current = ctx.player() != null ? getKillCount(ctx.player(), kill.getEntityId()) : 0;
             boolean met = current >= kill.getCount();
             String entityName = getEntityDisplayName(kill.getEntityId());
-            results.add(new DependencyResult.EntryResult("entity_kill", kill.getEntityId(),
+            results.add(new RequirementResult.EntryResult("entity_kill", kill.getEntityId(),
                     kill.getCount() + "x " + entityName, met, current, kill.getCount()));
         }
         return results;

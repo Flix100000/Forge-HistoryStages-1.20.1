@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.settings;
 
+import net.bananemdnsa.historystages.api.settings.SettingsValues;
+
+import net.bananemdnsa.historystages.api.settings.Setting;
+
 import java.util.List;
 
 import com.google.gson.JsonObject;

@@ -1,5 +1,11 @@
 package net.bananemdnsa.historystages.data.config;
 
+import net.bananemdnsa.historystages.api.config.ConfigSide;
+
+import net.bananemdnsa.historystages.api.config.AddonConfigField;
+
+import net.bananemdnsa.historystages.api.config.AddonConfigSection;
+
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 

@@ -5,12 +5,12 @@ import java.util.List;
 import java.util.Set;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementContext;
-import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementContext;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
  * An experience level the player has to reach, optionally consumed on deposit.
@@ -56,8 +56,8 @@ public class XpLevelRequirement implements Requirement {
     }
 
     @Override
-    public List<DependencyResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
-        List<DependencyResult.EntryResult> results = new ArrayList<>();
+    public List<RequirementResult.EntryResult> evaluate(DependencyGroup group, RequirementContext ctx) {
+        List<RequirementResult.EntryResult> results = new ArrayList<>();
         XpLevelDep xpLevel = group.getXpLevel();
         if (xpLevel != null && xpLevel.getLevel() > 0) {
             boolean met;
@@ -70,7 +70,7 @@ public class XpLevelRequirement implements Requirement {
             }
             boolean needsDeposit = xpLevel.isConsume() && !met;
             String desc = "Level " + xpLevel.getLevel() + (xpLevel.isConsume() ? " (consumed)" : "");
-            results.add(new DependencyResult.EntryResult("xp_level", "xp", desc, met,
+            results.add(new RequirementResult.EntryResult("xp_level", "xp", desc, met,
                     currentLevel, xpLevel.getLevel(), needsDeposit));
         }
         return results;

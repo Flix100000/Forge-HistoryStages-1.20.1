@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.config;
 
+import net.bananemdnsa.historystages.api.config.AddonConfigField;
+
+import net.bananemdnsa.historystages.api.config.AddonConfigSection;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

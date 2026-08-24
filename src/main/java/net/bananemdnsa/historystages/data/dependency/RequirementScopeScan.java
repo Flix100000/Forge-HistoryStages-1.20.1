@@ -1,10 +1,12 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+
 import java.util.ArrayList;
 import java.util.List;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
  * Finds requirements a group declares that its stage's scope cannot answer.

@@ -1,11 +1,15 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.EntryActionContext;
+
+import net.bananemdnsa.historystages.api.editor.EntryAction;
+
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
+import net.bananemdnsa.historystages.api.editor.RequirementEditor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,7 +53,7 @@ class EntryActionDeclarationTest {
             @Override public String searchPlaceholderLangKey() { return "search"; }
             @Override public String amountLangKey() { return null; }
             @Override public java.util.Collection<String> candidates() { return Set.of(); }
-            @Override public net.bananemdnsa.historystages.client.editor.dep.DependencyTab
+            @Override public net.bananemdnsa.historystages.api.editor.DependencyTab
                     createTab(Runnable onChanged) {
                 throw new UnsupportedOperationException("not needed for this test");
             }

@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+
 import net.bananemdnsa.historystages.client.ClientStructureRegistry;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.gui.Font;

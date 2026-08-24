@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.engine;
 
+import net.bananemdnsa.historystages.api.stage.StageStateView;
+
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;

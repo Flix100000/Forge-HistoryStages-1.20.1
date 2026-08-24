@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.data.lock.engine;
 
+import net.bananemdnsa.historystages.api.stage.StageStateView;
+
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import java.util.List;
 
 import net.minecraft.world.item.Item;

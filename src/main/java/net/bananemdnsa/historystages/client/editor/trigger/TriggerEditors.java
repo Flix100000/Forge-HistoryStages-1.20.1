@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.trigger;
 
+import net.bananemdnsa.historystages.api.editor.TriggerEditor;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;

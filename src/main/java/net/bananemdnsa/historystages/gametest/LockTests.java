@@ -6,7 +6,7 @@ import java.util.List;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.gametest.framework.GameTest;

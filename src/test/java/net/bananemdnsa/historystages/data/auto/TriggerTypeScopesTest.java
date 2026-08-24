@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.data.auto;
 
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

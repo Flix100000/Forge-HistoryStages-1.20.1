@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.AbstractCategoryTab;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -7,7 +9,7 @@ import java.util.Map;
 
 import com.google.gson.JsonObject;
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 import org.jetbrains.annotations.Nullable;
 
 /**

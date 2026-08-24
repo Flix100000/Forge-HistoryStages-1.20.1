@@ -1,12 +1,15 @@
 package net.bananemdnsa.historystages.data.dependency;
 
+
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.jetbrains.annotations.Nullable;
 
 /**

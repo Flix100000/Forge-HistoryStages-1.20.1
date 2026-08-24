@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.tab;
 
+import net.bananemdnsa.historystages.api.editor.StringListCategoryTab;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -7,7 +9,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import net.bananemdnsa.historystages.data.StageEntry;
-import net.bananemdnsa.historystages.data.lock.category.LockCategory;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
 
 /**
  * A tab whose entries can also be pulled in wholesale from a mod.

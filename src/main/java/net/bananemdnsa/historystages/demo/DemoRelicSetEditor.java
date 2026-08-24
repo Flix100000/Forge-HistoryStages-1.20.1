@@ -5,19 +5,18 @@ import java.util.Collection;
 import java.util.List;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.client.editor.dep.AbstractDependencyTab;
-import net.bananemdnsa.historystages.client.editor.dep.DependencyTab;
-import net.bananemdnsa.historystages.client.editor.dep.RegisterRequirementEditorsEvent;
-import net.bananemdnsa.historystages.client.editor.dep.RequirementEditor;
-import net.bananemdnsa.historystages.client.editor.tab.EntryAction;
-import net.bananemdnsa.historystages.client.editor.tab.TabInputContext;
-import net.bananemdnsa.historystages.client.editor.tab.TabRenderContext;
-import net.bananemdnsa.historystages.client.editor.widget.EditorRowList;
-import net.bananemdnsa.historystages.client.editor.widget.NumberStepper;
+import net.bananemdnsa.historystages.api.editor.AbstractDependencyTab;
+import net.bananemdnsa.historystages.api.editor.DependencyTab;
+import net.bananemdnsa.historystages.api.editor.RegisterRequirementEditorsEvent;
+import net.bananemdnsa.historystages.api.editor.RequirementEditor;
+import net.bananemdnsa.historystages.api.editor.EntryAction;
+import net.bananemdnsa.historystages.api.editor.TabInputContext;
+import net.bananemdnsa.historystages.api.editor.TabRenderContext;
+import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
+import net.bananemdnsa.historystages.api.editor.widget.NumberStepper;
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.Requirement;
-import net.bananemdnsa.historystages.data.dependency.RequirementStorage;
-import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.api.dependency.RequirementStorage;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -80,8 +79,7 @@ public final class DemoRelicSetEditor {
 
         @Override
         public DependencyTab createTab(Runnable onChanged) {
-            Requirement requirement = RequirementTypes.byId(DemoRequirement.RELIC_SET_ID);
-            tab = new RelicSetTab(requirement,
+            tab = new RelicSetTab(DemoRequirement.relicSet(),
                     // Tier three: not one of the mod's lists, not a subclass of one, but a
                     // panel this addon draws itself. It exists because a relic entry needs a relic
                     // and a rarity, and a list of ids can only hand back one string.

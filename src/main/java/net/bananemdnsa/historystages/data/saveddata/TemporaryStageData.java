@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.data.saveddata;
 
-import net.bananemdnsa.historystages.data.StageUnlockHelper;
+import net.bananemdnsa.historystages.api.stage.StageStates;
 import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@value #TICK_STEP} ticks of server uptime; individual timers advance only
  * while the owning player is online, so an offline player's timer is frozen.</p>
  *
- * <p>On expiry the stage is re-locked via {@link StageUnlockHelper}. Re-trigger
+ * <p>On expiry the stage is re-locked via {@link StageStates}. Re-trigger
  * eligibility (see {@link #isGlobalEligible} / {@link #isIndividualEligible}) is
  * consulted by {@code AutoTriggerManager} before it unlocks a temporary stage: a
  * stage is blocked while its timer or cooldown runs, and permanently once its
@@ -165,7 +165,7 @@ public class TemporaryStageData extends SavedData {
             }
             for (String stageId : expired) {
                 globalActive.remove(stageId);
-                StageUnlockHelper.relockGlobal(stageId, level);
+                StageStates.relockGlobal(stageId, level);
                 long cd = cooldownIfMoreUnlocksLeft(lookup, stageId, getGlobalCount(stageId));
                 if (cd > 0) globalCooldown.put(stageId, cd);
             }
@@ -202,7 +202,7 @@ public class TemporaryStageData extends SavedData {
                 }
                 for (String stageId : expired) {
                     active.remove(stageId);
-                    StageUnlockHelper.relockIndividual(stageId, player);
+                    StageStates.relockIndividual(stageId, player);
                     long cd = cooldownIfMoreUnlocksLeft(lookup, stageId, getIndividualCount(uuid, stageId));
                     if (cd > 0) {
                         playerCooldown.computeIfAbsent(uuid, p -> new ConcurrentHashMap<>()).put(stageId, cd);

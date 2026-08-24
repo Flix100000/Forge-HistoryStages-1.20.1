@@ -1,5 +1,9 @@
 package net.bananemdnsa.historystages.data.settings;
 
+import net.bananemdnsa.historystages.api.settings.Setting;
+
+import net.bananemdnsa.historystages.api.settings.StageSettingsGroup;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

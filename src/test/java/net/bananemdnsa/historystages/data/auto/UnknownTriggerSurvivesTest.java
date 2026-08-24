@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.data.auto;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

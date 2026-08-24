@@ -7,7 +7,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.client.editor.widget.Scrollbar;
 import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;

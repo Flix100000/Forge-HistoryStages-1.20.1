@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.auto;
 
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+
 import com.google.gson.*;
 import net.bananemdnsa.historystages.data.auto.conditions.*;
 

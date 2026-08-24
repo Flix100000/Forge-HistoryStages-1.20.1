@@ -7,7 +7,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The subjects the built-in lock categories are asked about.
  *
- * <p>{@link net.bananemdnsa.historystages.data.lock.category.LockCategory#matches} takes an
+ * <p>{@link net.bananemdnsa.historystages.api.lock.LockCategory#matches} takes an
  * {@code Object}, because a category cannot constrain what it is asked about — an addon asks
  * about its own type. Three of the built-in questions need more than a bare id, and these records
  * are that "more". They are built in the engine and nowhere else.
