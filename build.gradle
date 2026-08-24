@@ -101,6 +101,16 @@ neoForge {
             server()
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+
+            // Its own directory, or the server and a client cannot run at the same time — which is
+            // the entire point of a dedicated-server test. The client keeps run/ and the test data
+            // sitting in it.
+            gameDirectory = project.file('run-server')
+
+            // The same stand-in addon the client gets. Without it the server never registers the
+            // demo category or requirement, so an addon's data crossing the wire — the thing most
+            // likely to break on a server — could not be tested at all.
+            systemProperty 'historystages.demoCategory', 'true'
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.
@@ -109,6 +119,12 @@ neoForge {
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+
+            // Its own directory as well, or an automated run collides with both of the above.
+            gameDirectory = project.file('run-gametest')
+
+            // The demo addon takes part in the tests, so the server has to know it.
+            systemProperty 'historystages.demoCategory', 'true'
         }
 
         data {

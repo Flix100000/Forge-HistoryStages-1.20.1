@@ -24,6 +24,8 @@ eclipse
 run
 runs
 run-data
+run-server
+run-gametest
 
 repo
 
