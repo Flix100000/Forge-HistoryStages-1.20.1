@@ -106,4 +106,19 @@ public interface StageLockEngine {
      * bitmask bake.
      */
     default void stagesChanged() {}
+
+    /**
+     * Whether this item is locked for this viewer — the yes-or-no form of
+     * {@link #gatingStagesForItem}.
+     *
+     * <p>Separate because it is a different question, not a convenience. The list form has to
+     * name the stages, which means producing them; this one only has to decide, which an engine
+     * can do without ever building a list. {@code unlocked} is the viewer's state as bits where
+     * the caller has it, and null where it does not — an implementation must answer correctly
+     * from {@code state} either way.
+     */
+    default boolean isItemLocked(String itemId, String modId, @Nullable ItemStack stack,
+                                 StageScope scope, StageStateView state, @Nullable StageMask unlocked) {
+        return LockResolution.isLocked(gatingStagesForItem(itemId, modId, stack, scope), state);
+    }
 }

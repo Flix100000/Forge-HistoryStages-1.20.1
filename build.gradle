@@ -292,4 +292,8 @@ tasks.named('test', Test) {
     testLogging {
         events "passed", "skipped", "failed"
     }
+    // The lock benchmark is an instrument, not a test: half a million iterations per
+    // measurement turn a three-second suite into thirty-five, and the suite runs after every
+    // step of a refactor. Off by default, on with `./gradlew test -Pbench`.
+    systemProperty 'historystages.bench', project.hasProperty('bench') ? 'true' : 'false'
 }

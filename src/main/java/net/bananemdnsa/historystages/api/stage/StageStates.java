@@ -146,9 +146,17 @@ public final class StageStates {
 
         MinecraftServer server = level.getServer();
         if (server != null) {
-            // A full reload rather than reloadRecipesOnly, as it always was here: re-locking has to
-            // take recipes away again, and that is the path this one has been exercised on.
-            server.reloadResources(server.getPackRepository().getSelectedIds());
+            // The same recipe-only reload as unlocking, which it was not until 2026-08-24: a full
+            // reloadResources had stood here since the temporary-stage mode was added, and it
+            // stutters visibly on a large pack.
+            //
+            // Nothing this mod does needs the rest of it. Recipes are not removed from the game
+            // when a stage locks — they are asked about at craft and display time — so the reload
+            // exists to resend the list to clients, which reloadRecipesOnly does. And the mod
+            // registers no reload listener at all: no AddReloadListenerEvent, no TagsUpdatedEvent,
+            // no OnDatapackSyncEvent. Tags, advancements and loot tables were being rebuilt for
+            // nobody.
+            PacketHandler.reloadRecipesOnly(server);
         }
         return true;
     }

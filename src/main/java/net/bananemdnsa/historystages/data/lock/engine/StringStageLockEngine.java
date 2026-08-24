@@ -53,14 +53,87 @@ public class StringStageLockEngine implements StageLockEngine {
     @Override
     public List<String> gatingStagesForItem(String itemId, String modId,
                                             @Nullable ItemStack stack, StageScope scope) {
+        CategoryLockIndexes.ItemGating remembered =
+                CategoryLockIndexes.rememberedItemGating(itemId, scope);
+        if (remembered != null) return remembered.stages();
+        return computeItemGating(itemId, modId, stack, scope).stages();
+    }
+
+    /**
+     * Whether this item is locked for this viewer, answered in bits where it can be.
+     *
+     * <p>The list-returning {@link #gatingStagesForItem} exists for callers that print the
+     * missing stages. This one only has to say yes or no, which is what nearly every call
+     * actually wants — and once the answer for an item is remembered, both sides of the question
+     * are already masks and the comparison is a handful of AND operations rather than a lookup
+     * per gating stage.
+     */
+    @Override
+    public boolean isItemLocked(String itemId, String modId, @Nullable ItemStack stack,
+                                StageScope scope, StageStateView state, @Nullable StageMask unlocked) {
+        CategoryLockIndexes.ItemGating gating = CategoryLockIndexes.rememberedItemGating(itemId, scope);
+        if (gating == null) gating = computeItemGating(itemId, modId, stack, scope);
+
+        if (unlocked != null && gating.mask() != StageMask.EMPTY) {
+            return unlocked.missesAnyOf(gating.mask());
+        }
+        return LockResolution.isLocked(gating.stages(), state);
+    }
+
+    /**
+     * Works the answer out and remembers it when it is safe to.
+     *
+     * <p>"Safe" means the answer cannot differ between two stacks of the same item — see
+     * {@link #dependsOnTheStack}. Remembering a stack-dependent answer would serve one enchanted
+     * sword's verdict for every plain one, which is the kind of fault that looks like a config
+     * mistake rather than a cache.
+     */
+    private CategoryLockIndexes.ItemGating computeItemGating(String itemId, String modId,
+                                                             @Nullable ItemStack stack, StageScope scope) {
         Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
         Collection<String> candidates = scope == StageScope.GLOBAL
                 ? CategoryLockIndexes.globalCandidates(itemId, modId, item)
                 : CategoryLockIndexes.individualCandidates(itemId, modId, item);
-        if (candidates.isEmpty()) return List.of();
 
-        return CategoryLockResolver.gatingStages(itemCategories(),
-                new LockSubjects.ItemSubject(itemId, modId, stack, item), candidates, stagesOf(scope));
+        Map<String, StageEntry> stages = stagesOf(scope);
+        List<String> gating = candidates.isEmpty() ? List.of()
+                : CategoryLockResolver.gatingStages(itemCategories(),
+                        new LockSubjects.ItemSubject(itemId, modId, stack, item), candidates, stages);
+
+        CategoryLockIndexes.ItemGating answer = new CategoryLockIndexes.ItemGating(gating,
+                gating.isEmpty() ? StageMask.EMPTY
+                        : StageMask.of(CategoryLockIndexes.stageIndex(), gating));
+
+        if (!dependsOnTheStack(candidates, stages, itemId)) {
+            CategoryLockIndexes.rememberItemGating(itemId, scope, answer);
+        }
+        return answer;
+    }
+
+    /**
+     * Whether any candidate stage decides this item by something only a stack carries.
+     *
+     * <p>Scanned over the candidates, which the relevance index has already narrowed to a
+     * handful, and only on a miss. Erring towards "yes" costs a recomputation; erring towards
+     * "no" caches a wrong answer, so every NBT-bearing shape counts — an item entry for this id,
+     * any tag entry at all, and a mod exception for this id.
+     */
+    private static boolean dependsOnTheStack(Collection<String> candidates,
+                                             Map<String, StageEntry> stages, String itemId) {
+        for (String stageId : candidates) {
+            StageEntry stage = stages.get(stageId);
+            if (stage == null) continue;
+            for (net.bananemdnsa.historystages.data.ItemEntry entry : stage.getItemEntries()) {
+                if (entry.hasNbt() && entry.getId().equals(itemId)) return true;
+            }
+            for (net.bananemdnsa.historystages.data.lock.NamedLockEntry tag : stage.getTagEntries()) {
+                if (tag.hasNbt()) return true;
+            }
+            for (net.bananemdnsa.historystages.data.ItemEntry exception : stage.getModExceptionEntries()) {
+                if (exception.hasNbt() && exception.getId().equals(itemId)) return true;
+            }
+        }
+        return false;
     }
 
     private static List<LockCategory<?>> itemCategories() {
@@ -115,33 +188,29 @@ public class StringStageLockEngine implements StageLockEngine {
 
     @Override
     public List<String> gatingStagesForRecipe(String recipeId, StageScope scope) {
-        return CategoryLockResolver.gatingStages(
-                category("historystages:recipes"), recipeId, stagesOf(scope));
+        return narrowed("historystages:recipes", recipeId, scope);
     }
 
     @Override
     public List<String> gatingStagesForDimension(String dimensionId, StageScope scope) {
-        return CategoryLockResolver.gatingStages(
-                category("historystages:dimensions"), dimensionId, stagesOf(scope));
+        return narrowed("historystages:dimensions", dimensionId, scope);
     }
 
     @Override
     public List<String> gatingStagesForStructure(String structureId, StageScope scope) {
-        return CategoryLockResolver.gatingStages(
-                category("historystages:structures"), structureId, stagesOf(scope));
+        return narrowed("historystages:structures", structureId, scope);
     }
 
     @Override
     public List<String> gatingStagesForEntityAttack(String entityId, StageScope scope) {
-        return CategoryLockResolver.gatingStages(
-                category("historystages:attacklock"), entityId, stagesOf(scope));
+        return narrowed("historystages:attacklock", entityId, scope);
     }
 
     @Override
     public List<String> gatingStagesForEntityInteraction(String entityId, String action,
                                                          ItemStack held, StageScope scope) {
-        return CategoryLockResolver.gatingStages(category("historystages:interactionlock"),
-                new LockSubjects.InteractionSubject(entityId, action, held), stagesOf(scope));
+        return narrowed("historystages:interactionlock",
+                new LockSubjects.InteractionSubject(entityId, action, held), scope);
     }
 
     @Override
@@ -150,16 +219,16 @@ public class StringStageLockEngine implements StageLockEngine {
         // Individual spawn locks do not exist in the data model. Returning empty here is what
         // the pre-seam code effectively did; closing that gap is a separate change.
         if (scope == StageScope.INDIVIDUAL) return List.of();
-        return CategoryLockResolver.gatingStages(category("historystages:spawnlock"),
-                new LockSubjects.SpawnSubject(entityId, source, dimension), stagesOf(scope));
+        return narrowed("historystages:spawnlock",
+                new LockSubjects.SpawnSubject(entityId, source, dimension), scope);
     }
 
     @Override
     public List<String> gatingStagesWithSpawnEntry(String entityId, String dimension, StageScope scope) {
         if (scope == StageScope.INDIVIDUAL) return List.of();
         // A null source is the "any source" question — see LockSubjects.SpawnSubject.
-        return CategoryLockResolver.gatingStages(category("historystages:spawnlock"),
-                new LockSubjects.SpawnSubject(entityId, null, dimension), stagesOf(scope));
+        return narrowed("historystages:spawnlock",
+                new LockSubjects.SpawnSubject(entityId, null, dimension), scope);
     }
 
     @Override
@@ -177,32 +246,37 @@ public class StringStageLockEngine implements StageLockEngine {
 
     @Override
     public boolean anyStructureLocks() {
-        return anyStageHasEntries("historystages:structures");
+        return CategoryLockIndexes.anyStageUses("historystages:structures");
     }
 
     @Override
     public boolean anyBiomeLocks() {
-        return anyStageHasEntries("historystages:biomes");
-    }
-
-    /**
-     * Whether any stage in either scope has an entry in this category. Drives the per-tick
-     * fast-outs in the structure and biome handlers, so it stops at the first hit.
-     */
-    private static boolean anyStageHasEntries(String categoryId) {
-        LockCategory<?> category = category(categoryId);
-        for (StageEntry stage : StageManager.getStages().values()) {
-            if (!category.read(stage).isEmpty()) return true;
-        }
-        for (StageEntry stage : StageManager.getIndividualStages().values()) {
-            if (!category.read(stage).isEmpty()) return true;
-        }
-        return false;
+        return CategoryLockIndexes.anyStageUses("historystages:biomes");
     }
 
     @Override
     public void stagesChanged() {
         CategoryLockIndexes.markRelevanceDirty();
+    }
+
+
+    /**
+     * One category, narrowed through its own index where it has one.
+     *
+     * <p>The index answers "which stages could possibly match this key", and only those are then
+     * asked properly. A category that does not index itself falls through to the full scan, which
+     * is what every category did before Phase 10 — correct, just linear in the number of stages,
+     * and that is four microseconds at the three hundred a real pack ships.
+     */
+    private static List<String> narrowed(String categoryId, Object subject, StageScope scope) {
+        LockCategory<?> category = category(categoryId);
+        List<String> candidates =
+                CategoryLockIndexes.candidates(categoryId, scope, category.lookupKey(subject));
+        if (candidates == null) {
+            return CategoryLockResolver.gatingStages(category, subject, stagesOf(scope));
+        }
+        if (candidates.isEmpty()) return List.of();
+        return CategoryLockResolver.gatingStages(List.of(category), subject, candidates, stagesOf(scope));
     }
 
     /** The stage map for a scope — the one thing this class still asks the store for. */

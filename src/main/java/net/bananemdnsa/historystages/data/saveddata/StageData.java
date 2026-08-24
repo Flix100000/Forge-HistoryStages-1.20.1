@@ -20,8 +20,35 @@ public class StageData extends SavedData {
 
     public static final Set<String> SERVER_CACHE = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Bumped on every change to {@link #SERVER_CACHE}, so anything derived from it can tell that
+     * it went stale without being told.
+     *
+     * <p>A notification would have to be remembered at each of five places; a counter that lives
+     * beside the data cannot be forgotten in the same way. {@code UnlockedStateGuardTest} keeps
+     * the mutations inside this class, which is what makes the counter trustworthy.
+     */
+    private static final java.util.concurrent.atomic.AtomicLong VERSION =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** Changes whenever the global unlocked set does. Never persisted, never sent. */
+    public static long cacheVersion() {
+        return VERSION.get();
+    }
+
+    /**
+     * Replaces the cache with exactly these stages. The pedestal used to clear and refill
+     * {@link #SERVER_CACHE} itself, which left anything derived from it holding stale data.
+     */
+    public static void replaceCache(java.util.Collection<String> stages) {
+        SERVER_CACHE.clear();
+        SERVER_CACHE.addAll(stages);
+        VERSION.incrementAndGet();
+    }
+
     public StageData() {
         SERVER_CACHE.clear();
+        VERSION.incrementAndGet();
     }
 
     public static void refreshCache(List<String> stages) {
@@ -29,6 +56,7 @@ public class StageData extends SavedData {
         newSet.addAll(stages);
         SERVER_CACHE.addAll(newSet);
         SERVER_CACHE.retainAll(newSet);
+        VERSION.incrementAndGet();
     }
 
     public static StageData load(CompoundTag nbt, HolderLookup.Provider registries) {
@@ -40,6 +68,7 @@ public class StageData extends SavedData {
             data.unlockedStages.add(stage);
             SERVER_CACHE.add(stage);
         }
+        VERSION.incrementAndGet();
         net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
         return data;
     }
@@ -75,6 +104,7 @@ public class StageData extends SavedData {
         if (!unlockedStages.contains(stage)) {
             unlockedStages.add(stage);
             SERVER_CACHE.add(stage);
+            VERSION.incrementAndGet();
             // Before the rebuild: the reset lookup needs the snapshot that still describes the
             // phase being left behind.
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.onStageLockChanged(stage, true);
@@ -86,6 +116,7 @@ public class StageData extends SavedData {
     public void removeStage(String stage) {
         if (unlockedStages.remove(stage)) {
             SERVER_CACHE.remove(stage);
+            VERSION.incrementAndGet();
             // Before the rebuild, for the same reason as in addStage.
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.onStageLockChanged(stage, false);
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();

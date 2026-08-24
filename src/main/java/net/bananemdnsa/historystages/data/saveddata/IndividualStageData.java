@@ -18,8 +18,27 @@ public class IndividualStageData extends SavedData {
 
     public static final Map<UUID, Set<String>> SERVER_CACHE = new ConcurrentHashMap<>();
 
+    /**
+     * Bumped on every change to {@link #SERVER_CACHE}. Same reasoning as its counterpart in
+     * {@code StageData}: a counter beside the data cannot be forgotten the way a notification at
+     * five call sites can.
+     *
+     * <p>One counter for all players rather than one each. A single player unlocking something
+     * invalidates every cached mask, which is a handful of rebuilds — against the alternative of
+     * a per-player counter that has to be created, found and cleaned up for players who never
+     * unlock anything.
+     */
+    private static final java.util.concurrent.atomic.AtomicLong VERSION =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** Changes whenever any player's individual set does. Never persisted, never sent. */
+    public static long cacheVersion() {
+        return VERSION.get();
+    }
+
     public IndividualStageData() {
         SERVER_CACHE.clear();
+        VERSION.incrementAndGet();
     }
 
     public static IndividualStageData load(CompoundTag nbt, HolderLookup.Provider registries) {
@@ -44,6 +63,7 @@ public class IndividualStageData extends SavedData {
             data.playerStages.put(uuid, stages);
             SERVER_CACHE.put(uuid, ConcurrentHashMap.newKeySet());
             SERVER_CACHE.get(uuid).addAll(stages);
+            VERSION.incrementAndGet();
         }
         return data;
     }
@@ -71,6 +91,7 @@ public class IndividualStageData extends SavedData {
         }
         SERVER_CACHE.keySet().retainAll(newCache.keySet());
         SERVER_CACHE.putAll(newCache);
+        VERSION.incrementAndGet();
     }
 
     public static IndividualStageData get(Level level) {
@@ -89,12 +110,14 @@ public class IndividualStageData extends SavedData {
     public void addStage(UUID player, String stage) {
         playerStages.computeIfAbsent(player, k -> new HashSet<>()).add(stage);
         SERVER_CACHE.computeIfAbsent(player, k -> ConcurrentHashMap.newKeySet()).add(stage);
+        VERSION.incrementAndGet();
         setDirty();
     }
 
     public boolean removeStage(UUID player, String stage) {
         Set<String> stages = playerStages.get(player);
         if (stages != null && stages.remove(stage)) {
+            VERSION.incrementAndGet();
             Set<String> cached = SERVER_CACHE.get(player);
             if (cached != null) {
                 cached.remove(stage);

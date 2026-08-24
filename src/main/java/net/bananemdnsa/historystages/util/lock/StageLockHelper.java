@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
+import net.bananemdnsa.historystages.data.lock.engine.CategoryLockIndexes;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -42,21 +43,22 @@ public class StageLockHelper {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
-        return LockResolution.isLocked(
-                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.GLOBAL),
-                StageLocks.serverGlobal(),
-                StageLocks.engine().gatingStagesForItem(itemId, modId, stack, StageScope.INDIVIDUAL),
-                StageLocks.serverIndividual(playerUuid));
+        // The yes-or-no form, so the engine can answer in bits instead of building two lists.
+        // This is the call a per-frame consumer makes; the list form is for printing.
+        return StageLocks.engine().isItemLocked(itemId, modId, stack, StageScope.GLOBAL,
+                        StageLocks.serverGlobal(), CategoryLockIndexes.globalUnlocked())
+                || StageLocks.engine().isItemLocked(itemId, modId, stack, StageScope.INDIVIDUAL,
+                        StageLocks.serverIndividual(playerUuid),
+                        CategoryLockIndexes.individualUnlocked(playerUuid));
     }
 
     public static boolean isItemLockedByIndividualStage(ItemStack stack, UUID playerUuid) {
         ResourceLocation res = itemKey(stack);
         if (res == null) return false;
 
-        return LockResolution.isLocked(
-                StageLocks.engine().gatingStagesForItem(res.toString(), res.getNamespace(),
-                        stack, StageScope.INDIVIDUAL),
-                StageLocks.serverIndividual(playerUuid));
+        return StageLocks.engine().isItemLocked(res.toString(), res.getNamespace(), stack,
+                StageScope.INDIVIDUAL, StageLocks.serverIndividual(playerUuid),
+                CategoryLockIndexes.individualUnlocked(playerUuid));
     }
 
     /** Global-scope item check without a player, for paths that have no player context. */
@@ -64,10 +66,9 @@ public class StageLockHelper {
         ResourceLocation res = itemKey(stack);
         if (res == null) return false;
 
-        return LockResolution.isLocked(
-                StageLocks.engine().gatingStagesForItem(res.toString(), res.getNamespace(),
-                        stack, StageScope.GLOBAL),
-                StageLocks.serverGlobal());
+        return StageLocks.engine().isItemLocked(res.toString(), res.getNamespace(), stack,
+                StageScope.GLOBAL, StageLocks.serverGlobal(),
+                CategoryLockIndexes.globalUnlocked());
     }
 
     /** Null for an empty stack or an unregistered item — every item check starts here. */

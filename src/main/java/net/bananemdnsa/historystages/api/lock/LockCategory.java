@@ -109,4 +109,36 @@ public interface LockCategory<T> {
         }
         return false;
     }
+
+    /**
+     * The ids under which this stage should be filed in the reverse index, so a lock check can
+     * skip the stages that cannot possibly match instead of asking all of them.
+     *
+     * <p>Optional. A category that returns nothing is simply never indexed and stays on the full
+     * scan, which is correct — only slower. Implementing it is worth it once a pack runs a few
+     * hundred stages: the scan is linear in stage count and costs about four microseconds at
+     * three hundred, against roughly fifty nanoseconds through the index.
+     *
+     * <p><strong>It must over-approximate, never under-approximate.</strong> List every id that
+     * {@link #gates} could possibly answer "yes" to on this stage, including ones whose real
+     * answer depends on something else — an NBT criterion, a spawn source, a held item. The exact
+     * check still runs afterwards on the candidates, so a key too many costs a comparison. A key
+     * too few means the stage is never asked, and the thing it gates is silently unlocked. Note
+     * what that implies for a category whose {@code gates} reads a neighbouring category on the
+     * same stage: the ids from that neighbour belong here too.
+     */
+    default List<String> indexKeys(StageEntry stage) {
+        return List.of();
+    }
+
+    /**
+     * The id to look this subject up under in that index, or null to skip the index and scan.
+     *
+     * <p>The counterpart to {@link #indexKeys}: whatever that method files a stage under, this
+     * one has to produce from the runtime object. A category that implements one without the
+     * other gains nothing.
+     */
+    default String lookupKey(Object subject) {
+        return null;
+    }
 }

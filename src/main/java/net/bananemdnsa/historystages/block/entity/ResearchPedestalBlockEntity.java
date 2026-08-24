@@ -965,8 +965,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
     private void performGlobalSync() {
         StageData data = StageData.get(this.level);
-        StageData.SERVER_CACHE.clear();
-        StageData.SERVER_CACHE.addAll(data.getUnlockedStages());
+        StageData.replaceCache(data.getUnlockedStages());
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(StageData.SERVER_CACHE)));
     }
 

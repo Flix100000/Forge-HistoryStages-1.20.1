@@ -43,6 +43,13 @@ final class BuiltInLockCategories {
      */
     private static final BiPredicate<Object, Object> NEVER = (entry, subject) -> false;
 
+    /** Four built-ins are asked about a bare id, so the subject is its own index key. */
+    private static final Function<Object, String> SUBJECT_IS_THE_KEY =
+            subject -> subject instanceof String id ? id : null;
+
+    /** No index: the category is scanned in full, which is correct and only slower. */
+    private static final Function<StageEntry, List<String>> NO_INDEX = stage -> List.of();
+
     /** {@link #NEVER} at whatever entry type the caller needs; it looks at neither argument. */
     @SuppressWarnings("unchecked")
     private static <T> BiPredicate<T, Object> never() {
@@ -56,13 +63,17 @@ final class BuiltInLockCategories {
                 StageEntry::getItemEntries, StageEntry::setItemEntries,
                 StageEntry::getAllItemIds,
                 (entry, subject) -> subject instanceof LockSubjects.ItemSubject item
-                        && BuiltInLockMatching.itemEntryMatches(entry, item)));
+                        && BuiltInLockMatching.itemEntryMatches(entry, item),
+                // Items, mods and tags are narrowed by LockRelevanceIndex instead, which serves
+                // all three key kinds at once — an id, a namespace and tag membership.
+                NO_INDEX));
 
         categories.add(new Simple<>("tags", "tags", "tag",
                 StageEntry::getTagEntries, StageEntry::setTagEntries,
                 StageEntry::getNbtFreeTags,
                 (entry, subject) -> subject instanceof LockSubjects.ItemSubject item
-                        && BuiltInLockMatching.tagEntryMatches(entry, item)));
+                        && BuiltInLockMatching.tagEntryMatches(entry, item),
+                NO_INDEX));
 
         categories.add(new ModLock());
 
@@ -70,17 +81,17 @@ final class BuiltInLockCategories {
         // individual exception is not a dual-phase lock, so this one opts out.
         categories.add(new Simple<>("mod_exceptions", "exceptions", "",
                 StageEntry::getModExceptionEntries, StageEntry::setModExceptionEntries,
-                stage -> List.of(), never()));
+                stage -> List.of(), never(), NO_INDEX));
 
         // Recipes were never part of dual-phase detection. Preserved as-is, and global-only:
         // there is no per-player recipe gate to write to.
         categories.add(new GlobalOnly<>("recipes", "recipes", "",
                 StageEntry::getRecipes, StageEntry::setRecipes,
-                stage -> List.of(), ID_EQUALS));
+                stage -> List.of(), ID_EQUALS, StageEntry::getRecipes));
 
         categories.add(new Simple<>("dimensions", "dimensions", "dimension",
                 StageEntry::getDimensions, StageEntry::setDimensions,
-                StageEntry::getDimensions, ID_EQUALS));
+                StageEntry::getDimensions, ID_EQUALS, StageEntry::getDimensions));
 
         categories.add(new AttackLock());
         categories.add(new SpawnLock());
@@ -88,11 +99,11 @@ final class BuiltInLockCategories {
 
         categories.add(new Simple<>("structures", "structures", "structure",
                 StageEntry::getStructures, StageEntry::setStructures,
-                StageEntry::getStructures, ID_EQUALS));
+                StageEntry::getStructures, ID_EQUALS, StageEntry::getStructures));
 
         categories.add(new Simple<>("biomes", "biomes", "biome",
                 StageEntry::getBiomes, StageEntry::setBiomes,
-                StageEntry::getBiomes, ID_EQUALS));
+                StageEntry::getBiomes, ID_EQUALS, StageEntry::getBiomes));
 
         return categories;
     }
@@ -102,7 +113,8 @@ final class BuiltInLockCategories {
                              Function<StageEntry, List<T>> reader,
                              BiConsumer<StageEntry, List<T>> writer,
                              Function<StageEntry, List<String>> dualPhase,
-                             BiPredicate<T, Object> matcher)
+                             BiPredicate<T, Object> matcher,
+                             Function<StageEntry, List<String>> indexKeys)
             implements LockCategory<T> {
 
         @Override public String id() { return "historystages:" + name; }
@@ -113,6 +125,8 @@ final class BuiltInLockCategories {
         @Override public List<String> globalDualPhaseIds(StageEntry stage) { return dualPhase.apply(stage); }
         @Override public List<String> individualDualPhaseIds(StageEntry stage) { return dualPhase.apply(stage); }
         @Override public boolean matches(T entry, Object subject) { return matcher.test(entry, subject); }
+        @Override public List<String> indexKeys(StageEntry stage) { return indexKeys.apply(stage); }
+        @Override public String lookupKey(Object subject) { return SUBJECT_IS_THE_KEY.apply(subject); }
     }
 
     /** A {@link Simple} category that only means anything on a global stage. */
@@ -123,8 +137,10 @@ final class BuiltInLockCategories {
                    java.util.function.Function<StageEntry, List<T>> reader,
                    java.util.function.BiConsumer<StageEntry, List<T>> writer,
                    java.util.function.Function<StageEntry, List<String>> dualPhase,
-                   BiPredicate<T, Object> matcher) {
-            this.delegate = new Simple<>(name, tabName, dualPhaseLabel, reader, writer, dualPhase, matcher);
+                   BiPredicate<T, Object> matcher,
+                   java.util.function.Function<StageEntry, List<String>> indexKeys) {
+            this.delegate = new Simple<>(name, tabName, dualPhaseLabel, reader, writer, dualPhase,
+                    matcher, indexKeys);
         }
 
         @Override public java.util.Set<StageScope> supportedScopes() {
@@ -140,6 +156,8 @@ final class BuiltInLockCategories {
         @Override public List<String> globalDualPhaseIds(StageEntry stage) { return delegate.globalDualPhaseIds(stage); }
         @Override public List<String> individualDualPhaseIds(StageEntry stage) { return delegate.individualDualPhaseIds(stage); }
         @Override public boolean matches(T entry, Object subject) { return delegate.matches(entry, subject); }
+        @Override public List<String> indexKeys(StageEntry stage) { return delegate.indexKeys(stage); }
+        @Override public String lookupKey(Object subject) { return delegate.lookupKey(subject); }
     }
 
     /**
@@ -237,6 +255,24 @@ final class BuiltInLockCategories {
         @Override public List<String> individualDualPhaseIds(StageEntry stage) {
             return stage.getEntities().getAttacklock();
         }
+
+        /**
+         * Both lists, because {@link #gates} reads both. Filing this stage under its attack locks
+         * alone would hide it from every entity gated only by a source-less spawn lock, and that
+         * entity would become attackable — the exact shape of failure the contract on
+         * {@link LockCategory#indexKeys} warns about.
+         */
+        @Override public List<String> indexKeys(StageEntry stage) {
+            List<String> keys = new ArrayList<>(stage.getEntities().getAttacklock());
+            for (EntitySpawnLockEntry spawn : stage.getEntities().getSpawnlock()) {
+                keys.add(spawn.getId());
+            }
+            return keys;
+        }
+
+        @Override public String lookupKey(Object subject) {
+            return subject instanceof String entityId ? entityId : null;
+        }
     }
 
     /**
@@ -270,6 +306,23 @@ final class BuiltInLockCategories {
             if (!entry.getId().equals(spawn.entityId())) return false;
             if (!entry.blocksDimension(spawn.dimension())) return false;
             return spawn.source() == null || entry.blocksSource(spawn.source());
+        }
+
+        /**
+         * The entity ids only. Source and dimension filters narrow further, but they are settled
+         * by the exact check afterwards — the index is allowed to name a stage that turns out not
+         * to match, never to omit one that does.
+         */
+        @Override public List<String> indexKeys(StageEntry stage) {
+            List<String> keys = new ArrayList<>();
+            for (EntitySpawnLockEntry entry : stage.getEntities().getSpawnlock()) {
+                keys.add(entry.getId());
+            }
+            return keys;
+        }
+
+        @Override public String lookupKey(Object subject) {
+            return subject instanceof LockSubjects.SpawnSubject spawn ? spawn.entityId() : null;
         }
     }
 
@@ -305,6 +358,16 @@ final class BuiltInLockCategories {
 
         @Override public List<String> individualDualPhaseIds(StageEntry stage) {
             return ids(stage);
+        }
+
+        /** The action filter and the held-item filter are settled by the exact check afterwards. */
+        @Override public List<String> indexKeys(StageEntry stage) {
+            return ids(stage);
+        }
+
+        @Override public String lookupKey(Object subject) {
+            return subject instanceof LockSubjects.InteractionSubject interaction
+                    ? interaction.entityId() : null;
         }
 
         private static List<String> ids(StageEntry stage) {

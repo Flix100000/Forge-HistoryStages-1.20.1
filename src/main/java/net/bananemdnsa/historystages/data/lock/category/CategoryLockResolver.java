@@ -94,13 +94,16 @@ public final class CategoryLockResolver {
      */
     public static List<String> gatingStages(LockCategory<?> category, Object subject,
             Map<String, StageEntry> stages) {
-        List<String> found = new ArrayList<>();
+        // Allocated on first hit, not up front: nearly every call finds nothing, and this one
+        // runs on paths that fire per mob spawn and per tick.
+        List<String> found = null;
         for (Map.Entry<String, StageEntry> stage : stages.entrySet()) {
             if (gates(category, stage.getValue(), subject)) {
+                if (found == null) found = new ArrayList<>(1);
                 found.add(stage.getKey());
             }
         }
-        return found;
+        return found == null ? List.of() : found;
     }
 
     /**
@@ -118,18 +121,19 @@ public final class CategoryLockResolver {
      */
     public static List<String> gatingStages(List<? extends LockCategory<?>> categories, Object subject,
             Collection<String> stageIds, Map<String, StageEntry> stages) {
-        List<String> found = new ArrayList<>();
+        List<String> found = null;
         for (String stageId : stageIds) {
             StageEntry stage = stages.get(stageId);
             if (stage == null) continue;
             for (LockCategory<?> category : categories) {
                 if (gates(category, stage, subject)) {
+                    if (found == null) found = new ArrayList<>(1);
                     found.add(stageId);
                     break;
                 }
             }
         }
-        return found;
+        return found == null ? List.of() : found;
     }
 
     /**
