@@ -11,6 +11,7 @@ import net.bananemdnsa.historystages.data.dependency.RequirementContext;
 import net.bananemdnsa.historystages.data.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.data.dependency.StatDep;
 import net.bananemdnsa.historystages.data.lock.engine.StageScope;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
@@ -65,11 +66,27 @@ public class StatRequirement implements Requirement {
         return results;
     }
 
+    /**
+     * The player's value for a custom stat named by id.
+     *
+     * <p>The registry lookup in the middle is not decoration. {@code StatType} keeps its stats in
+     * an <strong>IdentityHashMap</strong>, so {@code Stats.CUSTOM.get(...)} only finds a stat when
+     * handed the very {@code ResourceLocation} instance that was registered. A freshly parsed one
+     * is equal but not identical, and the lookup silently creates a second, empty stat instead —
+     * which read as zero however much the player had actually done, so a stat requirement could
+     * never be fulfilled at all. {@code BuiltInRegistries.CUSTOM_STAT.get} hands back the
+     * registered instance, and the identity map then finds it.
+     *
+     * <p>Found by {@code DependencyCheckerTests} on 2026-08-24, the first thing the GameTest
+     * harness caught.
+     */
     private static int getStatValue(ServerPlayer player, String statId) {
         ResourceLocation rl = ResourceLocation.tryParse(statId);
         if (rl == null) return 0;
+        ResourceLocation registered = BuiltInRegistries.CUSTOM_STAT.get(rl);
+        if (registered == null) return 0;
         try {
-            return player.getStats().getValue(Stats.CUSTOM.get(rl));
+            return player.getStats().getValue(Stats.CUSTOM.get(registered));
         } catch (Exception e) {
             return 0;
         }
