@@ -117,4 +117,104 @@ class CategoryLockResolverTest {
         assertFalse(CategoryLockResolver.isLocked(TRADES, new Offer("minecraft:emerald"),
                 Map.of(), StageStateView.NONE_UNLOCKED));
     }
+
+    // ---- the stage-level hook ------------------------------------------------------
+    //
+    // Two built-ins need an answer their own entries cannot give: a mod lock is vetoed by the
+    // stage's exception list, and an attack lock can be implied by a spawn lock in a different
+    // category on the same stage. VETOED stands in for that shape here.
+
+    private static final LockCategory<Trade> VETOED = new LockCategory<>() {
+        @Override public String id() { return "mymod:vetoed"; }
+        @Override public String tabLangKey() { return "editor.mymod.tab.vetoed"; }
+        @Override public String tooltipLangKey() { return "editor.mymod.tooltip.vetoed"; }
+        @Override public List<Trade> read(StageEntry stage) { return TRADES.read(stage); }
+        @Override public void write(StageEntry stage, List<Trade> entries) { TRADES.write(stage, entries); }
+
+        @Override public boolean matches(Trade entry, Object subject) {
+            return subject instanceof Offer offer && entry.soldItem().equals(offer.soldItem());
+        }
+
+        @Override public boolean gates(StageEntry stage, Object subject) {
+            if ("vetoed".equals(stage.getDisplayName())) return false;
+            return LockCategory.super.gates(stage, subject);
+        }
+    };
+
+    private static StageEntry vetoing(String... soldItems) {
+        StageEntry stage = gating(soldItems);
+        stage.setDisplayName("vetoed");
+        return stage;
+    }
+
+    @Test
+    void theDefaultGatesHookIsTheEntryLoop() {
+        assertTrue(TRADES.gates(gating("minecraft:emerald"), new Offer("minecraft:emerald")));
+        assertFalse(TRADES.gates(gating("minecraft:emerald"), new Offer("minecraft:diamond")));
+    }
+
+    @Test
+    void anOverriddenGatesHookWinsOverTheEntryLoop() {
+        assertFalse(VETOED.gates(vetoing("minecraft:emerald"), new Offer("minecraft:emerald")));
+        assertTrue(VETOED.gates(gating("minecraft:emerald"), new Offer("minecraft:emerald")),
+                "without the veto the override falls back to the loop");
+    }
+
+    @Test
+    void theResolverAsksTheCategoryInsteadOfLoopingTheEntriesItself() {
+        assertTrue(CategoryLockResolver.missingStages(VETOED, new Offer("minecraft:emerald"),
+                stages("bronze", vetoing("minecraft:emerald")), StageStateView.NONE_UNLOCKED).isEmpty(),
+                "the resolver must route through gates(), or an override cannot veto anything");
+    }
+
+    // ---- the state-free query the engine asks --------------------------------------
+
+    @Test
+    void gatingStagesIgnoresWhatIsAlreadyUnlocked() {
+        assertEquals(List.of("bronze", "iron"), CategoryLockResolver.gatingStages(TRADES,
+                new Offer("minecraft:emerald"),
+                stages("bronze", gating("minecraft:emerald"), "iron", gating("minecraft:emerald"))));
+    }
+
+    @Test
+    void gatingStagesReportsNothingForAnUngatedSubject() {
+        assertTrue(CategoryLockResolver.gatingStages(TRADES, new Offer("minecraft:diamond"),
+                stages("bronze", gating("minecraft:emerald"))).isEmpty());
+    }
+
+    // ---- several categories, one pass ----------------------------------------------
+
+    @Test
+    void severalCategoriesAreOredPerStageAndTheStageAppearsOnce() {
+        assertEquals(List.of("bronze"), CategoryLockResolver.gatingStages(
+                List.of(TRADES, VETOED), new Offer("minecraft:emerald"),
+                List.of("bronze"), stages("bronze", gating("minecraft:emerald"))));
+    }
+
+    @Test
+    void aStageIsStillFoundWhenOnlyTheSecondCategoryGatesIt() {
+        assertEquals(List.of("bronze"), CategoryLockResolver.gatingStages(
+                List.of(VETOED, TRADES), new Offer("minecraft:emerald"),
+                List.of("bronze"), stages("bronze", vetoing("minecraft:emerald"))),
+                "the vetoing category says no, the plain one still gates it");
+    }
+
+    @Test
+    void theCandidateListDecidesBothTheScopeAndTheOrder() {
+        Map<String, StageEntry> all = stages(
+                "bronze", gating("minecraft:emerald"),
+                "iron", gating("minecraft:emerald"),
+                "gold", gating("minecraft:emerald"));
+        assertEquals(List.of("gold", "bronze"), CategoryLockResolver.gatingStages(
+                List.of(TRADES), new Offer("minecraft:emerald"), List.of("gold", "bronze"), all),
+                "only the listed stages, in the listed order — iron is not a candidate");
+    }
+
+    @Test
+    void aCandidateIdTheStageMapDoesNotKnowIsSkipped() {
+        // The relevance index is a deliberate over-approximation and may name a removed stage.
+        assertEquals(List.of("bronze"), CategoryLockResolver.gatingStages(
+                List.of(TRADES), new Offer("minecraft:emerald"),
+                List.of("ghost", "bronze"), stages("bronze", gating("minecraft:emerald"))));
+    }
 }

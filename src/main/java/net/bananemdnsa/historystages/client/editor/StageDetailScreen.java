@@ -44,6 +44,7 @@ import net.bananemdnsa.historystages.data.settings.SettingsValues;
 import net.bananemdnsa.historystages.data.settings.StageSettingsGroup;
 import net.bananemdnsa.historystages.data.settings.StageSettingsGroups;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.CategoryLockIndexes;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.Config;
@@ -1050,8 +1051,8 @@ public class StageDetailScreen extends Screen {
         // Looking at an individual stage the map holds entry to global stage ids, and the other
         // way round for a global stage — that inversion is deliberate and predates the registry.
         return isIndividual
-                ? StageManager.getDualPhaseGlobal(categoryTab.categoryId())
-                : StageManager.getDualPhaseIndividual(categoryTab.categoryId());
+                ? CategoryLockIndexes.dualPhaseGlobal(categoryTab.categoryId())
+                : CategoryLockIndexes.dualPhaseIndividual(categoryTab.categoryId());
     }
 
     /** Splits and rebuilds an ItemEntry, which is how items and mod exceptions store their rows. */

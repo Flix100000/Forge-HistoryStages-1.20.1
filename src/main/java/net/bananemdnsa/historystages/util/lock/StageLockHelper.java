@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.util.lock;
 
+import net.bananemdnsa.historystages.data.lock.category.BuiltInLockMatching;
 import net.bananemdnsa.historystages.client.cache.ClientStageStates;
 import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
@@ -310,7 +311,7 @@ public class StageLockHelper {
         net.minecraft.world.item.Item item = stack.getItem();
         if (item != null) {
             for (net.bananemdnsa.historystages.data.lock.NamedLockEntry tagEntry : entry.getTagEntries()) {
-                if (net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
+                if (BuiltInLockMatching.tagEntryMatches(tagEntry, stack, item)) return true;
             }
         }
 

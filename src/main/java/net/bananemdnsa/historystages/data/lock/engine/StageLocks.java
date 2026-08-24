@@ -35,6 +35,18 @@ public final class StageLocks {
         engine = new StringStageLockEngine();
     }
 
+    /**
+     * Tells the current engine that the stage maps changed — see
+     * {@link StageLockEngine#stagesChanged()}.
+     *
+     * <p>Anything that writes to those maps has to come through here, including test helpers that
+     * put stages in directly. A missed call leaves a stale index behind, and a stale index does
+     * not throw: it quietly reports a staged item as irrelevant and unlocks it.
+     */
+    public static void stagesChanged() {
+        engine.stagesChanged();
+    }
+
     /** The world's global unlocked set, server side. */
     public static StageStateView serverGlobal() {
         return StageData.SERVER_CACHE::contains;

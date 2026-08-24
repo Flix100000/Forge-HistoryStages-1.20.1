@@ -27,9 +27,16 @@ class SeamGuardTest {
             + "|globalStageCandidates|individualStageCandidates|isItemLocked|isRecipeIdLocked"
             + "|anyStageHas)");
 
+    /**
+     * Editor and command sources are exempt: they read the stage maps to display and edit them,
+     * which is a different concern from asking whether something is locked.
+     *
+     * <p>{@code StageManager} was exempt too until Phase 8 moved its lock queries out. It is not
+     * any more, and this list being one entry shorter is the machine-checked half of "the old
+     * engine internals are gone" — before, that was a claim no test held.
+     */
     private static final List<String> EXEMPT_PATH_PARTS = List.of(
             "/data/lock/engine/",
-            "/data/StageManager.java",
             "/client/editor/",
             "/commands/");
 

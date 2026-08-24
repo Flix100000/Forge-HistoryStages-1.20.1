@@ -93,4 +93,14 @@ public interface StageLockEngine {
     default boolean anyBiomeLocks() {
         return false;
     }
+
+    /**
+     * The stages changed, so anything derived from them is stale.
+     *
+     * <p>Raised by the stage store after every write to its maps. This is deliberately not a lock
+     * question — it asks nothing, it announces — so it does not weaken the seam, and it is the
+     * lifecycle point an engine hangs its compile step on: today an index rebuild, later a
+     * bitmask bake.
+     */
+    default void stagesChanged() {}
 }

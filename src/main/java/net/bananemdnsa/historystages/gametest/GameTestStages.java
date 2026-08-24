@@ -2,10 +2,12 @@ package net.bananemdnsa.historystages.gametest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
 
 /**
  * Test stages, built in code and removed again.
@@ -26,19 +28,44 @@ final class GameTestStages {
 
     /** A global stage with the given dependency groups, registered under {@code gametest:<name>}. */
     static StageEntry global(String name, DependencyGroup... groups) {
-        StageEntry entry = new StageEntry();
-        entry.setDisplayName(name);
-        entry.setDependencies(new ArrayList<>(List.of(groups)));
+        return global(name, entry -> {}, groups);
+    }
+
+    /**
+     * A global stage filled in by {@code fill} before it is published.
+     *
+     * <p>Use this rather than mutating the returned entry afterwards whenever the stage carries
+     * locks. The relevance index in front of the item scans is rebuilt from the stage maps on the
+     * next query after a change, and creating the test player is itself such a query: an entry
+     * published empty and filled in afterwards gets indexed empty, and the index is then clean
+     * and wrong. It does not throw — it simply reports the staged item as unlocked.
+     */
+    static StageEntry global(String name, Consumer<StageEntry> fill, DependencyGroup... groups) {
+        StageEntry entry = newEntry(name, groups);
+        fill.accept(entry);
         StageManager.getStages().put(PREFIX + name, entry);
+        StageLocks.stagesChanged();
         return entry;
     }
 
     /** The same, in the individual map. */
     static StageEntry individual(String name, DependencyGroup... groups) {
+        return individual(name, entry -> {}, groups);
+    }
+
+    /** The individual counterpart of {@link #global(String, Consumer, DependencyGroup...)}. */
+    static StageEntry individual(String name, Consumer<StageEntry> fill, DependencyGroup... groups) {
+        StageEntry entry = newEntry(name, groups);
+        fill.accept(entry);
+        StageManager.getIndividualStages().put(PREFIX + name, entry);
+        StageLocks.stagesChanged();
+        return entry;
+    }
+
+    private static StageEntry newEntry(String name, DependencyGroup... groups) {
         StageEntry entry = new StageEntry();
         entry.setDisplayName(name);
         entry.setDependencies(new ArrayList<>(List.of(groups)));
-        StageManager.getIndividualStages().put(PREFIX + name, entry);
         return entry;
     }
 
@@ -52,5 +79,6 @@ final class GameTestStages {
     static void removeAll() {
         StageManager.getStages().keySet().removeIf(id -> id.startsWith(PREFIX));
         StageManager.getIndividualStages().keySet().removeIf(id -> id.startsWith(PREFIX));
+        StageLocks.stagesChanged();
     }
 }

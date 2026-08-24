@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.data.lock.category;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -65,22 +66,68 @@ public final class CategoryLockResolver {
     }
 
     /**
-     * Whether any entry this category reads off {@code stage} gates {@code subject}.
+     * Whether this category on this stage gates {@code subject}.
      *
-     * <p>The unchecked cast is safe: {@code category.read(stage)} and {@code category.matches}
-     * both operate on the same category's own entry type {@code T}, so the list handed back from
-     * {@code read} is exactly what {@code matches} expects — this method just isn't allowed to
-     * spell {@code T} out itself since it only has {@code LockCategory<?>}.
+     * <p>Asks the category rather than looping its entries here, because two built-ins answer
+     * from more than their own entries — see {@link LockCategory#gates}. Doing the loop in this
+     * class instead would make those overrides unreachable.
+     *
+     * <p>The unchecked cast is safe: {@code gates} is declared on the category's own entry type
+     * {@code T} and does not take one as a parameter, so nothing untyped crosses the call. This
+     * method just isn't allowed to spell {@code T} out, having only {@code LockCategory<?>}.
      */
     @SuppressWarnings("unchecked")
     private static boolean gates(LockCategory<?> category, StageEntry stage, Object subject) {
-        LockCategory<Object> erased = (LockCategory<Object>) category;
-        for (Object entry : erased.read(stage)) {
-            if (erased.matches(entry, subject)) {
-                return true;
+        return ((LockCategory<Object>) category).gates(stage, subject);
+    }
+
+    /**
+     * Every stage that gates {@code subject} through {@code category}, in {@code stages}'
+     * iteration order — <em>without</em> looking at what anyone has unlocked.
+     *
+     * <p>That is the half a {@link net.bananemdnsa.historystages.data.lock.engine.StageLockEngine}
+     * answers; pairing it with a viewer is the caller's job, through
+     * {@link net.bananemdnsa.historystages.data.lock.engine.LockResolution}. The state-filtered
+     * {@link #missingStages} exists for the other caller, {@link CategoryLocks}.
+     */
+    public static List<String> gatingStages(LockCategory<?> category, Object subject,
+            Map<String, StageEntry> stages) {
+        List<String> found = new ArrayList<>();
+        for (Map.Entry<String, StageEntry> stage : stages.entrySet()) {
+            if (gates(category, stage.getValue(), subject)) {
+                found.add(stage.getKey());
             }
         }
-        return false;
+        return found;
+    }
+
+    /**
+     * The same question asked of several categories at once, restricted to {@code stageIds}.
+     *
+     * <p>Two things this shape buys, both behavioural rather than cosmetic. First, the categories
+     * are OR-ed <em>per stage</em>, so a stage that gates an item both by id and by mod is
+     * reported once — asking each category separately would report it twice, and in a different
+     * order, and that order is user-visible in the "you still need" tooltip. Second,
+     * {@code stageIds} lets the caller pass a pre-narrowed candidate list from the relevance
+     * index instead of the whole stage map, which is what keeps the per-frame item path cheap.
+     *
+     * <p>An id that {@code stages} does not know is skipped: the index is a deliberate
+     * over-approximation and may still name a stage that has been removed since.
+     */
+    public static List<String> gatingStages(List<? extends LockCategory<?>> categories, Object subject,
+            Collection<String> stageIds, Map<String, StageEntry> stages) {
+        List<String> found = new ArrayList<>();
+        for (String stageId : stageIds) {
+            StageEntry stage = stages.get(stageId);
+            if (stage == null) continue;
+            for (LockCategory<?> category : categories) {
+                if (gates(category, stage, subject)) {
+                    found.add(stageId);
+                    break;
+                }
+            }
+        }
+        return found;
     }
 
     /**

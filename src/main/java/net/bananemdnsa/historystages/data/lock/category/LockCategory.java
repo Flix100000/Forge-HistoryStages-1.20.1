@@ -91,4 +91,22 @@ public interface LockCategory<T> {
     default boolean matches(T entry, Object subject) {
         return false;
     }
+
+    /**
+     * Whether this stage gates the given subject through this category.
+     *
+     * <p>The default is the obvious loop over this category's own entries, and that is the whole
+     * answer for nearly every category — including every addon one. Override it only when the
+     * answer depends on something the entries themselves cannot see: a mod lock is vetoed by the
+     * exception list on the <em>stage</em>, and an attack lock can be implied by a spawn lock in
+     * a <em>different</em> category on the same stage.
+     *
+     * <p>An addon never needs this. It supplies {@link #matches} and gets the loop for free.
+     */
+    default boolean gates(StageEntry stage, Object subject) {
+        for (T entry : read(stage)) {
+            if (matches(entry, subject)) return true;
+        }
+        return false;
+    }
 }
