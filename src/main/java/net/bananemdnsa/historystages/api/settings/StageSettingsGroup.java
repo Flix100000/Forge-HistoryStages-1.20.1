@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import net.bananemdnsa.historystages.data.StageEntry;
+import net.bananemdnsa.historystages.data.settings.StageSettings;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
@@ -71,6 +72,22 @@ public final class StageSettingsGroup {
                 .filter(field -> field.supportedScopes().contains(scope))
                 .toList();
         return SettingsValues.read(inScope, stage.addonSettings(id));
+    }
+
+    /**
+     * Reads this group's values for a stage at runtime, by id, without needing the stage object.
+     *
+     * <p>This is the counterpart to {@link #load(StageEntry, StageScope)} for the situation an
+     * addon is actually in: it holds the group it registered and a stage id, and wants the value a
+     * packmaker set. Without it the extension point would be write-only — declarable and editable,
+     * but impossible to act on.
+     *
+     * @param stageId the stage to read from
+     * @param scope   which side to read; the same id can exist as both a global and an
+     *                individual stage
+     */
+    public SettingsValues valuesFor(String stageId, StageScope scope) {
+        return StageSettings.valuesOf(id, stageId, scope);
     }
 
     /**

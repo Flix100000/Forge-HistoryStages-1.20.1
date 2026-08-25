@@ -21,7 +21,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AddonConfigField {
 
-    /** The eleven field shapes an addon may declare. See spec §6 for why the other three are not here. */
+    /** The twelve field shapes an addon may declare. See spec §6 for why the other three are not here. */
     public enum AddonConfigKind {
         BOOL,
         INTEGER,
@@ -112,6 +112,16 @@ public final class AddonConfigField {
 
     public static Builder choice(String key) {
         return new Builder(key, AddonConfigKind.CHOICE);
+    }
+
+    /**
+     * A value only the addon knows how to edit: stored as a plain string, edited in a screen the
+     * addon supplies through {@link
+     * net.bananemdnsa.historystages.api.editor.RegisterCustomFieldScreensEvent}. Because the value
+     * stays a string, nothing about saving, syncing or permissions differs from a text field.
+     */
+    public static Builder customScreen(String key) {
+        return new Builder(key, AddonConfigKind.CUSTOM_SCREEN);
     }
 
     public String key() {
