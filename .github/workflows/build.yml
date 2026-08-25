@@ -19,12 +19,28 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          # Every compat dependency (Jade, Lootr, the FTB mods, Architectury) comes from
+          # cursemaven.com, which rate-limits the shared runner IPs — an uncached run asks for
+          # all of them and regularly gets HTTP 429 back. A cache hit never asks at all.
+          cache: 'gradle'
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: |
+          # Retries because the cache cannot bootstrap itself: actions/cache only saves on a
+          # successful job, so while CurseMaven is throttling every run, a failing run never
+          # populates the cache that would have stopped it needing CurseMaven at all.
+          for attempt in 1 2 3; do
+            if ./gradlew build; then exit 0; fi
+            echo "Attempt $attempt failed."
+            if [ "$attempt" -lt 3 ]; then
+              echo "Retrying in 60s..."
+              sleep 60
+            fi
+          done
+          exit 1
 
       - name: Compute artifact name
         id: artifact

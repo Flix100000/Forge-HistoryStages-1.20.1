@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.client;
 
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientPlayerStageCache;
 import net.neoforged.api.distmarker.Dist;
@@ -22,6 +23,10 @@ public class ClientDisconnectHandler {
         StageManager.load();
         ClientIndividualStageCache.clear();
         ClientPlayerStageCache.clear();
+        // Results are answers about the server just left, and a stage id means something else on
+        // the next one. Missing here until 2026-08-23, which is why the stage graph could show a
+        // stale requirement list for a whole client session.
+        ClientDependencyCache.clear();
         System.out.println("[HistoryStages] Client disconnected — reloaded local stage definitions.");
     }
 }

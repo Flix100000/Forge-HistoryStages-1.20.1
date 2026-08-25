@@ -4,22 +4,17 @@ import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
 import net.bananemdnsa.historystages.client.editor.widget.Scrollbar;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractModalScreen;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractModalScreen;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.auto.CombineMode;
-import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.api.dependency.Requirement;
+import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -33,7 +28,9 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,7 +46,7 @@ import java.util.Set;
  * that {@code GuiGraphics.renderItem} draws at, which is what lets this screen show real item
  * icons without them punching through the frame.
  *
- * <p>Requirement rows render {@link DependencyResult} exactly as received from
+ * <p>Requirement rows render {@link RequirementResult} exactly as received from
  * {@link ClientDependencyCache} and never re-derive fulfilment — the same rule the docked panel
  * carried. Rows are rebuilt whenever the cache version changes, because the reply to a
  * dependency request can land while this screen is already open.
@@ -157,7 +154,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     /** Content height the box was last built for; a change means the box has to be rebuilt. */
     private int builtForHeight = -1;
     /** Dependency-cache state the rows were built from, so {@link #tick} knows when to rebuild. */
-    private DependencyResult builtFromDependency;
+    private RequirementResult builtFromDependency;
 
     private float scroll;
     private float maxScroll;
@@ -231,7 +228,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     @Override
     public void tick() {
         super.tick();
-        DependencyResult current = ClientDependencyCache.get(node.stageId(), node.individual());
+        RequirementResult current = ClientDependencyCache.get(node.stageId(), node.individual());
         if (current == builtFromDependency) return;
         rebuildRows();
         if (HEADER_BAND_H + listHeight() != builtForHeight) {
@@ -263,7 +260,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             }
         }
 
-        DependencyResult dep = ClientDependencyCache.get(node.stageId(), node.individual());
+        RequirementResult dep = ClientDependencyCache.get(node.stageId(), node.individual());
         builtFromDependency = dep;
         boolean anyRequirementSection = cfg.showStageDeps.get() || cfg.showItems.get() || cfg.showXp.get()
                 || cfg.showAdvancements.get() || cfg.showKills.get() || cfg.showStats.get()
@@ -276,20 +273,26 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             out.add(new SpacerRow(SPACER_H));
         }
 
-        addRequirements(out, font, width, cfg.showStageDeps.get(), dep,
-                "editor.historystages.graph.section.stage_deps", "stage", "individual_stage");
-        addRequirements(out, font, width, cfg.showItems.get(), dep,
-                "editor.historystages.graph.section.items", "item");
-        addRequirements(out, font, width, cfg.showXp.get(), dep,
-                "editor.historystages.graph.section.xp", "xp_level");
-        addRequirements(out, font, width, cfg.showAdvancements.get(), dep,
-                "editor.historystages.graph.section.advancements", "advancement");
-        addRequirements(out, font, width, cfg.showKills.get(), dep,
-                "editor.historystages.graph.section.kills", "entity_kill");
-        addRequirements(out, font, width, cfg.showStats.get(), dep,
-                "editor.historystages.graph.section.stats", "stat");
-        addRequirements(out, font, width, cfg.showScoreboard.get(), dep,
-                "editor.historystages.graph.section.scoreboard", "scoreboard");
+        // Sections come from the registry rather than seven fixed calls, so a requirement kind the
+        // graph has never heard of still lands somewhere instead of vanishing.
+        Map<String, List<String>> sections = new LinkedHashMap<>();
+        for (Requirement requirement : RequirementTypes.all()) {
+            sections.computeIfAbsent(requirement.sectionLangKey(), key -> new ArrayList<>())
+                    .add(requirement.id());
+        }
+        // The built-in sections keep the order players already know, which is deliberately not
+        // registry order — stage dependencies have always come first, and XP before advancements.
+        // Anything left over belongs to an addon and follows.
+        List<String> ordered = new ArrayList<>(BUILT_IN_SECTION_ORDER);
+        for (String sectionKey : sections.keySet()) {
+            if (!ordered.contains(sectionKey)) ordered.add(sectionKey);
+        }
+        for (String sectionKey : ordered) {
+            List<String> types = sections.get(sectionKey);
+            if (types == null) continue;
+            addRequirements(out, font, width, sectionVisible(cfg, sectionKey), dep, sectionKey,
+                    types.toArray(new String[0]));
+        }
 
         if (cfg.showTriggers.get()) addTriggers(out, font, width);
         if (cfg.showUnlocks.get()) addUnlocks(out, font, width);
@@ -316,14 +319,48 @@ public final class GraphDetailScreen extends AbstractModalScreen {
         maxScroll = 0; // recomputed on the next render, once the drawn height is known
     }
 
+    /** The seven built-in sections, in the order they have always been drawn. */
+    private static final List<String> BUILT_IN_SECTION_ORDER = List.of(
+            "editor.historystages.graph.section.stage_deps",
+            "editor.historystages.graph.section.items",
+            "editor.historystages.graph.section.xp",
+            "editor.historystages.graph.section.advancements",
+            "editor.historystages.graph.section.kills",
+            "editor.historystages.graph.section.stats",
+            "editor.historystages.graph.section.scoreboard");
+
+    /**
+     * Whether this section is switched on.
+     *
+     * <p>The seven built-in sections each have their own config toggle; an addon section has none
+     * and cannot get one, because NeoForge builds config specs at mod construction and the
+     * requirement registry does not close until common setup. Always showing it is the honest
+     * fallback — the alternative is a section nobody can turn on.
+     *
+     * <p>Yes, this is a fixed key table of the kind the rest of this phase removed. It stays,
+     * because it maps sections onto config values that genuinely only exist for those seven.
+     */
+    private static boolean sectionVisible(GraphConfig.Graph cfg, String sectionLangKey) {
+        return switch (sectionLangKey) {
+            case "editor.historystages.graph.section.stage_deps" -> cfg.showStageDeps.get();
+            case "editor.historystages.graph.section.items" -> cfg.showItems.get();
+            case "editor.historystages.graph.section.xp" -> cfg.showXp.get();
+            case "editor.historystages.graph.section.advancements" -> cfg.showAdvancements.get();
+            case "editor.historystages.graph.section.kills" -> cfg.showKills.get();
+            case "editor.historystages.graph.section.stats" -> cfg.showStats.get();
+            case "editor.historystages.graph.section.scoreboard" -> cfg.showScoreboard.get();
+            default -> true;
+        };
+    }
+
     private void addRequirements(List<Row> out, Font font, int width, boolean enabled,
-                                 DependencyResult dep, String headerKey, String... types) {
+                                 RequirementResult dep, String headerKey, String... types) {
         if (!enabled || dep == null) return;
 
         Set<String> typeSet = Set.of(types);
         List<Row> body = new ArrayList<>();
-        for (DependencyResult.GroupResult group : dep.getGroups()) {
-            for (DependencyResult.EntryResult e : group.getEntries()) {
+        for (RequirementResult.GroupResult group : dep.getGroups()) {
+            for (RequirementResult.EntryResult e : group.getEntries()) {
                 if (typeSet.contains(e.getType())) addRequirement(body, font, e, width);
             }
         }
@@ -342,7 +379,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
      * be a claim this screen cannot make. They are listed as what they are here — the shopping
      * list for the stage.
      */
-    private void addRequirement(List<Row> out, Font font, DependencyResult.EntryResult e, int width) {
+    private void addRequirement(List<Row> out, Font font, RequirementResult.EntryResult e, int width) {
         RequirementDisplay.Kind kind = RequirementDisplay.kindOf(e.getType(), e.canDeposit());
         boolean met = e.isFulfilled();
         String amount = RequirementDisplay.showsAmount(kind) && !met
@@ -369,7 +406,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
      * id names nothing. {@code BuiltInRegistries.ITEM.get} answers with air rather than null for
      * an unknown id, so the emptiness check is the real guard here.
      */
-    private static ItemStack iconFor(DependencyResult.EntryResult e) {
+    private static ItemStack iconFor(RequirementResult.EntryResult e) {
         if (!"item".equals(e.getType())) return ItemStack.EMPTY;
         ResourceLocation id = ResourceLocation.tryParse(e.getId());
         if (id == null) return ItemStack.EMPTY;
@@ -397,7 +434,7 @@ public final class GraphDetailScreen extends AbstractModalScreen {
             out.add(new LineRow(line, HINT_COLOR, LINE_H));
         }
         for (TriggerCondition t : trigger.getTriggers()) {
-            String line = Component.translatable(triggerTypeKey(t)).getString() + ": " + triggerValueText(t);
+            String line = TriggerLabels.typeLabel(t) + ": " + TriggerLabels.valueText(t);
             for (FormattedCharSequence wrapped : font.split(Component.literal(line), textWidth)) {
                 out.add(new LineRow(wrapped, TEXT_COLOR, LINE_H));
             }
@@ -608,26 +645,4 @@ public final class GraphDetailScreen extends AbstractModalScreen {
         };
     }
 
-    private static String triggerTypeKey(TriggerCondition t) {
-        return "editor.historystages.auto_trigger.type." + t.type();
-    }
-
-    /** Mirrors {@code AutoTriggerEditorScreen.triggerValueText}, as the docked panel did. */
-    private static String triggerValueText(TriggerCondition t) {
-        return switch (t) {
-            case BiomeTrigger b -> b.id();
-            case StructureTrigger s -> s.id();
-            case DimensionTrigger d -> d.id();
-            case ItemTrigger i -> i.id();
-            case EntityTrigger e -> e.id() + " ("
-                    + Component.translatable("editor.historystages.auto_trigger.entity."
-                            + e.resolvedSubMode().serialize()).getString()
-                    + ")";
-            case BlockPlaceTrigger bp -> bp.id();
-            case BlockBreakTrigger bb -> bb.id();
-            case AdvancementTrigger a -> a.id();
-            case PlaytimeTrigger p -> Component.translatable(
-                    "editor.historystages.auto_trigger.playtime.days", p.days()).getString();
-        };
-    }
 }

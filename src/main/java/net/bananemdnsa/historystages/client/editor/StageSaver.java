@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.client.editor;
 
+import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.data.StageEntry;
@@ -29,6 +30,16 @@ public final class StageSaver {
         }
         PacketHandler.sendToServer(new SaveStagePacket(stageId, json, individual, duplicate,
                 folder == null ? "" : folder));
+        // Everything the graph knows about requirements is now potentially out of date, so throw
+        // it away and let it be asked for again. Without this the graph shows a stage's
+        // requirements as they were when its node was first opened, for the rest of the session —
+        // the detail window only asks the server when it has nothing cached, and nothing else
+        // invalidates this cache.
+        //
+        // The whole cache rather than this one stage: a save can change what another stage's
+        // requirement rows read, because a stage reference is rendered with the referenced
+        // stage's display name. Refilling costs one packet per node actually opened.
+        ClientDependencyCache.clear();
         return true;
     }
 }

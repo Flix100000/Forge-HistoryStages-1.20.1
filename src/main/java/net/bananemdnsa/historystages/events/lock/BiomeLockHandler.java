@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.bananemdnsa.historystages.util.DebugLogger;
@@ -71,7 +72,7 @@ public class BiomeLockHandler {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (player.isSpectator()) return;
 
-        if (!StageManager.anyStageHasBiomes()) return;
+        if (!StageLocks.engine().anyBiomeLocks()) return;
 
         PlayerState state = STATE.computeIfAbsent(player.getUUID(), u -> new PlayerState());
 

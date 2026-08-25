@@ -6,7 +6,8 @@ import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
@@ -70,8 +71,9 @@ public record CheckDependencyPacket(String stageId, boolean isIndividual, BlockP
                         : pedestal.getActiveBooster().costReduction();
             }
 
-            DependencyResult result = DependencyChecker.checkAll(entry, player, player.level(), depositedTag,
-                    costReduction);
+            RequirementResult result = DependencyChecker.checkAll(entry, player, player.level(),
+                    packet.isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
+                    depositedTag, costReduction);
             PacketDistributor.sendToPlayer(player,
                     new SyncDependencyStatusPacket(packet.stageId, packet.isIndividual, result));
         });

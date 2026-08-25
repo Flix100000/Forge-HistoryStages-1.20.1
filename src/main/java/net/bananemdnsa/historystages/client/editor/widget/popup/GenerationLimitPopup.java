@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.widget.popup;
 
-import net.bananemdnsa.historystages.client.editor.widget.NumberStepper;
+import net.bananemdnsa.historystages.api.editor.widget.NumberStepper;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
 import net.bananemdnsa.historystages.data.lock.GenerationPhase;
 import net.bananemdnsa.historystages.data.lock.StructureGenerationRule;

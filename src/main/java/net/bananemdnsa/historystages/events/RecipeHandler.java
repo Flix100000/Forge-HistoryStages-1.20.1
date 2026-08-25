@@ -1,6 +1,5 @@
 package net.bananemdnsa.historystages.events;
 
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
@@ -39,7 +38,13 @@ public class RecipeHandler {
 
     public static boolean isRecipeIdLocked(ResourceLocation recipeId, boolean isClientSide) {
         if (recipeId == null) return false;
-        return StageManager.isRecipeIdLocked(recipeId.toString(), isClientSide);
+        // Global-only on both sides: this feeds RecipeManagerMixin's live recipe resolution
+        // (crafting-grid output prediction, recipe book), which historically never consulted
+        // individual stages. Routing the client branch through the both-scope check would
+        // newly hide recipes gated only by an individual stage — see StageLockHelper for details.
+        return isClientSide
+                ? StageLockHelper.isRecipeLockedForClientGlobalOnly(recipeId.toString())
+                : StageLockHelper.isRecipeLockedForServer(recipeId.toString());
     }
 
     public static boolean isRecipeIdLocked(ResourceLocation recipeId) {

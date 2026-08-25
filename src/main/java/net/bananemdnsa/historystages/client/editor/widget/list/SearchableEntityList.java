@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
@@ -42,7 +44,7 @@ import java.util.function.Supplier;
  * tab lists every chosen entity for review/deselection, and {@link #onSelect}
  * fires once per entity on confirm. Mirrors {@link SearchableItemList}.
  */
-public class SearchableEntityList {
+public class SearchableEntityList implements PickerOverlay {
     private static final int SLOT_SIZE = 18;
     private static final int ROW_HEIGHT = 20;
     private static final int PADDING = 6;
@@ -117,7 +119,7 @@ public class SearchableEntityList {
     public SearchableEntityList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
-        this.searchBar = SearchPanelChrome.createSearchBar("Search entities...", this::applyFilter, alreadyAddedSupplier);
+        this.searchBar = SearchPanelChrome.createSearchBar(Component.translatable("editor.historystages.search.placeholder.entities").getString(), this::applyFilter, alreadyAddedSupplier);
 
         for (EntityType<?> entityType : BuiltInRegistries.ENTITY_TYPE) {
             ResourceLocation key = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
@@ -180,7 +182,7 @@ public class SearchableEntityList {
         this.selectedSnapshot.clear();
         this.selectedView.clear();
         this.tabIndicatorInit = false;
-        searchBar.setPlaceholder("Search entities...");
+        searchBar.setPlaceholder(Component.translatable("editor.historystages.search.placeholder.entities").getString());
         // Size the panel first: setText triggers applyFilter -> updateMaxScroll, and the row count
         // is derived from the panel geometry, so it has to be valid by then.
         recalcPanelSize();
@@ -1046,9 +1048,10 @@ public class SearchableEntityList {
             selectedView.clear();
         }
         if (newTab == TAB_SELECTED) {
-            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+            searchBar.setPlaceholder(Component.translatable(
+                    "editor.historystages.search.selected.placeholder", totalSelectionCount()).getString());
         } else {
-            searchBar.setPlaceholder("Search entities...");
+            searchBar.setPlaceholder(Component.translatable("editor.historystages.search.placeholder.entities").getString());
         }
         // Resize before setText: setText triggers applyFilter -> updateMaxScroll, and the row count
         // is derived from the panel geometry.
@@ -1344,7 +1347,8 @@ public class SearchableEntityList {
 
     private void refreshSelectedPlaceholder() {
         if (isSelectedTab()) {
-            searchBar.setPlaceholder("Search selected (" + totalSelectionCount() + ")...");
+            searchBar.setPlaceholder(Component.translatable(
+                    "editor.historystages.search.selected.placeholder", totalSelectionCount()).getString());
         }
     }
 

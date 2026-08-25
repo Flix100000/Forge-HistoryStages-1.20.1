@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.auto;
 
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+
 import com.google.gson.*;
 import net.bananemdnsa.historystages.data.auto.conditions.*;
 
@@ -35,18 +37,14 @@ public class AutoTriggerAdapter
         if (!obj.has("type") || obj.get("type").isJsonNull()) return null;
         String type = obj.get("type").getAsString();
 
-        return switch (type) {
-            case "biome"       -> ctx.deserialize(obj, BiomeTrigger.class);
-            case "structure"   -> ctx.deserialize(obj, StructureTrigger.class);
-            case "dimension"   -> ctx.deserialize(obj, DimensionTrigger.class);
-            case "item"        -> ctx.deserialize(obj, ItemTrigger.class);
-            case "entity"      -> ctx.deserialize(obj, EntityTrigger.class);
-            case "block_place" -> ctx.deserialize(obj, BlockPlaceTrigger.class);
-            case "block_break" -> ctx.deserialize(obj, BlockBreakTrigger.class);
-            case "advancement" -> ctx.deserialize(obj, AdvancementTrigger.class);
-            case "playtime"    -> ctx.deserialize(obj, PlaytimeTrigger.class);
-            default            -> null; // unknown type — silently skip
-        };
+        Class<? extends TriggerCondition> conditionClass = TriggerTypes.classFor(type);
+        if (conditionClass == null) {
+            // Not ours and not any loaded addon's. Keeping the object verbatim means the trigger
+            // comes back when its mod does; the old code dropped it here, so editing a stage
+            // without that mod installed destroyed it silently.
+            return new UnknownTrigger(type, obj.deepCopy());
+        }
+        return ctx.deserialize(obj, conditionClass);
     }
 
     @Override
@@ -55,6 +53,11 @@ public class AutoTriggerAdapter
         if (src.getRawMode() != null) out.addProperty("mode", src.getRawMode());
         JsonArray arr = new JsonArray();
         for (TriggerCondition t : src.getTriggers()) {
+            if (t instanceof UnknownTrigger unknown) {
+                // Written back exactly as it was read, fields this build never understood included.
+                arr.add(unknown.raw().deepCopy());
+                continue;
+            }
             JsonObject inner = ctx.serialize(t).getAsJsonObject();
             // Ensure "type" is always present (records may not auto-include it).
             inner.addProperty("type", t.type());

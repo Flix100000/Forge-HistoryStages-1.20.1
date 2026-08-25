@@ -4,7 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.StageUnlockHelper;
+import net.bananemdnsa.historystages.api.stage.StageStates;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
@@ -13,7 +13,7 @@ import net.bananemdnsa.historystages.util.DebugLogger;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
-import net.bananemdnsa.historystages.events.StageEvent;
+import net.bananemdnsa.historystages.api.stage.StageEvent;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.ChatFormatting;
@@ -315,7 +315,7 @@ public class StageCommand {
         if (isReset) {
             // Re-lock first if it's currently unlocked, otherwise clearing the timer
             // would leave it unlocked forever.
-            if (temp.globalActiveTicks(stage) > 0) StageUnlockHelper.relockGlobal(stage, level);
+            if (temp.globalActiveTicks(stage) > 0) StageStates.relockGlobal(stage, level);
             temp.clearGlobal(stage);
             DebugLogger.runtime("Temporary", source.getTextName(), "Reset temporary state for global stage '" + stage + "'");
             source.sendSuccess(() -> Component.literal("§7[HistoryStages] Reset temporary state for '" + stage + "'."), true);
@@ -362,7 +362,7 @@ public class StageCommand {
         var temp = net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(level);
         var uuid = player.getUUID();
         if (isReset) {
-            if (temp.individualActiveTicks(uuid, stage) > 0) StageUnlockHelper.relockIndividual(stage, player);
+            if (temp.individualActiveTicks(uuid, stage) > 0) StageStates.relockIndividual(stage, player);
             temp.clearIndividual(uuid, stage);
             DebugLogger.runtime("Temporary", source.getTextName(), "Reset temporary state for individual stage '" + stage + "' (" + player.getName().getString() + ")");
             source.sendSuccess(() -> Component.literal("§7[HistoryStages] Reset temporary state for '" + stage + "' (" + player.getName().getString() + ")."), true);
@@ -377,9 +377,9 @@ public class StageCommand {
     private static int handleUnlock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
-        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // NOTE: intentionally inline (not routed through StageStates) — the "*" path
         // emits a single combined broadcast/toast/event instead of one per stage. Future
-        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // fixes to StageStates.unlockGlobal / unlockIndividual must consider whether
         // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             boolean changed = false;
@@ -401,7 +401,7 @@ public class StageCommand {
             return syncAndReload(source, d, "All stages unlocked.");
         } else {
             if (!StageManager.getStages().containsKey(s)) return 0;
-            boolean changed = StageUnlockHelper.unlockGlobal(s, source.getLevel());
+            boolean changed = StageStates.unlockGlobal(s, source.getLevel());
             if (!changed) return 0;
             var entry = StageManager.getStages().get(s);
             String displayName = entry != null ? entry.getDisplayName() : s;
@@ -415,9 +415,9 @@ public class StageCommand {
     private static int handleLock(CommandSourceStack source, String s) {
         String executor = source.getTextName();
         StageData d = StageData.get(source.getLevel());
-        // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+        // NOTE: intentionally inline (not routed through StageStates) — the "*" path
         // emits a single combined broadcast/toast/event instead of one per stage. Future
-        // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+        // fixes to StageStates.unlockGlobal / unlockIndividual must consider whether
         // the change should be mirrored here for consistency.
         if (s.equals("*")) {
             if (d.getUnlockedStages().isEmpty()) {
@@ -576,9 +576,9 @@ public class StageCommand {
         return 1;
     }
 
-    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // NOTE: intentionally inline (not routed through StageStates) — the "*" path
     // emits a single combined broadcast/toast/event instead of one per stage. Future
-    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // fixes to StageStates.unlockGlobal / unlockIndividual must consider whether
     // the change should be mirrored here for consistency.
     private static int handleIndividualUnlockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
@@ -616,9 +616,9 @@ public class StageCommand {
         return 1;
     }
 
-    // NOTE: intentionally inline (not routed through StageUnlockHelper) — the "*" path
+    // NOTE: intentionally inline (not routed through StageStates) — the "*" path
     // emits a single combined broadcast/toast/event instead of one per stage. Future
-    // fixes to StageUnlockHelper.unlockGlobal / unlockIndividual must consider whether
+    // fixes to StageStates.unlockGlobal / unlockIndividual must consider whether
     // the change should be mirrored here for consistency.
     private static int handleIndividualLockAll(CommandSourceStack source, ServerPlayer target) {
         IndividualStageData data = IndividualStageData.get(source.getLevel());
@@ -666,7 +666,7 @@ public class StageCommand {
             return 0;
         }
 
-        boolean changed = StageUnlockHelper.unlockIndividual(stageId, target);
+        boolean changed = StageStates.unlockIndividual(stageId, target);
         if (!changed) return 0;
 
         DebugLogger.runtime("Individual Unlock", source.getTextName(),

@@ -8,7 +8,7 @@ import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;

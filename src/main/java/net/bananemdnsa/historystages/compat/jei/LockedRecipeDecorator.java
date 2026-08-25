@@ -5,7 +5,6 @@ import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.category.extensions.IRecipeCategoryDecorator;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -51,8 +50,7 @@ public class LockedRecipeDecorator<T> implements IRecipeCategoryDecorator<T> {
         if (recipe instanceof RecipeHolder<?> holder) {
             ResourceLocation recipeId = holder.id();
             if (recipeId != null
-                    && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
-                        || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
+                    && StageLockHelper.isRecipeLockedForClient(recipeId.toString())) {
                 return true;
             }
         }

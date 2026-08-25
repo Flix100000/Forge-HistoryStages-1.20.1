@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.dialog;
 
-import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
+import net.bananemdnsa.historystages.api.editor.widget.FormattedTextScreen;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphInfoPacket;

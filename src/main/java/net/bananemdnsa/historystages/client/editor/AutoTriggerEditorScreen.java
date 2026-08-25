@@ -1,10 +1,12 @@
 package net.bananemdnsa.historystages.client.editor;
 
-import net.bananemdnsa.historystages.client.editor.widget.list.AbstractSearchableList;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableAdvancementList;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
@@ -26,7 +28,13 @@ import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.editor.GenericIdPicker;
+import net.bananemdnsa.historystages.api.editor.TriggerEditor;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
+import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+import net.bananemdnsa.historystages.data.auto.TriggerTypes;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
@@ -67,8 +75,61 @@ public class AutoTriggerEditorScreen extends Screen {
     private static final int ADD_BTN_H = 18;
     private static final int ADD_ROW_H = 18;
     private static final int ADD_POPUP_PAD = 2;
+    /** Width reserved for the popup's scrollbar, only added when it has one. */
+    private static final int ADD_POPUP_SCROLL_W = 4;
 
     private static final TriggerType[] TYPES = TriggerType.values();
+
+    /**
+     * A row in the add menu: a label and what happens when it is clicked. Built-in types and types
+     * another mod registered both become one of these, so the menu stops being a fixed list.
+     *
+     * <p>The component is deliberately not called {@code open}: {@code row.open()} would then read
+     * as opening the picker while actually being the accessor, and dropping the returned Runnable
+     * is silent. That is exactly how every row in this menu came to do nothing.
+     */
+    private record AddableTrigger(String label, Runnable onClick) {}
+
+    /** Built-ins first, in their long-standing order, then whatever addons registered. */
+    private List<AddableTrigger> addableTriggers() {
+        List<AddableTrigger> rows = new ArrayList<>(TYPES.length);
+        // Not filtered by scope: all nine built-ins support both scopes (see TriggerTypes), so a
+        // filter here would be a no-op that only invites a later reader to wonder what it guards.
+        for (TriggerType type : TYPES) {
+            rows.add(new AddableTrigger(typeLabel(type), () -> openPickerFor(type)));
+        }
+        for (TriggerEditor editor : TriggerEditors.all()) {
+            if (!TriggerTypes.scopesOf(editor.type()).contains(scope)) continue;
+            rows.add(new AddableTrigger(
+                    Component.translatable(editor.labelLangKey()).getString(),
+                    () -> openAddonPicker(editor)));
+        }
+        return rows;
+    }
+
+    /**
+     * Opens the picker an addon registered for this trigger type. False when it registered none,
+     * which is the caller's cue that the trigger cannot be authored here.
+     */
+    private boolean openAddonEditorFor(String type) {
+        TriggerEditor editor = TriggerEditors.byType(type);
+        if (editor == null) return false;
+        openAddonPicker(editor);
+        return true;
+    }
+
+    /** Adding and editing go through the same overlay, so the two paths cannot drift apart. */
+    private void openAddonPicker(TriggerEditor editor) {
+        // An addon whose trigger carries more than one id supplies its own authoring screen; the
+        // id picker below is only the default for the ones that do not.
+        Screen authoring = editor.authoringScreen(this, this::placeTrigger);
+        if (authoring != null) {
+            this.minecraft.setScreen(authoring);
+            return;
+        }
+        showAbstract(new GenericIdPicker(editor.searchPlaceholderLangKey(), editor::candidates,
+                editor.placingInto(this::placeTrigger), null), null, false);
+    }
 
     private final Screen parent;
     private final AutoTrigger trigger;
@@ -77,6 +138,8 @@ public class AutoTriggerEditorScreen extends Screen {
     private final Supplier<StageEntry> lockSnapshot;
     /** Persists the whole stage from the parent screen. May be null. */
     private final Runnable onPersist;
+    /** Scope of the stage being edited — narrows the add menu to types that apply here. */
+    private final StageScope scope;
 
     // Layout
     private int listX, listY, listW, listH;
@@ -99,6 +162,16 @@ public class AutoTriggerEditorScreen extends Screen {
 
     // Inline overlays
     private boolean addDropdownOpen = false;
+    /** First visible row of the add popup, once it holds more types than fit on screen. */
+    private int addDropdownScroll = 0;
+    /**
+     * Whether anything changed since this screen last persisted.
+     *
+     * <p>Changes here are applied to the parent immediately, so nothing can be lost — but every
+     * other editor screen says so on its own footer, and having to go back a screen to find out
+     * was the one place that did not.
+     */
+    private boolean hasChanges = false;
     /** Reveal progress of the add popup; also drives the caret turning over. */
     private final Anim addOpen = new Anim();
     private final java.util.Map<Integer, Anim> addRowHover = new java.util.HashMap<>();
@@ -114,26 +187,30 @@ public class AutoTriggerEditorScreen extends Screen {
     // Context menu
     private ContextMenu contextMenu = new ContextMenu();
 
-    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger, Consumer<AutoTrigger> onChanged) {
-        this(parent, trigger, onChanged, null, null);
-    }
-
-    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
-                                   Consumer<AutoTrigger> onChanged,
-                                   Supplier<StageEntry> lockSnapshot) {
-        this(parent, trigger, onChanged, lockSnapshot, null);
+    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger, Consumer<AutoTrigger> onChanged,
+                                   StageScope scope) {
+        this(parent, trigger, onChanged, null, null, scope);
     }
 
     public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
                                    Consumer<AutoTrigger> onChanged,
                                    Supplier<StageEntry> lockSnapshot,
-                                   Runnable onPersist) {
+                                   StageScope scope) {
+        this(parent, trigger, onChanged, lockSnapshot, null, scope);
+    }
+
+    public AutoTriggerEditorScreen(Screen parent, AutoTrigger trigger,
+                                   Consumer<AutoTrigger> onChanged,
+                                   Supplier<StageEntry> lockSnapshot,
+                                   Runnable onPersist,
+                                   StageScope scope) {
         super(Component.translatable("editor.historystages.auto_trigger.title"));
         this.parent = parent;
         this.trigger = trigger;
         this.onChanged = onChanged;
         this.lockSnapshot = lockSnapshot;
         this.onPersist = onPersist;
+        this.scope = scope;
     }
 
     @Override
@@ -214,6 +291,8 @@ public class AutoTriggerEditorScreen extends Screen {
         // Header
         g.drawCenteredString(this.font, this.title, this.width / 2, 8, 0xFFFFFF);
         g.fill(10, 18, this.width - 10, 19, 0xFF555555);
+
+        renderUnsavedMarker(g);
 
         renderCombinePill(g, mx, my);
         renderAddButton(g, mx, my);
@@ -357,8 +436,8 @@ public class AutoTriggerEditorScreen extends Screen {
             TriggerCondition t = triggers.get(i);
             if (activeType != null && !t.type().equals(activeType)) continue;
             if (!query.isEmpty()) {
-                String value = triggerValueText(t).toLowerCase();
-                String typeName = Component.translatable(triggerTypeKey(t)).getString().toLowerCase();
+                String value = TriggerLabels.valueText(t).toLowerCase();
+                String typeName = TriggerLabels.typeLabel(t).toLowerCase();
                 if (!value.contains(query) && !typeName.contains(query)) continue;
             }
             visibleIndices.add(i);
@@ -393,11 +472,16 @@ public class AutoTriggerEditorScreen extends Screen {
         renderTriggerIcon(g, t, iconX, iconY);
 
         // Type name
-        String typeName = Component.translatable(triggerTypeKey(t)).getString();
+        String typeName = TriggerLabels.typeLabel(t);
+        // Clipped to its column, exactly as the value below is: the type name is not ours to
+        // bound once other mods can add one.
+        if (this.font.width(typeName) > TYPE_COL_W - 6) {
+            typeName = this.font.plainSubstrByWidth(typeName, TYPE_COL_W - 12) + "...";
+        }
         g.drawString(this.font, typeName, iconX + ICON_W + 4, top + 7, 0xFFCCCCCC, false);
 
         // Value
-        String value = triggerValueText(t);
+        String value = TriggerLabels.valueText(t);
         int valueX = iconX + ICON_W + 4 + TYPE_COL_W;
         int valueAvail = (listX + listW - 12) - valueX;
         if (this.font.width(value) > valueAvail) {
@@ -453,37 +537,48 @@ public class AutoTriggerEditorScreen extends Screen {
         return stack.isEmpty() ? ItemStack.EMPTY : stack;
     }
 
-    private static String triggerTypeKey(TriggerCondition t) {
-        return "editor.historystages.auto_trigger.type." + t.type();
-    }
-
-    private String triggerValueText(TriggerCondition t) {
-        return switch (t) {
-            case BiomeTrigger b -> b.id();
-            case StructureTrigger s -> s.id();
-            case DimensionTrigger d -> d.id();
-            case ItemTrigger i -> i.id();
-            case EntityTrigger e -> e.id() + " ("
-                    + Component.translatable("editor.historystages.auto_trigger.entity." + e.resolvedSubMode().serialize()).getString()
-                    + ")";
-            case BlockPlaceTrigger bp -> bp.id();
-            case BlockBreakTrigger bb -> bb.id();
-            case AdvancementTrigger a -> a.id();
-            case PlaytimeTrigger p -> Component.translatable("editor.historystages.auto_trigger.playtime.days", p.days()).getString();
-        };
-    }
-
+    /**
+     * The lang key naming a trigger's kind.
+     *
+     * <p>Built-in types each have their own; a type from a mod that is not loaded has none, and
+     * building one from its id would print the raw key — long enough to run straight through the
+     * next column. Such a row says "unknown" and puts the actual type in the value column, where
+     * it is both readable and truncated.
+     */
     /**
      * Geometry of the add popup as {x, y, w, h}. Widened to its longest type label and flipped
      * above the button when it would run off the bottom, so no row ends up unreachable.
      */
+    /**
+     * How many rows the popup shows before it starts scrolling.
+     *
+     * <p>Capped rather than grown: the list is nine built-ins plus one row per addon trigger type,
+     * so on a short window or with a few addons installed it would otherwise run past the screen
+     * edge with no way to reach the rows below.
+     */
+    private int addPopupVisibleRows() {
+        int available = Math.max(0, this.height - 8 - ADD_POPUP_PAD * 2 - ADD_BTN_H - 4);
+        int fits = Math.max(3, available / ADD_ROW_H);
+        return Math.min(addableTriggers().size(), fits);
+    }
+
+    /** Largest first-row index the popup may be scrolled to. */
+    private int addPopupMaxScroll() {
+        return Math.max(0, addableTriggers().size() - addPopupVisibleRows());
+    }
+
     private int[] addPopupGeometry() {
+        List<AddableTrigger> rows = addableTriggers();
+        // Measured over the rows actually shown, not over the built-in types: an addon's label is
+        // free text and is usually the longest one, and the popup scissors at its own right edge.
         int pw = addBtnW;
-        for (TriggerType t : TYPES) {
-            int w = this.font.width(typeLabel(t)) + 16;
+        for (AddableTrigger row : rows) {
+            int w = this.font.width(row.label()) + 16;
             if (w > pw) pw = w;
         }
-        int ph = TYPES.length * ADD_ROW_H + ADD_POPUP_PAD * 2;
+        // Scrollbar track when there is more than fits, so a row is never hidden under it.
+        if (addPopupMaxScroll() > 0) pw += ADD_POPUP_SCROLL_W;
+        int ph = addPopupVisibleRows() * ADD_ROW_H + ADD_POPUP_PAD * 2;
         // Right-aligned with the button, which sits against the screen's right edge.
         int px = addBtnX + addBtnW - pw;
         int py = addBtnY + ADD_BTN_H + 2;
@@ -511,14 +606,34 @@ public class AutoTriggerEditorScreen extends Screen {
 
         if (!DropdownChrome.begin(g, px, py, pw, ph, t, py < addBtnY)) return;
 
-        for (int i = 0; i < TYPES.length; i++) {
-            int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
-            boolean hov = addDropdownOpen && isOver(mx, my, px, rowY, pw, ADD_ROW_H);
+        List<AddableTrigger> rows = addableTriggers();
+        int visible = addPopupVisibleRows();
+        int maxScroll = addPopupMaxScroll();
+        addDropdownScroll = Math.max(0, Math.min(maxScroll, addDropdownScroll));
+        int rowW = maxScroll > 0 ? pw - ADD_POPUP_SCROLL_W : pw;
+
+        for (int slot = 0; slot < visible; slot++) {
+            int i = slot + addDropdownScroll;
+            if (i >= rows.size()) break;
+            int rowY = py + ADD_POPUP_PAD + slot * ADD_ROW_H;
+            boolean hov = addDropdownOpen && isOver(mx, my, px, rowY, rowW, ADD_ROW_H);
+            // Keyed by the entry, not the slot: scrolling must not carry a hover glow from the row
+            // that used to sit there onto the one that moved into its place.
             float rh = Ease.outCubic(addRowHover.computeIfAbsent(i, k -> new Anim())
                     .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-            DropdownChrome.drawRowHighlight(g, px + 1, rowY, pw - 2, ADD_ROW_H, rh);
-            g.drawString(this.font, typeLabel(TYPES[i]), px + 5 + Math.round(rh * 2.0f), rowY + 5,
+            DropdownChrome.drawRowHighlight(g, px + 1, rowY, rowW - 2, ADD_ROW_H, rh);
+            g.drawString(this.font, rows.get(i).label(), px + 5 + Math.round(rh * 2.0f), rowY + 5,
                     0xFFEEEEEE, false);
+        }
+
+        if (maxScroll > 0) {
+            int trackX = px + pw - ADD_POPUP_SCROLL_W + 1;
+            int trackY = py + ADD_POPUP_PAD;
+            int trackH = visible * ADD_ROW_H;
+            g.fill(trackX, trackY, trackX + ADD_POPUP_SCROLL_W - 2, trackY + trackH, 0x30FFFFFF);
+            int thumbH = Math.max(8, trackH * visible / rows.size());
+            int thumbY = trackY + Math.round((float) addDropdownScroll / maxScroll * (trackH - thumbH));
+            g.fill(trackX, thumbY, trackX + ADD_POPUP_SCROLL_W - 2, thumbY + thumbH, 0x90FFFFFF);
         }
         DropdownChrome.end(g);
     }
@@ -645,6 +760,7 @@ public class AutoTriggerEditorScreen extends Screen {
         // Add button
         if (button == 0 && isOver((int) mouseX, (int) mouseY, addBtnX, addBtnY, addBtnW, ADD_BTN_H)) {
             addDropdownOpen = true;
+            addDropdownScroll = 0;
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
             return true;
         }
@@ -701,13 +817,20 @@ public class AutoTriggerEditorScreen extends Screen {
         }
         int[] geom = addPopupGeometry();
         int px = geom[0], py = geom[1], pw = geom[2];
-        for (int i = 0; i < TYPES.length; i++) {
-            int rowY = py + ADD_POPUP_PAD + i * ADD_ROW_H;
-            if (button == 0 && isOver((int) mouseX, (int) mouseY, px, rowY, pw, ADD_ROW_H)) {
+        List<AddableTrigger> clickable = addableTriggers();
+        int visible = addPopupVisibleRows();
+        int rowW = addPopupMaxScroll() > 0 ? pw - ADD_POPUP_SCROLL_W : pw;
+        // Walk the visible slots and map each back to its entry, so a scrolled popup does not run
+        // the row that happens to sit at that index unscrolled.
+        for (int slot = 0; slot < visible; slot++) {
+            int i = slot + addDropdownScroll;
+            if (i >= clickable.size()) break;
+            int rowY = py + ADD_POPUP_PAD + slot * ADD_ROW_H;
+            if (button == 0 && isOver((int) mouseX, (int) mouseY, px, rowY, rowW, ADD_ROW_H)) {
                 addDropdownOpen = false;
                 editIndex = -1;
                 Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                openPickerFor(TYPES[i]);
+                clickable.get(i).onClick().run();
                 return true;
             }
         }
@@ -790,6 +913,12 @@ public class AutoTriggerEditorScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        // Before the list: the popup is drawn over it, so a wheel turn there belongs to the popup.
+        if (addDropdownOpen) {
+            addDropdownScroll = Math.max(0, Math.min(addPopupMaxScroll(),
+                    addDropdownScroll - (int) Math.signum(scrollY)));
+            return true;
+        }
         if (currentList != null && currentList.isVisible()
                 && currentList.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (mouseX >= listX && mouseX <= listX + listW && mouseY >= listY && mouseY <= listY + listH) {
@@ -868,6 +997,17 @@ public class AutoTriggerEditorScreen extends Screen {
             case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
             case EntityTrigger e -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
             case PlaytimeTrigger p -> openPlaytimeDialog(idx, p.days());
+            // An addon that registered an editor for its type opens the same picker the add menu
+            // uses. Without one — an unparsed trigger, or a type registered without an editor —
+            // nothing here knows what would satisfy it, so there is no picker to open. The row
+            // stays visible and stays in the file; it just cannot be edited here.
+            default -> {
+                if (!openAddonEditorFor(t.type())) {
+                    EditorToastHandler.show(EditorToast.Level.INFO,
+                            Component.translatable("editor.historystages.auto_trigger.unknown.title"),
+                            Component.translatable("editor.historystages.auto_trigger.unknown.message", t.type()));
+                }
+            }
         }
     }
 
@@ -1014,7 +1154,27 @@ public class AutoTriggerEditorScreen extends Screen {
         notifyChanged();
     }
 
+    /**
+     * The breathing "Unsaved" marker every other editor screen shows.
+     *
+     * <p>Changes here reach the parent immediately, so nothing is at risk — but this was the only
+     * editor of nine where you had to go back a screen to find out that something was pending.
+     */
+    private void renderUnsavedMarker(GuiGraphics g) {
+        if (!hasChanges) return;
+        float phase = (System.currentTimeMillis() % (long) Timing.BREATHE_PERIOD_MS)
+                / Timing.BREATHE_PERIOD_MS;
+        int dotAlpha = (int) ((0.35f + 0.45f * Ease.breathe(phase)) * 255);
+        String label = Component.translatable("editor.historystages.unsaved").getString();
+        int labelW = this.font.width(label);
+        int labelX = this.width - 12 - labelW;
+        g.fill(labelX - 8, this.height - 17, labelX - 2, this.height - 11,
+                (dotAlpha << 24) | 0xFFCC00);
+        g.drawString(this.font, label, labelX, this.height - 18, 0xFFCC00, false);
+    }
+
     private void notifyChanged() {
+        hasChanges = true;
         if (onChanged != null) onChanged.accept(trigger);
         applyTriggerFilter();
     }
@@ -1023,6 +1183,7 @@ public class AutoTriggerEditorScreen extends Screen {
     private void saveAndStay() {
         notifyChanged();
         if (onPersist != null) onPersist.run();
+        hasChanges = false;
     }
 
     @Override

@@ -3,10 +3,11 @@ package net.bananemdnsa.historystages.data.auto;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
-import net.bananemdnsa.historystages.data.StageUnlockHelper;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.stage.StageStates;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerGlobalData;
 import net.bananemdnsa.historystages.data.saveddata.AutoTriggerProgressData;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
@@ -47,12 +48,17 @@ public final class AutoTriggerManager {
     }
 
     private static void addFrom(Map<String, StageEntry> stages, boolean isIndividual) {
+        StageScope scope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
         for (var entry : stages.entrySet()) {
             StageEntry se = entry.getValue();
             if (!se.getMode().usesAutoTrigger()) continue; // AUTO or TEMPORARY
             AutoTrigger at = se.getAutoTrigger();
             if (at == null || at.isEmpty()) continue;
             for (TriggerCondition t : at.getTriggers()) {
+                // A type that declared it does not apply here must not fire here either.
+                // Without this the declaration would only hide rows in the editor, which reads
+                // as a guarantee while being none.
+                if (!TriggerTypes.scopesOf(t.type()).contains(scope)) continue;
                 INDEX.computeIfAbsent(t.type(), k -> new ArrayList<>())
                         .add(new IndexedTrigger(entry.getKey(), isIndividual, t));
             }
@@ -119,7 +125,7 @@ public final class AutoTriggerManager {
         long sig = it.trigger().signature();
         if (set.contains(sig)) return;
 
-        if (!areDependenciesSatisfied(stage, player, level)) return;
+        if (!areDependenciesSatisfied(stage, it.isIndividual(), player, level)) return;
 
         if (!set.add(sig)) return;
         markDirty(it.isIndividual(), level);
@@ -179,10 +185,11 @@ public final class AutoTriggerManager {
         return StageData.SERVER_CACHE.contains(stageId);
     }
 
-    private static boolean areDependenciesSatisfied(StageEntry stage,
+    private static boolean areDependenciesSatisfied(StageEntry stage, boolean isIndividual,
                                                     ServerPlayer player, ServerLevel level) {
         if (!stage.hasDependencies()) return true;
-        DependencyResult result = DependencyChecker.checkAll(stage, player, level, null);
+        RequirementResult result = DependencyChecker.checkAll(stage, player, level,
+                isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL, null);
         return result.isFulfilled();
     }
 
@@ -202,9 +209,9 @@ public final class AutoTriggerManager {
     private static void unlockStage(String stageId, boolean isIndividual,
                                     ServerPlayer player, ServerLevel level) {
         if (isIndividual) {
-            StageUnlockHelper.unlockIndividual(stageId, player);
+            StageStates.unlockIndividual(stageId, player);
         } else {
-            StageUnlockHelper.unlockGlobal(stageId, level);
+            StageStates.unlockGlobal(stageId, level);
         }
     }
 

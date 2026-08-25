@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -23,7 +26,7 @@ public class SearchableDimensionList extends AbstractSearchableList<String> {
     }
 
     public SearchableDimensionList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
-        super("Search dimensions...", onSelect, alreadyAddedSupplier);
+        super(Component.translatable("editor.historystages.search.placeholder.dimensions").getString(), onSelect, alreadyAddedSupplier);
     }
 
     @Override

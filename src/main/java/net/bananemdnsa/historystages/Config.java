@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages;
 
+
 import net.bananemdnsa.historystages.data.ScrollCompletion;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;

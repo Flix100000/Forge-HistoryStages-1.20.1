@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+
 import net.bananemdnsa.historystages.client.ClientStructureRegistry;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.gui.Font;
@@ -37,7 +39,7 @@ public class SearchableStructureList extends AbstractSearchableList<String> {
     }
 
     public SearchableStructureList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
-        super("Search structures...", onSelect, alreadyAddedSupplier);
+        super(Component.translatable("editor.historystages.search.placeholder.structures").getString(), onSelect, alreadyAddedSupplier);
     }
 
     @Override
@@ -50,7 +52,7 @@ public class SearchableStructureList extends AbstractSearchableList<String> {
     @Override
     protected void onOwnTabChanged(int index) {
         activeTab = index;
-        setPlaceholder(index == 0 ? "Search structures..." : "Search structure tags...");
+        setPlaceholder(index == 0 ? Component.translatable("editor.historystages.search.placeholder.structures").getString() : Component.translatable("editor.historystages.search.placeholder.structure_tags").getString());
         reloadEntries();
     }
 

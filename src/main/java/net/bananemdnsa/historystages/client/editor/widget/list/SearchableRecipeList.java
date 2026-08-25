@@ -1,6 +1,9 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
+
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.minecraft.network.chat.Component;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -29,7 +32,7 @@ import java.util.function.Supplier;
  * Phase 1: Item grid showing all items that have recipes.
  * Phase 2: Recipe list for the selected item with ingredient icons.
  */
-public class SearchableRecipeList {
+public class SearchableRecipeList implements PickerOverlay {
     // Grid phase constants
     private static final int SLOT_SIZE = 18;
     private static final int GRID_COLS = 9;
@@ -82,7 +85,7 @@ public class SearchableRecipeList {
     public SearchableRecipeList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
-        this.searchBar = SearchPanelChrome.createSearchBar("Search recipes...", this::applyFilter, alreadyAddedSupplier);
+        this.searchBar = SearchPanelChrome.createSearchBar(Component.translatable("editor.historystages.search.placeholder.recipes").getString(), this::applyFilter, alreadyAddedSupplier);
         buildRecipeIndex();
     }
 

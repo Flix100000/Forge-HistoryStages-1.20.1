@@ -87,6 +87,49 @@ public class HistoryStages {
         ConfigHandler.setupConfig();
         StageManager.load();
 
+        // Registration window for addon lock categories. StageManager.load() above already
+        // parsed every stage's `addons` block into raw JsonElement — that needs no registry at
+        // all — so nothing upstream of this point ever needed a category to exist. Firing here,
+        // once every mod has been constructed and FMLCommonSetupEvent's own parallel dispatch has
+        // fully returned (postEvent is called from the deferred work queue, not from inside that
+        // dispatch), lets every mod's RegisterLockCategoriesEvent listener run before the
+        // registry closes for good.
+        modEventBus.addListener((net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent event) ->
+                event.enqueueWork(() -> {
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.lock.RegisterLockCategoriesEvent());
+                    net.bananemdnsa.historystages.data.lock.category.LockCategories.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.trigger.RegisterTriggerTypesEvent());
+                    net.bananemdnsa.historystages.data.auto.TriggerTypes.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.dependency.RegisterRequirementTypesEvent());
+                    net.bananemdnsa.historystages.data.dependency.RequirementTypes.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.settings.RegisterStageSettingsGroupsEvent());
+                    net.bananemdnsa.historystages.data.settings.StageSettingsGroups.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.config.RegisterConfigSectionsEvent());
+                    net.bananemdnsa.historystages.data.config.AddonConfigSections.freeze();
+                    // Publish after the freeze, not before: publishing first would let a
+                    // registration that arrives later in the same dispatch slip through
+                    // unpublished — it would appear in the editor and silently never save.
+                    net.bananemdnsa.historystages.data.config.AddonConfigPublisher.publishCommonSections();
+
+                    // Logged here rather than inside freeze(): LockCategories is unit-tested, and
+                    // the test runtime classpath has no Minecraft or NeoForge on it. This line is
+                    // also how an in-game check confirms the event actually fired.
+                    var addonCategories =
+                            net.bananemdnsa.historystages.data.lock.category.LockCategories.addonIds();
+                    LOGGER.info("[HistoryStages] Lock categories closed: {} total, {} from other mods {}",
+                            net.bananemdnsa.historystages.data.lock.category.LockCategories.all().size(),
+                            addonCategories.size(), addonCategories);
+                    LOGGER.info("[HistoryStages] Stage settings groups closed: {} total",
+                            net.bananemdnsa.historystages.data.settings.StageSettingsGroups.all().size());
+                    LOGGER.info("[HistoryStages] Config sections closed: {} total",
+                            net.bananemdnsa.historystages.data.config.AddonConfigSections.all().size());
+                }));
+
         // Conditional FTB Quests integration
         if (ModList.get().isLoaded("ftbquests")) {
             try {
@@ -371,7 +414,7 @@ public class HistoryStages {
         }
 
         // Global stages: log only (existing behavior)
-        if (StageManager.isItemLockedForServer(stack)) {
+        if (StageLockHelper.isItemLockedForServer(stack)) {
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
             DebugLogger.runtimeThrottled("Inventory", "pickup_" + player.getUUID() + "_" + itemRL,
                     "<" + player.getName().getString() + "> Picked up locked '" + itemRL + "' x" + stack.getCount() + " [action: pickup]");
@@ -383,7 +426,7 @@ public class HistoryStages {
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
             if (stack.isEmpty()) continue;
-            if (StageManager.isItemLockedForServer(stack)) {
+            if (StageLockHelper.isItemLockedForServer(stack)) {
                 ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 lockedItems.add(itemRL + " x" + stack.getCount());
             }

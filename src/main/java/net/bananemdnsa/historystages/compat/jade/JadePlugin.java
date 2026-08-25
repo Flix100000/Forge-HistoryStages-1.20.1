@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.compat.jade;
 
+import net.bananemdnsa.historystages.data.lock.category.BuiltInLockMatching;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
@@ -335,7 +336,7 @@ public class JadePlugin implements IWailaPlugin {
     private static boolean matchesNbtTag(StageEntry stage, ItemStack stack) {
         net.minecraft.world.item.Item item = stack.getItem();
         for (net.bananemdnsa.historystages.data.lock.NamedLockEntry tagEntry : stage.getTagEntries()) {
-            if (tagEntry.hasNbt() && net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return true;
+            if (tagEntry.hasNbt() && BuiltInLockMatching.tagEntryMatches(tagEntry, stack, item)) return true;
         }
         return false;
     }

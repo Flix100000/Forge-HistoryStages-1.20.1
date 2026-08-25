@@ -1,8 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.folder;
 
-import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractInputScreen;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.InputField;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.InputValues;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractInputScreen;
+import net.bananemdnsa.historystages.api.editor.widget.InputField;
+import net.bananemdnsa.historystages.api.editor.widget.InputValues;
 import net.bananemdnsa.historystages.data.StagePaths;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;

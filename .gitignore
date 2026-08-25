@@ -11,7 +11,9 @@ out
 *.ipr
 *.iws
 *.iml
-.idea
+# keep everything out of .idea except the project icon
+.idea/*
+!.idea/icon.png
 
 # gradle
 build
@@ -22,6 +24,8 @@ eclipse
 run
 runs
 run-data
+run-server
+run-gametest
 
 repo
 
@@ -32,9 +36,5 @@ CLAUDE.md
 docs/superpowers/
 .superpowers/
 
-# Unit tests are kept local: the maintainer verifies in-game, and the suite is not
-# part of what ships.
-src/test/
-
-# Word documents in docs/ are local notes, never part of the repo.
-docs/*.docx
+# docs/ holds local notes and brainstorm specs, never part of the repo.
+docs/

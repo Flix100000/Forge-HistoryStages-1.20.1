@@ -5,8 +5,9 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StagePaths;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -58,8 +59,9 @@ public record RequestStageDependencyPacket(String stageId, boolean individual) i
                     : StageManager.getStages().get(packet.stageId);
             if (entry == null) return;
 
-            DependencyResult result = DependencyChecker
-                    .checkAll(entry, player, player.level(), null, 0.0)
+            RequirementResult result = DependencyChecker
+                    .checkAll(entry, player, player.level(),
+                            packet.individual ? StageScope.INDIVIDUAL : StageScope.GLOBAL, null, 0.0)
                     .withoutCanDeposit();
             PacketDistributor.sendToPlayer(player,
                     new SyncDependencyStatusPacket(packet.stageId, packet.individual, result));

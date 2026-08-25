@@ -77,7 +77,7 @@ public class ConfigRowList {
      */
     public static int dropdownWidth(ConfigEditorScreen.ConfigEntry entry) {
         return EnumDropdown.computeWidth(entry.enumConstants,
-                constant -> enumLabel(entry.enumType, constant), DROPDOWN_MIN_WIDTH);
+                constant -> enumLabel(entry, constant), DROPDOWN_MIN_WIDTH);
     }
 
     /** Width reserved for the label column before the value control starts. */
@@ -259,7 +259,7 @@ public class ConfigRowList {
                         .ramp(enumHovered, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
                 DropdownChrome.drawButton(guiGraphics, font, controlX, y + DROPDOWN_INSET_Y,
                         bw, EnumDropdown.BUTTON_HEIGHT,
-                        enumLabel(entry.enumType, entry.value).getString(), bp, false, 0.0f,
+                        enumLabel(entry, entry.value).getString(), bp, false, 0.0f,
                         entry.inherited ? INHERITED_TEXT : 0xFFEEEEEE);
             }
             case SUBSCREEN -> {
@@ -321,6 +321,23 @@ public class ConfigRowList {
      */
     public static Component enumLabel(String enumType, String constant) {
         return Component.translatable(enumKey(enumType, constant));
+    }
+
+    /**
+     * Display text for an enum constant on a given row. An addon's CHOICE field supplies its own
+     * lang key per option — {@link ConfigEditorScreen.ConfigEntry#enumLabels} — since {@link
+     * #enumKey(String, String)} would otherwise force every option under this mod's own {@code
+     * editor.historystages.enum.*} namespace, which is not the addon's to write into. Every
+     * built-in row leaves that map null and keeps resolving through {@link #enumLabel(String,
+     * String)} exactly as before; an addon row falls back to it too for any constant its map
+     * has no key for.
+     */
+    public static Component enumLabel(ConfigEditorScreen.ConfigEntry entry, String constant) {
+        if (entry.enumLabels != null) {
+            String key = entry.enumLabels.get(constant);
+            if (key != null) return Component.translatable(key);
+        }
+        return enumLabel(entry.enumType, constant);
     }
 
     /**

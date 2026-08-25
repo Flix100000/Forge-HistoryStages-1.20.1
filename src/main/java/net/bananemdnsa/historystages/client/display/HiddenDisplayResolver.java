@@ -1,5 +1,6 @@
 package net.bananemdnsa.historystages.client.display;
 
+import net.bananemdnsa.historystages.data.lock.category.BuiltInLockMatching;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
@@ -150,7 +151,7 @@ public final class HiddenDisplayResolver {
     private static NamedLockEntry matchedTag(StageEntry stage, ItemStack stack) {
         Item item = stack.getItem();
         for (NamedLockEntry tagEntry : stage.getTagEntries()) {
-            if (net.bananemdnsa.historystages.data.StageManager.tagEntryMatches(stack, item, tagEntry)) return tagEntry;
+            if (BuiltInLockMatching.tagEntryMatches(tagEntry, stack, item)) return tagEntry;
         }
         return null;
     }

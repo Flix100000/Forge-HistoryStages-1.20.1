@@ -1,10 +1,15 @@
 package net.bananemdnsa.historystages.data;
 
+import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
 import net.bananemdnsa.historystages.data.dependency.*;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class DependencyGroup {
@@ -36,6 +41,17 @@ public class DependencyGroup {
 
     private List<ScoreboardDep> scoreboard;
 
+    /**
+     * Requirements owned by other mods, keyed by requirement id.
+     *
+     * <p>Raw {@link JsonElement} for the same reason {@code StageEntry.addons} is raw: a stage
+     * file saved by an instance that does not have the owning addon installed has to round-trip
+     * this untouched, and a blank Gson binding would drop what it cannot name. Built-in
+     * requirements do not live here — they keep the typed fields above.
+     */
+    @SerializedName("addons")
+    private Map<String, JsonElement> addons;
+
     public DependencyGroup() {
         this.logic = "AND";
         this.items = new ArrayList<>();
@@ -61,6 +77,29 @@ public class DependencyGroup {
     public List<StatDep> getStats() { if (stats == null) stats = new ArrayList<>(); return stats; }
     public List<ScoreboardDep> getScoreboard() { if (scoreboard == null) scoreboard = new ArrayList<>(); return scoreboard; }
 
+    /** This requirement's stored entries, or null when the group declares none. */
+    public JsonElement addonEntries(String requirementId) {
+        return addons == null ? null : addons.get(requirementId);
+    }
+
+    /** Passing null removes the slot rather than storing an empty stub. */
+    public void setAddonEntries(String requirementId, JsonElement entries) {
+        if (entries == null) {
+            if (addons != null) {
+                addons.remove(requirementId);
+                if (addons.isEmpty()) addons = null;
+            }
+            return;
+        }
+        if (addons == null) addons = new LinkedHashMap<>();
+        addons.put(requirementId, entries);
+    }
+
+    /** The requirement ids this group has stored data for, in insertion order. */
+    public Set<String> addonRequirementIds() {
+        return addons == null ? Set.of() : Collections.unmodifiableSet(addons.keySet());
+    }
+
     // --- Setters ---
 
     public void setLogic(String logic) { this.logic = logic; }
@@ -84,7 +123,8 @@ public class DependencyGroup {
                 && xpLevel == null
                 && getEntityKills().isEmpty()
                 && getStats().isEmpty()
-                && getScoreboard().isEmpty();
+                && getScoreboard().isEmpty()
+                && (addons == null || addons.isEmpty());
     }
 
     /**
@@ -102,7 +142,8 @@ public class DependencyGroup {
                 || xpLevel != null
                 || !getEntityKills().isEmpty()
                 || !getStats().isEmpty()
-                || !getScoreboard().isEmpty();
+                || !getScoreboard().isEmpty()
+                || (addons != null && !addons.isEmpty());
     }
 
     /**
@@ -129,6 +170,15 @@ public class DependencyGroup {
         copy.setEntityKills(getEntityKills().stream().map(EntityKillDep::copy).collect(Collectors.toList()));
         copy.setStats(getStats().stream().map(StatDep::copy).collect(Collectors.toList()));
         copy.setScoreboard(getScoreboard().stream().map(ScoreboardDep::copy).collect(Collectors.toList()));
+        // Deep-copied, not shared: this is where StageEntry's addons block was silently lost once
+        // already, by building a new object and copying it field by field.
+        if (this.addons != null) {
+            Map<String, JsonElement> addonsCopy = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> e : this.addons.entrySet()) {
+                addonsCopy.put(e.getKey(), e.getValue().deepCopy());
+            }
+            copy.addons = addonsCopy;
+        }
         return copy;
     }
 }

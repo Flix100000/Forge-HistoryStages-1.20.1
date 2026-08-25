@@ -8,12 +8,12 @@ import net.bananemdnsa.historystages.client.editor.dialog.ColorInputScreen;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.EditorTooltip;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
+import net.bananemdnsa.historystages.api.editor.widget.FormattedTextScreen;
 import net.bananemdnsa.historystages.client.tooltip.ScrollTooltipContext;
 import net.bananemdnsa.historystages.client.tooltip.ScrollTooltipRenderer;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.bananemdnsa.historystages.data.graph.GraphColors;
@@ -241,13 +241,13 @@ public class ScrollTooltipScreen extends Screen {
         // One fulfilled entry, one open entry with visible progress, and the "bronze_age" stage
         // above deliberately has no matching entry at all — the three icon states the preview
         // has to demonstrate.
-        List<DependencyResult.EntryResult> entries = List.of(
-                new DependencyResult.EntryResult("item", "minecraft:iron_ingot", "5x Iron Ingot", true, 5, 5),
-                new DependencyResult.EntryResult("item", "minecraft:diamond", "3x Diamond", false, 1, 3),
-                new DependencyResult.EntryResult("individual_stage", "apprenticeship", "Apprenticeship", true, 1, 1),
-                new DependencyResult.EntryResult("xp_level", "xp", "Level 10", false, 4, 10));
-        DependencyResult result = new DependencyResult(false,
-                List.of(new DependencyResult.GroupResult("AND", false, entries)));
+        List<RequirementResult.EntryResult> entries = List.of(
+                new RequirementResult.EntryResult("item", "minecraft:iron_ingot", "5x Iron Ingot", true, 5, 5),
+                new RequirementResult.EntryResult("item", "minecraft:diamond", "3x Diamond", false, 1, 3),
+                new RequirementResult.EntryResult("individual_stage", "apprenticeship", "Apprenticeship", true, 1, 1),
+                new RequirementResult.EntryResult("xp_level", "xp", "Level 10", false, 4, 10));
+        RequirementResult result = new RequirementResult(false,
+                List.of(new RequirementResult.GroupResult("AND", false, entries)));
 
         return new ScrollTooltipContext(stageName, true, ownerName, 3, TierMode.MIN,
                 List.of(group1, group2), result);

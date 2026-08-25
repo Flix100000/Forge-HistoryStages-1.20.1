@@ -26,16 +26,26 @@ import java.util.UUID;
 public class EditorToast implements Toast, DismissibleToast {
 
     public enum Level {
-        SUCCESS(0xFFFFCC00, 0xFFFFCC00),  // editor gold
-        ERROR  (0xFFFF5555, 0xFFFF5555),  // soft red
-        INFO   (0xFF55AAFF, 0xFF55AAFF);  // soft blue
+        SUCCESS(0xFFFFCC00, 0xFFFFCC00, 1),  // editor gold
+        ERROR  (0xFFFF5555, 0xFFFF5555, 2),  // soft red
+        INFO   (0xFF55AAFF, 0xFF55AAFF, 1);  // soft blue
 
         public final int titleColor;
         public final int accentColor;
 
-        Level(int titleColor, int accentColor) {
+        /**
+         * How many times the base display time this level stays up.
+         *
+         * <p>An error is the one toast you must not miss: it says something you asked for did
+         * not happen, and it is usually the last thing you look at before wondering why. A
+         * success or a notice has the opposite job — confirm and get out of the way.
+         */
+        public final int displayTimeFactor;
+
+        Level(int titleColor, int accentColor, int displayTimeFactor) {
             this.titleColor = titleColor;
             this.accentColor = accentColor;
+            this.displayTimeFactor = displayTimeFactor;
         }
     }
 
@@ -174,7 +184,11 @@ public class EditorToast implements Toast, DismissibleToast {
         if (dismissAtMs >= 0L) {
             return Visibility.SHOW;
         }
-        return (double) timeSinceLastVisible >= (double) DISPLAY_TIME * toastComponent.getNotificationDisplayTimeMultiplier()
+        // The vanilla multiplier stays in the formula: it is the player's accessibility
+        // setting for notification length, and the per-level factor scales on top of it
+        // rather than replacing it.
+        double displayTime = (double) DISPLAY_TIME * level.displayTimeFactor;
+        return (double) timeSinceLastVisible >= displayTime * toastComponent.getNotificationDisplayTimeMultiplier()
                 ? Visibility.HIDE : Visibility.SHOW;
     }
 }

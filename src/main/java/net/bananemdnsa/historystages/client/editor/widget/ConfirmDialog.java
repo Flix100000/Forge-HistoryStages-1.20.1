@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.client.editor.widget;
 
-import net.bananemdnsa.historystages.client.editor.widget.dialog.AbstractModalScreen;
+import net.bananemdnsa.historystages.api.editor.widget.AbstractModalScreen;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;

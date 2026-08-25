@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.data.auto.conditions;
 
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
+
 import com.google.gson.annotations.SerializedName;
 
 public record ItemTrigger(@SerializedName("id") String id) implements TriggerCondition {

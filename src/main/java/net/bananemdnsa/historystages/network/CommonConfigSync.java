@@ -175,22 +175,22 @@ public final class CommonConfigSync {
 
     // --- registration helpers ---
 
-    private static void register(String key, Supplier<String> read, Consumer<String> write) {
+    private static void add(String key, Supplier<String> read, Consumer<String> write) {
         if (ENTRIES.put(key, new Entry(read, write)) != null) {
             throw new IllegalStateException("Duplicate common config sync key: " + key);
         }
     }
 
     private static void bool(String key, ModConfigSpec.BooleanValue value) {
-        register(key, () -> value.get().toString(), s -> value.set(Boolean.parseBoolean(s)));
+        add(key, () -> value.get().toString(), s -> value.set(Boolean.parseBoolean(s)));
     }
 
     private static void str(String key, ModConfigSpec.ConfigValue<String> value) {
-        register(key, value::get, value::set);
+        add(key, value::get, value::set);
     }
 
     private static void integer(String key, ModConfigSpec.IntValue value) {
-        register(key, () -> value.get().toString(), s -> {
+        add(key, () -> value.get().toString(), s -> {
             try {
                 value.set(Integer.parseInt(s.trim()));
             } catch (NumberFormatException e) {
@@ -200,7 +200,7 @@ public final class CommonConfigSync {
     }
 
     private static void dbl(String key, ModConfigSpec.DoubleValue value) {
-        register(key, () -> value.get().toString(), s -> {
+        add(key, () -> value.get().toString(), s -> {
             try {
                 value.set(Double.parseDouble(s.trim()));
             } catch (NumberFormatException e) {
@@ -215,7 +215,7 @@ public final class CommonConfigSync {
      */
     private static void list(String key, ModConfigSpec.ConfigValue<List<? extends String>> value,
                              String separator, Consumer<List<String>> onApply) {
-        register(key,
+        add(key,
                 () -> value.get().stream().map(Object::toString).collect(Collectors.joining(separator)),
                 s -> {
                     List<String> parsed = Arrays.stream(s.split(separator))
@@ -228,6 +228,25 @@ public final class CommonConfigSync {
     }
 
     // --- public API ---
+
+    /**
+     * Registers a value supplied from outside this class — an addon's common config field.
+     *
+     * <p>Keeps the same contract as the built-in entries above: read and write are declared
+     * together, so a value the editor can change is always a value that travels back to clients.
+     * The wire keys are the packet's protocol, so a duplicate is not silently overwritten — two
+     * addons quietly stepping on each other's values is exactly the class of silent bug this class
+     * exists to prevent.
+     *
+     * @throws IllegalArgumentException if {@code key} is already registered
+     */
+    public static void register(String key, Supplier<String> read, Consumer<String> write) {
+        if (ENTRIES.containsKey(key)) {
+            throw new IllegalArgumentException("A common config sync value is already registered "
+                    + "under wire key '" + key + "'.");
+        }
+        ENTRIES.put(key, new Entry(read, write));
+    }
 
     /** Every wire key this mod syncs, in config-file order. */
     public static Set<String> keys() {

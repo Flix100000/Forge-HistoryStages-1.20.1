@@ -345,7 +345,7 @@ public class PlayerPickerDropdown {
     }
 
     /**
-     * Accepts the same character set as {@link net.bananemdnsa.historystages.client.editor.widget.SearchBar}
+     * Accepts the same character set as {@link net.bananemdnsa.historystages.api.editor.widget.SearchBar}
      * — letters, digits and the separators that show up in player names. Returns false
      * for anything it does not consume, so the host screen stays in control.
      */

@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+
+import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,7 +23,7 @@ public class SearchableStatList extends AbstractSearchableList<String> {
     }
 
     public SearchableStatList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
-        super("Search stats...", onSelect, alreadyAddedSupplier);
+        super(Component.translatable("editor.historystages.search.placeholder.stats").getString(), onSelect, alreadyAddedSupplier);
     }
 
     @Override

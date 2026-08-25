@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.client.cache;
 
 import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -16,18 +16,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * one tree's result overwrite the other's.
  */
 public class ClientDependencyCache {
-    private static final Map<String, DependencyResult> CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, RequirementResult> CACHE = new ConcurrentHashMap<>();
 
-    public static void update(String stageId, boolean individual, DependencyResult result) {
+    public static void update(String stageId, boolean individual, RequirementResult result) {
         CACHE.put(StageManager.graphKey(stageId, individual), result);
     }
 
-    public static DependencyResult get(String stageId, boolean individual) {
+    public static RequirementResult get(String stageId, boolean individual) {
         return CACHE.get(StageManager.graphKey(stageId, individual));
     }
 
     public static boolean isFulfilled(String stageId, boolean individual) {
-        DependencyResult result = get(stageId, individual);
+        RequirementResult result = get(stageId, individual);
         return result == null || result.isFulfilled();
     }
 

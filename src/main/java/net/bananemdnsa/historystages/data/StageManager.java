@@ -1,9 +1,12 @@
 package net.bananemdnsa.historystages.data;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
-import net.bananemdnsa.historystages.data.lock.LockRelevanceIndex;
 import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
+import net.bananemdnsa.historystages.data.lock.category.DualPhaseIndex;
+import net.bananemdnsa.historystages.data.lock.engine.CategoryLockIndexes;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -12,7 +15,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
@@ -21,7 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import net.bananemdnsa.historystages.data.dependency.*;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
 import net.bananemdnsa.historystages.data.auto.AutoTriggerManager;
-import net.bananemdnsa.historystages.data.auto.conditions.TriggerCondition;
+import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
@@ -37,13 +39,14 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.Writer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.jetbrains.annotations.Nullable;
 
 public class StageManager {
     // ConcurrentHashMap (not HashMap) so the render thread can iterate
@@ -52,15 +55,6 @@ public class StageManager {
     // in that race; CHM's iterators are weakly consistent and never throw.
     private static final Map<String, StageEntry> STAGES = new ConcurrentHashMap<>();
     private static final Map<String, StageEntry> INDIVIDUAL_STAGES = new ConcurrentHashMap<>();
-
-    // Fast-reject filter in front of the linear item scans. Rebuilt lazily, so the many
-    // mutations a load() makes cost one rebuild in total. IMPORTANT: every place that writes
-    // to STAGES/INDIVIDUAL_STAGES must call markLockIndexDirty() — a stale index would report
-    // a staged item as irrelevant and silently unlock it.
-    private static volatile LockRelevanceIndex GLOBAL_LOCK_INDEX = LockRelevanceIndex.EMPTY;
-    private static volatile LockRelevanceIndex INDIVIDUAL_LOCK_INDEX = LockRelevanceIndex.EMPTY;
-    private static volatile boolean LOCK_INDEX_DIRTY = true;
-    private static final Object LOCK_INDEX_LOCK = new Object();
 
     /**
      * Stage ID → relative folder path inside its tree ({@code ""} = tree root). The folder
@@ -80,25 +74,6 @@ public class StageManager {
     private static final List<LoadingMessage> LOADING_MESSAGES = new ArrayList<>();
     private static final Gson GSON = new Gson();
 
-    // Dual-phase: entry ID → set of global stage IDs that share the entry with an individual stage
-    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS       = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_TAGS        = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_MODS        = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_BIOMES      = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK = new HashMap<>();
-    // Reverse: entry ID → set of individual stage IDs (used for [Dual] badge on global stage entries)
-    private static final Map<String, Set<String>> DUAL_PHASE_ITEMS_IND       = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_TAGS_IND        = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_MODS_IND        = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_DIMENSIONS_IND  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_STRUCTURES_IND  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_BIOMES_IND      = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_ATTACKLOCK_IND  = new HashMap<>();
-    private static final Map<String, Set<String>> DUAL_PHASE_INTERACTIONLOCK_IND = new HashMap<>();
-
     public enum MessageLevel { ERROR, WARN, INFO }
     public record LoadingMessage(MessageLevel level, String message) {}
 
@@ -116,7 +91,7 @@ public class StageManager {
             "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
             "mode", "auto_trigger", "temporary", "hidden_display", "lose_on_death",
-            "scroll_completion"
+            "scroll_completion", "addons", "addon_settings"
     );
 
 
@@ -145,23 +120,8 @@ public class StageManager {
     public static void load() {
         STAGES.clear();
         INDIVIDUAL_STAGES.clear();
-        markLockIndexDirty();
-        DUAL_PHASE_ITEMS.clear();
-        DUAL_PHASE_TAGS.clear();
-        DUAL_PHASE_MODS.clear();
-        DUAL_PHASE_DIMENSIONS.clear();
-        DUAL_PHASE_STRUCTURES.clear();
-        DUAL_PHASE_BIOMES.clear();
-        DUAL_PHASE_ATTACKLOCK.clear();
-        DUAL_PHASE_INTERACTIONLOCK.clear();
-        DUAL_PHASE_ITEMS_IND.clear();
-        DUAL_PHASE_TAGS_IND.clear();
-        DUAL_PHASE_MODS_IND.clear();
-        DUAL_PHASE_DIMENSIONS_IND.clear();
-        DUAL_PHASE_STRUCTURES_IND.clear();
-        DUAL_PHASE_BIOMES_IND.clear();
-        DUAL_PHASE_ATTACKLOCK_IND.clear();
-        DUAL_PHASE_INTERACTIONLOCK_IND.clear();
+        stagesChanged();
+        CategoryLockIndexes.clearDualPhase();
         LOADING_MESSAGES.clear();
         DebugLogger.clear();
 
@@ -187,7 +147,9 @@ public class StageManager {
             validateFileName(id, file.getName());
 
             try {
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                byte[] raw = java.nio.file.Files.readAllBytes(file.toPath());
+                StageFileGuard.recordLoaded(id, StageScope.GLOBAL, raw);
+                String content = new String(raw);
                 detectUnknownKeys(id, content);
 
                 StageEntry entry = GSON.fromJson(content, StageEntry.class);
@@ -342,6 +304,26 @@ public class StageManager {
         DebugLogger.warn("Dependency Groups", msg);
     }
 
+    /**
+     * Reports requirements a stage declares that its scope cannot answer — a kill or an
+     * advancement on a global stage, for instance, where there is no single player to ask.
+     *
+     * <p>Reports only. The entry stays in the file and evaluation skips it. Hand editing is a
+     * supported path here, and quietly deleting what somebody wrote is the problem the stage-file
+     * overwrite guard exists to prevent.
+     */
+    private static void warnAboutScopeMismatches(String stageId, StageEntry entry, StageScope scope) {
+        for (DependencyGroup group : entry.getDependencies()) {
+            List<String> unusable = RequirementScopeScan.unusable(group, scope);
+            if (unusable.isEmpty()) continue;
+
+            String msg = "Stage '" + stageId + "' declares " + String.join(", ", unusable)
+                    + " requirements, which only work on individual stages. They are ignored.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Dependency Scope", msg);
+        }
+    }
+
     private static void validateFileName(String id, String fileName) {
         if (!id.equals(id.toLowerCase())) {
             addMessage(MessageLevel.INFO, "File '" + fileName + "' contains uppercase letters. Lowercase recommended.");
@@ -476,6 +458,7 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        warnAboutScopeMismatches(stageId, entry, StageScope.GLOBAL);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
@@ -833,17 +816,17 @@ public class StageManager {
             DebugLogger.info("Unused Temporary Config", "Stage '" + stageId + "' has a 'temporary' config but its mode is '" + resolvedMode.serialize() + "'. The config will be ignored (only mode=temporary uses it).");
         }
 
-        int totalEntries = entry.getItemEntries().size() + entry.getTags().size() + entry.getMods().size()
-                + entry.getModExceptionEntries().size() + entry.getRecipes().size() + entry.getDimensions().size()
-                + entry.getStructures().size() + entry.getEntities().getAttacklock().size()
-                + entry.getEntities().getInteractionlock().size() + entry.getEntities().getSpawnlock().size();
+        // Asked of the registry rather than added up here: this sum used to forget biomes, and it
+        // would have called a stage empty when everything in it belonged to an addon.
+        int totalEntries = net.bananemdnsa.historystages.data.lock.category.CategoryEntryCounter
+                .totalEntries(entry);
         if (totalEntries == 0) {
             addMessage(MessageLevel.INFO, "Stage '" + stageId + "' has no content. It won't lock anything.");
             DebugLogger.info("Empty Stages", "Stage '" + stageId + "' has no content at all. It will be loaded but won't lock anything.");
         }
 
         STAGES.put(stageId, entry);
-        markLockIndexDirty();
+        stagesChanged();
         System.out.println("[HistoryStages] Stage geladen: " + stageId);
     }
 
@@ -1211,7 +1194,7 @@ public class StageManager {
         if (stages != null) {
             STAGES.putAll(stages);
         }
-        markLockIndexDirty();
+        stagesChanged();
     }
 
     public static Map<String, String> getStagePaths() { return STAGE_PATHS; }
@@ -1249,269 +1232,16 @@ public class StageManager {
         INDIVIDUAL_FOLDERS.addAll(individual);
     }
 
-    public static String getStageForItemOrMod(String itemId, String modId) {
-        for (var entry : STAGES.entrySet()) {
-            String stageName = entry.getKey();
-            StageEntry data = entry.getValue();
-
-            if (data.getItems() != null && data.getItems().contains(itemId)) return stageName;
-            if (data.getMods() != null && data.getMods().contains(modId)
-                    && !isModException(itemId, null, data)) return stageName;
-
-            List<NamedLockEntry> tags = data.getTagEntries();
-            if (!tags.isEmpty()) {
-                Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
-                if (item != null) {
-                    for (NamedLockEntry tagEntry : tags) {
-                        // NBT tags need a stack to evaluate; this stackless path skips them.
-                        if (!tagEntry.hasNbt() && item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return stageName;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForAttackLockedEntity(String entityId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            EntityLocks locks = entry.getValue().getEntities();
-            if (locks.getAttacklock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
-                continue;
-            }
-            // A spawnlock entry implies attacklock only when it blocks ALL sources.
-            for (EntitySpawnLockEntry spEntry : locks.getSpawnlock()) {
-                if (spEntry.getId().equals(entityId) && !spEntry.hasLockSources()) {
-                    allFoundStages.add(entry.getKey());
-                    break;
-                }
-            }
-        }
-        return allFoundStages;
-    }
-
     /**
-     * Returns the global stages that block the given interaction action on the given entity.
-     * Unlike attacklock, interactionlock is a standalone list — spawnlock does not imply it.
-     * A stage blocks the action if it has an interactionlock entry for the entity whose action
-     * filter covers this action (no filter = all actions blocked).
+     * The stages changed. Everything derived from them — the relevance index, the dual-phase
+     * index, and whatever a future engine bakes — is invalidated through the lock seam, not from
+     * here: the store's job is to say <em>that</em> something changed, not to know who cares.
+     *
+     * <p>Every write to STAGES or INDIVIDUAL_STAGES must reach this method. A missed call leaves
+     * a stale index, and a stale index does not throw — it quietly unlocks a staged item.
      */
-    public static List<String> getAllStagesForInteractionLockedEntity(String entityId, String action, ItemStack held) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
-                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action) && inEntry.matchesItem(held)) {
-                    allFoundStages.add(entry.getKey());
-                    break;
-                }
-            }
-        }
-        return allFoundStages;
-    }
-
-    /**
-     * Returns the stages that block the given entity for the given spawn source.
-     * A stage blocks the source if its spawnlock contains an entry for the entity that
-     * either has no source filter (= block all) or explicitly lists this source.
-     */
-    public static List<String> getAllStagesForSpawnLockedEntity(String entityId, String source, String dimension) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
-                if (spEntry.getId().equals(entityId)
-                        && spEntry.blocksSource(source)
-                        && spEntry.blocksDimension(dimension)) {
-                    allFoundStages.add(entry.getKey());
-                    break;
-                }
-            }
-        }
-        return allFoundStages;
-    }
-
-    /** Returns stages that have an entry for this entity blocking the given dimension (any source). Used by EntityJoinLevel fallback. */
-    public static List<String> getAllStagesWithSpawnlockEntry(String entityId, String dimension) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            for (EntitySpawnLockEntry spEntry : entry.getValue().getEntities().getSpawnlock()) {
-                if (spEntry.getId().equals(entityId) && spEntry.blocksDimension(dimension)) {
-                    allFoundStages.add(entry.getKey());
-                    break;
-                }
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static String getStageForDimension(String dimensionId) {
-        for (var entry : STAGES.entrySet()) {
-            StageEntry data = entry.getValue();
-            if (data.getDimensions() != null && data.getDimensions().contains(dimensionId)) {
-                return entry.getKey();
-            }
-        }
-        return null;
-    }
-
-    public static List<String> getAllStagesForDimension(String dimensionId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    // =============================================
-    // FAST REJECT (see LockRelevanceIndex)
-    // =============================================
-
-    /** Call after every write to STAGES or INDIVIDUAL_STAGES. */
-    private static void markLockIndexDirty() {
-        LOCK_INDEX_DIRTY = true;
-    }
-
-    private static void rebuildLockIndexIfDirty() {
-        if (!LOCK_INDEX_DIRTY) return;
-        synchronized (LOCK_INDEX_LOCK) {
-            if (!LOCK_INDEX_DIRTY) return;
-            GLOBAL_LOCK_INDEX = LockRelevanceIndex.build(STAGES);
-            INDIVIDUAL_LOCK_INDEX = LockRelevanceIndex.build(INDIVIDUAL_STAGES);
-            LOCK_INDEX_DIRTY = false;
-        }
-    }
-
-    /**
-     * Global stages that could reference this item. Empty means no stage can match, so the
-     * caller can skip its scan; a returned stage still has to be checked properly.
-     */
-    public static Collection<String> globalStageCandidates(String itemId, String modId, Item item) {
-        rebuildLockIndexIfDirty();
-        return GLOBAL_LOCK_INDEX.candidateStages(itemId, modId, item);
-    }
-
-    /** Individual-stage counterpart of {@link #globalStageCandidates}. */
-    public static Collection<String> individualStageCandidates(String itemId, String modId, Item item) {
-        rebuildLockIndexIfDirty();
-        return INDIVIDUAL_LOCK_INDEX.candidateStages(itemId, modId, item);
-    }
-
-    public static List<String> getAllStagesForItemOrMod(String itemId, String modId) {
-        return getAllStagesForItemOrMod(itemId, modId, null);
-    }
-
-    public static List<String> getAllStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
-        Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
-        Collection<String> candidates = globalStageCandidates(itemId, modId, item);
-        if (candidates.isEmpty()) return List.of();
-
-        List<String> allFoundStages = new ArrayList<>();
-
-        for (String stageName : candidates) {
-            StageEntry data = STAGES.get(stageName);
-            if (data == null) continue;
-
-            boolean match = false;
-            // Check Item ID (with NBT matching)
-            for (ItemEntry itemEntry : data.getItemEntries()) {
-                if (itemEntry.getId().equals(itemId)) {
-                    if (itemEntry.hasNbt()) {
-                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
-                            match = true;
-                            break;
-                        }
-                    } else {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-            // Check Mod ID (with exception check)
-            if (!match && data.getMods().contains(modId)) {
-                if (!isModException(itemId, stack, data)) {
-                    match = true;
-                }
-            }
-            // Check Tags
-            if (!match && item != null) {
-                for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (tagEntryMatches(stack, item, tagEntry)) {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-
-            if (match) {
-                allFoundStages.add(stageName);
-            }
-        }
-        return allFoundStages;
-    }
-
-    private static boolean isModException(String itemId, ItemStack stack, StageEntry data) {
-        return data.isModExcepted(itemId, stack);
-    }
-
-    /**
-     * Returns true when {@code item} is in the tag entry's tag AND, if the entry carries an
-     * NBT criterion, the stack matches it. When the entry has NBT but no stack is available,
-     * this returns false (cannot confirm) — mirroring how NBT item entries behave stacklessly.
-     */
-    public static boolean tagEntryMatches(ItemStack stack, Item item, NamedLockEntry tagEntry) {
-        if (item == null) return false;
-        if (!item.builtInRegistryHolder().is(tagEntry.getItemTagKey())) return false;
-        if (!tagEntry.hasNbt()) return true;
-        return stack != null && NbtMatcher.matches(stack, tagEntry.getNbt());
-    }
-
-    /**
-     * Checks whether a specific lock action applies to an item in the given stage entry.
-     * Returns true when the item matches this stage AND the action is restricted
-     * (either because no unlock_actions field is set — all actions locked — or because
-     * the action is NOT in the unlock_actions list).
-     * Returns false when the item does not match this stage at all.
-     */
-    public static boolean isItemActionLockedForStage(String itemId, String modId,
-            net.minecraft.world.item.ItemStack stack, String action, StageEntry data) {
-        Item item = stack != null ? stack.getItem() : null;
-
-        for (ItemEntry entry : data.getItemEntries()) {
-            if (!entry.getId().equals(itemId)) continue;
-            boolean nbtMatch = !entry.hasNbt() || (stack != null && NbtMatcher.matches(stack, entry.getNbt()));
-            if (nbtMatch) {
-                return isActionInList(entry.getLockActions(), action);
-            }
-        }
-
-        for (NamedLockEntry modEntry : data.getModEntries()) {
-            if (modEntry.getId().equals(modId) && !isModException(itemId, stack, data)) {
-                return isActionInList(modEntry.getLockActions(), action);
-            }
-        }
-
-        if (item != null) {
-            for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                if (tagEntryMatches(stack, item, tagEntry)) {
-                    return isActionInList(tagEntry.getLockActions(), action);
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Returns true when the action should be blocked:
-     * null = all actions locked (default, no unlock_actions field in JSON).
-     * empty list = no actions locked (all unlocked).
-     * non-empty list = only the listed actions are locked.
-     */
-    private static boolean isActionInList(List<String> lockActions, String action) {
-        if (lockActions == null) return true;
-        return lockActions.contains(action);
+    private static void stagesChanged() {
+        StageLocks.stagesChanged();
     }
 
     public static int getResearchTimeInTicks(String stageId) {
@@ -1555,10 +1285,20 @@ public class StageManager {
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             STAGES.put(stageId, entry);
-            markLockIndexDirty();
+            stagesChanged();
             STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Stage Save", "Saved stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
+            // Re-read what actually landed on disk so the overwrite guard stays correct even
+            // if a future caller forgets to reload. The save already succeeded, so a failure
+            // here must not turn it into a reported failure.
+            try {
+                StageFileGuard.recordLoaded(stageId, StageScope.GLOBAL,
+                        java.nio.file.Files.readAllBytes(file.toPath()));
+            } catch (Exception e) {
+                DebugLogger.error("Stage Saving", "Failed to refresh overwrite guard for '"
+                        + stageId + "': " + e.getMessage());
+            }
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save stage: " + stageId + " - " + e.getMessage());
@@ -1581,7 +1321,7 @@ public class StageManager {
         File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             STAGES.remove(stageId);
-            markLockIndexDirty();
+            stagesChanged();
             STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Stage Delete", "Deleted stage '" + stageId + "'");
             return true;
@@ -1596,78 +1336,8 @@ public class StageManager {
         return order;
     }
 
-    public static boolean isRecipeIdLockedForServer(String recipeId) {
-        return isRecipeIdLocked(recipeId, false);
-    }
-
-    public static boolean isRecipeIdLocked(String recipeId, boolean isClientSide) {
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (isClientSide) {
-                    if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(entry.getKey())) {
-                        return true;
-                    }
-                } else {
-                    if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(entry.getKey())) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Client-side check whether a recipe ID is locked by any not-yet-unlocked
-     * individual stage. Mirrors {@link #isRecipeIdLocked} for individual stages,
-     * which the global check ignores.
-     */
-    public static boolean isRecipeIdLockedByIndividualStageClient(String recipeId) {
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getRecipes().contains(recipeId)) {
-                if (!net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache.isStageUnlocked(entry.getKey())) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    public static boolean isItemLockedForServer(ItemStack stack) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-        if (requiredStages.isEmpty()) return false;
-
-        for (String stage : requiredStages) {
-            if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public static boolean isItemLocked(ItemStack stack, boolean isClientSide) {
-        if (stack.isEmpty()) return false;
-        ResourceLocation res = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        if (res == null) return false;
-
-        List<String> requiredStages = getAllStagesForItemOrMod(res.toString(), res.getNamespace(), stack);
-        if (requiredStages.isEmpty()) return false;
-
-        for (String stage : requiredStages) {
-            if (isClientSide) {
-                if (!net.bananemdnsa.historystages.client.cache.ClientStageCache.isStageUnlocked(stage)) return true;
-            } else {
-                if (!net.bananemdnsa.historystages.data.saveddata.StageData.SERVER_CACHE.contains(stage)) return true;
-            }
-        }
-        return false;
-    }
-
+    /** @deprecated Phase 0 seam: use {@link net.bananemdnsa.historystages.util.lock.StageLockHelper}. */
+    @Deprecated
     // =============================================
     // INDIVIDUAL STAGES
     // =============================================
@@ -1695,13 +1365,17 @@ public class StageManager {
             validateFileName(id, file.getName());
 
             try {
-                String content = new String(java.nio.file.Files.readAllBytes(file.toPath()));
+                byte[] raw = java.nio.file.Files.readAllBytes(file.toPath());
+                StageFileGuard.recordLoaded(id, StageScope.INDIVIDUAL, raw);
+                String content = new String(raw);
                 detectUnknownKeys(id, content);
 
                 StageEntry entry = GSON.fromJson(content, StageEntry.class);
 
                 if (entry != null) {
                     stripUnsupportedIndividualCategories(id, entry);
+                    warnUnsupportedScopeSettingsGroups(id, entry);
+                    warnUnsupportedScopeTriggers(id, entry);
                     validateAndAddIndividual(id, entry);
                     // See load(): a rejected stage leaves no path entry behind.
                     if (INDIVIDUAL_STAGES.containsKey(id)) INDIVIDUAL_STAGE_PATHS.put(id, folder);
@@ -1717,7 +1391,7 @@ public class StageManager {
             }
         }
 
-        detectOverlaps();
+        rebuildDualPhase();
 
         // Stage definitions carry the block_generation lists, so the worldgen gate has to be
         // rebuilt here too — StageData.load() alone doesn't cover a world without saved data.
@@ -1808,6 +1482,60 @@ public class StageManager {
         }
     }
 
+    /**
+     * Warns about (but does not remove) an addon settings block whose group does not support
+     * {@link net.bananemdnsa.historystages.api.stage.StageScope#INDIVIDUAL}.
+     *
+     * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
+     * deliberately not deleting anything: that method operates on this mod's own built-in
+     * fields, where the meaning is fixed. Here the data belongs to another mod, and its scope
+     * declaration may change on the addon's next update — ignoring the block is reversible,
+     * deleting it is not. A group id that resolves to nothing (addon not installed) is skipped
+     * silently; that is not something to report on every world load.
+     */
+    private static void warnUnsupportedScopeSettingsGroups(String stageId, StageEntry entry) {
+        for (String groupId : entry.addonSettingsGroupIds()) {
+            net.bananemdnsa.historystages.api.settings.StageSettingsGroup group =
+                    net.bananemdnsa.historystages.data.settings.StageSettingsGroups.byId(groupId);
+            if (group == null) continue;
+            if (group.supportedScopes().contains(
+                    net.bananemdnsa.historystages.api.stage.StageScope.INDIVIDUAL)) {
+                continue;
+            }
+            String msg = "Individual stage '" + stageId + "' has settings for group '" + groupId
+                    + "', which does not support individual stages. Values are ignored but kept in the file.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Individual Stage Loading", msg);
+        }
+    }
+
+    /**
+     * Warns about (but does not remove) an auto-trigger whose type does not support
+     * {@link net.bananemdnsa.historystages.api.stage.StageScope#INDIVIDUAL}.
+     *
+     * <p>Deliberately not folded into {@link #stripUnsupportedIndividualCategories}, and
+     * deliberately not deleting anything, for the same reason {@link
+     * #warnUnsupportedScopeSettingsGroups}: the trigger type may belong to another mod whose
+     * scope declaration can change on its next update — ignoring the trigger is reversible,
+     * deleting it is not. A type that resolves to nothing (addon not installed) reports both
+     * scopes, so it never reaches the warning branch — that is not something to report on
+     * every world load.
+     */
+    private static void warnUnsupportedScopeTriggers(String stageId, StageEntry entry) {
+        if (!entry.getMode().usesAutoTrigger()) return;
+        AutoTrigger at = entry.getAutoTrigger();
+        if (at == null || at.isEmpty()) return;
+        for (TriggerCondition t : at.getTriggers()) {
+            if (net.bananemdnsa.historystages.data.auto.TriggerTypes.scopesOf(t.type()).contains(StageScope.INDIVIDUAL)) {
+                continue;
+            }
+            String msg = "Individual stage '" + stageId + "' has a trigger of type '" + t.type()
+                    + "', which does not support individual stages. Trigger is ignored but kept in the file.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Individual Stage Loading", msg);
+        }
+    }
+
     private static void validateAndAddIndividual(String stageId, StageEntry entry) {
         if (STAGES.containsKey(stageId)) {
             String msg = "Individual stage '" + stageId + "' has the same ID as a global stage. Individual stage skipped.";
@@ -1817,6 +1545,9 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        // No-op today, because every built-in works at INDIVIDUAL scope. Here anyway, so a
+        // requirement that later declares itself global-only is caught on this side too.
+        warnAboutScopeMismatches(stageId, entry, StageScope.INDIVIDUAL);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
         removeEmptyStrings(entry.getTags(), stageId, "tags");
@@ -1933,133 +1664,23 @@ public class StageManager {
         }
 
         INDIVIDUAL_STAGES.put(stageId, entry);
-        markLockIndexDirty();
+        stagesChanged();
         System.out.println("[HistoryStages] Individual Stage geladen: " + stageId);
     }
 
     /**
-     * Detects overlaps between individual and global stages.
-     * Overlapping entries are registered as dual-phase: first locked globally
-     * (all paired global stages must be unlocked), then locked per-player.
-     * Covers items, tags, mods, dimensions, structures, and entity attacklock.
+     * Rebuilds dual-phase detection after stage definitions change (initial load, or a client
+     * resync). Overlapping entries are dual-phase: first locked globally (all paired global
+     * stages must be unlocked), then locked per-player. Detection itself lives in
+     * {@link DualPhaseIndex}, driven by the category registry; this method only owns replaying
+     * the resulting messages through the two logging sinks the maintainer sees on load.
      */
-    private static void detectOverlaps() {
-        // Build a lookup: entry ID -> set of all global stage IDs containing it
-        Map<String, Set<String>> globalItemMap       = new HashMap<>();
-        Map<String, Set<String>> globalTagMap        = new HashMap<>();
-        Map<String, Set<String>> globalModMap        = new HashMap<>();
-        Map<String, Set<String>> globalDimensionMap  = new HashMap<>();
-        Map<String, Set<String>> globalStructureMap  = new HashMap<>();
-        Map<String, Set<String>> globalBiomeMap      = new HashMap<>();
-        Map<String, Set<String>> globalAttacklockMap = new HashMap<>();
-        Map<String, Set<String>> globalInteractionlockMap = new HashMap<>();
-
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            String gStageId = entry.getKey();
-            StageEntry gEntry = entry.getValue();
-            for (String item : gEntry.getAllItemIds())
-                globalItemMap.computeIfAbsent(item, k -> new HashSet<>()).add(gStageId);
-            for (String tag : gEntry.getNbtFreeTags())
-                globalTagMap.computeIfAbsent(tag, k -> new HashSet<>()).add(gStageId);
-            for (String mod : gEntry.getMods())
-                globalModMap.computeIfAbsent(mod, k -> new HashSet<>()).add(gStageId);
-            for (String dim : gEntry.getDimensions())
-                globalDimensionMap.computeIfAbsent(dim, k -> new HashSet<>()).add(gStageId);
-            for (String struct : gEntry.getStructures())
-                globalStructureMap.computeIfAbsent(struct, k -> new HashSet<>()).add(gStageId);
-            for (String biome : gEntry.getBiomes())
-                globalBiomeMap.computeIfAbsent(biome, k -> new HashSet<>()).add(gStageId);
-            for (String entityId : gEntry.getEntities().getAttacklock())
-                globalAttacklockMap.computeIfAbsent(entityId, k -> new HashSet<>()).add(gStageId);
-            // Spawnlocked entities are also attacklocked globally — but only when the entry blocks all sources.
-            for (EntitySpawnLockEntry spEntry : gEntry.getEntities().getSpawnlock())
-                if (!spEntry.hasLockSources())
-                    globalAttacklockMap.computeIfAbsent(spEntry.getId(), k -> new HashSet<>()).add(gStageId);
-            for (EntityInteractionLockEntry inEntry : gEntry.getEntities().getInteractionlock())
-                globalInteractionlockMap.computeIfAbsent(inEntry.getId(), k -> new HashSet<>()).add(gStageId);
-        }
-
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            String iStageId = entry.getKey();
-            StageEntry iEntry = entry.getValue();
-
-            for (ItemEntry itemEntry : iEntry.getItemEntries()) {
-                registerDualPhase(DUAL_PHASE_ITEMS, DUAL_PHASE_ITEMS_IND, globalItemMap, itemEntry.getId(), "item", iStageId);
-            }
-            for (String tag : iEntry.getNbtFreeTags()) {
-                registerDualPhase(DUAL_PHASE_TAGS, DUAL_PHASE_TAGS_IND, globalTagMap, tag, "tag", iStageId);
-            }
-            for (String mod : iEntry.getMods()) {
-                registerDualPhase(DUAL_PHASE_MODS, DUAL_PHASE_MODS_IND, globalModMap, mod, "mod", iStageId);
-            }
-            for (String dim : iEntry.getDimensions()) {
-                registerDualPhase(DUAL_PHASE_DIMENSIONS, DUAL_PHASE_DIMENSIONS_IND, globalDimensionMap, dim, "dimension", iStageId);
-            }
-            for (String struct : iEntry.getStructures()) {
-                registerDualPhase(DUAL_PHASE_STRUCTURES, DUAL_PHASE_STRUCTURES_IND, globalStructureMap, struct, "structure", iStageId);
-            }
-            for (String biome : iEntry.getBiomes()) {
-                registerDualPhase(DUAL_PHASE_BIOMES, DUAL_PHASE_BIOMES_IND, globalBiomeMap, biome, "biome", iStageId);
-            }
-            for (String entityId : iEntry.getEntities().getAttacklock()) {
-                registerDualPhase(DUAL_PHASE_ATTACKLOCK, DUAL_PHASE_ATTACKLOCK_IND, globalAttacklockMap, entityId, "attacklock entity", iStageId);
-            }
-            for (EntityInteractionLockEntry inEntry : iEntry.getEntities().getInteractionlock()) {
-                registerDualPhase(DUAL_PHASE_INTERACTIONLOCK, DUAL_PHASE_INTERACTIONLOCK_IND, globalInteractionlockMap, inEntry.getId(), "interactionlock entity", iStageId);
-            }
-        }
-    }
-
-    /** Public entry-point for rebuilding dual-phase maps after stage definitions are updated (e.g. client sync). */
     public static void rebuildDualPhase() {
-        DUAL_PHASE_ITEMS.clear();
-        DUAL_PHASE_TAGS.clear();
-        DUAL_PHASE_MODS.clear();
-        DUAL_PHASE_DIMENSIONS.clear();
-        DUAL_PHASE_STRUCTURES.clear();
-        DUAL_PHASE_BIOMES.clear();
-        DUAL_PHASE_ATTACKLOCK.clear();
-        DUAL_PHASE_INTERACTIONLOCK.clear();
-        DUAL_PHASE_ITEMS_IND.clear();
-        DUAL_PHASE_TAGS_IND.clear();
-        DUAL_PHASE_MODS_IND.clear();
-        DUAL_PHASE_DIMENSIONS_IND.clear();
-        DUAL_PHASE_STRUCTURES_IND.clear();
-        DUAL_PHASE_BIOMES_IND.clear();
-        DUAL_PHASE_ATTACKLOCK_IND.clear();
-        DUAL_PHASE_INTERACTIONLOCK_IND.clear();
-        detectOverlaps();
+        for (String msg : CategoryLockIndexes.rebuildDualPhase(STAGES, INDIVIDUAL_STAGES)) {
+            addMessage(MessageLevel.INFO, msg);
+            DebugLogger.info("Dual-Phase Detection", msg);
+        }
     }
-
-    private static void registerDualPhase(Map<String, Set<String>> globalTarget, Map<String, Set<String>> indTarget,
-                                          Map<String, Set<String>> globalMap,
-                                          String entryId, String label, String iStageId) {
-        Set<String> globalStages = globalMap.get(entryId);
-        if (globalStages == null) return;
-        globalTarget.computeIfAbsent(entryId, k -> new HashSet<>()).addAll(globalStages);
-        indTarget.computeIfAbsent(entryId, k -> new HashSet<>()).add(iStageId);
-        String msg = "Individual stage '" + iStageId + "' " + label + " '" + entryId
-                + "' also in global stage(s) " + globalStages + " — dual-phase lock registered.";
-        addMessage(MessageLevel.INFO, msg);
-        DebugLogger.info("Dual-Phase Detection", msg);
-    }
-
-    public static Map<String, Set<String>> getDualPhaseItems()         { return DUAL_PHASE_ITEMS; }
-    public static Map<String, Set<String>> getDualPhaseTags()          { return DUAL_PHASE_TAGS; }
-    public static Map<String, Set<String>> getDualPhaseMods()          { return DUAL_PHASE_MODS; }
-    public static Map<String, Set<String>> getDualPhaseDimensions()    { return DUAL_PHASE_DIMENSIONS; }
-    public static Map<String, Set<String>> getDualPhaseStructures()    { return DUAL_PHASE_STRUCTURES; }
-    public static Map<String, Set<String>> getDualPhaseBiomes()        { return DUAL_PHASE_BIOMES; }
-    public static Map<String, Set<String>> getDualPhaseAttacklock()    { return DUAL_PHASE_ATTACKLOCK; }
-    public static Map<String, Set<String>> getDualPhaseInteractionlock()    { return DUAL_PHASE_INTERACTIONLOCK; }
-    public static Map<String, Set<String>> getDualPhaseItemsInd()      { return DUAL_PHASE_ITEMS_IND; }
-    public static Map<String, Set<String>> getDualPhaseTagsInd()       { return DUAL_PHASE_TAGS_IND; }
-    public static Map<String, Set<String>> getDualPhaseModsInd()       { return DUAL_PHASE_MODS_IND; }
-    public static Map<String, Set<String>> getDualPhaseDimensionsInd() { return DUAL_PHASE_DIMENSIONS_IND; }
-    public static Map<String, Set<String>> getDualPhaseStructuresInd() { return DUAL_PHASE_STRUCTURES_IND; }
-    public static Map<String, Set<String>> getDualPhaseBiomesInd()     { return DUAL_PHASE_BIOMES_IND; }
-    public static Map<String, Set<String>> getDualPhaseAttacklockInd() { return DUAL_PHASE_ATTACKLOCK_IND; }
-    public static Map<String, Set<String>> getDualPhaseInteractionlockInd() { return DUAL_PHASE_INTERACTIONLOCK_IND; }
 
     public static Map<String, StageEntry> getIndividualStages() {
         return INDIVIDUAL_STAGES;
@@ -2070,90 +1691,7 @@ public class StageManager {
         if (stages != null) {
             INDIVIDUAL_STAGES.putAll(stages);
         }
-        markLockIndexDirty();
-    }
-
-    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId) {
-        return getAllIndividualStagesForItemOrMod(itemId, modId, null);
-    }
-
-    public static List<String> getAllIndividualStagesForItemOrMod(String itemId, String modId, ItemStack stack) {
-        Item item = stack != null ? stack.getItem() : BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
-        Collection<String> candidates = individualStageCandidates(itemId, modId, item);
-        if (candidates.isEmpty()) return List.of();
-
-        List<String> allFoundStages = new ArrayList<>();
-
-        for (String stageName : candidates) {
-            StageEntry data = INDIVIDUAL_STAGES.get(stageName);
-            if (data == null) continue;
-
-            boolean match = false;
-            for (ItemEntry itemEntry : data.getItemEntries()) {
-                if (itemEntry.getId().equals(itemId)) {
-                    if (itemEntry.hasNbt()) {
-                        if (stack != null && NbtMatcher.matches(stack, itemEntry.getNbt())) {
-                            match = true;
-                            break;
-                        }
-                    } else {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-            if (!match && data.getMods().contains(modId)) {
-                if (!isModException(itemId, stack, data)) {
-                    match = true;
-                }
-            }
-            if (!match && item != null) {
-                for (NamedLockEntry tagEntry : data.getTagEntries()) {
-                    if (tagEntryMatches(stack, item, tagEntry)) {
-                        match = true;
-                        break;
-                    }
-                }
-            }
-
-            if (match) {
-                allFoundStages.add(stageName);
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllIndividualStagesForAttackLockedEntity(String entityId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getEntities().getAttacklock().contains(entityId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllIndividualStagesForInteractionLockedEntity(String entityId, String action, ItemStack held) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            for (EntityInteractionLockEntry inEntry : entry.getValue().getEntities().getInteractionlock()) {
-                if (inEntry.getId().equals(entityId) && inEntry.blocksAction(action) && inEntry.matchesItem(held)) {
-                    allFoundStages.add(entry.getKey());
-                    break;
-                }
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static List<String> getAllIndividualStagesForDimension(String dimensionId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            if (entry.getValue().getDimensions() != null && entry.getValue().getDimensions().contains(dimensionId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
+        stagesChanged();
     }
 
     public static boolean saveIndividualStage(String stageId, StageEntry entry) {
@@ -2182,10 +1720,20 @@ public class StageManager {
         try (Writer writer = new FileWriter(file)) {
             writer.write(entry.toJson());
             INDIVIDUAL_STAGES.put(stageId, entry);
-            markLockIndexDirty();
+            stagesChanged();
             INDIVIDUAL_STAGE_PATHS.put(stageId, folder);
             DebugLogger.runtime("Individual Stage Save", "Saved individual stage '" + stageId + "' to "
                     + StagePaths.join(folder, file.getName()));
+            // Re-read what actually landed on disk so the overwrite guard stays correct even
+            // if a future caller forgets to reload. The save already succeeded, so a failure
+            // here must not turn it into a reported failure.
+            try {
+                StageFileGuard.recordLoaded(stageId, StageScope.INDIVIDUAL,
+                        java.nio.file.Files.readAllBytes(file.toPath()));
+            } catch (Exception e) {
+                DebugLogger.error("Individual Stage Saving", "Failed to refresh overwrite guard for '"
+                        + stageId + "': " + e.getMessage());
+            }
             return true;
         } catch (Exception e) {
             System.err.println("[HistoryStages] Failed to save individual stage: " + stageId + " - " + e.getMessage());
@@ -2205,12 +1753,46 @@ public class StageManager {
         File file = new File(dir, stageId + ".json");
         if (file.exists() && file.delete()) {
             INDIVIDUAL_STAGES.remove(stageId);
-            markLockIndexDirty();
+            stagesChanged();
             INDIVIDUAL_STAGE_PATHS.remove(stageId);
             DebugLogger.runtime("Individual Stage Delete", "Deleted individual stage '" + stageId + "'");
             return true;
         }
         return false;
+    }
+
+    /**
+     * The bytes of this stage's file as they are on disk right now, or null when there is no
+     * file. Used by the overwrite guard, which has to compare against reality rather than
+     * against what this class believes it loaded.
+     *
+     * <p>{@code targetFolder} must be the exact same value the caller is about to pass to
+     * {@code saveStage}/{@code saveIndividualStage}, so this checks the file the save is about
+     * to write rather than a different one. See {@link #saveStage(String, StageEntry, String)}.
+     */
+    @Nullable
+    public static byte[] stageFileBytes(String stageId, boolean individual, @Nullable String targetFolder) {
+        Map<String, String> paths = individual ? INDIVIDUAL_STAGE_PATHS : STAGE_PATHS;
+        // Copied verbatim from saveStage/saveIndividualStage's folder resolution, not
+        // simplified to getOrDefault: the two must never be able to drift apart, because if
+        // they ever pointed at different files this guard would silently bless an overwrite.
+        String folder = paths.containsKey(stageId)
+                ? paths.get(stageId)
+                : (targetFolder == null ? "" : targetFolder);
+        File dir = StagePaths.resolve(treeRoot(individual), folder);
+        if (dir == null) return null;
+
+        File file = new File(dir, stageId + ".json");
+        if (!file.exists()) return null;
+
+        try {
+            return java.nio.file.Files.readAllBytes(file.toPath());
+        } catch (java.io.IOException e) {
+            // An unreadable file is not evidence that writing is safe, but it is not evidence
+            // of a hand edit either - failing every save over it would be worse than the
+            // problem this guard exists to prevent.
+            return null;
+        }
     }
 
     // =============================================
@@ -2490,48 +2072,6 @@ public class StageManager {
         return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
     }
 
-    public static List<String> getAllStagesForStructure(String structureId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : STAGES.entrySet()) {
-            List<String> structs = entry.getValue().getStructures();
-            if (structs != null && structs.contains(structureId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
-    public static boolean anyStageHasStructures() {
-        for (StageEntry entry : STAGES.values()) {
-            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
-        }
-        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
-            if (entry.getStructures() != null && !entry.getStructures().isEmpty()) return true;
-        }
-        return false;
-    }
-
-    public static boolean anyStageHasBiomes() {
-        for (StageEntry entry : STAGES.values()) {
-            if (!entry.getBiomes().isEmpty()) return true;
-        }
-        for (StageEntry entry : INDIVIDUAL_STAGES.values()) {
-            if (!entry.getBiomes().isEmpty()) return true;
-        }
-        return false;
-    }
-
-    public static List<String> getAllIndividualStagesForStructure(String structureId) {
-        List<String> allFoundStages = new ArrayList<>();
-        for (Map.Entry<String, StageEntry> entry : INDIVIDUAL_STAGES.entrySet()) {
-            List<String> structs = entry.getValue().getStructures();
-            if (structs != null && structs.contains(structureId)) {
-                allFoundStages.add(entry.getKey());
-            }
-        }
-        return allFoundStages;
-    }
-
     public static boolean isIndividualStage(String stageId) {
         return INDIVIDUAL_STAGES.containsKey(stageId);
     }
@@ -2566,6 +2106,14 @@ public class StageManager {
                     addMessage(MessageLevel.WARN, "Playtime trigger in stage '" + stageId + "' has negative days (" + pt.days() + "). Treated as 0.");
                     DebugLogger.warn("Invalid AutoTrigger Days", "Playtime trigger in stage '" + stageId + "' has days=" + pt.days() + ". Negative values are clamped to 0 at runtime.");
                 }
+            }
+            // Not a warning: a trigger whose mod is absent is expected, is kept untouched, and
+            // simply never fires. Calling it invalid would push someone to delete it.
+            default -> {
+                String msg = "Stage '" + stageId + "' has an auto_trigger of type '" + typeName
+                        + "' that no loaded mod understands. It is kept unchanged and never fires.";
+                addMessage(MessageLevel.INFO, msg);
+                DebugLogger.info("Unknown AutoTrigger", msg);
             }
         }
     }

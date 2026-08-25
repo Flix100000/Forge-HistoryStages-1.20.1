@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.api.editor.CustomFieldScreens;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
@@ -11,8 +12,10 @@ import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrom
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DurationUnitDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.PedestalTierDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.data.display.DisplayMode;
-import net.bananemdnsa.historystages.client.editor.widget.dialog.FormattedTextScreen;
+import net.bananemdnsa.historystages.api.editor.widget.FormattedTextScreen;
 import net.bananemdnsa.historystages.data.display.HiddenDisplayConfig;
 import net.bananemdnsa.historystages.data.ScrollCompletion;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
@@ -21,6 +24,12 @@ import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphInfoPacke
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.api.stage.StageScope;
+import net.bananemdnsa.historystages.api.settings.Setting;
+import net.bananemdnsa.historystages.api.settings.SettingKind;
+import net.bananemdnsa.historystages.api.settings.SettingsValues;
+import net.bananemdnsa.historystages.api.settings.StageSettingsGroup;
+import net.bananemdnsa.historystages.data.settings.StageSettingsGroups;
 import net.bananemdnsa.historystages.data.temporary.TemporaryConfig;
 import net.bananemdnsa.historystages.research.TierMode;
 import net.minecraft.client.Minecraft;
@@ -30,11 +39,17 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -47,7 +62,8 @@ public class StageSettingsScreen extends Screen {
                     int minPedestalTier, TierMode pedestalTierMode,
                     StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                     HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
-                    String scrollCompletion);
+                    String scrollCompletion,
+                    Map<String, SettingsValues> addonSettings);
     }
 
     private static final int FIELD_HEIGHT = 18;
@@ -102,6 +118,12 @@ public class StageSettingsScreen extends Screen {
     private TemporaryConfig editTemporary;
     private final HiddenDisplayConfig editHiddenDisplay;
     private boolean editLoseOnDeath;
+    /**
+     * Working copy of the stage's addon settings, keyed by group id. Copied on construction and
+     * handed back only from {@link #save()}, exactly like every other field on this screen, so
+     * closing without saving changes nothing.
+     */
+    private final Map<String, SettingsValues> editAddonSettings;
 
     // Display card state
     private EditBox nameTextField;
@@ -131,6 +153,28 @@ public class StageSettingsScreen extends Screen {
     private static final int INDIV_HINT_GAP = 4;
     private static final int INDIV_HINT_H = 10;
     private static final int INDIV_BOTTOM_PAD = 8;
+
+    /**
+     * Addon settings cards, one per group returned by {@link #applicableGroups()}, laid out below
+     * every fixed card (including the Individual card, when present). Rebuilt in {@link #init()};
+     * their editable state lives in {@link #editAddonSettings}, not in the widgets themselves, so
+     * it survives a resize the same way every other field on this screen does.
+     */
+    private final List<AddonCard> addonCards = new ArrayList<>();
+    private static final int ADDON_BODY_TOP = 28;
+    private static final int ADDON_ROW_SPACING = 22;
+    private static final int ADDON_BOTTOM_PAD = 8;
+    private static final int ADDON_TOGGLE_H = 14;
+    private static final int ADDON_INT_FIELD_W = 80;
+    private static final int ADDON_DROPDOWN_MIN_W = 100;
+
+    /**
+     * The open item picker for an ITEM addon field, or null. Mirrors {@link ConfigEditorScreen}'s
+     * field of the same purpose: one slot rather than one per row, since only one row's picker can
+     * be open at a time and every dismiss/render/input path is identical regardless of which row
+     * opened it.
+     */
+    private PickerOverlay itemPickerOverlay;
 
     private final String origStageId;
     private final String origDisplayName;
@@ -191,10 +235,10 @@ public class StageSettingsScreen extends Screen {
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
-                               String scrollCompletion,
+                               String scrollCompletion, Map<String, SettingsValues> addonSettings,
                                boolean isNewStage, boolean isIndividual, SaveCallback onSave) {
         this(parent, stageId, displayName, researchTime, minPedestalTier, pedestalTierMode,
-                mode, autoTrigger, temporary, hiddenDisplay, loseOnDeath, scrollCompletion,
+                mode, autoTrigger, temporary, hiddenDisplay, loseOnDeath, scrollCompletion, addonSettings,
                 isNewStage, isIndividual, onSave, null);
     }
 
@@ -202,7 +246,7 @@ public class StageSettingsScreen extends Screen {
                                int minPedestalTier, TierMode pedestalTierMode,
                                StageMode mode, AutoTrigger autoTrigger, TemporaryConfig temporary,
                                HiddenDisplayConfig hiddenDisplay, boolean loseOnDeath,
-                               String scrollCompletion,
+                               String scrollCompletion, Map<String, SettingsValues> addonSettings,
                                boolean isNewStage, boolean isIndividual, SaveCallback onSave,
                                Supplier<StageEntry> lockSnapshot) {
         super(Component.translatable("editor.historystages.stage_settings.title"));
@@ -222,6 +266,7 @@ public class StageSettingsScreen extends Screen {
         this.editTemporary = temporary;
         this.editHiddenDisplay = hiddenDisplay != null ? hiddenDisplay : new HiddenDisplayConfig();
         this.editLoseOnDeath = loseOnDeath;
+        this.editAddonSettings = copyAddonSettings(addonSettings);
 
         this.editScrollCompletion = scrollCompletion == null ? "" : scrollCompletion;
         this.origScrollCompletion = this.editScrollCompletion;
@@ -238,11 +283,32 @@ public class StageSettingsScreen extends Screen {
         this.origMode = this.editMode;
     }
 
+    /**
+     * Deep-copies {@code source} — a new map whose values are each {@link SettingsValues#copy()}
+     * — so this screen never holds the caller's own value objects. A shallow copy would still let
+     * a field edit here mutate a {@link SettingsValues} the caller (or another open screen) also
+     * holds, breaking "closing without Save changes nothing". A null argument becomes empty.
+     */
+    private static Map<String, SettingsValues> copyAddonSettings(Map<String, SettingsValues> source) {
+        Map<String, SettingsValues> copy = new LinkedHashMap<>();
+        if (source != null) {
+            for (Map.Entry<String, SettingsValues> entry : source.entrySet()) {
+                copy.put(entry.getKey(), entry.getValue().copy());
+            }
+        }
+        return copy;
+    }
+
     /** Registers a content widget for events + manual scrolled rendering (not auto-rendered). */
     private <T extends AbstractWidget> T addContentWidget(T w) {
         this.addWidget(w);
         contentWidgets.add(w);
         return w;
+    }
+
+    /** Groups that apply to this stage's scope, in the registry's stable id order. */
+    private List<StageSettingsGroup> applicableGroups() {
+        return StageSettingsGroups.forScope(isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL);
     }
 
     @Override
@@ -383,7 +449,8 @@ public class StageSettingsScreen extends Screen {
                                 if (autoTriggerButton != null) {
                                     autoTriggerButton.setMessage(buildAutoTriggerLabel());
                                 }
-                            }, lockSnapshot, this::save));
+                            }, lockSnapshot, this::save,
+                            isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL));
                 },
                 cardX + 12, bodyY, cardW - 24, FIELD_HEIGHT);
         addContentWidget(autoTriggerButton);
@@ -485,7 +552,222 @@ public class StageSettingsScreen extends Screen {
                 Component.translatable("editor.historystages.save"),
                 btn -> save(), this.width - 60, this.height - 25, 50, 18));
 
+        initAddonCards();
         rebuildModeSubsections();
+    }
+
+    /**
+     * Builds one {@link AddonCard} per applicable group, skipping a group whose {@link
+     * SettingsValues} is missing from {@link #editAddonSettings} (it registered after the map was
+     * built) rather than throwing. Within a card that is kept, a field is skipped when its
+     * {@link Setting#supportedScopes()} does not contain this screen's scope — a field declares
+     * its own scope, independently of its group's. A card left with no rows at all is dropped
+     * rather than added, so it never renders as an empty header.
+     */
+    private void initAddonCards() {
+        addonCards.clear();
+        StageScope scope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
+        for (StageSettingsGroup group : applicableGroups()) {
+            SettingsValues values = editAddonSettings.get(group.id());
+            if (values == null) continue;
+            AddonCard card = new AddonCard(group, values);
+            for (Setting<?> field : group.fields()) {
+                if (!field.supportedScopes().contains(scope)) continue;
+                card.rows.add(createAddonFieldRow(field, values));
+            }
+            if (card.rows.isEmpty()) continue;
+            addonCards.add(card);
+        }
+    }
+
+    /** Builds the row widget (if any) for one field, wiring it to read/write {@code values}. */
+    private AddonFieldRow createAddonFieldRow(Setting<?> field, SettingsValues values) {
+        AddonFieldRow row = new AddonFieldRow(field);
+        switch (field.kind()) {
+            case BOOL -> {
+                // Hand-drawn toggle, same as the lock-hints and lose-on-death rows — no widget to build.
+            }
+            case INTEGER -> {
+                @SuppressWarnings("unchecked")
+                Setting<Integer> intField = (Setting<Integer>) field;
+                // A value SettingsValues#set silently clamps must become visible the moment it is
+                // committed — focus lost or Enter — rather than only on the next screen open. The
+                // clamp itself already happens per keystroke via the responder below; this box
+                // only ever rewrites its own displayed text, and only at commit, so it never fights
+                // the user mid-type (typing "100" into a 0-100 field stays uninterrupted).
+                EditBox box = new EditBox(this.font, 0, 0, ADDON_INT_FIELD_W, FIELD_HEIGHT,
+                        Component.translatable(field.langKey())) {
+                    @Override
+                    public void setFocused(boolean focused) {
+                        boolean wasFocused = this.isFocused();
+                        super.setFocused(focused);
+                        if (wasFocused && !focused) setValue(String.valueOf(values.get(intField)));
+                    }
+
+                    @Override
+                    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+                        if (keyCode == 257 || keyCode == 335) { // Enter / numpad Enter
+                            setValue(String.valueOf(values.get(intField)));
+                            return true;
+                        }
+                        return super.keyPressed(keyCode, scanCode, modifiers);
+                    }
+                };
+                box.setMaxLength(10);
+                box.setValue(String.valueOf(values.get(intField)));
+                box.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+                box.setResponder(val -> {
+                    // Empty or unparseable input leaves the stored value alone rather than writing 0,
+                    // same reasoning as researchTimeField but without its own "always writes" behaviour.
+                    if (val.isEmpty()) return;
+                    try {
+                        values.set(intField, Integer.parseInt(val));
+                        hasChanges = true;
+                    } catch (NumberFormatException ignored) {
+                        // Partial input while typing (e.g. a lone '-'); wait for a full number.
+                    }
+                });
+                row.editBox = addContentWidget(box);
+            }
+            case TEXT -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> textField = (Setting<String>) field;
+                EditBox box = new EditBox(this.font, 0, 0, 100, FIELD_HEIGHT,
+                        Component.translatable(field.langKey()));
+                box.setMaxLength(256);
+                box.setValue(values.get(textField));
+                box.setResponder(val -> {
+                    values.set(textField, val);
+                    hasChanges = true;
+                });
+                row.editBox = addContentWidget(box);
+            }
+            case LONG_TEXT -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> longTextField = (Setting<String>) field;
+                // Opens the same wrapping, previewing dialog as the stage description
+                // (see descriptionButton above) rather than a one-line EditBox — this field is
+                // meant to carry format codes and/or the placeholders it declares.
+                StyledButton button = StyledButton.of(
+                        addonLongTextLabel(values, longTextField, 100),
+                        btn -> this.minecraft.setScreen(new FormattedTextScreen(
+                                this,
+                                Component.translatable(field.langKey()),
+                                values.get(longTextField),
+                                field.hintLangKey() != null
+                                        ? Component.translatable(field.hintLangKey()).getString() : "",
+                                field.placeholders(),
+                                text -> {
+                                    values.set(longTextField, text == null ? "" : text);
+                                    hasChanges = true;
+                                    row.button.setMessage(
+                                            addonLongTextLabel(values, longTextField, row.button.getWidth()));
+                                })),
+                        0, 0, 100, FIELD_HEIGHT);
+                row.button = addContentWidget(button);
+            }
+            case CUSTOM_SCREEN -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> customField = (Setting<String>) field;
+                CustomFieldScreens.Factory factory = CustomFieldScreens.forField(customField);
+                // Same shape as LONG_TEXT — a button whose label previews the value — but the
+                // screen behind it comes from the addon. Disabled when none was registered: the
+                // field is real and syncs, it just cannot be edited here, and a button that opens
+                // nothing would be worse than one that says it is unavailable.
+                StyledButton button = StyledButton.of(
+                        addonLongTextLabel(values, customField, 100),
+                        btn -> {
+                            if (factory == null) return;
+                            this.minecraft.setScreen(factory.create(this, values.get(customField),
+                                    text -> {
+                                        values.set(customField, text == null ? "" : text);
+                                        hasChanges = true;
+                                        row.button.setMessage(addonLongTextLabel(
+                                                values, customField, row.button.getWidth()));
+                                    }));
+                        },
+                        0, 0, 100, FIELD_HEIGHT);
+                button.active = factory != null;
+                row.button = addContentWidget(button);
+            }
+            case CHOICE -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> choiceField = (Setting<String>) field;
+                row.dropdown = new EnumDropdown(choiceField.optionValues(), values.get(choiceField),
+                        ADDON_DROPDOWN_MIN_W,
+                        value -> Component.translatable(choiceField.optionLangKey(value)),
+                        value -> {
+                            values.set(choiceField, value);
+                            hasChanges = true;
+                        });
+            }
+            case ITEM -> {
+                @SuppressWarnings("unchecked")
+                Setting<String> itemField = (Setting<String>) field;
+                // Same shape as LONG_TEXT: a button whose label is re-derived on every write,
+                // opening the item picker instead of a text dialog. The icon that goes with the
+                // label is drawn separately, over the button's left edge, in
+                // renderAddonCardsContent() — a StyledButton has nowhere to hang an ItemStack.
+                StyledButton button = StyledButton.of(
+                        addonItemLabel(values, itemField),
+                        btn -> openAddonItemPicker(values, itemField, row),
+                        0, 0, 100, FIELD_HEIGHT);
+                row.button = addContentWidget(button);
+            }
+        }
+        return row;
+    }
+
+    /**
+     * Shows an ITEM field's current value: the item's display name when the id resolves to a
+     * registered item, or the raw id text when it does not. A pack may reference a mod that is
+     * temporarily absent, so a non-resolving id is shown as-is rather than replaced or cleared —
+     * the same reasoning the raw-JSON settings design applies everywhere else.
+     */
+    private Component addonItemLabel(SettingsValues values, Setting<String> field) {
+        String id = values.get(field);
+        if (id == null || id.isEmpty()) {
+            return Component.translatable("editor.historystages.field.item.empty");
+        }
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl != null) {
+            Item item = BuiltInRegistries.ITEM.get(rl);
+            if (item != null && item != Items.AIR) {
+                return new ItemStack(item).getHoverName();
+            }
+        }
+        return Component.literal(id);
+    }
+
+    /**
+     * Opens the item picker for one ITEM addon field. Mirrors {@link
+     * ConfigEditorScreen#openItemPicker}: the picker is shown centred in screen coordinates, not
+     * anchored to the row, so it keeps working after the card list has been scrolled.
+     */
+    private void openAddonItemPicker(SettingsValues values, Setting<String> field, AddonFieldRow row) {
+        SearchableItemList picker = new SearchableItemList(itemId -> {
+            values.set(field, itemId);
+            hasChanges = true;
+            row.button.setMessage(addonItemLabel(values, field));
+            closePicker();
+        });
+        itemPickerOverlay = picker;
+        picker.show(this.width / 2, this.height / 2, this.width);
+    }
+
+    /**
+     * Drops the picker reference once it has hidden itself. Clicking outside the panel makes the
+     * list hide and still report the click as consumed, so without this the screen would keep a
+     * non-null but invisible overlay and never lift the dim layer again.
+     */
+    private void syncPickerState() {
+        if (itemPickerOverlay != null && !itemPickerOverlay.isVisible()) closePicker();
+    }
+
+    /** Closes the picker and reports the interaction as consumed. */
+    private boolean closePicker() {
+        itemPickerOverlay = null;
+        return true;
     }
 
     /** Width reserved for inline labels inside the card body (research time / tier / tier mode). */
@@ -597,6 +879,7 @@ public class StageSettingsScreen extends Screen {
         lockHintsToggleW = this.font.width(value) + 8;
 
         layoutIndividualCard();
+        layoutAddonCards();
     }
 
     /** Computes the Individual card geometry below the Display card. Individual stages only. */
@@ -672,9 +955,104 @@ public class StageSettingsScreen extends Screen {
         return INDIV_BODY_TOP + INDIV_TOGGLE_H + INDIV_HINT_GAP + INDIV_HINT_H + INDIV_BOTTOM_PAD;
     }
 
+    /**
+     * Computes geometry for every addon settings card, stacked below the Display card and (when
+     * present) the Individual card, in {@link #addonCards} order — which is already
+     * {@link #applicableGroups()} order because {@link #initAddonCards()} built it that way.
+     */
+    private void layoutAddonCards() {
+        if (addonCards.isEmpty()) return;
+        int y = displayCardY + displayCardH + 6;
+        if (isIndividual) y += indivCardH + 6;
+
+        for (AddonCard card : addonCards) {
+            card.x = displayCardX;
+            card.w = displayCardW;
+            card.y = y;
+            card.h = computeAddonCardHeight(card);
+            layoutAddonCardRows(card);
+            y += card.h + 6;
+        }
+    }
+
+    /** Positions one card's rows and their controls. Labels share one inset, like the Display card. */
+    private void layoutAddonCardRows(AddonCard card) {
+        if (card.rows.isEmpty()) return;
+        int bodyY = card.y + ADDON_BODY_TOP;
+        int labelX = card.x + 12;
+
+        int labelW = 0;
+        for (AddonFieldRow row : card.rows) {
+            labelW = Math.max(labelW, this.font.width(Component.translatable(row.field.langKey()).getString()));
+        }
+        int controlX = labelX + labelW + 8;
+        int controlMaxW = Math.max(30, (card.x + card.w - 12) - controlX);
+
+        for (int i = 0; i < card.rows.size(); i++) {
+            AddonFieldRow row = card.rows.get(i);
+            row.rowY = bodyY + i * ADDON_ROW_SPACING;
+            switch (row.field.kind()) {
+                case BOOL -> {
+                    String value = boolValueLabel(boolValue(card.values, row.field));
+                    row.toggleX = controlX;
+                    row.toggleW = this.font.width(value) + 8;
+                }
+                case INTEGER -> row.editBox.setPosition(controlX, row.rowY);
+                case TEXT -> {
+                    row.editBox.setPosition(controlX, row.rowY);
+                    row.editBox.setWidth(controlMaxW);
+                }
+                case LONG_TEXT -> {
+                    @SuppressWarnings("unchecked")
+                    Setting<String> longTextField = (Setting<String>) row.field;
+                    row.button.setPosition(controlX, row.rowY);
+                    row.button.setWidth(controlMaxW);
+                    row.button.setMessage(addonLongTextLabel(card.values, longTextField, controlMaxW));
+                }
+                case CUSTOM_SCREEN -> {
+                    @SuppressWarnings("unchecked")
+                    Setting<String> customField = (Setting<String>) row.field;
+                    row.button.setPosition(controlX, row.rowY);
+                    row.button.setWidth(controlMaxW);
+                    row.button.setMessage(addonLongTextLabel(card.values, customField, controlMaxW));
+                }
+                case CHOICE -> row.dropdown.setPosition(controlX, row.rowY);
+                case ITEM -> {
+                    @SuppressWarnings("unchecked")
+                    Setting<String> itemField = (Setting<String>) row.field;
+                    row.button.setPosition(controlX, row.rowY);
+                    row.button.setWidth(controlMaxW);
+                    row.button.setMessage(addonItemLabel(card.values, itemField));
+                }
+            }
+        }
+    }
+
+    /** Addon-card height (scroll-invariant): header plus one row per row actually built. */
+    private int computeAddonCardHeight(AddonCard card) {
+        return ADDON_BODY_TOP + card.rows.size() * ADDON_ROW_SPACING + ADDON_BOTTOM_PAD;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean boolValue(SettingsValues values, Setting<?> field) {
+        return values.get((Setting<Boolean>) field);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setBoolValue(SettingsValues values, Setting<?> field, boolean value) {
+        values.set((Setting<Boolean>) field, value);
+    }
+
+    private String boolValueLabel(boolean value) {
+        return Component.translatable(value
+                ? "editor.historystages.display.on"
+                : "editor.historystages.display.off").getString();
+    }
+
     private void clampScroll() {
         int contentBottom = CARD_TOP + computeCardHeight() + 6 + computeDisplayCardHeight();
         if (isIndividual) contentBottom += 6 + computeIndividualCardHeight();
+        for (AddonCard card : addonCards) contentBottom += 6 + computeAddonCardHeight(card);
         maxScroll = Math.max(0, contentBottom + 6 - viewBottom);
         if (scrollY < 0) scrollY = 0;
         if (scrollY > maxScroll) scrollY = maxScroll;
@@ -682,6 +1060,11 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
+        // The picker sits on top and owns the wheel while it is open; the grid it lists items in
+        // scrolls on its own, independently of this screen's card list.
+        syncPickerState();
+        if (itemPickerOverlay != null) return itemPickerOverlay.mouseScrolled(mouseX, mouseY, dx, dy);
+
         if (maxScroll > 0) {
             modeDropdownOpen = false;
             if (durationUnitDropdown != null) durationUnitDropdown.close();
@@ -690,6 +1073,11 @@ public class StageSettingsScreen extends Screen {
             if (tooltipModeDropdown != null) tooltipModeDropdown.close();
             // An expanded popup would keep its old screen position while the rows move under it.
             if (scrollCompletionDropdown != null) scrollCompletionDropdown.close();
+            for (AddonCard card : addonCards) {
+                for (AddonFieldRow row : card.rows) {
+                    if (row.dropdown != null) row.dropdown.close();
+                }
+            }
             scrollY -= (int) (dy * 12);
             clampScroll();
             return true;
@@ -699,6 +1087,12 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        // The picker sits on top and owns the pointer while it is open. Without this its own
+        // scrollbar takes the press, sets itself dragging, and then never hears another mouse
+        // move — the thumb stays where it jumped to and nothing follows the cursor.
+        syncPickerState();
+        if (itemPickerOverlay != null && itemPickerOverlay.mouseDragged(mouseX, mouseY)) return true;
+
         if (scrollBarDragging) {
             updateScrollFromMouse(mouseY);
             return true;
@@ -708,6 +1102,11 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        // Likewise: without this the picker's drag flag is never cleared, so its thumb keeps
+        // rendering as held and the next press behaves as though the button were still down.
+        syncPickerState();
+        if (itemPickerOverlay != null && itemPickerOverlay.mouseReleased()) return true;
+
         if (scrollBarDragging) {
             scrollBarDragging = false;
             return true;
@@ -745,6 +1144,20 @@ public class StageSettingsScreen extends Screen {
         return Component.literal(this.font.plainSubstrByWidth(flat, Math.max(20, fieldWidth - 12)));
     }
 
+    /**
+     * Shows the first line of a {@link SettingKind#LONG_TEXT} field's current value, truncated to
+     * {@code maxWidth}, or the shared "nothing written yet" prompt when the value is empty. Mirrors
+     * {@link #descriptionLabel()}.
+     */
+    private Component addonLongTextLabel(SettingsValues values, Setting<String> field, int maxWidth) {
+        String value = values.get(field);
+        if (value == null || value.isBlank()) {
+            return Component.translatable("editor.historystages.field.long_text.empty");
+        }
+        String flat = value.replace('\n', ' ');
+        return Component.literal(this.font.plainSubstrByWidth(flat, Math.max(20, maxWidth - 12)));
+    }
+
     private void save() {
         String id = editStageId.trim();
         if (id.isEmpty()) {
@@ -762,9 +1175,12 @@ public class StageSettingsScreen extends Screen {
         saveError = "";
         // The callback hands the values up and persists the stage; staying put is deliberate,
         // so Save never yanks the user out of the screen they are working in.
+        // This screen stays open after Save, so handing back the live map would let every later
+        // keystroke reach straight into the editor's state, including keystrokes the user then
+        // abandons by closing without saving. Copy it out, same as it was copied in.
         onSave.onSave(editStageId, editDisplayName, editResearchTime, editMinTier, editTierMode,
                 editMode, editAutoTrigger, editTemporary, editHiddenDisplay, editLoseOnDeath,
-                editScrollCompletion);
+                editScrollCompletion, copyAddonSettings(editAddonSettings));
 
         // The description rides in graph_stages.json, not in the stage entry, so it has its own
         // packet. Keyed on the original id: a rename is the rename logic's business, and writing
@@ -855,10 +1271,18 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        syncPickerState();
+        if (itemPickerOverlay != null) {
+            if (keyCode == 256) return closePicker(); // ESC
+            boolean consumed = itemPickerOverlay.keyPressed(keyCode);
+            syncPickerState();
+            return consumed;
+        }
         if (stageIdField.isFocused() || displayNameField.isFocused() || researchTimeField.isFocused()
                 || durationField.isFocused() || maxTriggersField.isFocused() || cooldownField.isFocused()
                 || (nameTextField != null && nameTextField.isFocused())
-                || (tooltipTextField != null && tooltipTextField.isFocused())) {
+                || (tooltipTextField != null && tooltipTextField.isFocused())
+                || isAnyAddonFieldFocused()) {
             return super.keyPressed(keyCode, scanCode, modifiers);
         }
         if (keyCode == 256) { // ESC
@@ -870,12 +1294,21 @@ public class StageSettingsScreen extends Screen {
     }
 
     @Override
+    public boolean charTyped(char c, int modifiers) {
+        syncPickerState();
+        if (itemPickerOverlay != null) return itemPickerOverlay.charTyped(c);
+        return super.charTyped(c, modifiers);
+    }
+
+    @Override
     public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         // No-op — we draw our own background in render() and want to avoid 1.21's menu blur shader
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        syncPickerState();
+
         guiGraphics.fill(0, 0, this.width, this.height, 0xE0101010);
 
         clampScroll();
@@ -919,6 +1352,9 @@ public class StageSettingsScreen extends Screen {
             renderCard(guiGraphics, indivCardX, indivCardY, indivCardW, indivCardH,
                     "editor.historystages.individual.card");
         }
+        for (AddonCard card : addonCards) {
+            renderCard(guiGraphics, card.x, card.y, card.w, card.h, card.group.titleLangKey());
+        }
 
         // Content widgets (manually rendered at their scrolled positions)
         for (AbstractWidget w : contentWidgets) {
@@ -927,6 +1363,7 @@ public class StageSettingsScreen extends Screen {
 
         renderDisplayCardContent(guiGraphics, mouseX, mouseY);
         renderIndividualCardContent(guiGraphics, mouseX, mouseY);
+        renderAddonCardsContent(guiGraphics, mouseX, mouseY);
 
         int bodyY = cardY + 28;
 
@@ -1044,6 +1481,23 @@ public class StageSettingsScreen extends Screen {
         scrollCompletionDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         nameModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         tooltipModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+        for (AddonCard card : addonCards) {
+            for (AddonFieldRow row : card.rows) {
+                if (row.dropdown != null) row.dropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            }
+        }
+
+        // Item picker overlay for an addon ITEM field. Lifted above everything drawn so far —
+        // same treatment ConfigEditorScreen gives its own picker: text is batched and flushed
+        // after the picker's panel fills, so the cards and button labels underneath would
+        // otherwise bleed through it.
+        if (itemPickerOverlay != null) {
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 200);
+            guiGraphics.fill(0, 0, this.width, this.height, 0x80000000);
+            itemPickerOverlay.render(guiGraphics, this.font, mouseX, mouseY);
+            guiGraphics.pose().popPose();
+        }
     }
 
     private int computeCardHeight() {
@@ -1123,6 +1577,93 @@ public class StageSettingsScreen extends Screen {
         drawSmallText(g,
                 Component.translatable("editor.historystages.individual.lose_on_death.hint").getString(),
                 labelX, loseRowY + INDIV_TOGGLE_H + INDIV_HINT_GAP, 0x888888);
+    }
+
+    /**
+     * Renders every addon card's row content: the field label, plus a BOOL toggle or CHOICE
+     * dropdown button. INTEGER/TEXT rows are plain {@link EditBox}es and already render themselves
+     * as part of {@link #contentWidgets}.
+     */
+    private void renderAddonCardsContent(GuiGraphics g, int mouseX, int mouseY) {
+        for (AddonCard card : addonCards) {
+            if (card.h <= 0) continue;
+            int labelX = card.x + 12;
+            for (AddonFieldRow row : card.rows) {
+                boolean isToggle = row.field.kind() == SettingKind.BOOL;
+                int labelY = isToggle ? row.rowY + 3 : row.rowY + 5;
+                g.drawString(this.font, Component.translatable(row.field.langKey()).getString(),
+                        labelX, labelY, 0xAAAAAA, false);
+
+                if (isToggle) {
+                    renderAddonToggle(g, card, row, mouseX, mouseY);
+                } else if (row.field.kind() == SettingKind.CHOICE) {
+                    row.dropdown.renderButton(g, this.font, mouseX, mouseY);
+                } else if (row.field.kind() == SettingKind.ITEM) {
+                    renderAddonItemIcon(g, card, row);
+                }
+            }
+        }
+    }
+
+    /**
+     * Draws the resolved item's icon over the left edge of an ITEM row's button — the button
+     * itself already drew its (centred) label. Same pairing {@link
+     * net.bananemdnsa.historystages.client.editor.widget.list.ConfigRowList}'s ITEM row draws:
+     * icon, then id/name text. Nothing is drawn when the id does not resolve; the raw id the
+     * button already shows is the honest fallback then.
+     */
+    @SuppressWarnings("unchecked")
+    private void renderAddonItemIcon(GuiGraphics g, AddonCard card, AddonFieldRow row) {
+        if (row.button == null) return;
+        Setting<String> field = (Setting<String>) row.field;
+        String id = card.values.get(field);
+        if (id == null || id.isEmpty()) return;
+        ResourceLocation rl = ResourceLocation.tryParse(id);
+        if (rl == null) return;
+        Item item = BuiltInRegistries.ITEM.get(rl);
+        if (item == null || item == Items.AIR) return;
+        g.renderItem(new ItemStack(item), row.button.getX() + 3, row.rowY + 1);
+    }
+
+    /** Draws one BOOL row's toggle button, matching the lock-hints/lose-on-death toggle chrome. */
+    private void renderAddonToggle(GuiGraphics g, AddonCard card, AddonFieldRow row, int mouseX, int mouseY) {
+        String value = boolValueLabel(boolValue(card.values, row.field));
+        boolean hov = mouseX >= row.toggleX && mouseX < row.toggleX + row.toggleW
+                && mouseY >= row.rowY && mouseY < row.rowY + ADDON_TOGGLE_H;
+        float hp = Ease.outCubic(row.toggleHover.ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
+        g.fill(row.toggleX, row.rowY, row.toggleX + row.toggleW, row.rowY + ADDON_TOGGLE_H,
+                Fade.mix(0xFF2A2A2A, 0xFF3D3520, hp));
+        if (hp > 0.001f) {
+            int w = Math.round(row.toggleW * hp);
+            g.fill(row.toggleX, row.rowY + ADDON_TOGGLE_H - 1, row.toggleX + w,
+                    row.rowY + ADDON_TOGGLE_H, Fade.rgba(0xFFCC00, hp));
+        }
+        g.drawString(this.font, value, row.toggleX + 4, row.rowY + 3,
+                Fade.mix(0xFFCCCCCC, 0xFFFFCC00, hp), false);
+    }
+
+    /** Returns true if an addon card's dropdown or toggle consumed the click. */
+    private boolean handleAddonCardsClick(double mouseX, double mouseY) {
+        for (AddonCard card : addonCards) {
+            for (AddonFieldRow row : card.rows) {
+                if (row.dropdown != null && row.dropdown.mouseClicked(mouseX, mouseY)) return true;
+            }
+        }
+        for (AddonCard card : addonCards) {
+            if (card.h <= 0) continue;
+            for (AddonFieldRow row : card.rows) {
+                if (row.field.kind() != SettingKind.BOOL) continue;
+                if (mouseX >= row.toggleX && mouseX < row.toggleX + row.toggleW
+                        && mouseY >= row.rowY && mouseY < row.rowY + ADDON_TOGGLE_H) {
+                    setBoolValue(card.values, row.field, !boolValue(card.values, row.field));
+                    hasChanges = true;
+                    Minecraft.getInstance().getSoundManager().play(
+                            SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Returns true if an Individual-card control consumed the click. */
@@ -1217,6 +1758,15 @@ public class StageSettingsScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Item picker overlay: it is drawn on top of everything, so it must get the click before
+        // anything underneath it does.
+        syncPickerState();
+        if (itemPickerOverlay != null) {
+            boolean consumed = itemPickerOverlay.mouseClicked(mouseX, mouseY);
+            syncPickerState();
+            return consumed || closePicker();
+        }
+
         // Scrollbar drag start (takes priority)
         if (button == 0 && maxScroll > 0) {
             int barX = this.width - 28;
@@ -1279,6 +1829,7 @@ public class StageSettingsScreen extends Screen {
         if (tooltipModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (button == 0 && handleDisplayCardClick(mouseX, mouseY)) return true;
         if (button == 0 && handleIndividualCardClick(mouseX, mouseY)) return true;
+        if (button == 0 && handleAddonCardsClick(mouseX, mouseY)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -1288,5 +1839,51 @@ public class StageSettingsScreen extends Screen {
         g.pose().scale(SMALL_SCALE, SMALL_SCALE, 1.0f);
         g.drawString(this.font, text, 0, 0, color, false);
         g.pose().popPose();
+    }
+
+    /** Whether an INTEGER/TEXT field in any addon card currently has keyboard focus. */
+    private boolean isAnyAddonFieldFocused() {
+        for (AddonCard card : addonCards) {
+            for (AddonFieldRow row : card.rows) {
+                if (row.editBox != null && row.editBox.isFocused()) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * One rendered card for an addon-declared settings group. Geometry is recomputed every frame
+     * in {@link #layoutAddonCards()}; {@link #values} is the same {@link SettingsValues} instance
+     * held in {@link #editAddonSettings}, so a row's edit writes straight into the save seam.
+     */
+    private static final class AddonCard {
+        final StageSettingsGroup group;
+        final SettingsValues values;
+        final List<AddonFieldRow> rows = new ArrayList<>();
+        int x, y, w, h;
+
+        AddonCard(StageSettingsGroup group, SettingsValues values) {
+            this.group = group;
+            this.values = values;
+        }
+    }
+
+    /** One row inside an {@link AddonCard}, one per non-ITEM field the group declares. */
+    private static final class AddonFieldRow {
+        final Setting<?> field;
+        int rowY;
+        // BOOL only: hand-drawn toggle geometry + hover animation.
+        int toggleX, toggleW;
+        final Anim toggleHover = new Anim();
+        // INTEGER/TEXT only.
+        EditBox editBox;
+        // CHOICE only.
+        EnumDropdown dropdown;
+        // LONG_TEXT only.
+        StyledButton button;
+
+        AddonFieldRow(Setting<?> field) {
+            this.field = field;
+        }
     }
 }

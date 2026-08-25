@@ -1,7 +1,7 @@
 package net.bananemdnsa.historystages.client.tooltip;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.research.TierMode;
 
 import java.util.List;
@@ -28,5 +28,5 @@ import java.util.List;
  */
 public record ScrollTooltipContext(String stageName, boolean individual, String ownerName,
                                     int minTier, TierMode tierMode,
-                                    List<DependencyGroup> groups, DependencyResult result) {
+                                    List<DependencyGroup> groups, RequirementResult result) {
 }

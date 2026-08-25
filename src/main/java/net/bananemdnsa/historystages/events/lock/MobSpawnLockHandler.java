@@ -1,8 +1,9 @@
 package net.bananemdnsa.historystages.events.lock;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.StageManager;
-import net.bananemdnsa.historystages.data.saveddata.StageData;
+import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.MobSpawnType;
@@ -28,15 +29,13 @@ public class MobSpawnLockHandler {
 
         String source = mapSpawnSource(event.getSpawnType());
         String dimension = event.getLevel().getLevel().dimension().location().toString();
-        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), source, dimension);
+        List<String> requiredStageIds = StageLocks.engine()
+                .gatingStagesForEntitySpawn(entityType.toString(), source, dimension, StageScope.GLOBAL);
         if (requiredStageIds.isEmpty()) return;
 
-        for (String stageId : requiredStageIds) {
-            if (!StageData.SERVER_CACHE.contains(stageId)) {
-                event.setSpawnCancelled(true);
-                event.setCanceled(true);
-                return;
-            }
+        if (LockResolution.isLocked(requiredStageIds, StageLocks.serverGlobal())) {
+            event.setSpawnCancelled(true);
+            event.setCanceled(true);
         }
     }
 
@@ -52,14 +51,12 @@ public class MobSpawnLockHandler {
         if (entityType == null) return;
 
         String dimension = event.getParentA().level().dimension().location().toString();
-        List<String> requiredStageIds = StageManager.getAllStagesForSpawnLockedEntity(entityType.toString(), "breeding", dimension);
+        List<String> requiredStageIds = StageLocks.engine()
+                .gatingStagesForEntitySpawn(entityType.toString(), "breeding", dimension, StageScope.GLOBAL);
         if (requiredStageIds.isEmpty()) return;
 
-        for (String stageId : requiredStageIds) {
-            if (!StageData.SERVER_CACHE.contains(stageId)) {
-                event.setCanceled(true);
-                return;
-            }
+        if (LockResolution.isLocked(requiredStageIds, StageLocks.serverGlobal())) {
+            event.setCanceled(true);
         }
     }
 
@@ -78,14 +75,12 @@ public class MobSpawnLockHandler {
 
         // For non-mob entities we treat any matching entry as a full block (subject to dimension filter).
         String dimension = event.getLevel().dimension().location().toString();
-        List<String> requiredStageIds = StageManager.getAllStagesWithSpawnlockEntry(entityType.toString(), dimension);
+        List<String> requiredStageIds = StageLocks.engine()
+                .gatingStagesWithSpawnEntry(entityType.toString(), dimension, StageScope.GLOBAL);
         if (requiredStageIds.isEmpty()) return;
 
-        for (String stageId : requiredStageIds) {
-            if (!StageData.SERVER_CACHE.contains(stageId)) {
-                event.setCanceled(true);
-                return;
-            }
+        if (LockResolution.isLocked(requiredStageIds, StageLocks.serverGlobal())) {
+            event.setCanceled(true);
         }
     }
 

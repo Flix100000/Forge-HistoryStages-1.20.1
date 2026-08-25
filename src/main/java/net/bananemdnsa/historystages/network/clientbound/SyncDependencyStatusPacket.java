@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.network.clientbound;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.bananemdnsa.historystages.HistoryStages;
-import net.bananemdnsa.historystages.data.dependency.DependencyResult;
+import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -27,7 +27,7 @@ public record SyncDependencyStatusPacket(String stageId, boolean individual, Str
             StreamCodec.of(SyncDependencyStatusPacket::encode, SyncDependencyStatusPacket::decode);
 
     /** Convenience constructor that serialises the result to JSON. */
-    public SyncDependencyStatusPacket(String stageId, boolean individual, DependencyResult result) {
+    public SyncDependencyStatusPacket(String stageId, boolean individual, RequirementResult result) {
         this(stageId, individual, GSON.toJson(result));
     }
 
@@ -43,7 +43,7 @@ public record SyncDependencyStatusPacket(String stageId, boolean individual, Str
 
     public static void handle(SyncDependencyStatusPacket packet, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
-            DependencyResult result = GSON.fromJson(packet.resultJson, DependencyResult.class);
+            RequirementResult result = GSON.fromJson(packet.resultJson, RequirementResult.class);
             ClientDependencyCache.update(packet.stageId, packet.individual, result);
         });
     }

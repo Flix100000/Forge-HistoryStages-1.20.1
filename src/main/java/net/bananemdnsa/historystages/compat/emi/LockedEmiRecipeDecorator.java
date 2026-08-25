@@ -4,7 +4,6 @@ import dev.emi.emi.api.recipe.EmiRecipe;
 import dev.emi.emi.api.recipe.EmiRecipeDecorator;
 import dev.emi.emi.api.stack.EmiStack;
 import dev.emi.emi.api.widget.WidgetHolder;
-import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -55,8 +54,7 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         // 1. Check by recipe ID
         ResourceLocation recipeId = recipe.getId();
         if (recipeId != null
-                && (StageManager.isRecipeIdLocked(recipeId.toString(), true)
-                    || StageManager.isRecipeIdLockedByIndividualStageClient(recipeId.toString()))) {
+                && StageLockHelper.isRecipeLockedForClient(recipeId.toString())) {
             return true;
         }
 

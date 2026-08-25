@@ -3,11 +3,12 @@ package net.bananemdnsa.historystages.events.lock;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.LockResolution;
+import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.util.DebugLogger;
-import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
-import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
@@ -27,25 +28,15 @@ public class DimensionLockHandler {
         ResourceLocation targetDim = event.getDimension().location();
         String dimId = targetDim.toString();
 
-        // Check global stages
-        List<String> requiredStageIds = StageManager.getAllStagesForDimension(dimId);
-        List<String> lockedStages = new ArrayList<>();
-        for (String stageId : requiredStageIds) {
-            if (!StageData.SERVER_CACHE.contains(stageId)) {
-                lockedStages.add(stageId);
-            }
-        }
+        List<String> requiredStageIds =
+                StageLocks.engine().gatingStagesForDimension(dimId, StageScope.GLOBAL);
+        List<String> individualStageIds =
+                StageLocks.engine().gatingStagesForDimension(dimId, StageScope.INDIVIDUAL);
 
-        // Check individual stages
-        List<String> individualStageIds = StageManager.getAllIndividualStagesForDimension(dimId);
-        if (!individualStageIds.isEmpty()) {
-            java.util.Set<String> playerStages = IndividualStageData.SERVER_CACHE.getOrDefault(player.getUUID(), java.util.Collections.emptySet());
-            for (String stageId : individualStageIds) {
-                if (!playerStages.contains(stageId)) {
-                    lockedStages.add(stageId);
-                }
-            }
-        }
+        List<String> lockedStages =
+                new ArrayList<>(LockResolution.missingStages(requiredStageIds, StageLocks.serverGlobal()));
+        lockedStages.addAll(LockResolution.missingStages(
+                individualStageIds, StageLocks.serverIndividual(player.getUUID())));
 
         if (requiredStageIds.isEmpty() && individualStageIds.isEmpty()) return;
 

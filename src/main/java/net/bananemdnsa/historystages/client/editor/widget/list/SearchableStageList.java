@@ -1,5 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
-import net.bananemdnsa.historystages.client.editor.widget.SearchBar;
+
+import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+import net.minecraft.network.chat.Component;
+import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
@@ -28,7 +31,7 @@ public class SearchableStageList extends AbstractSearchableList<SearchableStageL
 
     public SearchableStageList(Consumer<String> onSelect, boolean showIndividual,
                                Supplier<Collection<String>> alreadyAddedSupplier) {
-        super("Search stages...", onSelect, alreadyAddedSupplier);
+        super(Component.translatable("editor.historystages.search.placeholder.stages").getString(), onSelect, alreadyAddedSupplier);
         this.showIndividual = showIndividual;
     }
 
