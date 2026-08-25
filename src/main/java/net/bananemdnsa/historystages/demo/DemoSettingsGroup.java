@@ -13,7 +13,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
  *
  * <p>Off unless the game is started with {@code -Dhistorystages.demoCategory=true}, which means it
  * never exists for a player. It is written the way a real addon would write it: declare a field
- * per setting, group them under a namespaced id, and register the group. This covers all six
+ * per setting, group them under a namespaced id, and register the group. This covers all seven
  * field kinds, {@link net.bananemdnsa.historystages.api.settings.SettingKind#ITEM} included.
  */
 @EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)

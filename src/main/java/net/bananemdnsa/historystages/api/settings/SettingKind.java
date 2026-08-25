@@ -1,12 +1,12 @@
 package net.bananemdnsa.historystages.api.settings;
 
 /**
- * The six shapes a stage setting can take.
+ * The seven shapes a stage setting can take.
  *
  * <p>Deliberately a closed set: HistoryStages renders, validates and stores every field itself,
- * so a kind it does not know is a kind it cannot draw. Addons that need something else are the
- * reason a "bring your own screen" tier exists as a possible later addition — not a reason to
- * open this enum.
+ * so a kind it does not know is a kind it cannot draw. {@link #CUSTOM_SCREEN} is the answer for
+ * a value only the addon knows how to edit — it keeps the value a plain string and hands the
+ * editing to a screen the addon supplies, which is why it is not a reason to open this enum.
  */
 public enum SettingKind {
     BOOL,

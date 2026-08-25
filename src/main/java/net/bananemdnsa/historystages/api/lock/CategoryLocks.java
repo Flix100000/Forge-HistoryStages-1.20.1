@@ -24,9 +24,6 @@ import org.jetbrains.annotations.Nullable;
  * <p>Deliberately thin. Every decision worth getting wrong lives in {@link CategoryLockResolver},
  * which is free of Minecraft and therefore properly tested; this class only supplies the stage
  * maps and the right viewer. If a branch ever wants to grow here, it belongs there instead.
- *
- * <p>This is destined to become part of the public API surface. It sits in an internal package
- * because that surface is settled in a later phase, once there is something to be stable about.
  */
 public final class CategoryLocks {
 
