@@ -35,6 +35,9 @@ d) Including the official, compiled, unmodified mod artifact (e.g. the
 e) Personal modifications of the mod for your own private use, provided
    the modified version is not distributed in any form.
 
+f) Creating a technical port of the mod to a different Minecraft version
+   or a different mod loader, under the conditions set out in Section 3.
+
 ================================================================
 2. NOT PERMITTED WITHOUT WRITTEN PERMISSION
 ================================================================
@@ -43,7 +46,8 @@ a) Redistributing the source code or compiled binary outside of the
    official release channels.
 
 b) Publishing modified versions, derivative mods, or forks as a
-   standalone mod.
+   standalone mod. This does not apply to technical ports made under
+   Section 3.
 
 c) Re-uploading the mod to CurseForge, Modrinth, or any other
    distribution platform under any account other than the official one.
@@ -55,7 +59,40 @@ e) Removing or altering this license, copyright notices, or author
    attribution.
 
 ================================================================
-3. NO WARRANTY
+3. TECHNICAL PORTS TO OTHER VERSIONS OR MOD LOADERS
+================================================================
+
+Porting the mod to a different Minecraft version or a different mod
+loader is permitted without prior written permission, provided all of
+the following conditions are met:
+
+a) The port must not introduce features, content, or gameplay-affecting
+   changes beyond what exists in the official version. Any change
+   beyond a technical adaptation requires prior agreement with the
+   copyright holder; contact via Discord or GitHub before starting
+   such work.
+
+b) Before or upon release, the person creating the port must contact
+   the copyright holder (via Discord or a GitHub issue) and provide
+   access to the port's full source code. On every platform the port
+   is distributed on (CurseForge, Modrinth), its license field must be
+   set to a custom license linking to the port's license file (see
+   Appendix A). Ports that meet these terms may be listed as verified
+   on the official Wiki, CurseForge, Modrinth, and GitHub pages.
+
+c) The port's full source code must be published publicly (e.g. on
+   GitHub). It must include an unmodified copy of this license and use
+   the port license template in Appendix A for the code added
+   specifically for the port. The port's page on every platform it is
+   distributed on (CurseForge, Modrinth, GitHub) and, where applicable,
+   its in-game credits must clearly name "History Stages" as the
+   original mod and link to the official repository.
+
+Ports that do not meet these conditions are not authorized and fall
+under Section 2.
+
+================================================================
+4. NO WARRANTY
 ================================================================
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
@@ -67,7 +104,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ================================================================
-4. CONTACT
+5. CONTACT
 ================================================================
 
 For permission requests or licensing questions, join the official
@@ -77,3 +114,34 @@ Discord server and contact the maintainer there:
 
 Opening an issue on the official GitHub repository also works if you
 prefer that.
+
+================================================================
+APPENDIX A: PORT LICENSE TEMPLATE
+================================================================
+
+Anyone creating a port under Section 3 must include this text, with
+the bracketed fields filled in, as a separate license file in the
+port's repository, alongside an unmodified copy of this license (e.g.
+as LICENSE-ORIGINAL.txt).
+
+----------------------------------------------------------------
+History Stages Port License
+
+This is [PORT NAME], a technical port of History Stages
+(https://github.com/Flix100000/History-Stages) to
+[TARGET VERSION / MOD LOADER], created by [PORTER NAME] with
+permission under Section 3 of the original History Stages license.
+
+Copyright (c) [YEAR] Flix100000 for the original mod.
+Copyright (c) [YEAR] [PORTER NAME] for the changes made to create
+this port.
+
+This port, including the changes made to create it, is provided
+under the same terms as the original History Stages license (see
+LICENSE-ORIGINAL.txt in this repository), with [PORTER NAME] as the
+copyright holder for the ported code. All permissions, restrictions,
+and conditions of that license apply unchanged to this port,
+including the restriction against re-uploading or redistributing
+outside official channels, and against reusing this code in other
+projects without permission from the respective copyright holder.
+----------------------------------------------------------------
