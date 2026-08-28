@@ -1,8 +1,10 @@
 package net.bananemdnsa.historystages.network.clientbound;
-import net.bananemdnsa.historystages.network.CommonConfigSync;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
 
+import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.config.AddonConfigSections;
+import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -54,12 +56,28 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
 
     /**
      * Creates a packet with all current server-side common config values.
-     * <p>
-     * The key list lives in {@link CommonConfigSync}, shared with the apply path, so a setting
-     * can no longer be saveable but unsyncable.
+     *
+     * <p>Walks {@code COMMON_SPEC} rather than a hand-written key list, then adds the addon
+     * sections, which are not in that spec — an addon keeps its own state behind the read/write
+     * pair it registered, so the walk cannot see it. The two hand-maintained lists this replaced
+     * kept drifting apart; at one point 28 keys the editor could change were never sent anywhere.
      */
     public static SyncConfigPacket fromServerConfig() {
-        return new SyncConfigPacket(CommonConfigSync.readAll());
+        return new SyncConfigPacket(readServerConfig());
+    }
+
+    /**
+     * The full server-side common map: spec values by dotted toml path, addon values by the wire
+     * key {@link AddonConfigSections#wireKey} minted. Shared with the config editor, which needs
+     * exactly this map to refresh an open screen after a sync — building it there separately is
+     * how the addon rows would go stale while the rest of the screen updated.
+     */
+    public static Map<String, String> readServerConfig() {
+        Map<String, String> values = ConfigSpecCodec.collect(Config.COMMON_SPEC);
+        for (AddonConfigSections.CommonEntry entry : AddonConfigSections.commonEntries()) {
+            values.put(entry.wireKey(), entry.read().get());
+        }
+        return values;
     }
 
     @Override

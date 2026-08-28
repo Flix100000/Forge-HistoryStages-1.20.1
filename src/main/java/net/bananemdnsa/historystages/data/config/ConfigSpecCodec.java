@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.data.config;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +23,16 @@ public final class ConfigSpecCodec {
     /** Accepts everything the spec itself accepts. */
     public static final BiPredicate<String, String> NO_EXTRA_CHECK = (path, text) -> true;
 
+    /**
+     * Separator for list values on the wire and in the editor.
+     *
+     * <p>One separator for every list, deliberately. The per-key separators this replaced were a
+     * hand-maintained table of exactly the kind that rots, and a spec walk has nowhere to keep one.
+     * A semicolon is the only character that works for all of them: the booster and effect
+     * encodings already use commas inside a single entry, and item and tag ids contain neither.
+     */
+    public static final String LIST_SEPARATOR = ";";
+
     private ConfigSpecCodec() {}
 
     /** Snapshots every value in the spec, keyed by its dotted path, in declaration order. */
@@ -39,7 +50,7 @@ public final class ConfigSpecCodec {
                 collect(nested, path, out);
             } else if (raw instanceof ModConfigSpec.ConfigValue<?> value) {
                 Object current = value.get();
-                if (current != null) out.put(path, String.valueOf(current));
+                if (current != null) out.put(path, encode(current));
             }
         }
     }
@@ -81,6 +92,38 @@ public final class ConfigSpecCodec {
     }
 
     /**
+     * Renders one value as its wire string. Lists join on {@link #LIST_SEPARATOR}; everything else
+     * is its own {@code toString}. A list must not go through {@code String.valueOf}, which would
+     * emit Java's {@code [a, b]} — brackets and all — and no reader expects that.
+     */
+    private static String encode(Object value) {
+        if (value instanceof List<?> list) {
+            StringBuilder joined = new StringBuilder();
+            for (Object element : list) {
+                if (element == null) continue;
+                if (joined.length() > 0) joined.append(LIST_SEPARATOR);
+                joined.append(element);
+            }
+            return joined.toString();
+        }
+        return String.valueOf(value);
+    }
+
+    /**
+     * Splits a wire string into a list. Blank entries are dropped, so an empty string is an empty
+     * list rather than a list holding one empty string — the difference between clearing a list in
+     * the editor and filling it with a nameless entry.
+     */
+    private static List<String> decodeList(String text) {
+        List<String> out = new ArrayList<>();
+        for (String part : text.split(LIST_SEPARATOR)) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) out.add(trimmed);
+        }
+        return out;
+    }
+
+    /**
      * Parses a string into the type of the spec's own default value. Returns null when the text
      * cannot be read, in which case the caller keeps the current value — a server sending
      * something this client cannot parse is not worth failing a login over.
@@ -88,6 +131,7 @@ public final class ConfigSpecCodec {
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Object parseLike(Object template, String text) {
         try {
+            if (template instanceof List<?>) return decodeList(text);
             if (template instanceof Boolean) return Boolean.parseBoolean(text);
             if (template instanceof Integer) return Integer.parseInt(text);
             if (template instanceof Long) return Long.parseLong(text);

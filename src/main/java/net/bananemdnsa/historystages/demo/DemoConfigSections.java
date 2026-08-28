@@ -22,8 +22,8 @@ import net.neoforged.fml.common.EventBusSubscriber;
  * <p>This stand-in has no config file of its own, so its values live in plain static fields here
  * instead — that is a shortcut for a demo with nothing to persist to, not something to copy. A
  * real addon has its own config spec (NeoForge's {@code ModConfigSpec} or equivalent) and its
- * field's {@code read()}/{@code write()} callbacks talk to that spec directly, the same way {@link
- * net.bananemdnsa.historystages.network.CommonConfigSync} talks to this mod's own {@code Config}.
+ * field's {@code read()}/{@code write()} callbacks talk to that spec directly, the same way
+ * {@code ConfigSpecCodec} walks this mod's own {@code Config}.
  *
  * <p>{@code tradeMode} deliberately has no {@code descLangKey}. A field's description is optional,
  * and without one example of that here, {@code AddonConfigLangParityTest} would never exercise the

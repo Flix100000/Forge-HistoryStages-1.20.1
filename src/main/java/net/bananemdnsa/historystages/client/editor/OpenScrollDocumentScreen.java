@@ -105,13 +105,13 @@ public class OpenScrollDocumentScreen extends Screen {
     public OpenScrollDocumentScreen(ConfigEditorScreen parent) {
         super(Component.translatable("editor.historystages.open_scroll.title"));
         this.parent = parent;
-        this.chaptersEntry = parent.findCommonEntry("openScrollChapters");
-        this.blocksEntry = parent.findCommonEntry("openScrollOverviewBlocks");
+        this.chaptersEntry = parent.findCommonEntry("open_scroll.chapters");
+        this.blocksEntry = parent.findCommonEntry("open_scroll.overviewBlocks");
         chapters.addAll(OpenScrollChapters.parse(split(chaptersEntry.value)));
         blocks.addAll(OpenScrollOverviewBlocks.parse(split(blocksEntry.value)));
     }
 
-    /** The editor keeps list values as one ';'-joined string, the way CommonConfigSync sends them. */
+    /** The editor keeps list values as one ';'-joined string, the way the config codec sends them. */
     private static List<String> split(String value) {
         return value == null || value.isBlank() ? List.of() : List.of(value.split(";"));
     }
@@ -472,9 +472,9 @@ public class OpenScrollDocumentScreen extends Screen {
 
         // Ink comes from the live rows, not from constants: those colours are edited two screens
         // away in this very editor, and a preview that ignored them would be lying.
-        int inkHeading = ink("openScrollInkHeading", 0x3F2D13);
-        int inkBody = ink("openScrollInkBody", 0x4A3416);
-        int inkFaint = ink("openScrollInkFaint", 0x7A5A2C);
+        int inkHeading = ink("open_scroll.inkHeading", 0x3F2D13);
+        int inkBody = ink("open_scroll.inkBody", 0x4A3416);
+        int inkFaint = ink("open_scroll.inkFaint", 0x7A5A2C);
 
         List<String> labels = new ArrayList<>();
         for (OpenScrollChapterEntry entry : chapters) {
@@ -501,7 +501,7 @@ public class OpenScrollDocumentScreen extends Screen {
         // The overview page has no search line, but the preview shows the one the other chapters
         // get, because turning it off is a decision made in this editor too.
         boolean searchShown = "true".equalsIgnoreCase(
-                parent.findCommonEntry("openScrollShowSearch").value);
+                parent.findCommonEntry("open_scroll.showSearch").value);
         if (searchShown) {
             int qy = sy + OpenScrollGeometry.SEARCH_Y;
             g.drawString(this.font, "»", x, qy, 0xFF000000 | inkFaint, false);

@@ -110,11 +110,10 @@ public class HistoryStages {
                     net.bananemdnsa.historystages.data.settings.StageSettingsGroups.freeze();
                     net.neoforged.fml.ModLoader.postEvent(
                             new net.bananemdnsa.historystages.api.config.RegisterConfigSectionsEvent());
+                    // The freeze is what makes the section list safe to read from the config
+                    // packets, which now go to AddonConfigSections directly rather than through a
+                    // registry the values had to be copied into first.
                     net.bananemdnsa.historystages.data.config.AddonConfigSections.freeze();
-                    // Publish after the freeze, not before: publishing first would let a
-                    // registration that arrives later in the same dispatch slip through
-                    // unpublished — it would appear in the editor and silently never save.
-                    net.bananemdnsa.historystages.data.config.AddonConfigPublisher.publishCommonSections();
 
                     // Logged here rather than inside freeze(): LockCategories is unit-tested, and
                     // the test runtime classpath has no Minecraft or NeoForge on it. This line is

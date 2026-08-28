@@ -1,11 +1,15 @@
 package net.bananemdnsa.historystages.network.serverbound;
-import net.bananemdnsa.historystages.network.CommonConfigSync;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.config.AddonConfigSections;
+import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
+import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout;
+import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
+import net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -64,14 +68,32 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
     /**
      * Applies wire values to the common config. Runs on the server when an admin saves the editor,
      * and on the client when the server syncs back.
-     * <p>
-     * The per-key handling lives in {@link CommonConfigSync}, which also produces the synced map —
-     * one list for both directions. Before that, this was a switch and the sync packet was a
-     * separate list of puts; keys kept being added here and forgotten there, so admins could change
-     * a setting the server saved but no client ever heard about.
+     *
+     * <p>The values are addressed by dotted toml path and written by walking the spec. The two
+     * hand-maintained key lists this replaced kept drifting apart — at one point 28 keys the
+     * editor could change were never sent to any client.
+     *
+     * <p>Addon values are not in the spec and are applied separately: an addon holds its own state
+     * behind the write callback it registered, so there is nothing in {@code COMMON_SPEC} for the
+     * walk to find. Their wire keys come from {@link AddonConfigSections}, which mints them in one
+     * place precisely so collect and apply cannot disagree about what a value is called.
      */
     public static void applyCommonConfig(Map<String, String> values) {
-        CommonConfigSync.applyAll(values);
+        ConfigSpecCodec.apply(Config.COMMON_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+
+        for (AddonConfigSections.CommonEntry entry : AddonConfigSections.commonEntries()) {
+            String incoming = values.get(entry.wireKey());
+            if (incoming != null) entry.write().accept(incoming);
+        }
+
+        // Rebuilt unconditionally rather than only when their own key arrived. These three parse a
+        // config list into an in-memory registry, and a rebuild is cheap; a key-to-rebuild mapping
+        // would be one more hand-written table of exactly the kind this refactor removed, and the
+        // failure it would hide — a list that changed but kept behaving like the old one until the
+        // next restart — is invisible until someone reports it as a ghost.
+        ResearchBoosterRegistry.rebuildFromConfig(Config.COMMON.researchBoosters.get());
+        BiomeEffectRegistry.rebuildFromConfig(Config.COMMON.biomeEffects.get());
+        ScrollTooltipLayout.rebuildFromConfig(Config.COMMON.scrollTooltipLines.get());
     }
 
     @Override
