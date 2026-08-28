@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
+import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.TieredPedestal;
@@ -336,7 +337,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
                 if (reqRl != null && reqRl.equals(depositRl)
                         && (!reqItem.hasNbt() || NbtMatcher.matches(depositStack, reqItem.getNbt()))) {
-                    String key = "Group_" + i + "_Item_" + reqRl;
+                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
+                            DependencyProgress.itemSuffix(reqRl.toString()));
                     int current = deposited.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);
                     int needed = effectiveRequired - current;
@@ -418,7 +420,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             var group = entry.getDependencies().get(i);
             for (var item : group.getItems()) {
                 if (item.getId().equals(depositRl.toString())) {
-                    String key = "Group_" + i + "_Item_" + item.getId();
+                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
+                            DependencyProgress.itemSuffix(item.getId()));
                     int count = depositedData.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(item.getCount(), costReduction);
                     if (count < effectiveRequired) return true;

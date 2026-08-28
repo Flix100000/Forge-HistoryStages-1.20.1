@@ -5,6 +5,7 @@ import java.util.List;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
+import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.api.dependency.RequirementContext;
@@ -17,9 +18,10 @@ import net.minecraft.world.item.Item;
 /**
  * Items the player has to hand in — tracked via deposited NBT, not live inventory.
  *
- * <p>Progress is keyed by group index, which is a pre-existing hazard: reordering a stage's
- * groups re-attributes what was already deposited. The key scheme is left byte-for-byte as it
- * was; changing it here would silently reset every player's progress.
+ * <p>Progress is filed per group by {@link DependencyProgress}, under the group's id rather than
+ * its position. Reordering or deleting groups in the editor used to re-attribute everything a
+ * player had already deposited; a group written before ids existed still falls back to its
+ * position, so the keys on existing scrolls are unchanged.
  */
 public class ItemRequirement implements Requirement {
 
@@ -60,7 +62,7 @@ public class ItemRequirement implements Requirement {
             int original = item.getCount();
             int required = BoosterUtil.effectiveCount(original, ctx.costReduction());
             int current = (ctx.depositedData() != null)
-                    ? ctx.depositedData().getInt("Group_" + ctx.groupIndex() + "_Item_" + item.getId())
+                    ? ctx.depositedData().getInt(ctx.progressKey(DependencyProgress.itemSuffix(item.getId())))
                     : 0;
             boolean met = current >= required;
             String itemName = getItemDisplayName(item.getId());

@@ -305,6 +305,23 @@ public class StageManager {
     }
 
     /**
+     * Hands the stage's dependency groups their ids, and says so when two of them clashed.
+     *
+     * <p>The work itself is {@link DependencyProgress#assignIds}, which is where the reasoning
+     * about what an id is for lives. This method exists to turn its answer into the two places
+     * this class reports to.
+     */
+    private static void assignDependencyGroupIds(String stageId, StageEntry entry) {
+        for (String duplicate : DependencyProgress.assignIds(entry.getDependencies())) {
+            String msg = "Stage '" + stageId + "' has two dependency groups with id '" + duplicate
+                    + "'. The later one was given a new id; anything already deposited against it"
+                    + " counts for the first group.";
+            addMessage(MessageLevel.WARN, msg);
+            DebugLogger.warn("Dependency Groups", msg);
+        }
+    }
+
+    /**
      * Reports requirements a stage declares that its scope cannot answer — a kill or an
      * advancement on a global stage, for instance, where there is no single player to ask.
      *
@@ -458,6 +475,7 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        assignDependencyGroupIds(stageId, entry);
         warnAboutScopeMismatches(stageId, entry, StageScope.GLOBAL);
 
         removeEmptyItemEntries(entry.getItemEntries(), stageId);
@@ -1545,6 +1563,7 @@ public class StageManager {
         }
 
         trimDependencyGroups(stageId, entry);
+        assignDependencyGroupIds(stageId, entry);
         // No-op today, because every built-in works at INDIVIDUAL scope. Here anyway, so a
         // requirement that later declares itself global-only is caught on this side too.
         warnAboutScopeMismatches(stageId, entry, StageScope.INDIVIDUAL);

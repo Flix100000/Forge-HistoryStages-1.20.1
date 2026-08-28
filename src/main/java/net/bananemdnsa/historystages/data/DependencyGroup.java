@@ -6,10 +6,12 @@ import net.bananemdnsa.historystages.data.dependency.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 public class DependencyGroup {
@@ -20,6 +22,22 @@ public class DependencyGroup {
      * with a warning rather than silently evaluated.
      */
     public static final int MAX_GROUPS = 5;
+
+    /**
+     * This group's identity, stable across everything the editor can do to the group list.
+     *
+     * <p>Deposited progress on a research scroll is filed per group. It used to be filed by the
+     * group's position, which meant deleting or reordering a group moved every item a player had
+     * already thrown in onto a different requirement. The auto-trigger axis solved the same
+     * problem long ago — {@code TriggerCondition.signature()} says outright that the index must
+     * not be the identity — and the dependency side never got the treatment.
+     *
+     * <p>Null on a group that has just been built in memory, never on one that came off disk.
+     * That case is not a defect and needs no migration: {@code DependencyProgress.groupKey} falls back to the position, which
+     * is precisely what such a group's existing progress is already filed under. Ids are handed
+     * out when a stage is loaded, so the fallback only ever applies to a group built in memory.
+     */
+    private String id;
 
     private String logic; // "AND" or "OR"
 
@@ -63,7 +81,29 @@ public class DependencyGroup {
         this.scoreboard = new ArrayList<>();
     }
 
+    /**
+     * An id no group in {@code existing} uses.
+     *
+     * <p>Random rather than "one past the highest", because ids are not only compared against
+     * the groups that are here now: a group added where a deleted one used to be would inherit
+     * the deposits players made into the group that is gone.
+     */
+    public static String freshId(List<DependencyGroup> existing) {
+        Set<String> taken = new HashSet<>();
+        for (DependencyGroup group : existing) {
+            if (group.id != null) taken.add(group.id);
+        }
+        String candidate;
+        do {
+            candidate = "g" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        } while (taken.contains(candidate));
+        return candidate;
+    }
+
     // --- Getters ---
+
+    /** Null only on a group built in memory — a loaded stage has an id on every group. */
+    public String getId() { return id; }
 
     public String getLogic() { return logic != null ? logic : "AND"; }
     public boolean isOr() { return "OR".equalsIgnoreCase(logic); }
@@ -102,6 +142,7 @@ public class DependencyGroup {
 
     // --- Setters ---
 
+    public void setId(String id) { this.id = id; }
     public void setLogic(String logic) { this.logic = logic; }
     public void setItems(List<DependencyItem> items) { this.items = items != null ? items : new ArrayList<>(); }
     public void setStages(List<String> stages) { this.stages = stages != null ? stages : new ArrayList<>(); }
@@ -161,6 +202,10 @@ public class DependencyGroup {
 
     public DependencyGroup copy() {
         DependencyGroup copy = new DependencyGroup();
+        // The id comes along: this is how the editor's own working copies and the copy taken on
+        // save reach the file. Duplicating a group in the editor is the one case that must not
+        // keep it, and that path assigns a fresh one itself.
+        copy.setId(id);
         copy.setLogic(getLogic());
         copy.setItems(getItems().stream().map(DependencyItem::copy).collect(Collectors.toList()));
         copy.setStages(new ArrayList<>(getStages()));

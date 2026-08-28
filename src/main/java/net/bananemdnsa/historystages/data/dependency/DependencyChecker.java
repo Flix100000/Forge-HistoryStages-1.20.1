@@ -74,8 +74,8 @@ public class DependencyChecker {
         List<RequirementResult.EntryResult> entries = new ArrayList<>();
         boolean isActuallyOr = "OR".equalsIgnoreCase(group.getLogic());
 
-        RequirementContext ctx = new RequirementContext(player, level, depositedData, groupIndex,
-                costReduction, scope);
+        RequirementContext ctx = new RequirementContext(player, level, depositedData,
+                DependencyProgress.groupKey(group, groupIndex), costReduction, scope);
         for (Requirement requirement : RequirementTypes.forScope(scope)) {
             entries.addAll(requirement.evaluate(group, ctx));
         }
