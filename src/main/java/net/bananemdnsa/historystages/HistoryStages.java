@@ -254,6 +254,9 @@ public class HistoryStages {
             PacketHandler.sendGraphConfigToPlayer(
                     net.bananemdnsa.historystages.network.clientbound.SyncGraphConfigPacket
                             .fromServerConfig(), player);
+            PacketHandler.sendVisualConfigToPlayer(
+                    net.bananemdnsa.historystages.network.clientbound.SyncVisualConfigPacket
+                            .fromServerConfig(), player);
 
             // Sync individual stages for this player
             IndividualStageData individualData = IndividualStageData.get(player.serverLevel());

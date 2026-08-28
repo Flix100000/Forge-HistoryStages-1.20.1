@@ -35,6 +35,7 @@ import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStatesPac
 import net.bananemdnsa.historystages.network.clientbound.SyncIndividualStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncGraphConfigPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncVisualConfigPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStageDefinitionsPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorSyncPacket;
 import net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket;
@@ -69,6 +70,7 @@ public class PacketHandler {
         registrar.playToClient(SyncStageDefinitionsPacket.TYPE, SyncStageDefinitionsPacket.STREAM_CODEC, SyncStageDefinitionsPacket::handle);
         registrar.playToClient(SyncConfigPacket.TYPE, SyncConfigPacket.STREAM_CODEC, SyncConfigPacket::handle);
         registrar.playToClient(SyncGraphConfigPacket.TYPE, SyncGraphConfigPacket.STREAM_CODEC, SyncGraphConfigPacket::handle);
+        registrar.playToClient(SyncVisualConfigPacket.TYPE, SyncVisualConfigPacket.STREAM_CODEC, SyncVisualConfigPacket::handle);
         registrar.playToClient(SyncIndividualStagesPacket.TYPE, SyncIndividualStagesPacket.STREAM_CODEC, SyncIndividualStagesPacket::handle);
         registrar.playToClient(SyncTemporaryCountsPacket.TYPE, SyncTemporaryCountsPacket.STREAM_CODEC, SyncTemporaryCountsPacket::handle);
         registrar.playToClient(SyncIndividualStatesPacket.TYPE, SyncIndividualStatesPacket.STREAM_CODEC, SyncIndividualStatesPacket::handle);
@@ -155,6 +157,14 @@ public class PacketHandler {
     }
 
     public static void sendGraphConfigToAll(SyncGraphConfigPacket packet) {
+        PacketDistributor.sendToAllPlayers(packet);
+    }
+
+    public static void sendVisualConfigToPlayer(SyncVisualConfigPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    public static void sendVisualConfigToAll(SyncVisualConfigPacket packet) {
         PacketDistributor.sendToAllPlayers(packet);
     }
 

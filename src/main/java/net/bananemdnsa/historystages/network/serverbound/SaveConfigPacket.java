@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.network.serverbound;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncVisualConfigPacket;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
@@ -52,7 +53,22 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
             if (!(ctx.player() instanceof ServerPlayer player)) return;
             if (!player.hasPermissions(2)) return;
 
-            if (!msg.isClient) {
+            if (msg.isClient) {
+                // The visual settings are server-owned now, so this arrives instead of the editor
+                // writing them into its own client and nowhere else.
+                ConfigSpecCodec.apply(
+                        Config.CLIENT_SPEC, msg.configValues, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+                Config.CLIENT_SPEC.save();
+
+                // Everyone, including the sender: the sender's own spec is only updated by the
+                // sync path, so it must not be skipped here.
+                PacketHandler.sendVisualConfigToAll(SyncVisualConfigPacket.fromServerConfig());
+                PacketHandler.sendEditorFeedback(
+                        EditorFeedbackPacket.success(
+                                "editor.historystages.toast.config_saved.title",
+                                "editor.historystages.toast.config_saved.message"),
+                        player);
+            } else {
                 applyCommonConfig(msg.configValues);
                 Config.COMMON_SPEC.save();
                 PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());

@@ -31,8 +31,6 @@ import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
-import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
-import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -806,6 +804,34 @@ public class ConfigEditorScreen extends Screen {
     }
 
     /**
+     * The visual counterpart of {@link #onCommonConfigSynced()}, and the same reasoning: Save sends
+     * every client row, not just the edited ones, so an editor still holding its build-time
+     * snapshot would push that snapshot back and undo whichever admin saved first.
+     */
+    public static void onVisualConfigSynced() {
+        ConfigEditorScreen screen = active.get();
+        if (screen != null && screen.clientSections != null) screen.refreshVisualValues();
+    }
+
+    /**
+     * Merges the freshly synced visual values into the client rows. Same split as
+     * {@link #refreshCommonValues()}: untouched rows follow the server, edited rows keep the edit
+     * and only get a new baseline.
+     *
+     * <p>A plain spec walk is enough here, unlike the common side: addon rows are never in
+     * {@code CLIENT_SPEC}, and a CLIENT-side addon row stays local by design — it is simply absent
+     * from the map and {@link #mergeSynced} skips it.
+     */
+    private void refreshVisualValues() {
+        Map<String, String> fresh = ConfigSpecCodec.collect(Config.CLIENT_SPEC);
+        for (ConfigSection section : clientSections) {
+            for (ConfigEntry entry : section.entries) {
+                mergeSynced(entry, fresh);
+            }
+        }
+    }
+
+    /**
      * The graph counterpart of {@link #onCommonConfigSynced()}. Save sends every graph row that has
      * a toml path, style blocks included, so an editor still holding its build-time snapshot would
      * push that snapshot back and undo whichever admin saved first.
@@ -1406,8 +1432,10 @@ public class ConfigEditorScreen extends Screen {
      * same save — one that covers every tab, not just the block on screen.
      */
     void saveConfig() {
-        // Save client config locally. Client-only, no packet: this is a local save with no
-        // server round trip, so the toast fires immediately rather than from a packet handler.
+        // Send the visual config to the server, which owns visual.toml and syncs it back to
+        // everyone. This used to be a local write with no packet at all, which is why an admin
+        // tuning these settings changed nothing for any other player. Same rule as the two blocks
+        // below: an untouched tab is not worth a write, a sync to every client, and a toast.
         Map<String, String> clientValues = new HashMap<>();
         boolean clientChanged = false;
         for (ConfigSection section : clientSections) {
@@ -1416,11 +1444,8 @@ public class ConfigEditorScreen extends Screen {
                 if (!entry.value.equals(entry.initialValue)) clientChanged = true;
             }
         }
-        applyClientConfig(clientValues);
         if (clientChanged) {
-            EditorToastHandler.show(EditorToast.Level.SUCCESS,
-                    Component.translatable("editor.historystages.toast.client_config_saved.title"),
-                    Component.translatable("editor.historystages.toast.client_config_saved.message"));
+            PacketHandler.sendToServer(new SaveConfigPacket(clientValues, true));
         }
 
         // Send common config to server — but only if something in it actually changed. Each
@@ -1444,7 +1469,9 @@ public class ConfigEditorScreen extends Screen {
         // reads to apply them server-side — so the wire key travels here without ever being
         // rebuilt by hand. Anything not in that list is a CLIENT row and is written straight
         // back into the addon's own field; there is nothing else it could be, since
-        // AddonConfigSection only knows those two sides.
+        // AddonConfigSection only knows those two sides. That stays local even though the mod's
+        // own visual rows now go to the server: an addon holds its CLIENT state in its own field,
+        // and there is no packet on either side that could carry it.
         Map<String, AddonConfigSections.CommonEntry> addonCommonByWireKey = new HashMap<>();
         for (AddonConfigSections.CommonEntry commonEntry : AddonConfigSections.commonEntries()) {
             addonCommonByWireKey.put(commonEntry.wireKey(), commonEntry);
@@ -1501,22 +1528,6 @@ public class ConfigEditorScreen extends Screen {
                 net.bananemdnsa.historystages.compat.emi.EmiReloadBridge.reloadIfPresent();
             } catch (Throwable ignored) {}
         }
-    }
-
-    /**
-     * Applies the Client tab's values and writes client.toml back out.
-     *
-     * <p>Addressed by dotted toml path and written by walking the spec. This was a switch, then a
-     * hand-maintained key list, and both times rows the editor offered had no entry at all and did
-     * nothing when toggled — {@code visuals.openScrollBackdrop} was the last of them.
-     *
-     * <p>The save is what makes the edit outlive the session: without it the values only ever lived
-     * in the in-memory spec, and the next launch read the untouched file back. The common tab has
-     * had the equivalent {@code COMMON_SPEC.save()} in {@link SaveConfigPacket} all along.
-     */
-    private void applyClientConfig(Map<String, String> values) {
-        ConfigSpecCodec.apply(Config.CLIENT_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
-        Config.CLIENT_SPEC.save();
     }
 
     @Override
