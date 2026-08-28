@@ -74,6 +74,19 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     private final Anim thumbHover = new Anim();
     /** Panel fade-in, so an overlay does not slam onto the screen behind it. */
     private final Anim panelOpen = new Anim();
+    /** How far below its resting place the panel starts its entrance, in pixels. */
+    private static final float PANEL_RISE_PX = 5.0f;
+    /**
+     * How far the entrance currently displaces the panel, as of the last frame drawn.
+     *
+     * <p>Everything this widget measures — rows, tabs, buttons, the scrollbar — is laid out
+     * around {@link #panelY}, which does not move. The entrance is a draw-time translation, so
+     * for the ~110ms it lasts the panel is on screen up to {@value #PANEL_RISE_PX} pixels below
+     * where the hit tests believe it is, and both clicks and hover land on the wrong row. Input
+     * is converted into that same space through {@link #panelSpaceY} rather than the animation
+     * being dropped: the cursor should hit what the player can see.
+     */
+    private float openOffsetY;
 
     /** Index into {@link #allTabLabels()} — own tabs first, Selected tab last. */
     private int currentTab = 0;
@@ -277,6 +290,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         this.scrollRow = 0;
         resetListAnim();
         panelOpen.set(0.0f);
+        openOffsetY = PANEL_RISE_PX; // no frame drawn yet, so nothing else would set it
         searchBar.setFocused(true);
         searchBar.setText(""); // triggers applyFilter against fresh allEntries
     }
@@ -798,8 +812,13 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         // position is animated, not the opacity: the panel is opaque and its rows are drawn on
         // top, so fading the chrome alone would show the screen through the frame.
         float open = Ease.outCubic(panelOpen.ramp(1.0f, Timing.POPUP_MS));
+        openOffsetY = (1.0f - open) * PANEL_RISE_PX;
         g.pose().pushPose();
-        g.pose().translate(0.0f, (1.0f - open) * 5.0f, 0.0f);
+        g.pose().translate(0.0f, openOffsetY, 0.0f);
+
+        // From here on the whole method draws in panel space, the same space the hit tests use.
+        // Without this the hover highlight would sit on the row the panel is sliding away from.
+        mouseY = panelSpaceY(mouseY);
 
         g.fill(panelX - 2, panelY - 2, panelX + panelW + 2, panelY + panelH + 2, 0xFF3D3D3D);
         g.fill(panelX, panelY, panelX + panelW, panelY + panelH, 0xFF1A1A1A);
@@ -916,8 +935,22 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     // Input
     // =============================================
 
+    /**
+     * The cursor's y in panel space — what it points at, rather than where it is on screen.
+     *
+     * <p>Only y: the entrance moves the panel vertically and nothing else does.
+     */
+    private double panelSpaceY(double mouseY) {
+        return mouseY - openOffsetY;
+    }
+
+    private int panelSpaceY(int mouseY) {
+        return mouseY - Math.round(openOffsetY);
+    }
+
     public boolean mouseClicked(double mouseX, double mouseY) {
         if (!visible) return false;
+        mouseY = panelSpaceY(mouseY);
         if (searchBar.mouseClicked(mouseX, mouseY)) return true;
         if (mouseX < panelX || mouseX > panelX + panelW || mouseY < panelY || mouseY > panelY + panelH) {
             hide();
@@ -1019,6 +1052,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     public boolean mouseDragged(double mouseX, double mouseY) {
         if (!visible || !draggingScrollbar) return false;
+        mouseY = panelSpaceY(mouseY);
         int listY = listTopY();
         updateScrollFromMouse(mouseY, listY);
         return true;
@@ -1074,6 +1108,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (!visible) return false;
+        mouseY = panelSpaceY(mouseY);
         if (mouseX >= panelX && mouseX <= panelX + panelW && mouseY >= panelY && mouseY <= panelY + panelH) {
             scrollRow = Math.max(0, Math.min(maxScrollRow,
                     scrollRow - (int) scrollY * wheelStep()));
