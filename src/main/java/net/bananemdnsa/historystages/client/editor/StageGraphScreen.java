@@ -1,7 +1,6 @@
 package net.bananemdnsa.historystages.client.editor;
 
 import net.bananemdnsa.historystages.GraphConfig;
-import net.bananemdnsa.historystages.client.cache.ClientDependencyCache;
 import net.bananemdnsa.historystages.client.cache.ClientIndividualStageCache;
 import net.bananemdnsa.historystages.client.cache.ClientStageCache;
 import net.bananemdnsa.historystages.client.editor.dialog.StageInfoTextScreen;
@@ -25,7 +24,6 @@ import net.bananemdnsa.historystages.data.graph.GraphPos;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
-import net.bananemdnsa.historystages.network.serverbound.RequestStageDependencyPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphPositionsPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphStylePacket;
 import net.minecraft.client.Minecraft;
@@ -37,9 +35,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Host screen for the stage graph: composes {@link GraphSidebar} and {@link GraphCanvas} into
@@ -76,13 +72,6 @@ public class StageGraphScreen extends Screen {
 
     /** Combined unlock-cache version last folded into {@link #model}; see refreshOnUnlockChange. */
     private int lastUnlockVersion = Integer.MIN_VALUE;
-
-    /**
-     * Stages a {@link RequestStageDependencyPacket} has already gone out for while this screen
-     * has been open. The detail window is built fresh on every open and so cannot remember this
-     * itself; this screen outlives all of them, which is why the request is fired from here.
-     */
-    private final Set<String> pendingDependencyRequests = new HashSet<>();
 
     private static final int BACK_BUTTON_X = 6;
     private static final int BACK_BUTTON_Y = 2;
@@ -413,21 +402,17 @@ public class StageGraphScreen extends Screen {
     }
 
     /**
-     * Opens the detail window on a node, asking the server for its dependency data first when
-     * the cache has none.
+     * Opens the detail window on a node.
      *
-     * <p>The request needs no Research Pedestal and goes out at most once per stage per open
-     * screen. The window rebuilds its rows whenever the cached result changes, so a reply that
-     * lands while it is already up fills it in.
+     * <p>Asking the server for the node's dependency data is the window's own job, not this
+     * screen's. It used to be fired from here, guarded by a set of stages already asked for —
+     * but a screen that is not the current one stops ticking, so nothing here could ever notice
+     * a reply going missing and ask again.
      */
     private void openDetail(String graphKey) {
         StageGraphModel.Node node = model.nodes().get(graphKey);
         if (node == null) return; // vanished between hit test and release
 
-        if (ClientDependencyCache.get(node.stageId(), node.individual()) == null
-                && pendingDependencyRequests.add(graphKey)) {
-            PacketHandler.sendToServer(new RequestStageDependencyPacket(node.stageId(), node.individual()));
-        }
         this.minecraft.setScreen(new GraphDetailScreen(this, model, node));
     }
 

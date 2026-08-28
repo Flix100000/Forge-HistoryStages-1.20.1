@@ -1113,6 +1113,7 @@
   "editor.historystages.graph.no_dependency_data": "Loading requirement data…",
   "editor.historystages.graph.detail.empty": "Nothing to show for this stage",
   "editor.historystages.graph.detail.loading": "Loading requirements…",
+  "editor.historystages.graph.detail.no_answer": "The server did not answer. This stage may no longer exist there.",
   "editor.historystages.graph.toast.positions_saved.title": "Layout Saved",
   "editor.historystages.graph.toast.positions_saved.message": "Graph layout saved.",
   "editor.historystages.graph.toast.rearranged.title": "Layout Re-arranged",

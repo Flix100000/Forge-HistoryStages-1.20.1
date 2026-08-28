@@ -16,6 +16,8 @@ import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
 import net.bananemdnsa.historystages.data.graph.GraphStageData;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.serverbound.RequestStageDependencyPacket;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -73,6 +75,21 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     private static final int ENTRY_INDENT = STRIPE_W + STRIPE_GAP;
     /** The fixed band under the title holding the pills and the stage id. */
     private static final int HEADER_BAND_H = PILL_H + 10;
+
+    /**
+     * Ticks between dependency requests while no reply has landed. Two seconds: long enough
+     * that a server under load is not asked again while its answer is still on the wire.
+     */
+    private static final int REQUEST_RETRY_TICKS = 40;
+    /**
+     * How often this window asks before it stops and says so.
+     *
+     * <p>There are requests that will never be answered — the server drops one for a stage it
+     * no longer has, silently and by design. Asking forever would leave such a node spinning on
+     * "loading" for as long as the window stays open, which reads as a hang rather than an
+     * answer.
+     */
+    private static final int MAX_REQUEST_ATTEMPTS = 3;
 
     private static final int MIN_WIDTH = 280;
     private static final int MAX_WIDTH = 420;
@@ -156,6 +173,12 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     /** Dependency-cache state the rows were built from, so {@link #tick} knows when to rebuild. */
     private RequirementResult builtFromDependency;
 
+    /** Dependency requests sent by this window so far; see {@link #pollDependencies}. */
+    private int requestAttempts;
+    private int ticksSinceRequest;
+    /** Set once the last attempt has gone unanswered, and never cleared while this window lives. */
+    private boolean requestUnanswered;
+
     private float scroll;
     private float maxScroll;
 
@@ -228,12 +251,38 @@ public final class GraphDetailScreen extends AbstractModalScreen {
     @Override
     public void tick() {
         super.tick();
+        boolean gaveUp = pollDependencies();
         RequirementResult current = ClientDependencyCache.get(node.stageId(), node.individual());
-        if (current == builtFromDependency) return;
+        if (current == builtFromDependency && !gaveUp) return;
         rebuildRows();
         if (HEADER_BAND_H + listHeight() != builtForHeight) {
             this.rebuildWidgets(); // re-runs init, which re-measures through contentHeight()
         }
+    }
+
+    /**
+     * Asks the server for this node's requirement data, and asks again while nothing comes back.
+     *
+     * <p>The request used to go out once, from {@code StageGraphScreen}, when the window opened.
+     * A reply that never arrived left the node reading "loading" until the whole graph was closed
+     * and reopened — and the graph screen could not have noticed, because a screen that is not
+     * the current one does not tick. This window does, so the retry belongs here, where the
+     * "loading" line it would otherwise leave standing is also drawn.
+     *
+     * @return true when this call was the one that gave up, so the caller rebuilds to say so
+     */
+    private boolean pollDependencies() {
+        if (requestUnanswered) return false;
+        if (ClientDependencyCache.get(node.stageId(), node.individual()) != null) return false;
+        if (requestAttempts > 0 && ++ticksSinceRequest < REQUEST_RETRY_TICKS) return false;
+        if (requestAttempts >= MAX_REQUEST_ATTEMPTS) {
+            requestUnanswered = true;
+            return true;
+        }
+        requestAttempts++;
+        ticksSinceRequest = 0;
+        PacketHandler.sendToServer(new RequestStageDependencyPacket(node.stageId(), node.individual()));
+        return false;
     }
 
     // --- Content ------------------------------------------------------------------------------
@@ -266,8 +315,12 @@ public final class GraphDetailScreen extends AbstractModalScreen {
                 || cfg.showAdvancements.get() || cfg.showKills.get() || cfg.showStats.get()
                 || cfg.showScoreboard.get();
         if (anyRequirementSection && dep == null) {
-            for (FormattedCharSequence line : font.split(
-                    Component.translatable("editor.historystages.graph.detail.loading"), textWidth)) {
+            // Once the asking has stopped, saying so beats a "loading" line that will never
+            // turn into anything.
+            String key = requestUnanswered
+                    ? "editor.historystages.graph.detail.no_answer"
+                    : "editor.historystages.graph.detail.loading";
+            for (FormattedCharSequence line : font.split(Component.translatable(key), textWidth)) {
                 out.add(new LineRow(line, HINT_COLOR, LINE_H));
             }
             out.add(new SpacerRow(SPACER_H));

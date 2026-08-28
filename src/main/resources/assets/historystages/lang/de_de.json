@@ -1113,6 +1113,7 @@
   "editor.historystages.graph.no_dependency_data": "Anforderungsdaten werden geladen…",
   "editor.historystages.graph.detail.empty": "Für diese Stage gibt es nichts zu zeigen",
   "editor.historystages.graph.detail.loading": "Anforderungen werden geladen…",
+  "editor.historystages.graph.detail.no_answer": "Der Server hat nicht geantwortet. Vielleicht gibt es diese Stage dort nicht mehr.",
   "editor.historystages.graph.toast.positions_saved.title": "Layout gespeichert",
   "editor.historystages.graph.toast.positions_saved.message": "Graph-Layout gespeichert.",
   "editor.historystages.graph.toast.rearranged.title": "Layout neu angeordnet",
