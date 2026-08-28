@@ -79,8 +79,17 @@ public class HistoryStages {
         modEventBus.addListener(this::onConfigLoad);
         modEventBus.addListener(this::onConfigReload);
 
-        modContainer.registerConfig(ModConfig.Type.CLIENT, Config.CLIENT_SPEC);
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
+        // Type.COMMON, not CLIENT: a dedicated server never loads a CLIENT spec, so it could not
+        // own these values — and owning them is the whole point of sending them to every player.
+        // Not Type.SERVER either: that stores per world under saves/<world>/serverconfig/, which
+        // is exactly not the one shared place under config/historystages/settings/.
+        // Both specs must name their own file. NeoForge derives the default name from modid and
+        // type, so two COMMON registrations without explicit paths both claim
+        // historystages-common.toml and mod loading dies on the conflict.
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.CLIENT_SPEC,
+                "historystages/settings/visual.toml");
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC,
+                "historystages/settings/gameplay.toml");
         modContainer.registerConfig(ModConfig.Type.COMMON, GraphConfig.GRAPH_SPEC,
                 "historystages/settings/graph.toml");
 
