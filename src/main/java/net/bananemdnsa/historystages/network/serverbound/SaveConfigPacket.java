@@ -65,8 +65,8 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 PacketHandler.sendVisualConfigToAll(SyncVisualConfigPacket.fromServerConfig());
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.success(
-                                "editor.historystages.toast.config_saved.title",
-                                "editor.historystages.toast.config_saved.message"),
+                                "editor.historystages.toast.visual_config_saved.title",
+                                "editor.historystages.toast.visual_config_saved.message"),
                         player);
             } else {
                 applyCommonConfig(msg.configValues);
