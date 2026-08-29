@@ -4,6 +4,7 @@ import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
+import net.bananemdnsa.historystages.data.config.LocalConfigSnapshot;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -160,5 +161,58 @@ public final class ConfigCodecTests {
             }
         }
         helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void leavingAServerBringsBackTheOwnValues(GameTestHelper helper) {
+        boolean originalIcons = Config.CLIENT.showLockIcons.get();
+        int originalInterval = Config.COMMON.structureCheckInterval.get();
+
+        // Anything left over from an earlier test would make this one lie.
+        LocalConfigSnapshot.restore();
+
+        try {
+            // What the player has in their own files. Deliberately not the defaults: a snapshot
+            // that silently did nothing would still look right if these matched.
+            Config.CLIENT.showLockIcons.set(false);
+            Config.COMMON.structureCheckInterval.set(77);
+
+            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.COMMON_SPEC);
+
+            // What the server pushes over them on login.
+            Config.CLIENT.showLockIcons.set(true);
+            Config.COMMON.structureCheckInterval.set(5);
+
+            // An admin saves mid-session, so a second round of server values arrives. This must
+            // NOT become the new baseline, or the player would keep the server's settings.
+            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.COMMON_SPEC);
+
+            int restored = LocalConfigSnapshot.restore();
+            if (restored < 2) {
+                helper.fail("restore() only wrote " + restored + " values, expected at least 2");
+                return;
+            }
+            if (Config.CLIENT.showLockIcons.get()) {
+                helper.fail("showLockIcons stayed on the server's value instead of coming back false");
+                return;
+            }
+            if (Config.COMMON.structureCheckInterval.get() != 77) {
+                helper.fail("structureCheckInterval came back as "
+                        + Config.COMMON.structureCheckInterval.get() + " instead of 77");
+                return;
+            }
+            if (LocalConfigSnapshot.holdsServerValues()) {
+                helper.fail("the snapshot survived its own restore — the next server visit would "
+                        + "restore stale values");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            LocalConfigSnapshot.restore();
+            Config.CLIENT.showLockIcons.set(originalIcons);
+            Config.COMMON.structureCheckInterval.set(originalInterval);
+        }
     }
 }

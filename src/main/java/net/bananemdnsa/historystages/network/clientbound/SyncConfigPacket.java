@@ -45,6 +45,14 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
 
     public static void handle(SyncConfigPacket msg, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
+            // Before anything is overwritten, so the snapshot is the player's own file. Skipped on
+            // an integrated server, where client and server share this very spec object: there is
+            // no server copy to undo, and restoring later would roll back the host's own saves.
+            if (!net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) {
+                net.bananemdnsa.historystages.data.config.LocalConfigSnapshot
+                        .rememberBeforeSync(Config.COMMON_SPEC);
+            }
+
             SaveConfigPacket.applyCommonConfig(msg.configValues);
 
             // An open config editor holds a snapshot taken when it was built. Left alone, it would

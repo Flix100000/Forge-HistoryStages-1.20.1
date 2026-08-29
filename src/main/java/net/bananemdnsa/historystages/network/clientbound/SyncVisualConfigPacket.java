@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.network.clientbound;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
+import net.bananemdnsa.historystages.data.config.LocalConfigSnapshot;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -65,6 +66,13 @@ public record SyncVisualConfigPacket(Map<String, String> values) implements Cust
 
     /** Writes the received values straight into the client's own spec objects — memory only. */
     public static void apply(Map<String, String> values) {
+        // Before anything is overwritten, so the snapshot is the player's own file. Skipped on an
+        // integrated server, where client and server share this very spec object: there is no
+        // server copy to undo, and restoring later would roll back the host's own admin saves.
+        if (!net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) {
+            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
+        }
+
         ConfigSpecCodec.apply(Config.CLIENT_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
 
         // An open config editor holds a snapshot of the Client tab taken when it was built. Left
