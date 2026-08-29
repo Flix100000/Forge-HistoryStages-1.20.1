@@ -21,7 +21,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import javax.annotation.Nullable;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Mixin(RecipeManager.class)
 public class RecipeManagerMixin {
@@ -99,12 +98,26 @@ public class RecipeManagerMixin {
             CallbackInfoReturnable<List<RecipeHolder<T>>> cir) {
         boolean isClient = level.isClientSide();
         List<RecipeHolder<T>> recipes = cir.getReturnValue();
-        List<RecipeHolder<T>> filtered = recipes.stream()
-                .filter(r -> !isRecipeLocked(r, isClient))
-                .collect(Collectors.toList());
-        if (filtered.size() != recipes.size()) {
-            cir.setReturnValue(filtered);
+
+        // Nothing is filtered in the overwhelming majority of calls, and this one is on the
+        // crafting path. Find the first locked recipe before allocating anything; with none,
+        // the original list goes back untouched.
+        int firstLocked = -1;
+        for (int i = 0; i < recipes.size(); i++) {
+            if (isRecipeLocked(recipes.get(i), isClient)) {
+                firstLocked = i;
+                break;
+            }
         }
+        if (firstLocked < 0) return;
+
+        List<RecipeHolder<T>> filtered = new ArrayList<>(recipes.size() - 1);
+        filtered.addAll(recipes.subList(0, firstLocked));
+        for (int i = firstLocked + 1; i < recipes.size(); i++) {
+            RecipeHolder<T> recipe = recipes.get(i);
+            if (!isRecipeLocked(recipe, isClient)) filtered.add(recipe);
+        }
+        cir.setReturnValue(filtered);
     }
 
     private static boolean isRecipeLocked(RecipeHolder<?> holder, boolean isClientSide) {

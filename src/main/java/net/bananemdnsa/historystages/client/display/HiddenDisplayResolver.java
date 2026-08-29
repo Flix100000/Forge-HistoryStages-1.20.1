@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.data.ItemEntry;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.lock.engine.CategoryLockIndexes;
 import net.bananemdnsa.historystages.data.display.TextOverrideHolder;
 import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -16,6 +17,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -65,10 +67,20 @@ public final class HiddenDisplayResolver {
         String itemId = res.toString();
         String modId = res.getNamespace();
 
+        // This runs on every getHoverName, which the item panel of a recipe viewer calls for
+        // every item it lists. Narrowing to the stages that mention this item at all is what
+        // makes the overwhelmingly common answer - "no stage has ever heard of it" - cost a map
+        // lookup instead of a walk over the whole stage tree.
+        //
+        // The index is built from exactly the three entry lists matched below (items, tags,
+        // mods), so it cannot name fewer stages than the walk would have found.
+        Item item = stack.getItem();
         Accumulator acc = new Accumulator();
         // Global stages run first, so on an equal match score the global stage keeps the win.
-        collect(StageManager.getStages(), ClientStageCache::isStageUnlocked, itemId, modId, stack, acc);
-        collect(StageManager.getIndividualStages(), ClientIndividualStageCache::isStageUnlocked,
+        collect(CategoryLockIndexes.globalCandidates(itemId, modId, item),
+                StageManager.getStages(), ClientStageCache::isStageUnlocked, itemId, modId, stack, acc);
+        collect(CategoryLockIndexes.individualCandidates(itemId, modId, item),
+                StageManager.getIndividualStages(), ClientIndividualStageCache::isStageUnlocked,
                 itemId, modId, stack, acc);
 
         if (acc.nameMode == DisplayMode.OFF && acc.tooltipMode == DisplayMode.OFF && acc.showLockHints) {
@@ -88,15 +100,17 @@ public final class HiddenDisplayResolver {
         boolean showLockHints = true;
     }
 
-    private static void collect(Map<String, StageEntry> stages,
+    private static void collect(Collection<String> candidateIds,
+                                Map<String, StageEntry> stages,
                                 Predicate<String> isUnlocked,
                                 String itemId, String modId, ItemStack stack,
                                 Accumulator acc) {
-        for (Map.Entry<String, StageEntry> e : stages.entrySet()) {
-            StageEntry stage = e.getValue();
+        for (String stageId : candidateIds) {
+            StageEntry stage = stages.get(stageId);
+            if (stage == null) continue;
             HiddenDisplayConfig cfg = stage.getHiddenDisplay();
             if (cfg.isNoop()) continue;
-            if (isUnlocked.test(e.getKey())) continue;
+            if (isUnlocked.test(stageId)) continue;
 
             TextOverrideHolder holder;
             int score;
