@@ -131,7 +131,7 @@ public class HistoryStageReward extends Reward {
                         "history reload"
                 );
             }
-            String iconId = (entry != null && !entry.getIcon().isEmpty()) ? entry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
+            String iconId = (entry != null && !entry.getIcon().isEmpty()) ? entry.getIcon() : Config.VISUAL.defaultStageIcon.get();
             broadcastUnlockEffects(player, displayName, iconId);
         }
 
@@ -155,13 +155,13 @@ public class HistoryStageReward extends Reward {
             }
 
             // Notify only this player
-            if (Config.GAMEPLAY.individualBroadcastChat.get()) {
+            if (Config.VISUAL.individualBroadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ").withStyle(ChatFormatting.RED)
                                 .append(Component.translatable("message.historystages.stage_forgotten", displayName).withStyle(ChatFormatting.WHITE))
                 );
             }
-            if (Config.GAMEPLAY.individualUseSounds.get()) {
+            if (Config.VISUAL.individualUseSounds.get()) {
                 player.playNotifySound(SoundEvents.NOTE_BLOCK_BASS.value(), SoundSource.MASTER, 0.75F, 0.5F);
             }
         } else {
@@ -171,8 +171,8 @@ public class HistoryStageReward extends Reward {
             NeoForge.EVENT_BUS.post(new StageEvent.IndividualUnlocked(stage, displayName, player.getUUID()));
 
             // Notify only this player
-            if (Config.GAMEPLAY.individualBroadcastChat.get()) {
-                String configChat = Config.GAMEPLAY.individualUnlockMessageFormat.get();
+            if (Config.VISUAL.individualBroadcastChat.get()) {
+                String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                 String finalChat = configChat.replace("{stage}", displayName)
                         .replace("{player}", player.getName().getString())
                         .replace("&", "\u00a7");
@@ -181,20 +181,20 @@ public class HistoryStageReward extends Reward {
                                 .append(Component.literal(finalChat))
                 );
             }
-            if (Config.GAMEPLAY.individualUseActionbar.get()) {
-                String configChat = Config.GAMEPLAY.individualUnlockMessageFormat.get();
+            if (Config.VISUAL.individualUseActionbar.get()) {
+                String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                 String finalChat = configChat.replace("{stage}", displayName)
                         .replace("{player}", player.getName().getString())
                         .replace("&", "\u00a7");
                 player.displayClientMessage(Component.literal(finalChat), true);
             }
-            if (Config.GAMEPLAY.individualUseSounds.get()) {
+            if (Config.VISUAL.individualUseSounds.get()) {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
-            if (Config.GAMEPLAY.individualUseToasts.get()) {
+            if (Config.VISUAL.individualUseToasts.get()) {
                 var indEntry = StageManager.getIndividualStages().get(stage);
                 String indIconId = (indEntry != null && !indEntry.getIcon().isEmpty())
-                        ? indEntry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
+                        ? indEntry.getIcon() : Config.VISUAL.defaultStageIcon.get();
                 PacketHandler.sendToastToPlayer(new StageUnlockedToastPacket(displayName, indIconId), player);
             }
         }
@@ -208,28 +208,28 @@ public class HistoryStageReward extends Reward {
     }
 
     private void broadcastUnlockEffects(ServerPlayer source, String stageName, String iconId) {
-        String configChat = Config.GAMEPLAY.unlockMessageFormat.get();
+        String configChat = Config.VISUAL.unlockMessageFormat.get();
         String finalChat = configChat.replace("{stage}", stageName).replace("&", "\u00a7");
 
         source.server.getPlayerList().getPlayers().forEach(player -> {
-            if (Config.GAMEPLAY.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ")
                                 .withStyle(ChatFormatting.GRAY)
                                 .append(Component.literal(finalChat))
                 );
             }
-            if (Config.GAMEPLAY.useActionbar.get()) {
+            if (Config.VISUAL.useActionbar.get()) {
                 player.displayClientMessage(
                         Component.translatable("message.historystages.new_era_unlocked", stageName), true
                 );
             }
-            if (Config.GAMEPLAY.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
 
-        if (Config.GAMEPLAY.useToasts.get()) {
+        if (Config.VISUAL.useToasts.get()) {
             PacketHandler.sendToastToAll(new StageUnlockedToastPacket(stageName, iconId));
         }
     }
@@ -240,13 +240,13 @@ public class HistoryStageReward extends Reward {
         Component actionMsg = Component.translatable("message.historystages.stage_locked_action", stageName);
 
         source.server.getPlayerList().getPlayers().forEach(player -> {
-            if (Config.GAMEPLAY.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(chatMsg);
             }
-            if (Config.GAMEPLAY.useActionbar.get()) {
+            if (Config.VISUAL.useActionbar.get()) {
                 player.displayClientMessage(actionMsg, true);
             }
-            if (Config.GAMEPLAY.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
@@ -269,7 +269,7 @@ public class HistoryStageReward extends Reward {
         StageEntry entry = source.get(stage);
         String iconId = (entry != null && !entry.getIcon().isEmpty())
                 ? entry.getIcon()
-                : Config.GAMEPLAY.defaultStageIcon.get();
+                : Config.VISUAL.defaultStageIcon.get();
         if (iconId == null || iconId.isEmpty()) return super.getAltIcon();
         return ItemIcon.getItemIcon(iconId);
     }

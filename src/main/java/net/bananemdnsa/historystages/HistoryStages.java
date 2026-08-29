@@ -179,8 +179,13 @@ public class HistoryStages {
                     Config.GAMEPLAY.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
                     Config.GAMEPLAY.biomeEffects.get());
+        }
+        // Its own branch: the scroll tooltip layout is read out of the visual spec, so hanging the
+        // rebuild off the gameplay spec would read a file that may not be loaded yet and would miss
+        // every later change to visual.toml.
+        if (event.getConfig().getSpec() == Config.VISUAL_SPEC) {
             net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.GAMEPLAY.scrollTooltipLines.get());
+                    Config.VISUAL.scrollTooltipLines.get());
         }
         if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
             net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
@@ -193,8 +198,10 @@ public class HistoryStages {
                     Config.GAMEPLAY.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
                     Config.GAMEPLAY.biomeEffects.get());
+        }
+        if (event.getConfig().getSpec() == Config.VISUAL_SPEC) {
             net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.GAMEPLAY.scrollTooltipLines.get());
+                    Config.VISUAL.scrollTooltipLines.get());
         }
     }
 
@@ -279,7 +286,7 @@ public class HistoryStages {
             logLockedInventoryItems(player);
 
             // Welcome message
-            if (Config.GAMEPLAY.showWelcomeMessage.get()) {
+            if (Config.VISUAL.showWelcomeMessage.get()) {
                 int stageCount = StageManager.getStages().size();
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
                 player.sendSystemMessage(Component.literal("  §b§lHistory Stages §7— §fWelcome!"));

@@ -218,9 +218,9 @@ public class DebugLogger {
                     pw.println("    lockBlockInteraction = " + Config.GAMEPLAY.lockBlockInteraction.get());
                     pw.println("    researchTimeSeconds  = " + Config.GAMEPLAY.researchTimeInSeconds.get());
                     pw.println("    useReplacements      = " + Config.GAMEPLAY.useReplacements.get());
-                    pw.println("    broadcastChat        = " + Config.GAMEPLAY.broadcastChat.get());
-                    pw.println("    useSounds            = " + Config.GAMEPLAY.useSounds.get());
-                    pw.println("    useToasts            = " + Config.GAMEPLAY.useToasts.get());
+                    pw.println("    broadcastChat        = " + Config.VISUAL.broadcastChat.get());
+                    pw.println("    useSounds            = " + Config.VISUAL.useSounds.get());
+                    pw.println("    useToasts            = " + Config.VISUAL.useToasts.get());
                     pw.println("    showDebugErrors      = " + Config.GAMEPLAY.showDebugErrors.get());
                     pw.println("    enableRuntimeLogging = " + Config.GAMEPLAY.enableRuntimeLogging.get());
                 } catch (Exception e) {

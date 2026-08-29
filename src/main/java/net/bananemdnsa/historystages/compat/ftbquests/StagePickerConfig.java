@@ -82,7 +82,7 @@ public class StagePickerConfig extends ConfigValue<String> {
         if (value == null || value.isEmpty()) return super.getIcon();
         StageEntry entry = sourceFor(value).get(stripPrefix(value));
         String iconId = (entry != null && !entry.getIcon().isEmpty())
-                ? entry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
+                ? entry.getIcon() : Config.VISUAL.defaultStageIcon.get();
         if (iconId == null || iconId.isEmpty()) return super.getIcon();
         return ItemIcon.getItemIcon(iconId);
     }

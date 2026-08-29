@@ -210,7 +210,7 @@ public final class ScrollTooltipRenderer {
         if (ctx.groups().isEmpty()) return List.of();
 
         RequirementResult result = ctx.result();
-        boolean hideFulfilled = Config.GAMEPLAY.hideFulfilledDependencies.get();
+        boolean hideFulfilled = Config.VISUAL.hideFulfilledDependencies.get();
 
         ScrollTooltipLine headerLine = byId.get("dep.header");
         ScrollTooltipLine itemLine = byId.get("dep.item");

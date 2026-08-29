@@ -102,13 +102,13 @@ public class ConfigEditorScreen extends Screen {
     private List<ConfigSection> commonSections;
 
     /**
-     * Common values that have no row of their own because another row's sub-screen edits them.
+     * Visual values that have no row of their own because another row's sub-screen edits them.
      * Same arrangement as {@link #styleEntries}: they must still be saved, compared and refreshed,
      * so every place that walks the sections has to walk these too — {@link #allEntries()},
-     * {@link #saveConfig()}, {@link #refreshCommonValues()} and {@link #findCommonEntry(String)}.
+     * {@link #saveConfig()}, {@link #refreshVisualValues()} and {@link #findEntry(String)}.
      * Keeping them out of a section is what stops them from drawing a second, redundant row.
      */
-    private final List<ConfigEntry> commonSubEntries = new ArrayList<>();
+    private final List<ConfigEntry> visualSubEntries = new ArrayList<>();
     /** graph.toml's five non-style tables, generated from the spec. */
     private List<ConfigSection> graphSections;
     /**
@@ -237,8 +237,11 @@ public class ConfigEditorScreen extends Screen {
     }
 
     private void buildConfigEntries() {
-        // --- CLIENT CONFIG ---
+        // --- VISUAL CONFIG ---
         clientSections = new ArrayList<>();
+        // Cleared with the sections: buildConfigEntries runs again on a rebuild, and appending
+        // would otherwise leave a stale duplicate that fights the live one on save.
+        visualSubEntries.clear();
 
         ConfigSection visuals = new ConfigSection("editor.historystages.config.visuals");
         visuals.add(new ConfigEntry("visuals.showTooltips", "showTooltips", ConfigType.BOOLEAN,
@@ -253,10 +256,12 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.showBoosterTooltips.get().toString(), true, "true"));
         visuals.add(new ConfigEntry("visuals.showScrollTierTooltip", "showScrollTierTooltip", ConfigType.BOOLEAN,
                 Config.VISUAL.showScrollTierTooltip.get().toString(), true, "true"));
-        // The only open-scroll setting that is a matter of taste rather than a pack decision,
-        // which is why it lives on the client while the rest of them are common.
+        // Under visuals rather than open_scroll, where the rest of the document's settings sit: it
+        // dims the world behind the scroll rather than describing anything on the page.
         visuals.add(new ConfigEntry("visuals.openScrollBackdrop", "openScrollBackdrop", ConfigType.INTEGER,
                 Config.VISUAL.openScrollBackdrop.get().toString(), true, "60", 0, 100));
+        visuals.add(new ConfigEntry("visuals.showWelcomeMessage", "showWelcomeMessage", ConfigType.BOOLEAN,
+                Config.VISUAL.showWelcomeMessage.get().toString(), true, "true"));
         clientSections.add(visuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
@@ -321,20 +326,126 @@ public class ConfigEditorScreen extends Screen {
                 Config.Visual.MultiStagePolicy.class.getSimpleName()));
         clientSections.add(jeiHiding);
 
-        // --- COMMON CONFIG ---
-        commonSections = new ArrayList<>();
-        // Cleared with the sections: buildConfigEntries runs again on a rebuild, and appending
-        // would otherwise leave a stale duplicate that fights the live one on save.
-        commonSubEntries.clear();
+        ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
+        notifications.add(new ConfigEntry("notifications.broadcastChat", "broadcastChat", ConfigType.BOOLEAN,
+                Config.VISUAL.broadcastChat.get().toString(), true, "true"));
+        notifications.add(new ConfigEntry("notifications.unlockMessageFormat", "unlockMessageFormat", ConfigType.RICH_TEXT,
+                Config.VISUAL.unlockMessageFormat.get(), true,
+                "&fThe world has entered the &b{stage}&f!"));
+        notifications.add(new ConfigEntry("notifications.useActionbar", "useActionbar", ConfigType.BOOLEAN,
+                Config.VISUAL.useActionbar.get().toString(), true, "false"));
+        notifications.add(new ConfigEntry("notifications.useSounds", "useSounds", ConfigType.BOOLEAN,
+                Config.VISUAL.useSounds.get().toString(), true, "true"));
+        notifications.add(new ConfigEntry("notifications.useToasts", "useToasts", ConfigType.BOOLEAN,
+                Config.VISUAL.useToasts.get().toString(), true, "true"));
+        notifications.add(new ConfigEntry("notifications.defaultStageIcon", "defaultStageIcon", ConfigType.ITEM,
+                Config.VISUAL.defaultStageIcon.get(), true, "historystages:research_scroll"));
+        clientSections.add(notifications);
 
-        ConfigSection messages = new ConfigSection("editor.historystages.config.messages");
-        messages.add(new ConfigEntry("messages.showWelcomeMessage", "showWelcomeMessage", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.showWelcomeMessage.get().toString(), false, "true"));
-        messages.add(new ConfigEntry("messages.showDebugErrors", "showDebugErrors", ConfigType.BOOLEAN,
+        // A section of its own rather than five more rows in the one above: the individual labels
+        // read exactly like the global ones, so a single flat list would show every label twice
+        // with nothing on the row to say which reach it means.
+        ConfigSection notificationsIndividual =
+                new ConfigSection("editor.historystages.config.notifications_individual");
+        notificationsIndividual.add(new ConfigEntry("notifications.individual.broadcastChat",
+                "individualBroadcastChat", ConfigType.BOOLEAN,
+                Config.VISUAL.individualBroadcastChat.get().toString(), true, "true"));
+        notificationsIndividual.add(new ConfigEntry("notifications.individual.unlockMessageFormat",
+                "individualUnlockMessageFormat", ConfigType.RICH_TEXT,
+                Config.VISUAL.individualUnlockMessageFormat.get(), true,
+                "&fYou have unlocked &b{stage}&f!"));
+        notificationsIndividual.add(new ConfigEntry("notifications.individual.useActionbar",
+                "individualUseActionbar", ConfigType.BOOLEAN,
+                Config.VISUAL.individualUseActionbar.get().toString(), true, "false"));
+        notificationsIndividual.add(new ConfigEntry("notifications.individual.useSounds",
+                "individualUseSounds", ConfigType.BOOLEAN,
+                Config.VISUAL.individualUseSounds.get().toString(), true, "true"));
+        notificationsIndividual.add(new ConfigEntry("notifications.individual.useToasts",
+                "individualUseToasts", ConfigType.BOOLEAN,
+                Config.VISUAL.individualUseToasts.get().toString(), true, "true"));
+        clientSections.add(notificationsIndividual);
+
+        ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
+        lockMessages.add(new ConfigEntry("lock_messages.dimensionUnknown", "msgDimensionUnknown", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgDimensionUnknown.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.mobUnknown", "msgMobUnknown", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgMobUnknown.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.itemLocked", "msgItemLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgItemLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.blockLocked", "msgBlockLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgBlockLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.entityItemLocked", "msgEntityItemLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgEntityItemLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.enchantmentLocked", "msgEnchantmentLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgEnchantmentLocked.get(), true, ""));
+        clientSections.add(lockMessages);
+
+        ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
+        scrollTooltip.add(new ConfigEntry("scroll_tooltip.lines", ConfigType.SUBSCREEN,
+                joinConfigList(Config.VISUAL.scrollTooltipLines.get()), true,
+                String.join(";", ScrollTooltipLayout.defaultsEncoded()),
+                "editor.historystages.config.scrollTooltipLines",
+                "editor.historystages.config.scrollTooltipLines.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        scrollTooltip.add(new ConfigEntry("scroll_tooltip.hideFulfilledDependencies", "hideFulfilledDependencies", ConfigType.BOOLEAN,
+                Config.VISUAL.hideFulfilledDependencies.get().toString(), true, "false"));
+        clientSections.add(scrollTooltip);
+
+        // One row, not two: chapters and overview blocks answer the same question — what the
+        // document shows, in which order — and they were always going to open the same screen.
+        // The blocks value therefore has no row of its own and rides in visualSubEntries.
+        ConfigSection openScroll = new ConfigSection("editor.historystages.config.open_scroll");
+        openScroll.add(new ConfigEntry("open_scroll.chapters", ConfigType.SUBSCREEN,
+                joinConfigList(Config.VISUAL.openScrollChapters.get()), true,
+                String.join(";", OpenScrollChapters.defaultsEncoded()),
+                "editor.historystages.config.openScrollDocument",
+                "editor.historystages.config.openScrollDocument.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        visualSubEntries.add(new ConfigEntry("open_scroll.overviewBlocks", ConfigType.SUBSCREEN,
+                joinConfigList(Config.VISUAL.openScrollOverviewBlocks.get()), true,
+                String.join(";", OpenScrollOverviewBlocks.defaultsEncoded()),
+                "editor.historystages.config.openScrollDocument",
+                "editor.historystages.config.openScrollDocument.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
+        openScroll.add(new ConfigEntry("open_scroll.lockedDisplay", ConfigType.ENUM,
+                Config.VISUAL.openScrollLockedDisplay.get(), true,
+                OpenScrollVisibility.OBSCURED.serialize(),
+                "editor.historystages.config.openScrollLockedDisplay",
+                "editor.historystages.config.openScrollLockedDisplay.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(OpenScrollVisibility.values())
+                        .map(OpenScrollVisibility::serialize).toList(),
+                OpenScrollVisibility.class.getSimpleName()));
+        openScroll.add(new ConfigEntry("open_scroll.entrySort", ConfigType.ENUM,
+                Config.VISUAL.openScrollEntrySort.get(), true,
+                OpenScrollSort.DEFINED.serialize(),
+                "editor.historystages.config.openScrollEntrySort",
+                "editor.historystages.config.openScrollEntrySort.desc",
+                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
+                java.util.Arrays.stream(OpenScrollSort.values())
+                        .map(OpenScrollSort::serialize).toList(),
+                OpenScrollSort.class.getSimpleName()));
+        openScroll.add(new ConfigEntry("open_scroll.showSearch", "openScrollShowSearch", ConfigType.BOOLEAN,
+                Config.VISUAL.openScrollShowSearch.get().toString(), true, "true"));
+        openScroll.add(new ConfigEntry("open_scroll.showEntryIds", "openScrollShowEntryIds", ConfigType.BOOLEAN,
+                Config.VISUAL.openScrollShowEntryIds.get().toString(), true, "true"));
+        openScroll.add(new ConfigEntry("open_scroll.inkHeading", "openScrollInkHeading", ConfigType.COLOR,
+                Config.VISUAL.openScrollInkHeading.get(), true, "#3F2D13"));
+        openScroll.add(new ConfigEntry("open_scroll.inkBody", "openScrollInkBody", ConfigType.COLOR,
+                Config.VISUAL.openScrollInkBody.get(), true, "#4A3416"));
+        openScroll.add(new ConfigEntry("open_scroll.inkFaint", "openScrollInkFaint", ConfigType.COLOR,
+                Config.VISUAL.openScrollInkFaint.get(), true, "#7A5A2C"));
+        clientSections.add(openScroll);
+
+        // --- GAMEPLAY CONFIG ---
+        commonSections = new ArrayList<>();
+
+        ConfigSection logging = new ConfigSection("editor.historystages.config.logging");
+        logging.add(new ConfigEntry("logging.showDebugErrors", "showDebugErrors", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.showDebugErrors.get().toString(), false, "true"));
-        messages.add(new ConfigEntry("messages.enableRuntimeLogging", "enableRuntimeLogging", ConfigType.BOOLEAN,
+        logging.add(new ConfigEntry("logging.enableRuntimeLogging", "enableRuntimeLogging", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.enableRuntimeLogging.get().toString(), false, "false"));
-        commonSections.add(messages);
+        commonSections.add(logging);
 
         ConfigSection gameplay = new ConfigSection("editor.historystages.config.gameplay");
         gameplay.add(new ConfigEntry("gameplay.lockMobLoot", "lockMobLoot", ConfigType.BOOLEAN,
@@ -351,79 +462,6 @@ public class ConfigEditorScreen extends Screen {
         gameplay.add(new ConfigEntry("gameplay.lockBlockInteraction", "lockBlockInteraction", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.lockBlockInteraction.get().toString(), false, "true"));
         commonSections.add(gameplay);
-
-        ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
-        notifications.add(new ConfigEntry("notifications.broadcastChat", "broadcastChat", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.broadcastChat.get().toString(), false, "true"));
-        notifications.add(new ConfigEntry("notifications.unlockMessageFormat", "unlockMessageFormat", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.unlockMessageFormat.get(), false,
-                "&fThe world has entered the &b{stage}&f!"));
-        notifications.add(new ConfigEntry("notifications.useActionbar", "useActionbar", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.useActionbar.get().toString(), false, "false"));
-        notifications.add(new ConfigEntry("notifications.useSounds", "useSounds", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.useSounds.get().toString(), false, "true"));
-        notifications.add(new ConfigEntry("notifications.useToasts", "useToasts", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.useToasts.get().toString(), false, "true"));
-        notifications.add(new ConfigEntry("notifications.defaultStageIcon", "defaultStageIcon", ConfigType.ITEM,
-                Config.GAMEPLAY.defaultStageIcon.get(), false, "historystages:research_scroll"));
-        commonSections.add(notifications);
-
-        ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
-        scrollTooltip.add(new ConfigEntry("scroll_tooltip.lines", ConfigType.SUBSCREEN,
-                joinConfigList(Config.GAMEPLAY.scrollTooltipLines.get()), false,
-                String.join(";", ScrollTooltipLayout.defaultsEncoded()),
-                "editor.historystages.config.scrollTooltipLines",
-                "editor.historystages.config.scrollTooltipLines.desc",
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
-        scrollTooltip.add(new ConfigEntry("scroll_tooltip.hideFulfilledDependencies", "hideFulfilledDependencies", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.hideFulfilledDependencies.get().toString(), false, "false"));
-        commonSections.add(scrollTooltip);
-
-        // One row, not two: chapters and overview blocks answer the same question — what the
-        // document shows, in which order — and they were always going to open the same screen.
-        // The blocks value therefore has no row of its own and rides in commonSubEntries.
-        ConfigSection openScroll = new ConfigSection("editor.historystages.config.open_scroll");
-        openScroll.add(new ConfigEntry("open_scroll.chapters", ConfigType.SUBSCREEN,
-                joinConfigList(Config.GAMEPLAY.openScrollChapters.get()), false,
-                String.join(";", OpenScrollChapters.defaultsEncoded()),
-                "editor.historystages.config.openScrollDocument",
-                "editor.historystages.config.openScrollDocument.desc",
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
-        commonSubEntries.add(new ConfigEntry("open_scroll.overviewBlocks", ConfigType.SUBSCREEN,
-                joinConfigList(Config.GAMEPLAY.openScrollOverviewBlocks.get()), false,
-                String.join(";", OpenScrollOverviewBlocks.defaultsEncoded()),
-                "editor.historystages.config.openScrollDocument",
-                "editor.historystages.config.openScrollDocument.desc",
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
-        openScroll.add(new ConfigEntry("open_scroll.lockedDisplay", ConfigType.ENUM,
-                Config.GAMEPLAY.openScrollLockedDisplay.get(), false,
-                OpenScrollVisibility.OBSCURED.serialize(),
-                "editor.historystages.config.openScrollLockedDisplay",
-                "editor.historystages.config.openScrollLockedDisplay.desc",
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
-                java.util.Arrays.stream(OpenScrollVisibility.values())
-                        .map(OpenScrollVisibility::serialize).toList(),
-                OpenScrollVisibility.class.getSimpleName()));
-        openScroll.add(new ConfigEntry("open_scroll.entrySort", ConfigType.ENUM,
-                Config.GAMEPLAY.openScrollEntrySort.get(), false,
-                OpenScrollSort.DEFINED.serialize(),
-                "editor.historystages.config.openScrollEntrySort",
-                "editor.historystages.config.openScrollEntrySort.desc",
-                Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
-                java.util.Arrays.stream(OpenScrollSort.values())
-                        .map(OpenScrollSort::serialize).toList(),
-                OpenScrollSort.class.getSimpleName()));
-        openScroll.add(new ConfigEntry("open_scroll.showSearch", "openScrollShowSearch", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.openScrollShowSearch.get().toString(), false, "true"));
-        openScroll.add(new ConfigEntry("open_scroll.showEntryIds", "openScrollShowEntryIds", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.openScrollShowEntryIds.get().toString(), false, "true"));
-        openScroll.add(new ConfigEntry("open_scroll.inkHeading", "openScrollInkHeading", ConfigType.COLOR,
-                Config.GAMEPLAY.openScrollInkHeading.get(), false, "#3F2D13"));
-        openScroll.add(new ConfigEntry("open_scroll.inkBody", "openScrollInkBody", ConfigType.COLOR,
-                Config.GAMEPLAY.openScrollInkBody.get(), false, "#4A3416"));
-        openScroll.add(new ConfigEntry("open_scroll.inkFaint", "openScrollInkFaint", ConfigType.COLOR,
-                Config.GAMEPLAY.openScrollInkFaint.get(), false, "#7A5A2C"));
-        commonSections.add(openScroll);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
         individualCommon.add(new ConfigEntry("individual_stages.lockItemPickup", "individualLockItemPickup", ConfigType.BOOLEAN,
@@ -442,26 +480,11 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.individualLockItemUsage.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individual_stages.lockBlockInteraction", "individualLockBlockInteraction", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.individualLockBlockInteraction.get().toString(), false, "true"));
-        individualCommon.add(new ConfigEntry("individual_stages.broadcastChat", "individualBroadcastChat", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.individualBroadcastChat.get().toString(), false, "true"));
-        individualCommon.add(new ConfigEntry("individual_stages.unlockMessageFormat", "individualUnlockMessageFormat", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.individualUnlockMessageFormat.get(), false,
-                "&fYou have unlocked &b{stage}&f!"));
-        individualCommon.add(new ConfigEntry("individual_stages.useActionbar", "individualUseActionbar", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.individualUseActionbar.get().toString(), false, "false"));
-        individualCommon.add(new ConfigEntry("individual_stages.useSounds", "individualUseSounds", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.individualUseSounds.get().toString(), false, "true"));
-        individualCommon.add(new ConfigEntry("individual_stages.useToasts", "individualUseToasts", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.individualUseToasts.get().toString(), false, "true"));
         commonSections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("research.researchTimeInSeconds", "researchTimeInSeconds", ConfigType.INTEGER,
                 Config.GAMEPLAY.researchTimeInSeconds.get().toString(), false, "20", 1, 86400));
-        research.add(new ConfigEntry("research.showDependencyScreenInPedestal", "showDependencyScreenInPedestal", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.showDependencyScreenInPedestal.get().toString(), false, "true"));
-        research.add(new ConfigEntry("research.lockScrollWhileResearching", "lockScrollWhileResearching", ConfigType.BOOLEAN,
-                Config.GAMEPLAY.lockScrollWhileResearching.get().toString(), false, "false"));
         // An ENUM rather than a toggle: three named outcomes, and a stage may override this one
         // with its own scroll_completion, so the row has to say which default it is overriding.
         research.add(new ConfigEntry("research.defaultScrollCompletion", ConfigType.ENUM,
@@ -543,21 +566,6 @@ public class ConfigEditorScreen extends Screen {
         biomeLock.add(new ConfigEntry("biome_lock.blockProjectiles", "biomeBlockProjectiles", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.biomeBlockProjectiles.get().toString(), false, "true"));
         commonSections.add(biomeLock);
-
-        ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
-        lockMessages.add(new ConfigEntry("lock_messages.dimensionUnknown", "msgDimensionUnknown", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgDimensionUnknown.get(), false, ""));
-        lockMessages.add(new ConfigEntry("lock_messages.mobUnknown", "msgMobUnknown", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgMobUnknown.get(), false, ""));
-        lockMessages.add(new ConfigEntry("lock_messages.itemLocked", "msgItemLocked", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgItemLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("lock_messages.blockLocked", "msgBlockLocked", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgBlockLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("lock_messages.entityItemLocked", "msgEntityItemLocked", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgEntityItemLocked.get(), false, ""));
-        lockMessages.add(new ConfigEntry("lock_messages.enchantmentLocked", "msgEnchantmentLocked", ConfigType.RICH_TEXT,
-                Config.GAMEPLAY.msgEnchantmentLocked.get(), false, ""));
-        commonSections.add(lockMessages);
     }
 
     /**
@@ -735,7 +743,7 @@ public class ConfigEditorScreen extends Screen {
         if (commonSections != null) {
             for (ConfigSection section : commonSections) all.addAll(section.entries);
         }
-        all.addAll(commonSubEntries);
+        all.addAll(visualSubEntries);
         all.addAll(graphEntries());
         if (addonSections != null) {
             for (ConfigSection section : addonSections) all.addAll(section.entries);
@@ -777,11 +785,6 @@ public class ConfigEditorScreen extends Screen {
             for (ConfigEntry entry : section.entries) {
                 mergeSynced(entry, fresh);
             }
-        }
-        // The row-less values follow the same rule; skipping them would silently pin them to
-        // whatever they were when the screen opened.
-        for (ConfigEntry entry : commonSubEntries) {
-            mergeSynced(entry, fresh);
         }
         // Addon rows too. Save sends them exactly like the mod's own common rows, so leaving them
         // out would let a stale one ride along and undo another admin's edit. A CLIENT addon row
@@ -828,6 +831,11 @@ public class ConfigEditorScreen extends Screen {
             for (ConfigEntry entry : section.entries) {
                 mergeSynced(entry, fresh);
             }
+        }
+        // The row-less values follow the same rule; skipping them would silently pin them to
+        // whatever they were when the screen opened.
+        for (ConfigEntry entry : visualSubEntries) {
+            mergeSynced(entry, fresh);
         }
     }
 
@@ -1444,6 +1452,10 @@ public class ConfigEditorScreen extends Screen {
                 if (!entry.value.equals(entry.initialValue)) clientChanged = true;
             }
         }
+        for (ConfigEntry entry : visualSubEntries) {
+            clientValues.put(entry.key, entry.value);
+            if (!entry.value.equals(entry.initialValue)) clientChanged = true;
+        }
         if (clientChanged) {
             PacketHandler.sendToServer(new SaveConfigPacket(clientValues, true));
         }
@@ -1459,11 +1471,6 @@ public class ConfigEditorScreen extends Screen {
                 if (!entry.value.equals(entry.initialValue)) commonChanged = true;
             }
         }
-        for (ConfigEntry entry : commonSubEntries) {
-            commonValues.put(entry.key, entry.value);
-            if (!entry.value.equals(entry.initialValue)) commonChanged = true;
-        }
-
         // Addon rows split by their section's side. COMMON membership is decided by
         // AddonConfigSections.commonEntries() — the same list SaveConfigPacket.applyCommonConfig
         // reads to apply them server-side — so the wire key travels here without ever being
@@ -1758,17 +1765,26 @@ public class ConfigEditorScreen extends Screen {
     /**
      * Package-private: {@link OpenScrollDocumentScreen} edits these entries in place rather than
      * keeping copies, so one Save here covers them and the unsaved-changes marker stays honest.
+     *
+     * <p>Searches both tabs rather than only the gameplay one. The open-scroll settings it is
+     * asked for are visual now, and a lookup that still only walked {@code commonSections} would
+     * throw on every one of them.
      */
-    ConfigEntry findCommonEntry(String key) {
+    ConfigEntry findEntry(String key) {
+        for (ConfigSection section : clientSections) {
+            for (ConfigEntry entry : section.entries) {
+                if (entry.key.equals(key)) return entry;
+            }
+        }
         for (ConfigSection section : commonSections) {
             for (ConfigEntry entry : section.entries) {
                 if (entry.key.equals(key)) return entry;
             }
         }
-        for (ConfigEntry entry : commonSubEntries) {
+        for (ConfigEntry entry : visualSubEntries) {
             if (entry.key.equals(key)) return entry;
         }
-        throw new IllegalStateException("no common config entry " + key);
+        throw new IllegalStateException("no config entry " + key);
     }
 
     static class ConfigSection {

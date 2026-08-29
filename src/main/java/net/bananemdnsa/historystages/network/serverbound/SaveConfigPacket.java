@@ -56,8 +56,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
             if (msg.isClient) {
                 // The visual settings are server-owned now, so this arrives instead of the editor
                 // writing them into its own client and nowhere else.
-                ConfigSpecCodec.apply(
-                        Config.VISUAL_SPEC, msg.configValues, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+                applyVisualConfig(msg.configValues);
                 Config.VISUAL_SPEC.save();
 
                 // Everyone, including the sender: the sender's own spec is only updated by the
@@ -109,7 +108,20 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
         // next restart — is invisible until someone reports it as a ghost.
         ResearchBoosterRegistry.rebuildFromConfig(Config.GAMEPLAY.researchBoosters.get());
         BiomeEffectRegistry.rebuildFromConfig(Config.GAMEPLAY.biomeEffects.get());
-        ScrollTooltipLayout.rebuildFromConfig(Config.GAMEPLAY.scrollTooltipLines.get());
+    }
+
+    /**
+     * The visual half of {@link #applyCommonConfig(Map)}. Runs on the server when an admin saves the
+     * editor, and on the client when the server syncs back.
+     *
+     * <p>It exists for the rebuild below. The scroll tooltip layout parses a config list into an
+     * in-memory object once, and that list is a visual setting now — leaving the rebuild on the
+     * common path would have meant an admin's layout change only took effect the next time somebody
+     * happened to save an unrelated gameplay setting.
+     */
+    public static void applyVisualConfig(Map<String, String> values) {
+        ConfigSpecCodec.apply(Config.VISUAL_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+        ScrollTooltipLayout.rebuildFromConfig(Config.VISUAL.scrollTooltipLines.get());
     }
 
     @Override

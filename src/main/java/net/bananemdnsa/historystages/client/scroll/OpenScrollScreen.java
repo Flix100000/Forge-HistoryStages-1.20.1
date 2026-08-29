@@ -219,22 +219,22 @@ public class OpenScrollScreen extends Screen {
                     ClientTagResolver.INSTANCE, description == null ? "" : description);
         }
 
-        this.visibility = OpenScrollVisibility.parse(Config.GAMEPLAY.openScrollLockedDisplay.get());
+        this.visibility = OpenScrollVisibility.parse(Config.VISUAL.openScrollLockedDisplay.get());
         this.hidesName = entry != null
                 && entry.getHiddenDisplay().getNameMode() == DisplayMode.HIDDEN;
         this.stageHidden = visibility.hidesLocked() && !readerHasStage(stageId, individual);
         this.chapters = visibleChapters();
 
-        this.inkHeading = GraphColors.parse(Config.GAMEPLAY.openScrollInkHeading.get(), 0x3F2D13);
-        this.inkBody = GraphColors.parse(Config.GAMEPLAY.openScrollInkBody.get(), 0x4A3416);
-        this.inkFaint = GraphColors.parse(Config.GAMEPLAY.openScrollInkFaint.get(), 0x7A5A2C);
+        this.inkHeading = GraphColors.parse(Config.VISUAL.openScrollInkHeading.get(), 0x3F2D13);
+        this.inkBody = GraphColors.parse(Config.VISUAL.openScrollInkBody.get(), 0x4A3416);
+        this.inkFaint = GraphColors.parse(Config.VISUAL.openScrollInkFaint.get(), 0x7A5A2C);
         int percent = Math.max(0, Math.min(100, Config.VISUAL.openScrollBackdrop.get()));
         this.backdrop = (percent * 255 / 100) << 24 | 0x101010;
-        this.showSearch = Config.GAMEPLAY.openScrollShowSearch.get();
-        this.showEntryIds = Config.GAMEPLAY.openScrollShowEntryIds.get();
-        this.sort = OpenScrollSort.parse(Config.GAMEPLAY.openScrollEntrySort.get());
+        this.showSearch = Config.VISUAL.openScrollShowSearch.get();
+        this.showEntryIds = Config.VISUAL.openScrollShowEntryIds.get();
+        this.sort = OpenScrollSort.parse(Config.VISUAL.openScrollEntrySort.get());
         this.overviewBlocks = OpenScrollOverviewBlocks.parse(
-                Config.GAMEPLAY.openScrollOverviewBlocks.get());
+                Config.VISUAL.openScrollOverviewBlocks.get());
     }
 
     private static boolean readerHasStage(String stageId, boolean individual) {
@@ -246,7 +246,7 @@ public class OpenScrollScreen extends Screen {
     /** Enabled chapters that actually have content. The overview always survives. */
     private List<OpenScrollChapterEntry> visibleChapters() {
         List<OpenScrollChapterEntry> out = new ArrayList<>();
-        for (OpenScrollChapterEntry entry : OpenScrollChapters.parse(Config.GAMEPLAY.openScrollChapters.get())) {
+        for (OpenScrollChapterEntry entry : OpenScrollChapters.parse(Config.VISUAL.openScrollChapters.get())) {
             if (!entry.enabled() || document.isEmpty(entry.chapter())) continue;
             out.add(entry);
         }

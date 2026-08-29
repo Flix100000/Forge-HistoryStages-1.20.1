@@ -22,26 +22,26 @@ public final class LockMessages {
     }
 
     public static MutableComponent dimensionUnknown() {
-        return resolve(Config.GAMEPLAY.msgDimensionUnknown, "message.historystages.dimension_unknown");
+        return resolve(Config.VISUAL.msgDimensionUnknown, "message.historystages.dimension_unknown");
     }
 
     public static MutableComponent mobUnknown() {
-        return resolve(Config.GAMEPLAY.msgMobUnknown, "message.historystages.mob_unknown");
+        return resolve(Config.VISUAL.msgMobUnknown, "message.historystages.mob_unknown");
     }
 
     public static MutableComponent itemLocked() {
-        return resolve(Config.GAMEPLAY.msgItemLocked, "message.historystages.item_locked");
+        return resolve(Config.VISUAL.msgItemLocked, "message.historystages.item_locked");
     }
 
     public static MutableComponent blockLocked() {
-        return resolve(Config.GAMEPLAY.msgBlockLocked, "message.historystages.block_locked");
+        return resolve(Config.VISUAL.msgBlockLocked, "message.historystages.block_locked");
     }
 
     public static MutableComponent entityItemLocked() {
-        return resolve(Config.GAMEPLAY.msgEntityItemLocked, "message.historystages.entity_item_locked");
+        return resolve(Config.VISUAL.msgEntityItemLocked, "message.historystages.entity_item_locked");
     }
 
     public static MutableComponent enchantmentLocked() {
-        return resolve(Config.GAMEPLAY.msgEnchantmentLocked, "message.historystages.enchantment_locked");
+        return resolve(Config.VISUAL.msgEnchantmentLocked, "message.historystages.enchantment_locked");
     }
 }

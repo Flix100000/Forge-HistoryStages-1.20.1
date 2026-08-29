@@ -105,8 +105,8 @@ public class OpenScrollDocumentScreen extends Screen {
     public OpenScrollDocumentScreen(ConfigEditorScreen parent) {
         super(Component.translatable("editor.historystages.open_scroll.title"));
         this.parent = parent;
-        this.chaptersEntry = parent.findCommonEntry("open_scroll.chapters");
-        this.blocksEntry = parent.findCommonEntry("open_scroll.overviewBlocks");
+        this.chaptersEntry = parent.findEntry("open_scroll.chapters");
+        this.blocksEntry = parent.findEntry("open_scroll.overviewBlocks");
         chapters.addAll(OpenScrollChapters.parse(split(chaptersEntry.value)));
         blocks.addAll(OpenScrollOverviewBlocks.parse(split(blocksEntry.value)));
     }
@@ -501,7 +501,7 @@ public class OpenScrollDocumentScreen extends Screen {
         // The overview page has no search line, but the preview shows the one the other chapters
         // get, because turning it off is a decision made in this editor too.
         boolean searchShown = "true".equalsIgnoreCase(
-                parent.findCommonEntry("open_scroll.showSearch").value);
+                parent.findEntry("open_scroll.showSearch").value);
         if (searchShown) {
             int qy = sy + OpenScrollGeometry.SEARCH_Y;
             g.drawString(this.font, "»", x, qy, 0xFF000000 | inkFaint, false);
@@ -514,7 +514,7 @@ public class OpenScrollDocumentScreen extends Screen {
             y = switch (entry.block()) {
                 case ICON -> {
                     // A real item, drawn at the real 32px, rather than a coloured rectangle.
-                    ItemStack icon = ClientToastHandler.resolveIcon(Config.GAMEPLAY.defaultStageIcon.get());
+                    ItemStack icon = ClientToastHandler.resolveIcon(Config.VISUAL.defaultStageIcon.get());
                     g.pose().pushPose();
                     g.pose().translate((float) (x + (width - 32) / 2), (float) y, 0.0f);
                     g.pose().scale(2.0f, 2.0f, 1.0f);
@@ -559,7 +559,7 @@ public class OpenScrollDocumentScreen extends Screen {
 
     /** Current value of one ink row, so the preview follows a colour edit without a save. */
     private int ink(String key, int fallback) {
-        return GraphColors.parse(parent.findCommonEntry(key).value, fallback);
+        return GraphColors.parse(parent.findEntry(key).value, fallback);
     }
 
     // --- input ---

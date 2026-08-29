@@ -36,7 +36,7 @@ public class ClientToastHandler {
         }
         // Try config default
         try {
-            String configDefault = Config.GAMEPLAY.defaultStageIcon.get();
+            String configDefault = Config.VISUAL.defaultStageIcon.get();
             if (configDefault != null && !configDefault.isEmpty()) {
                 ItemStack resolved = tryParseItem(configDefault);
                 if (resolved != null) return resolved;

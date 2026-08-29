@@ -73,7 +73,7 @@ public record SyncVisualConfigPacket(Map<String, String> values) implements Cust
             LocalConfigSnapshot.rememberBeforeSync(Config.VISUAL_SPEC);
         }
 
-        ConfigSpecCodec.apply(Config.VISUAL_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+        net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket.applyVisualConfig(values);
 
         // An open config editor holds a snapshot of the Client tab taken when it was built. Left
         // alone, it would re-send those pre-sync values on its next Save and undo whichever admin

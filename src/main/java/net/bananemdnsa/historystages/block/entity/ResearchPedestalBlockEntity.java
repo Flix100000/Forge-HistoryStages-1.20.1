@@ -695,24 +695,24 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
 
             String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-            String configChat = Config.GAMEPLAY.unlockMessageFormat.get();
+            String configChat = Config.VISUAL.unlockMessageFormat.get();
             String finalChat = configChat.replace("{stage}", stagename).replace("&", "\u00A7");
 
             level.getServer().getPlayerList().getPlayers().forEach(player -> {
-                if (Config.GAMEPLAY.broadcastChat.get()) {
+                if (Config.VISUAL.broadcastChat.get()) {
                     player.sendSystemMessage(
                             Component.literal("[HistoryStages] ")
                                     .withStyle(ChatFormatting.GRAY)
                                     .append(Component.literal(finalChat)));
                 }
-                if (Config.GAMEPLAY.useSounds.get()) {
+                if (Config.VISUAL.useSounds.get()) {
                     player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
                 }
             });
 
-            if (Config.GAMEPLAY.useToasts.get()) {
+            if (Config.VISUAL.useToasts.get()) {
                 String iconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
-                        ? stageEntry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
+                        ? stageEntry.getIcon() : Config.VISUAL.defaultStageIcon.get();
                 PacketHandler.sendToastToAll(
                         new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, iconId));
             }
@@ -743,8 +743,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                             ownerPlayer);
 
                     String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                    if (Config.GAMEPLAY.individualBroadcastChat.get()) {
-                        String configChat = Config.GAMEPLAY.individualUnlockMessageFormat.get();
+                    if (Config.VISUAL.individualBroadcastChat.get()) {
+                        String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                         String finalChat = configChat.replace("{stage}", stagename)
                                 .replace("{player}", ownerPlayer.getName().getString())
                                 .replace("&", "\u00A7");
@@ -753,20 +753,20 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                         .withStyle(ChatFormatting.GRAY)
                                         .append(Component.literal(finalChat)));
                     }
-                    if (Config.GAMEPLAY.individualUseActionbar.get()) {
-                        String configChat = Config.GAMEPLAY.individualUnlockMessageFormat.get();
+                    if (Config.VISUAL.individualUseActionbar.get()) {
+                        String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                         String finalChat = configChat.replace("{stage}", stagename)
                                 .replace("{player}", ownerPlayer.getName().getString())
                                 .replace("&", "\u00A7");
                         ownerPlayer.displayClientMessage(Component.literal(finalChat), true);
                     }
-                    if (Config.GAMEPLAY.individualUseSounds.get()) {
+                    if (Config.VISUAL.individualUseSounds.get()) {
                         ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER,
                                 0.75F, 1.0F);
                     }
-                    if (Config.GAMEPLAY.individualUseToasts.get()) {
+                    if (Config.VISUAL.individualUseToasts.get()) {
                         String indIconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
-                                ? stageEntry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
+                                ? stageEntry.getIcon() : Config.VISUAL.defaultStageIcon.get();
                         PacketHandler.sendToastToPlayer(
                                 new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, indIconId),
                                 ownerPlayer);
@@ -807,14 +807,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(StageData.SERVER_CACHE)));
 
         level.getServer().getPlayerList().getPlayers().forEach(player -> {
-            if (Config.GAMEPLAY.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ")
                                 .withStyle(ChatFormatting.GRAY)
                                 .append(Component.translatable("command.historystages.unlocked_all")
                                         .withStyle(ChatFormatting.GREEN)));
             }
-            if (Config.GAMEPLAY.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
                         SoundSource.MASTER, 0.75F, 1.0F);
             }

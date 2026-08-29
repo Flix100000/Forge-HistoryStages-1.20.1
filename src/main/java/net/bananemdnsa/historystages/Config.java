@@ -9,7 +9,7 @@ import java.util.List;
 
 public class Config {
 
-    // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
+    // --- VISUAL CONFIG (everything a player sees, reads or hears) ---
     public static class Visual {
         public final ModConfigSpec.BooleanValue showTooltips;
         public final ModConfigSpec.BooleanValue showStageName;
@@ -25,6 +25,7 @@ public class Config {
         public final ModConfigSpec.BooleanValue showBoosterTooltips;
         public final ModConfigSpec.BooleanValue showScrollTierTooltip;
         public final ModConfigSpec.IntValue openScrollBackdrop;
+        public final ModConfigSpec.BooleanValue showWelcomeMessage;
         public final ModConfigSpec.BooleanValue structureBorderEnabled;
         public final ModConfigSpec.DoubleValue structureBorderDistance;
         public final ModConfigSpec.BooleanValue structureLockOverlayEnabled;
@@ -41,6 +42,44 @@ public class Config {
         public final ModConfigSpec.BooleanValue hideLockedItemsInJei;
         public final ModConfigSpec.BooleanValue hideLockedRecipesInJei;
         public final ModConfigSpec.EnumValue<MultiStagePolicy> lockedItemMultiStagePolicy;
+
+        // Central notifications (chat, actionbar, sounds, texts)
+        public final ModConfigSpec.BooleanValue broadcastChat;
+        public final ModConfigSpec.ConfigValue<String> unlockMessageFormat;
+        public final ModConfigSpec.BooleanValue useActionbar;
+        public final ModConfigSpec.BooleanValue useSounds;
+        public final ModConfigSpec.BooleanValue useToasts;
+        public final ModConfigSpec.ConfigValue<String> defaultStageIcon;
+
+        // The same notifications, for individual stages
+        public final ModConfigSpec.BooleanValue individualBroadcastChat;
+        public final ModConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
+        public final ModConfigSpec.BooleanValue individualUseActionbar;
+        public final ModConfigSpec.BooleanValue individualUseSounds;
+        public final ModConfigSpec.BooleanValue individualUseToasts;
+
+        // Lock-Message Overrides (empty = the translation key is used)
+        public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
+        public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
+        public final ModConfigSpec.ConfigValue<String> msgItemLocked;
+        public final ModConfigSpec.ConfigValue<String> msgBlockLocked;
+        public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
+        public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
+
+        // Scroll tooltip
+        public final ModConfigSpec.ConfigValue<List<? extends String>> scrollTooltipLines;
+        public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
+
+        // Open scroll document
+        public final ModConfigSpec.ConfigValue<List<? extends String>> openScrollChapters;
+        public final ModConfigSpec.ConfigValue<String> openScrollLockedDisplay;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> openScrollOverviewBlocks;
+        public final ModConfigSpec.BooleanValue openScrollShowSearch;
+        public final ModConfigSpec.BooleanValue openScrollShowEntryIds;
+        public final ModConfigSpec.ConfigValue<String> openScrollEntrySort;
+        public final ModConfigSpec.ConfigValue<String> openScrollInkHeading;
+        public final ModConfigSpec.ConfigValue<String> openScrollInkBody;
+        public final ModConfigSpec.ConfigValue<String> openScrollInkFaint;
 
         public enum MultiStagePolicy {
             STRICT,   // locked while ANY assigned stage is locked
@@ -83,6 +122,10 @@ public class Config {
                     .comment("How far the world behind an open scroll is dimmed, in percent.",
                             "0 = not at all, 100 = black. [Default: 60]")
                     .defineInRange("openScrollBackdrop", 60, 0, 100);
+
+            showWelcomeMessage = builder
+                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
+                    .define("showWelcomeMessage", true);
 
             builder.pop();
 
@@ -184,12 +227,190 @@ public class Config {
                     .defineEnum("lockedItemMultiStagePolicy", MultiStagePolicy.STRICT);
 
             builder.pop();
+
+            // --- NOTIFICATIONS SECTION ---
+            builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
+
+            broadcastChat = builder
+                    .comment("Show unlock/lock messages in the chat for everyone? [Default: true]")
+                    .define("broadcastChat", true);
+
+            unlockMessageFormat = builder
+                    .comment("Message format for unlocks (Only for the Chat and only if 'broadcastChat' = true). Use {stage} for the name and & for colors.")
+                    .define("unlockMessageFormat", "&fThe world has entered the &b{stage}&f!");
+
+            useActionbar = builder
+                    .comment("Show messages in the actionbar for everyone? [Default: false]")
+                    .define("useActionbar", false);
+
+            useSounds = builder
+                    .comment("Play notification sounds for everyone? [Default: true]")
+                    .define("useSounds", true);
+
+            useToasts = builder
+                    .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
+                    .define("useToasts", true);
+
+            defaultStageIcon = builder
+                    .comment("Default icon item shown in unlock toasts when a stage has no icon set. Use the item's full registry ID. [Default: historystages:research_scroll]")
+                    .define("defaultStageIcon", "historystages:research_scroll");
+
+            // Nested rather than a block of its own: these five mirror the six above key for key,
+            // and a top-level table would put the same setting in two far-apart places depending
+            // only on how far its stage reaches.
+            builder.comment("The same notifications, for individual (per-player) stages").push("individual");
+
+            individualBroadcastChat = builder
+                    .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")
+                    .define("broadcastChat", true);
+
+            individualUnlockMessageFormat = builder
+                    .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
+                    .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
+
+            individualUseActionbar = builder
+                    .comment("Show individual stage messages in the actionbar? [Default: false]")
+                    .define("useActionbar", false);
+
+            individualUseSounds = builder
+                    .comment("Play notification sounds for individual stage unlocks? [Default: true]")
+                    .define("useSounds", true);
+
+            individualUseToasts = builder
+                    .comment("Show an advancement-style toast popup when an individual stage is unlocked? [Default: true]")
+                    .define("useToasts", true);
+
+            builder.pop(); // notifications.individual
+
+            builder.pop(); // notifications
+
+            // --- LOCK MESSAGES SECTION ---
+            builder.comment(
+                    "Override the displayed text for the six 'is locked' / 'unknown' messages.",
+                    "Leave a value empty (\"\") to fall back to the default messages.",
+                    "Use & for color codes (e.g. &c for red)."
+            ).push("lock_messages");
+
+            msgDimensionUnknown = builder
+                    .comment("Actionbar message when entering a locked dimension. Lang key: message.historystages.dimension_unknown")
+                    .define("dimensionUnknown", "");
+
+            msgMobUnknown = builder
+                    .comment("Actionbar message when attacking a locked mob. Lang key: message.historystages.mob_unknown")
+                    .define("mobUnknown", "");
+
+            msgItemLocked = builder
+                    .comment("Actionbar message when interacting with a locked item. Lang key: message.historystages.item_locked")
+                    .define("itemLocked", "");
+
+            msgBlockLocked = builder
+                    .comment("Actionbar message when interacting with a locked block. Lang key: message.historystages.block_locked")
+                    .define("blockLocked", "");
+
+            msgEntityItemLocked = builder
+                    .comment("Actionbar message when interacting with armor stands / item frames holding locked items. Lang key: message.historystages.entity_item_locked")
+                    .define("entityItemLocked", "");
+
+            msgEnchantmentLocked = builder
+                    .comment("Actionbar message when applying a locked enchantment. Lang key: message.historystages.enchantment_locked")
+                    .define("enchantmentLocked", "");
+
+            builder.pop(); // lock_messages
+
+            builder.comment(
+                    "Layout of the Research Scroll tooltip.",
+                    "Each entry is one line: id|enabled|spacerBefore|style|text",
+                    "  text  empty = use the built-in translation",
+                    "  style empty = use the line's built-in colour;",
+                    "        otherwise ChatFormatting names joined with '+', e.g. gray+italic",
+                    "The order of the movable ids (individual_badge, owner, info1, info2, tier,",
+                    "dependencies) is the order they render in. Unknown ids are ignored, missing",
+                    "ones fall back to their default, so an update can add lines safely.",
+                    "Easiest way to edit this is the in-game config editor.")
+                    .push("scroll_tooltip");
+
+            scrollTooltipLines = builder
+                    .comment("The tooltip lines, in render order.")
+                    .defineList("lines",
+                            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            hideFulfilledDependencies = builder
+                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
+                    .define("hideFulfilledDependencies", false);
+
+            builder.pop(); // scroll_tooltip
+
+            builder.comment("The document an Open Scroll shows when right-clicked.",
+                            "Chapters are drawn in the order they appear below.",
+                            "Each entry is one chapter: id|enabled|mode",
+                            "  id   overview, items, creatures, world",
+                            "  mode icons or text; overview and world are always text",
+                            "Unknown ids are ignored and missing ones fall back to their default,",
+                            "so an update can add chapters safely.")
+                    .push("open_scroll");
+
+            openScrollChapters = builder
+                    .comment("The chapters, in tab order.")
+                    .defineList("chapters",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollChapters.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            openScrollLockedDisplay = builder
+                    .comment("What a reader sees for a stage they have not unlocked.",
+                            "visible  = everything readable, the scroll is just a record",
+                            "obscured = locked entries as silhouettes, names in enchanting glyphs",
+                            "[Default: obscured]")
+                    .define("lockedDisplay",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility.OBSCURED.serialize());
+
+            openScrollOverviewBlocks = builder
+                    .comment("The overview page's blocks, in reading order.",
+                            "Each entry is one block: id|enabled",
+                            "  id  icon, title, description, counts",
+                            "Blocks flow from the top of the page, so a short description no",
+                            "longer leaves a gap above the counts line.")
+                    .defineList("overviewBlocks",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollOverviewBlocks.defaultsEncoded(),
+                            entry -> entry instanceof String);
+
+            openScrollShowSearch = builder
+                    .comment("Draw the search line? Off gives the content 12 more pixels.",
+                            "[Default: true]")
+                    .define("showSearch", true);
+
+            openScrollShowEntryIds = builder
+                    .comment("Show the raw registry id in an entry's tooltip?",
+                            "Off keeps a story pack free of minecraft:iron_ingot. [Default: true]")
+                    .define("showEntryIds", true);
+
+            openScrollEntrySort = builder
+                    .comment("In which order a chapter lists its entries.",
+                            "defined      = the order the stage file lists them in",
+                            "alphabetical = by display name",
+                            "[Default: defined]")
+                    .define("entrySort",
+                            net.bananemdnsa.historystages.data.scroll.OpenScrollSort.DEFINED.serialize());
+
+            openScrollInkHeading = builder
+                    .comment("Ink for the chapter words and the stage title. [Default: #3F2D13]")
+                    .define("inkHeading", "#3F2D13");
+
+            openScrollInkBody = builder
+                    .comment("Ink for entries and the description. [Default: #4A3416]")
+                    .define("inkBody", "#4A3416");
+
+            openScrollInkFaint = builder
+                    .comment("Ink for group headings, the counts line and the sheet counter.",
+                            "[Default: #7A5A2C]")
+                    .define("inkFaint", "#7A5A2C");
+
+            builder.pop(); // open_scroll
         }
     }
 
-    // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
+    // --- GAMEPLAY CONFIG (everything that happens in the background) ---
     public static class Gameplay {
-        public final ModConfigSpec.BooleanValue showWelcomeMessage;
         public final ModConfigSpec.BooleanValue showDebugErrors;
         public final ModConfigSpec.BooleanValue enableRuntimeLogging;
 
@@ -202,19 +423,9 @@ public class Config {
         public final ModConfigSpec.BooleanValue lockContainerInteraction;
         public final ModConfigSpec.BooleanValue lockEnchanting;
 
-        // Zentrale Benachrichtigungen (Chat, Actionbar, Sounds, Texte)
-        public final ModConfigSpec.BooleanValue broadcastChat;
-        public final ModConfigSpec.ConfigValue<String> unlockMessageFormat;
-        public final ModConfigSpec.BooleanValue useActionbar;
-        public final ModConfigSpec.BooleanValue useSounds;
-        public final ModConfigSpec.BooleanValue useToasts;
-        public final ModConfigSpec.ConfigValue<String> defaultStageIcon;
-
         // Forschungsstation
         public final ModConfigSpec.IntValue researchTimeInSeconds;
-        public final ModConfigSpec.BooleanValue showDependencyScreenInPedestal;
         public final ModConfigSpec.ConfigValue<List<? extends String>> researchBoosters;
-        public final ModConfigSpec.BooleanValue lockScrollWhileResearching;
         public final ModConfigSpec.ConfigValue<String> defaultScrollCompletion;
         public final ModConfigSpec.BooleanValue enableScrollResealing;
 
@@ -222,21 +433,6 @@ public class Config {
         public final ModConfigSpec.BooleanValue useReplacements;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementItems;
         public final ModConfigSpec.ConfigValue<List<? extends String>> replacementTags;
-
-        // Scroll tooltip
-        public final ModConfigSpec.ConfigValue<List<? extends String>> scrollTooltipLines;
-        public final ModConfigSpec.BooleanValue hideFulfilledDependencies;
-
-        // Open scroll document
-        public final ModConfigSpec.ConfigValue<List<? extends String>> openScrollChapters;
-        public final ModConfigSpec.ConfigValue<String> openScrollLockedDisplay;
-        public final ModConfigSpec.ConfigValue<List<? extends String>> openScrollOverviewBlocks;
-        public final ModConfigSpec.BooleanValue openScrollShowSearch;
-        public final ModConfigSpec.BooleanValue openScrollShowEntryIds;
-        public final ModConfigSpec.ConfigValue<String> openScrollEntrySort;
-        public final ModConfigSpec.ConfigValue<String> openScrollInkHeading;
-        public final ModConfigSpec.ConfigValue<String> openScrollInkBody;
-        public final ModConfigSpec.ConfigValue<String> openScrollInkFaint;
 
         // Individual Stages - Gameplay
         public final ModConfigSpec.BooleanValue individualLockItemPickup;
@@ -247,13 +443,6 @@ public class Config {
         public final ModConfigSpec.BooleanValue individualLockItemUsage;
         public final ModConfigSpec.BooleanValue individualLockBlockInteraction;
         public final ModConfigSpec.BooleanValue individualLockEnchanting;
-
-        // Individual Stages - Notifications
-        public final ModConfigSpec.BooleanValue individualBroadcastChat;
-        public final ModConfigSpec.ConfigValue<String> individualUnlockMessageFormat;
-        public final ModConfigSpec.BooleanValue individualUseActionbar;
-        public final ModConfigSpec.BooleanValue individualUseSounds;
-        public final ModConfigSpec.BooleanValue individualUseToasts;
 
         // Structure Lock
         public final ModConfigSpec.IntValue structureCheckInterval;
@@ -283,25 +472,13 @@ public class Config {
         public final ModConfigSpec.BooleanValue biomeBlockLeftClick;
         public final ModConfigSpec.BooleanValue biomeBlockProjectiles;
 
-        // Lock-Message Overrides (leer = Translation Key wird verwendet)
-        public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
-        public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
-        public final ModConfigSpec.ConfigValue<String> msgItemLocked;
-        public final ModConfigSpec.ConfigValue<String> msgBlockLocked;
-        public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
-        public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
-
         public Gameplay(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
                     "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
                     "",
-                    "Chat messages settings"
-            ).push("messages");
-
-            showWelcomeMessage = builder
-                    .comment("Show a welcome message in chat when a player joins the world? [Default: true]")
-                    .define("showWelcomeMessage", true);
+                    "Diagnostics and log output"
+            ).push("logging");
 
             showDebugErrors = builder
                     .comment("Show debug messages in chat if a JSON stage has errors or missing items? [Default: true]")
@@ -311,7 +488,7 @@ public class Config {
                     .comment("Log runtime events (stage unlock/lock, blocked actions, loot replacements) to config/historystages/logs/runtime-*.log? [Default: false]")
                     .define("enableRuntimeLogging", false);
 
-            builder.pop(); // messages
+            builder.pop(); // logging
 
             builder.comment("Gameplay and Server-side settings").push("gameplay");
 
@@ -349,44 +526,11 @@ public class Config {
 
             builder.pop(); // gameplay
 
-            // --- NOTIFICATIONS SECTION ---
-            builder.comment("Global Notification Settings (Server-controlled)").push("notifications");
-
-            broadcastChat = builder
-                    .comment("Show unlock/lock messages in the chat for everyone? [Default: true]")
-                    .define("broadcastChat", true);
-
-            unlockMessageFormat = builder
-                    .comment("Message format for unlocks (Only for the Chat and only if 'broadcastChat' = true). Use {stage} for the name and & for colors.")
-                    .define("unlockMessageFormat", "&fThe world has entered the &b{stage}&f!");
-
-            useActionbar = builder
-                    .comment("Show messages in the actionbar for everyone? [Default: false]")
-                    .define("useActionbar", false);
-
-            useSounds = builder
-                    .comment("Play notification sounds for everyone? [Default: true]")
-                    .define("useSounds", true);
-
-            useToasts = builder
-                    .comment("Show an advancement-style toast popup when a stage is unlocked? [Default: true]")
-                    .define("useToasts", true);
-
-            defaultStageIcon = builder
-                    .comment("Default icon item shown in unlock toasts when a stage has no icon set. Use the item's full registry ID. [Default: historystages:research_scroll]")
-                    .define("defaultStageIcon", "historystages:research_scroll");
-
-            builder.pop(); // notifications
-
             // --- RESEARCH Pedestal SECTION ---
             builder.comment("Research Pedestal Settings").push("research");
             researchTimeInSeconds = builder
                     .comment("Default research time in seconds. Used as fallback if a stage does not define its own 'research_time' in the JSON. [Default: 20]")
                     .defineInRange("researchTimeInSeconds", 20, 1, 86400);
-
-            showDependencyScreenInPedestal = builder
-                    .comment("Show dependency checklist screen when interacting with pedestal that has dependency requirements? [Default: true]")
-                    .define("showDependencyScreenInPedestal", true);
 
             researchBoosters = builder
                     .comment(
@@ -400,10 +544,6 @@ public class Config {
                     .defineListAllowEmpty("researchBoosters",
                             List.of(),
                             obj -> obj instanceof String);
-
-            lockScrollWhileResearching = builder
-                    .comment("Lock the scroll in the pedestal once research has started? Prevents players (and hoppers) from removing the scroll until research completes or the pedestal is broken. [Default: false]")
-                    .define("lockScrollWhileResearching", false);
 
             defaultScrollCompletion = builder
                     .comment(
@@ -478,26 +618,6 @@ public class Config {
             individualLockEnchanting = builder
                     .comment("Prevent applying enchantments locked by individual stages via anvil and enchanting table? [Default: true]")
                     .define("lockEnchanting", true);
-
-            individualBroadcastChat = builder
-                    .comment("Show individual stage unlock/lock messages in the chat for the player? [Default: true]")
-                    .define("broadcastChat", true);
-
-            individualUnlockMessageFormat = builder
-                    .comment("Message format for individual stage unlocks (chat). Use {stage} for the name, {player} for the player name, and & for colors.")
-                    .define("unlockMessageFormat", "&fYou have unlocked &b{stage}&f!");
-
-            individualUseActionbar = builder
-                    .comment("Show individual stage messages in the actionbar? [Default: false]")
-                    .define("useActionbar", false);
-
-            individualUseSounds = builder
-                    .comment("Play notification sounds for individual stage unlocks? [Default: true]")
-                    .define("useSounds", true);
-
-            individualUseToasts = builder
-                    .comment("Show an advancement-style toast popup when an individual stage is unlocked? [Default: true]")
-                    .define("useToasts", true);
 
             builder.pop(); // individual_stages
 
@@ -631,129 +751,6 @@ public class Config {
                     .define("blockProjectiles", true);
 
             builder.pop(); // biome_lock
-
-            // --- LOCK MESSAGES SECTION ---
-            builder.comment(
-                    "Override the displayed text for the six 'is locked' / 'unknown' messages.",
-                    "Leave a value empty (\"\") to fall back to the default messages.",
-                    "Use & for color codes (e.g. &c for red)."
-            ).push("lock_messages");
-
-            msgDimensionUnknown = builder
-                    .comment("Actionbar message when entering a locked dimension. Lang key: message.historystages.dimension_unknown")
-                    .define("dimensionUnknown", "");
-
-            msgMobUnknown = builder
-                    .comment("Actionbar message when attacking a locked mob. Lang key: message.historystages.mob_unknown")
-                    .define("mobUnknown", "");
-
-            msgItemLocked = builder
-                    .comment("Actionbar message when interacting with a locked item. Lang key: message.historystages.item_locked")
-                    .define("itemLocked", "");
-
-            msgBlockLocked = builder
-                    .comment("Actionbar message when interacting with a locked block. Lang key: message.historystages.block_locked")
-                    .define("blockLocked", "");
-
-            msgEntityItemLocked = builder
-                    .comment("Actionbar message when interacting with armor stands / item frames holding locked items. Lang key: message.historystages.entity_item_locked")
-                    .define("entityItemLocked", "");
-
-            msgEnchantmentLocked = builder
-                    .comment("Actionbar message when applying a locked enchantment. Lang key: message.historystages.enchantment_locked")
-                    .define("enchantmentLocked", "");
-
-            builder.pop(); // lock_messages
-
-            builder.comment(
-                    "Layout of the Research Scroll tooltip.",
-                    "Each entry is one line: id|enabled|spacerBefore|style|text",
-                    "  text  empty = use the built-in translation",
-                    "  style empty = use the line's built-in colour;",
-                    "        otherwise ChatFormatting names joined with '+', e.g. gray+italic",
-                    "The order of the movable ids (individual_badge, owner, info1, info2, tier,",
-                    "dependencies) is the order they render in. Unknown ids are ignored, missing",
-                    "ones fall back to their default, so an update can add lines safely.",
-                    "Easiest way to edit this is the in-game config editor.")
-                    .push("scroll_tooltip");
-
-            scrollTooltipLines = builder
-                    .comment("The tooltip lines, in render order.")
-                    .defineList("lines",
-                            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.defaultsEncoded(),
-                            entry -> entry instanceof String);
-
-            hideFulfilledDependencies = builder
-                    .comment("Hide already fulfilled dependencies in scroll tooltips? [Default: false]")
-                    .define("hideFulfilledDependencies", false);
-
-            builder.pop(); // scroll_tooltip
-
-            builder.comment("The document an Open Scroll shows when right-clicked.",
-                            "Chapters are drawn in the order they appear below.",
-                            "Each entry is one chapter: id|enabled|mode",
-                            "  id   overview, items, creatures, world",
-                            "  mode icons or text; overview and world are always text",
-                            "Unknown ids are ignored and missing ones fall back to their default,",
-                            "so an update can add chapters safely.")
-                    .push("open_scroll");
-
-            openScrollChapters = builder
-                    .comment("The chapters, in tab order.")
-                    .defineList("chapters",
-                            net.bananemdnsa.historystages.data.scroll.OpenScrollChapters.defaultsEncoded(),
-                            entry -> entry instanceof String);
-
-            openScrollLockedDisplay = builder
-                    .comment("What a reader sees for a stage they have not unlocked.",
-                            "visible  = everything readable, the scroll is just a record",
-                            "obscured = locked entries as silhouettes, names in enchanting glyphs",
-                            "[Default: obscured]")
-                    .define("lockedDisplay",
-                            net.bananemdnsa.historystages.data.scroll.OpenScrollVisibility.OBSCURED.serialize());
-
-            openScrollOverviewBlocks = builder
-                    .comment("The overview page's blocks, in reading order.",
-                            "Each entry is one block: id|enabled",
-                            "  id  icon, title, description, counts",
-                            "Blocks flow from the top of the page, so a short description no",
-                            "longer leaves a gap above the counts line.")
-                    .defineList("overviewBlocks",
-                            net.bananemdnsa.historystages.data.scroll.OpenScrollOverviewBlocks.defaultsEncoded(),
-                            entry -> entry instanceof String);
-
-            openScrollShowSearch = builder
-                    .comment("Draw the search line? Off gives the content 12 more pixels.",
-                            "[Default: true]")
-                    .define("showSearch", true);
-
-            openScrollShowEntryIds = builder
-                    .comment("Show the raw registry id in an entry's tooltip?",
-                            "Off keeps a story pack free of minecraft:iron_ingot. [Default: true]")
-                    .define("showEntryIds", true);
-
-            openScrollEntrySort = builder
-                    .comment("In which order a chapter lists its entries.",
-                            "defined      = the order the stage file lists them in",
-                            "alphabetical = by display name",
-                            "[Default: defined]")
-                    .define("entrySort",
-                            net.bananemdnsa.historystages.data.scroll.OpenScrollSort.DEFINED.serialize());
-
-            openScrollInkHeading = builder
-                    .comment("Ink for the chapter words and the stage title. [Default: #3F2D13]")
-                    .define("inkHeading", "#3F2D13");
-
-            openScrollInkBody = builder
-                    .comment("Ink for entries and the description. [Default: #4A3416]")
-                    .define("inkBody", "#4A3416");
-
-            openScrollInkFaint = builder
-                    .comment("Ink for group headings, the counts line and the sheet counter.",
-                            "[Default: #7A5A2C]")
-                    .define("inkFaint", "#7A5A2C");
-
-            builder.pop(); // open_scroll
         }
     }
 
