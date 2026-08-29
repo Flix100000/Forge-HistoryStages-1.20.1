@@ -63,6 +63,10 @@ public class HistoryStages {
         // Must run before either config spec is registered below — see the class comment on
         // GraphConfigMigration for why capture and apply are two separate steps.
         net.bananemdnsa.historystages.data.graph.GraphConfigMigration.capture();
+        // Second, never first: this one renames the old files once it has written their contents
+        // into the new ones, and the graph block lives in the same common file. Reading it after
+        // the rename would cost the pack its whole stage graph.
+        net.bananemdnsa.historystages.data.config.LegacyConfigMigration.capture();
 
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
@@ -182,6 +186,14 @@ public class HistoryStages {
         // every later change to visual.toml.
         if (event.getConfig().getSpec() == Config.VISUAL_SPEC) {
             net.bananemdnsa.historystages.data.config.ConfigDerivedCaches.rebuildVisual();
+        }
+        // Not in the constructor: registerConfig does not load a COMMON spec, and writing into one
+        // before it is loaded throws. Hung off both specs rather than just whichever loads second,
+        // so it does not depend on the registration order — apply() waits until both are ready and
+        // then runs exactly once.
+        if (event.getConfig().getSpec() == Config.VISUAL_SPEC
+                || event.getConfig().getSpec() == Config.GAMEPLAY_SPEC) {
+            net.bananemdnsa.historystages.data.config.LegacyConfigMigration.apply();
         }
         if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
             net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
