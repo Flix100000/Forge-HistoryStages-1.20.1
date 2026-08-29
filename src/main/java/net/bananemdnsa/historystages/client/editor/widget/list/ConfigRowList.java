@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
+import net.bananemdnsa.historystages.api.editor.widget.ToggleControl;
+import net.bananemdnsa.historystages.api.editor.widget.ToggleGeometry;
 import net.bananemdnsa.historystages.client.editor.ConfigEditorScreen;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
@@ -43,6 +45,9 @@ public class ConfigRowList {
     /** Vertical inset that centres an 18px dropdown button in the 24px row. */
     public static final int DROPDOWN_INSET_Y = (ENTRY_HEIGHT - 18) / 2;
 
+    /** Vertical inset that centres the toggle in the 24px row. */
+    public static final int TOGGLE_INSET_Y = (ENTRY_HEIGHT - ToggleGeometry.HEIGHT) / 2;
+
     /** Label and value colour of a row whose value comes from a layer below it. */
     private static final int INHERITED_TEXT = 0xFF777777;
     private static final int INHERITED_TEXT_HOVER = 0xFF999999;
@@ -67,6 +72,8 @@ public class ConfigRowList {
     private final Map<String, Anim> entryHover = new HashMap<>();
     /** Hover progress of the value control itself, which is narrower than its row. */
     private final Map<String, Anim> controlHover = new HashMap<>();
+    /** Toggle animations per config entry, keyed the same way and for the same reason. */
+    private final Map<String, ToggleControl.State> toggleState = new HashMap<>();
 
     /** Narrowest an ENUM row's button may get, whatever its options are. */
     public static final int DROPDOWN_MIN_WIDTH = 80;
@@ -136,6 +143,13 @@ public class ConfigRowList {
         // nothing, the same as it does for every other widget in the editor.
         // A varying row draws the hint in place of that box, so its width is not what the user
         // has in front of them to aim at.
+        // A BOOLEAN row draws a bordered box like an ENUM row does, and for the same reason its
+        // clickable area stops where the box does. Only the horizontal extent is checked here:
+        // the row height was established above, and a 14px tall target inside a 24px row would
+        // only be fiddly to hit.
+        if (entry.type == ConfigEditorScreen.ConfigType.BOOLEAN && !entry.varies) {
+            return ToggleControl.valueAt(Minecraft.getInstance().font, controlX, mouseX) != null;
+        }
         if (entry.type == ConfigEditorScreen.ConfigType.ENUM && !entry.varies) {
             return mouseX >= controlX && mouseX < controlX + dropdownWidth(entry);
         }
@@ -181,13 +195,12 @@ public class ConfigRowList {
         switch (entry.type) {
             case BOOLEAN -> {
                 boolean val = Boolean.parseBoolean(entry.value);
-                String toggleText = val ? "\u2714 ON" : "\u2718 OFF";
-                int toggleColor = val ? 0x55FF55 : 0xFF5555;
-                boolean toggleHovered = mouseX >= controlX && mouseX <= right - 5
-                        && mouseY >= y + 2 && mouseY < y + ENTRY_HEIGHT - 2;
-                if (toggleHovered) toggleColor = val ? 0x88FF88 : 0xFF8888;
-                if (entry.inherited) toggleColor = INHERITED_TEXT & 0xFFFFFF;
-                guiGraphics.drawString(font, toggleText, controlX, y + 8, toggleColor, false);
+                int toggleY = y + TOGGLE_INSET_Y;
+                ToggleControl.State state = toggleState.computeIfAbsent(
+                        entry.key, k -> new ToggleControl.State());
+                state.update(val, ToggleControl.segmentAt(font, controlX, toggleY, mouseX, mouseY));
+                ToggleControl.draw(guiGraphics, font, controlX, toggleY, val, state,
+                        entry.inherited);
             }
             case INTEGER, DOUBLE -> {
                 guiGraphics.drawString(font, entry.value, controlX, y + 8,
@@ -368,5 +381,14 @@ public class ConfigRowList {
         Item item = BuiltInRegistries.ITEM.get(rl);
         if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
         return new ItemStack(item);
+    }
+
+    /**
+     * Which value a click at {@code mouseX} on a BOOLEAN row means, or {@code null} when it
+     * missed the box. Goes through the same geometry the row drew with, so what the cursor
+     * lands on and what gets written cannot drift apart.
+     */
+    public Boolean toggleValueAt(ConfigEditorScreen.ConfigEntry entry, int left, double mouseX) {
+        return ToggleControl.valueAt(Minecraft.getInstance().font, controlX(entry, left), mouseX);
     }
 }
