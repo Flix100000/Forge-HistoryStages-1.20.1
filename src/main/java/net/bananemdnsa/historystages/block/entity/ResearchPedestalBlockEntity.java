@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
+import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.TieredPedestal;
@@ -336,7 +337,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
                 if (reqRl != null && reqRl.equals(depositRl)
                         && (!reqItem.hasNbt() || NbtMatcher.matches(depositStack, reqItem.getNbt()))) {
-                    String key = "Group_" + i + "_Item_" + reqRl;
+                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
+                            DependencyProgress.itemSuffix(reqRl.toString()));
                     int current = deposited.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);
                     int needed = effectiveRequired - current;
@@ -418,7 +420,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             var group = entry.getDependencies().get(i);
             for (var item : group.getItems()) {
                 if (item.getId().equals(depositRl.toString())) {
-                    String key = "Group_" + i + "_Item_" + item.getId();
+                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
+                            DependencyProgress.itemSuffix(item.getId()));
                     int count = depositedData.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(item.getCount(), costReduction);
                     if (count < effectiveRequired) return true;
@@ -661,7 +664,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 : StageManager.getStages().get(stageId);
         ScrollCompletion mode = ScrollCompletion.resolve(
                 entry != null ? entry.getScrollCompletion() : null,
-                Config.COMMON.defaultScrollCompletion.get());
+                Config.GAMEPLAY.defaultScrollCompletion.get());
 
         ItemStack replacement = switch (mode) {
             case CONSUME -> ItemStack.EMPTY;
@@ -692,24 +695,24 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             }
 
             String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-            String configChat = Config.COMMON.unlockMessageFormat.get();
+            String configChat = Config.VISUAL.unlockMessageFormat.get();
             String finalChat = configChat.replace("{stage}", stagename).replace("&", "\u00A7");
 
             level.getServer().getPlayerList().getPlayers().forEach(player -> {
-                if (Config.COMMON.broadcastChat.get()) {
+                if (Config.VISUAL.broadcastChat.get()) {
                     player.sendSystemMessage(
                             Component.literal("[HistoryStages] ")
                                     .withStyle(ChatFormatting.GRAY)
                                     .append(Component.literal(finalChat)));
                 }
-                if (Config.COMMON.useSounds.get()) {
+                if (Config.VISUAL.useSounds.get()) {
                     player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
                 }
             });
 
-            if (Config.COMMON.useToasts.get()) {
+            if (Config.VISUAL.useToasts.get()) {
                 String iconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
-                        ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                        ? stageEntry.getIcon() : Config.VISUAL.defaultStageIcon.get();
                 PacketHandler.sendToastToAll(
                         new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, iconId));
             }
@@ -740,8 +743,8 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                             ownerPlayer);
 
                     String stagename = (stageEntry != null) ? stageEntry.getDisplayName() : stageId;
-                    if (Config.COMMON.individualBroadcastChat.get()) {
-                        String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                    if (Config.VISUAL.individualBroadcastChat.get()) {
+                        String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                         String finalChat = configChat.replace("{stage}", stagename)
                                 .replace("{player}", ownerPlayer.getName().getString())
                                 .replace("&", "\u00A7");
@@ -750,20 +753,20 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                                         .withStyle(ChatFormatting.GRAY)
                                         .append(Component.literal(finalChat)));
                     }
-                    if (Config.COMMON.individualUseActionbar.get()) {
-                        String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+                    if (Config.VISUAL.individualUseActionbar.get()) {
+                        String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
                         String finalChat = configChat.replace("{stage}", stagename)
                                 .replace("{player}", ownerPlayer.getName().getString())
                                 .replace("&", "\u00A7");
                         ownerPlayer.displayClientMessage(Component.literal(finalChat), true);
                     }
-                    if (Config.COMMON.individualUseSounds.get()) {
+                    if (Config.VISUAL.individualUseSounds.get()) {
                         ownerPlayer.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER,
                                 0.75F, 1.0F);
                     }
-                    if (Config.COMMON.individualUseToasts.get()) {
+                    if (Config.VISUAL.individualUseToasts.get()) {
                         String indIconId = (stageEntry != null && !stageEntry.getIcon().isEmpty())
-                                ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                                ? stageEntry.getIcon() : Config.VISUAL.defaultStageIcon.get();
                         PacketHandler.sendToastToPlayer(
                                 new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(stagename, indIconId),
                                 ownerPlayer);
@@ -804,14 +807,14 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(StageData.SERVER_CACHE)));
 
         level.getServer().getPlayerList().getPlayers().forEach(player -> {
-            if (Config.COMMON.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(
                         Component.literal("[HistoryStages] ")
                                 .withStyle(ChatFormatting.GRAY)
                                 .append(Component.translatable("command.historystages.unlocked_all")
                                         .withStyle(ChatFormatting.GREEN)));
             }
-            if (Config.COMMON.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(net.minecraft.sounds.SoundEvents.UI_TOAST_CHALLENGE_COMPLETE,
                         SoundSource.MASTER, 0.75F, 1.0F);
             }
@@ -825,7 +828,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             if (tag.contains("StageResearch")) {
                 String stageId = tag.getString("StageResearch");
                 if (ModItems.CREATIVE_STAGE_ID.equals(stageId)) {
-                    return Config.COMMON.researchTimeInSeconds.get() * 20;
+                    return Config.GAMEPLAY.researchTimeInSeconds.get() * 20;
                 }
                 if (StageManager.isIndividualStage(stageId)) {
                     return StageManager.getIndividualResearchTimeInTicks(stageId);
@@ -833,7 +836,7 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 return StageManager.getResearchTimeInTicks(stageId);
             }
         }
-        return Config.COMMON.researchTimeInSeconds.get() * 20;
+        return Config.GAMEPLAY.researchTimeInSeconds.get() * 20;
     }
 
     /**

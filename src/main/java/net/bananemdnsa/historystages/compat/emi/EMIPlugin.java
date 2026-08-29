@@ -42,7 +42,7 @@ public class EMIPlugin implements EmiPlugin {
         // The resealing recipe is a special recipe with no declared ingredients, so no viewer can
         // derive it — one display entry per stage is added by hand. EMI can show the open scroll
         // as a remainder, which is exactly what happens: only the paper is spent.
-        if (Config.COMMON.enableScrollResealing.get()) {
+        if (Config.GAMEPLAY.enableScrollResealing.get()) {
             for (String stageId : ScrollVariants.scrollableStageIds()) {
                 EmiStack open = EmiStack.of(ScrollVariants.createOpenScroll(stageId));
                 registry.addEmiStack(open);

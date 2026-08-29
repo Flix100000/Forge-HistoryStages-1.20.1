@@ -125,7 +125,7 @@ public final class AddonConfigSections {
     /**
      * The wire key a field travels under. The single place this is built.
      *
-     * <p>The config screen and {@link AddonConfigPublisher} both need it, and if their two ideas
+     * <p>The config screen and the config packets both need it, and if their two ideas
      * of the name ever diverge the value is collected under one and applied under the other — the
      * row saves, nothing errors, and the setting simply never changes.
      */

@@ -50,12 +50,12 @@ public final class LockBorderRenderer {
     @SubscribeEvent
     public static void onRenderLevel(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
-        if (!Config.CLIENT.structureBorderEnabled.get()) return;
+        if (!Config.VISUAL.structureBorderEnabled.get()) return;
 
         List<BoundingBox> boxes = LockBorderClientCache.get();
         if (boxes.isEmpty()) return;
 
-        double threshold = Config.CLIENT.structureBorderDistance.get();
+        double threshold = Config.VISUAL.structureBorderDistance.get();
 
         Vec3 cam = event.getCamera().getPosition();
         float scroll = (float) ((Util.getMillis() % 3000L) / 3000.0);

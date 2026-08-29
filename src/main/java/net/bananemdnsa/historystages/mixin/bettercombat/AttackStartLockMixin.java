@@ -30,15 +30,15 @@ public class AttackStartLockMixin {
         if (player == null) return;
         // Let mining proceed — block breaking is governed by the "break" lock, not here.
         if (mc.hitResult != null && mc.hitResult.getType() == HitResult.Type.BLOCK) return;
-        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
+        if (!Config.GAMEPLAY.lockItemUsage.get() && !Config.GAMEPLAY.individualLockItemUsage.get()) return;
 
         ItemStack weapon = player.getMainHandItem();
         if (weapon.isEmpty()) return;
 
         if (LockGate.isActionLocked(weapon, player, "attack",
-                        Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)
+                        Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)
                 || LockGate.isActionLocked(weapon, player, "use",
-                        Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)) {
+                        Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)) {
             cir.setReturnValue(false);
         }
     }

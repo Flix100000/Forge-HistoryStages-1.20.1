@@ -378,7 +378,7 @@ public class GraphStyleScreen extends Screen {
             if (rows.hitTest(entry, contentLeft(), contentRight(), y, mouseX, mouseY)) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                clickRow(entry, y);
+                clickRow(entry, y, rows.toggleValueAt(entry, contentLeft(), mouseX));
                 return true;
             }
             y += ConfigRowList.ENTRY_HEIGHT;
@@ -391,9 +391,12 @@ public class GraphStyleScreen extends Screen {
      * editor's own handler: the dialogs it opens return to the screen they were given, and these
      * have to come back here rather than to the tab.
      */
-    private void clickRow(ConfigEditorScreen.ConfigEntry entry, int rowY) {
+    private void clickRow(ConfigEditorScreen.ConfigEntry entry, int rowY, Boolean pickedHalf) {
         switch (entry.type) {
-            case BOOLEAN -> entry.value = String.valueOf(!Boolean.parseBoolean(entry.value));
+            // The switch sets the half that was clicked; landing on the current value is a no-op.
+            case BOOLEAN -> {
+                if (pickedHalf != null) entry.value = String.valueOf(pickedHalf.booleanValue());
+            }
             case COLOR -> this.minecraft.setScreen(new ColorInputScreen(this, entry));
             case ENUM -> {
                 EnumDropdown dropdown = new EnumDropdown(

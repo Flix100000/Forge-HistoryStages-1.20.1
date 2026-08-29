@@ -7,7 +7,7 @@ import java.util.Map;
 
 /**
  * The research scroll's tooltip layout: which lines exist, in which order, with which text and
- * colour. Parsed from the common config's {@code scrollTooltipLines} list, the same way
+ * colour. Parsed from the visual config's {@code scroll_tooltip.lines} list, the same way
  * {@code ResearchBoosterRegistry} parses {@code researchBoosters}.
  *
  * <p>Deliberately free of Minecraft types so the whole codec is unit-testable. Turning a style
@@ -188,7 +188,7 @@ public final class ScrollTooltipLayout {
 
     private static List<ScrollTooltipLine> ACTIVE = DEFAULTS;
 
-    /** Replaces the live layout from the common config's {@code scrollTooltipLines} list. */
+    /** Replaces the live layout from the visual config's {@code scroll_tooltip.lines} list. */
     public static void rebuildFromConfig(List<? extends String> entries) {
         ACTIVE = parse(entries);
     }

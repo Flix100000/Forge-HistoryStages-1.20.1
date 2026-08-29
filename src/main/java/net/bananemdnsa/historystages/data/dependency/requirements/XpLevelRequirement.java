@@ -9,6 +9,7 @@ import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.api.dependency.RequirementContext;
 import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
+import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 
@@ -63,7 +64,8 @@ public class XpLevelRequirement implements Requirement {
             boolean met;
             int currentLevel = ctx.player() != null ? ctx.player().experienceLevel : 0;
             if (xpLevel.isConsume()) {
-                met = ctx.depositedData() != null && ctx.depositedData().getBoolean("Group_" + ctx.groupIndex() + "_XP");
+                met = ctx.depositedData() != null
+                        && ctx.depositedData().getBoolean(ctx.progressKey(DependencyProgress.XP_SUFFIX));
                 currentLevel = met ? xpLevel.getLevel() : currentLevel;
             } else {
                 met = currentLevel >= xpLevel.getLevel();

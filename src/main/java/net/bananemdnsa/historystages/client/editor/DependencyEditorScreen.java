@@ -219,7 +219,11 @@ public class DependencyEditorScreen extends Screen {
                     // Store into the group being left before the selection moves, or its addon
                     // entries never reach it — the tabs hold them until told otherwise.
                     if (hasGroup()) storeAddonTabs(currentGroup());
-                    groups.add(new DependencyGroup());
+                    DependencyGroup fresh = new DependencyGroup();
+                    // An id of its own from the start, so what players deposit into it stays with
+                    // it when the group list is later reordered or thinned out.
+                    fresh.setId(DependencyGroup.freshId(groups));
+                    groups.add(fresh);
                     selectedGroup = groups.size() - 1;
                     // And load from the new one, which is empty and therefore clears the tabs.
                     loadAddonTabs(currentGroup());
@@ -901,7 +905,11 @@ public class DependencyEditorScreen extends Screen {
                         });
                         contextMenu.addEntry(t("editor.historystages.duplicate"), () -> {
                             if (atGroupLimit()) return;
-                            groups.add(gi + 1, groups.get(gi).copy());
+                            DependencyGroup duplicate = groups.get(gi).copy();
+                            // The one copy that must not keep the id: two groups sharing one
+                            // would share every deposit made into either of them.
+                            duplicate.setId(DependencyGroup.freshId(groups));
+                            groups.add(gi + 1, duplicate);
                             hasChanges = true;
                         });
                         contextMenu.addEntry(t("editor.historystages.remove"), () -> {

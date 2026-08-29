@@ -215,8 +215,8 @@ public final class StageStates {
 
     private static void broadcastGlobalLock(MinecraftServer server, String displayName) {
         if (server == null) return;
-        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get()
-                && !Config.COMMON.useSounds.get()) return;
+        if (!Config.VISUAL.broadcastChat.get() && !Config.VISUAL.useActionbar.get()
+                && !Config.VISUAL.useSounds.get()) return;
 
         Component chatMsg = Component.literal("[HistoryStages] ")
                 .withStyle(ChatFormatting.RED)
@@ -225,29 +225,29 @@ public final class StageStates {
         Component actionMsg = Component.translatable("message.historystages.stage_locked_action", displayName);
 
         server.getPlayerList().getPlayers().forEach(player -> {
-            if (Config.COMMON.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(chatMsg);
             }
-            if (Config.COMMON.useActionbar.get()) {
+            if (Config.VISUAL.useActionbar.get()) {
                 player.displayClientMessage(actionMsg, true);
             }
-            if (Config.COMMON.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
     }
 
     private static void notifyIndividualLock(ServerPlayer player, String displayName) {
-        if (Config.COMMON.individualBroadcastChat.get()) {
+        if (Config.VISUAL.individualBroadcastChat.get()) {
             player.sendSystemMessage(Component.literal("[HistoryStages] ")
                     .withStyle(ChatFormatting.RED)
                     .append(Component.translatable("message.historystages.stage_forgotten", displayName)
                             .withStyle(ChatFormatting.WHITE)));
         }
-        if (Config.COMMON.individualUseActionbar.get()) {
+        if (Config.VISUAL.individualUseActionbar.get()) {
             player.displayClientMessage(Component.translatable("message.historystages.stage_locked_action", displayName), true);
         }
-        if (Config.COMMON.individualUseSounds.get()) {
+        if (Config.VISUAL.individualUseSounds.get()) {
             player.playNotifySound(SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
         }
     }
@@ -255,13 +255,13 @@ public final class StageStates {
     private static void broadcastGlobalUnlock(MinecraftServer server, String stageId,
                                               String displayName, StageEntry entry) {
         if (server == null) return;
-        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get()
-                && !Config.COMMON.useSounds.get() && !Config.COMMON.useToasts.get()) return;
+        if (!Config.VISUAL.broadcastChat.get() && !Config.VISUAL.useActionbar.get()
+                && !Config.VISUAL.useSounds.get() && !Config.VISUAL.useToasts.get()) return;
 
         String iconId = (entry != null && !entry.getIcon().isEmpty())
-                ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                ? entry.getIcon() : Config.VISUAL.defaultStageIcon.get();
 
-        String rawMsg = Config.COMMON.unlockMessageFormat.get();
+        String rawMsg = Config.VISUAL.unlockMessageFormat.get();
         String formattedMsg = rawMsg.replace("{stage}", displayName).replace("&", "§");
         Component chatMsg = Component.literal("[HistoryStages] ")
                 .withStyle(ChatFormatting.GRAY)
@@ -270,26 +270,26 @@ public final class StageStates {
         Component actionMsg = Component.translatable("message.historystages.new_era_unlocked", displayName);
 
         server.getPlayerList().getPlayers().forEach(player -> {
-            if (Config.COMMON.broadcastChat.get()) {
+            if (Config.VISUAL.broadcastChat.get()) {
                 player.sendSystemMessage(chatMsg);
             }
-            if (Config.COMMON.useActionbar.get()) {
+            if (Config.VISUAL.useActionbar.get()) {
                 player.displayClientMessage(actionMsg, true);
             }
-            if (Config.COMMON.useSounds.get()) {
+            if (Config.VISUAL.useSounds.get()) {
                 player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
 
-        if (Config.COMMON.useToasts.get()) {
+        if (Config.VISUAL.useToasts.get()) {
             PacketHandler.sendToastToAll(new StageUnlockedToastPacket(displayName, iconId));
         }
     }
 
     private static void notifyIndividualUnlock(ServerPlayer player, String stageId,
                                                String displayName, StageEntry entry) {
-        if (Config.COMMON.individualBroadcastChat.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+        if (Config.VISUAL.individualBroadcastChat.get()) {
+            String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
             String finalChat = configChat.replace("{stage}", displayName)
                     .replace("{player}", player.getName().getString())
                     .replace("&", "§");
@@ -299,19 +299,19 @@ public final class StageStates {
                             .append(Component.literal(finalChat))
             );
         }
-        if (Config.COMMON.individualUseActionbar.get()) {
-            String configChat = Config.COMMON.individualUnlockMessageFormat.get();
+        if (Config.VISUAL.individualUseActionbar.get()) {
+            String configChat = Config.VISUAL.individualUnlockMessageFormat.get();
             String finalChat = configChat.replace("{stage}", displayName)
                     .replace("{player}", player.getName().getString())
                     .replace("&", "§");
             player.displayClientMessage(Component.literal(finalChat), true);
         }
-        if (Config.COMMON.individualUseSounds.get()) {
+        if (Config.VISUAL.individualUseSounds.get()) {
             player.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
         }
-        if (Config.COMMON.individualUseToasts.get()) {
+        if (Config.VISUAL.individualUseToasts.get()) {
             String iconId = (entry != null && !entry.getIcon().isEmpty())
-                    ? entry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                    ? entry.getIcon() : Config.VISUAL.defaultStageIcon.get();
             PacketHandler.sendToastToPlayer(
                     new StageUnlockedToastPacket(displayName, iconId),
                     player

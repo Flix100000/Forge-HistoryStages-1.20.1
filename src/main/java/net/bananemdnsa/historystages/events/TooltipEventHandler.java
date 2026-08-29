@@ -38,7 +38,7 @@ public class TooltipEventHandler {
 
     @SubscribeEvent
     public static void onBoosterTooltip(ItemTooltipEvent event) {
-        if (!Config.CLIENT.showBoosterTooltips.get()) return;
+        if (!Config.VISUAL.showBoosterTooltips.get()) return;
         if (ResearchBoosterRegistry.all().isEmpty()) return;
         ItemStack stack = event.getItemStack();
         if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) return;
@@ -75,7 +75,7 @@ public class TooltipEventHandler {
 
     @SubscribeEvent
     public static void onItemTooltip(ItemTooltipEvent event) {
-        if (!Config.CLIENT.showTooltips.get()) return;
+        if (!Config.VISUAL.showTooltips.get()) return;
 
         ItemStack stack = event.getItemStack();
         if (stack.isEmpty()) return;
@@ -162,7 +162,7 @@ public class TooltipEventHandler {
         }
 
         if (isCurrentlyLocked) {
-            if (Config.CLIENT.showStageName.get()) {
+            if (Config.VISUAL.showStageName.get()) {
                 event.getToolTip().add(Component.translatable("tooltip.historystages.required_progress").withStyle(ChatFormatting.DARK_RED));
 
                 for (StageEntry stage : totalRequiredStages) {
@@ -171,7 +171,7 @@ public class TooltipEventHandler {
                             .map(Map.Entry::getKey).findFirst().orElse("");
 
                     boolean unlocked = ClientStageCache.isStageUnlocked(stageID);
-                    boolean showAll = Config.CLIENT.showAllUntilComplete.get();
+                    boolean showAll = Config.VISUAL.showAllUntilComplete.get();
 
                     if (totalRequiredStages.size() > 1 && showAll) {
                         ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;
@@ -214,8 +214,8 @@ public class TooltipEventHandler {
             }
         }
 
-        if (isIndividuallyLocked && Config.CLIENT.showIndividualTooltips.get()) {
-            if (Config.CLIENT.showStageName.get()) {
+        if (isIndividuallyLocked && Config.VISUAL.showIndividualTooltips.get()) {
+            if (Config.VISUAL.showStageName.get()) {
                 event.getToolTip().add(Component.translatable("tooltip.historystages.required_individual_progress").withStyle(ChatFormatting.DARK_RED));
 
                 for (StageEntry stage : individualRequiredStages) {
@@ -224,7 +224,7 @@ public class TooltipEventHandler {
                             .map(Map.Entry::getKey).findFirst().orElse("");
 
                     boolean unlocked = ClientIndividualStageCache.isStageUnlocked(stageID);
-                    boolean showAll = Config.CLIENT.showAllUntilComplete.get();
+                    boolean showAll = Config.VISUAL.showAllUntilComplete.get();
 
                     if (individualRequiredStages.size() > 1 && showAll) {
                         ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;

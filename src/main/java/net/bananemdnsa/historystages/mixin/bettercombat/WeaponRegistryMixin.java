@@ -30,7 +30,7 @@ public class WeaponRegistryMixin {
             at = @At("HEAD"), cancellable = true, require = 0, remap = false)
     private static void historystages$noWeaponForLocked(ItemStack stack, CallbackInfoReturnable<Object> cir) {
         if (stack.isEmpty()) return;
-        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
+        if (!Config.GAMEPLAY.lockItemUsage.get() && !Config.GAMEPLAY.individualLockItemUsage.get()) return;
         Minecraft mc = Minecraft.getInstance();
         // In singleplayer the integrated server runs in this same JVM and also asks Better Combat
         // for weapon attributes. Answering from there would judge a server-side stack by the local
@@ -39,9 +39,9 @@ public class WeaponRegistryMixin {
         LocalPlayer player = mc.player;
         if (player == null) return;
         if (LockGate.isActionLocked(stack, player, "attack",
-                        Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)
+                        Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)
                 || LockGate.isActionLocked(stack, player, "use",
-                        Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)) {
+                        Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)) {
             cir.setReturnValue(null); // treat as a non-weapon -> Better Combat plays no animation
         }
     }

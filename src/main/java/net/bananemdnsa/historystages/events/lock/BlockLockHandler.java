@@ -32,7 +32,7 @@ public class BlockLockHandler {
      */
     @SubscribeEvent
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        if (!Config.COMMON.lockBlockInteraction.get() && !Config.COMMON.individualLockBlockInteraction.get()) return;
+        if (!Config.GAMEPLAY.lockBlockInteraction.get() && !Config.GAMEPLAY.individualLockBlockInteraction.get()) return;
 
         BlockPos pos = event.getPos();
         BlockState state = event.getEntity().level().getBlockState(pos);
@@ -43,8 +43,8 @@ public class BlockLockHandler {
 
         boolean locked = LockGate.isActionLocked(
                 blockItem, event.getEntity(), "gui",
-                Config.COMMON.lockBlockInteraction,
-                Config.COMMON.individualLockBlockInteraction);
+                Config.GAMEPLAY.lockBlockInteraction,
+                Config.GAMEPLAY.individualLockBlockInteraction);
 
         if (locked) {
             // Only deny the block's own interaction (GUI opening), not the item use.
@@ -73,24 +73,24 @@ public class BlockLockHandler {
         boolean isClient = event.getEntity().level().isClientSide();
 
         // Check global lock — respects lock_actions["break"]
-        if (Config.COMMON.lockBlockBreaking.get()) {
+        if (Config.GAMEPLAY.lockBlockBreaking.get()) {
             boolean globalLocked = isClient
                     ? net.bananemdnsa.historystages.util.lock.StageLockHelper.isActionLockedForClient(blockItem, "break")
                     : net.bananemdnsa.historystages.util.lock.StageLockHelper.isActionLockedForPlayer(blockItem, event.getEntity().getUUID(), "break");
             if (globalLocked) {
-                float newSpeed = event.getOriginalSpeed() * Config.COMMON.lockedBlockBreakSpeedMultiplier.get().floatValue();
+                float newSpeed = event.getOriginalSpeed() * Config.GAMEPLAY.lockedBlockBreakSpeedMultiplier.get().floatValue();
                 event.setNewSpeed(newSpeed);
                 return;
             }
         }
 
         // Check individual lock — respects lock_actions["break"]
-        if (Config.COMMON.individualLockBlockBreaking.get()) {
+        if (Config.GAMEPLAY.individualLockBlockBreaking.get()) {
             boolean individualLocked = isClient
                     ? net.bananemdnsa.historystages.util.lock.StageLockHelper.isActionLockedByIndividualStageClient(blockItem, "break")
                     : net.bananemdnsa.historystages.util.lock.StageLockHelper.isActionLockedByIndividualStage(blockItem, event.getEntity().getUUID(), "break");
             if (individualLocked) {
-                float newSpeed = event.getOriginalSpeed() * Config.COMMON.individualLockedBlockBreakSpeedMultiplier.get().floatValue();
+                float newSpeed = event.getOriginalSpeed() * Config.GAMEPLAY.individualLockedBlockBreakSpeedMultiplier.get().floatValue();
                 event.setNewSpeed(newSpeed);
             }
         }
@@ -108,8 +108,8 @@ public class BlockLockHandler {
 
         boolean locked = LockGate.isActionLockedServer(
                 blockItem, sp, "break",
-                Config.COMMON.lockBlockBreaking,
-                Config.COMMON.individualLockBlockBreaking);
+                Config.GAMEPLAY.lockBlockBreaking,
+                Config.GAMEPLAY.individualLockBlockBreaking);
 
         if (locked) {
             event.setCanceled(true);

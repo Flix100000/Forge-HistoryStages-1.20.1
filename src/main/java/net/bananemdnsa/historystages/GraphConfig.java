@@ -6,9 +6,9 @@ import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * {@code graph.toml} — everything the Stage Graph looks like and reveals. Server-owned and
- * synced, like the common config.
+ * synced, like the gameplay config.
  *
- * <p>Its own spec rather than another block in {@link Config.Common} because it is 94 keys;
+ * <p>Its own spec rather than another block in {@link Config.Gameplay} because it is 94 keys;
  * folded into the common file they would drown the settings around them, and the
  * generic sync in {@code SyncGraphConfigPacket} only works on a spec that contains nothing else.
  */

@@ -37,9 +37,9 @@ public class AttributeLockMixin {
             BiConsumer<Holder<Attribute>, AttributeModifier> consumer) {
         LivingEntity self = (LivingEntity) (Object) this;
         if (self instanceof Player player
-                && (Config.COMMON.lockItemUsage.get() || Config.COMMON.individualLockItemUsage.get())
+                && (Config.GAMEPLAY.lockItemUsage.get() || Config.GAMEPLAY.individualLockItemUsage.get())
                 && LockGate.isActionLocked(stack, player, "use",
-                        Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)) {
+                        Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)) {
             return; // locked: do not apply this item's attribute modifiers
         }
         stack.forEachModifier(slot, consumer);

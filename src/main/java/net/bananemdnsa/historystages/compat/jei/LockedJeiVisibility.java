@@ -1,6 +1,6 @@
 package net.bananemdnsa.historystages.compat.jei;
 
-import net.bananemdnsa.historystages.Config.Client.MultiStagePolicy;
+import net.bananemdnsa.historystages.Config.Visual.MultiStagePolicy;
 import net.bananemdnsa.historystages.util.lock.StageLockHelper;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;

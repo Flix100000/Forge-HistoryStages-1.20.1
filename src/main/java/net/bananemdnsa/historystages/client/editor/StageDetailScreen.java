@@ -363,7 +363,7 @@ public class StageDetailScreen extends Screen {
         this.editDisplayName = (e.getDisplayName().equals("Unknown Stage") && entry == null)
                 ? (initialDisplayName == null ? "" : initialDisplayName)
                 : e.getDisplayName();
-        this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.COMMON.researchTimeInSeconds.get() : e.getResearchTime();
+        this.editResearchTime = (entry == null && e.getResearchTime() == 0) ? Config.GAMEPLAY.researchTimeInSeconds.get() : e.getResearchTime();
         this.editMinPedestalTier = e.getMinPedestalTier();
         this.editPedestalTierMode = e.getPedestalTierMode();
         this.editMode = e.getMode();

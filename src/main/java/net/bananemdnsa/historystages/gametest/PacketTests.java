@@ -1,11 +1,14 @@
 package net.bananemdnsa.historystages.gametest;
 
 import java.util.List;
+import java.util.Map;
 
 import io.netty.buffer.Unpooled;
 
+import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncVisualConfigPacket;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.FriendlyByteBuf;
@@ -65,6 +68,34 @@ public final class PacketTests {
             return;
         }
         helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void syncVisualConfigCarriesTheEditedValue(GameTestHelper helper) {
+        // The visual settings were local-only until they got a packet, so the thing worth proving
+        // is that one actually leaves the server: a changed value, under its dotted toml path, in
+        // the payload. Pointed at the wrong spec the payload is still perfectly well-formed and
+        // full of plausible values — it just never mentions this key.
+        boolean original = Config.VISUAL.showLockIcons.get();
+        try {
+            Config.VISUAL.showLockIcons.set(!original);
+
+            Map<String, String> sent = SyncVisualConfigPacket.fromServerConfig().values();
+            if (!sent.containsKey("visuals.showLockIcons")) {
+                helper.fail("the payload has no visuals.showLockIcons at all — it carries "
+                        + sent.size() + " keys, and the first few are "
+                        + sent.keySet().stream().sorted().limit(5).toList());
+                return;
+            }
+            if (!sent.get("visuals.showLockIcons").equals(String.valueOf(!original))) {
+                helper.fail("visuals.showLockIcons went out as '" + sent.get("visuals.showLockIcons")
+                        + "' instead of '" + !original + "'");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            Config.VISUAL.showLockIcons.set(original);
+        }
     }
 
     @GameTest(template = "empty")

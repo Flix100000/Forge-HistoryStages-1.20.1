@@ -1,5 +1,7 @@
 package net.bananemdnsa.historystages.util;
 
+import com.google.gson.Gson;
+
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.lock.EntityLocks;
@@ -8,6 +10,8 @@ import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.auto.AutoTrigger;
+import net.bananemdnsa.historystages.api.lock.LockCategory;
+import net.bananemdnsa.historystages.data.lock.category.LockCategories;
 import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.EntityKillDep;
@@ -128,20 +132,17 @@ public class DebugLogger {
                     .map(c -> c.getModInfo().getVersion().toString())
                     .orElse("unknown");
 
-            int totalItems = 0, totalTags = 0, totalMods = 0, totalModExceptions = 0;
-            int totalRecipes = 0, totalDimensions = 0, totalStructures = 0, totalBiomes = 0;
-            int totalAttacklock = 0, totalSpawnlock = 0;
-            for (StageEntry entry : stages.values()) {
-                totalItems += entry.getItemEntries().size();
-                totalTags += entry.getTagEntries().size();
-                totalMods += entry.getModEntries().size();
-                totalModExceptions += entry.getAllModExceptionIds().size();
-                totalRecipes += entry.getRecipes().size();
-                totalDimensions += entry.getDimensions().size();
-                totalStructures += entry.getStructures().size();
-                totalBiomes += entry.getBiomes().size();
-                totalAttacklock += entry.getEntities().getAttacklock().size();
-                totalSpawnlock += entry.getEntities().getSpawnlock().size();
+            // Counted through the category registry rather than one accumulator per kind. The
+            // hand-written version listed ten of the eleven built-ins — interaction locks never
+            // made it in — and could not have counted an addon's category at all, which is the
+            // opposite of what a report about what got loaded is for.
+            Map<String, Integer> categoryTotals = new LinkedHashMap<>();
+            for (LockCategory<?> category : LockCategories.all()) {
+                int total = 0;
+                for (StageEntry entry : stages.values()) {
+                    total += category.read(entry).size();
+                }
+                categoryTotals.put(category.id(), total);
             }
 
             try (PrintWriter pw = new PrintWriter(new FileWriter(logFile))) {
@@ -159,11 +160,9 @@ public class DebugLogger {
                         + "  (Errors: " + errorCount + "  |  Warnings: " + warnCount + "  |  Info: " + infoCount + ")");
                 pw.println();
                 pw.println("  Total entries across global stages:");
-                pw.println("    Items: " + totalItems + "  |  Tags: " + totalTags + "  |  Mods: " + totalMods);
-                pw.println("    Mod Exceptions: " + totalModExceptions + "  |  Recipes: " + totalRecipes + "  |  Dimensions: " + totalDimensions);
-                pw.println("    Structures: " + totalStructures);
-                pw.println("    Biomes: " + totalBiomes);
-                pw.println("    Entities (attacklock): " + totalAttacklock + "  |  Entities (spawnlock): " + totalSpawnlock);
+                for (Map.Entry<String, Integer> total : categoryTotals.entrySet()) {
+                    pw.println("    " + total.getKey() + ": " + total.getValue());
+                }
                 pw.println();
 
                 pw.println("================================================================");
@@ -211,19 +210,19 @@ public class DebugLogger {
                 pw.println();
                 try {
                     pw.println("  [common]");
-                    pw.println("    lockMobLoot          = " + Config.COMMON.lockMobLoot.get());
-                    pw.println("    lockBlockBreaking    = " + Config.COMMON.lockBlockBreaking.get());
-                    pw.println("    lockBlockBreakSpeed  = " + Config.COMMON.lockedBlockBreakSpeedMultiplier.get());
-                    pw.println("    lockItemUsage        = " + Config.COMMON.lockItemUsage.get());
-                    pw.println("    lockEntityItems      = " + Config.COMMON.lockEntityItems.get());
-                    pw.println("    lockBlockInteraction = " + Config.COMMON.lockBlockInteraction.get());
-                    pw.println("    researchTimeSeconds  = " + Config.COMMON.researchTimeInSeconds.get());
-                    pw.println("    useReplacements      = " + Config.COMMON.useReplacements.get());
-                    pw.println("    broadcastChat        = " + Config.COMMON.broadcastChat.get());
-                    pw.println("    useSounds            = " + Config.COMMON.useSounds.get());
-                    pw.println("    useToasts            = " + Config.COMMON.useToasts.get());
-                    pw.println("    showDebugErrors      = " + Config.COMMON.showDebugErrors.get());
-                    pw.println("    enableRuntimeLogging = " + Config.COMMON.enableRuntimeLogging.get());
+                    pw.println("    lockMobLoot          = " + Config.GAMEPLAY.lockMobLoot.get());
+                    pw.println("    lockBlockBreaking    = " + Config.GAMEPLAY.lockBlockBreaking.get());
+                    pw.println("    lockBlockBreakSpeed  = " + Config.GAMEPLAY.lockedBlockBreakSpeedMultiplier.get());
+                    pw.println("    lockItemUsage        = " + Config.GAMEPLAY.lockItemUsage.get());
+                    pw.println("    lockEntityItems      = " + Config.GAMEPLAY.lockEntityItems.get());
+                    pw.println("    lockBlockInteraction = " + Config.GAMEPLAY.lockBlockInteraction.get());
+                    pw.println("    researchTimeSeconds  = " + Config.GAMEPLAY.researchTimeInSeconds.get());
+                    pw.println("    useReplacements      = " + Config.GAMEPLAY.useReplacements.get());
+                    pw.println("    broadcastChat        = " + Config.VISUAL.broadcastChat.get());
+                    pw.println("    useSounds            = " + Config.VISUAL.useSounds.get());
+                    pw.println("    useToasts            = " + Config.VISUAL.useToasts.get());
+                    pw.println("    showDebugErrors      = " + Config.GAMEPLAY.showDebugErrors.get());
+                    pw.println("    enableRuntimeLogging = " + Config.GAMEPLAY.enableRuntimeLogging.get());
                 } catch (Exception e) {
                     pw.println("  (Config not yet available: " + e.getMessage() + ")");
                 }
@@ -238,7 +237,7 @@ public class DebugLogger {
                 pw.println("  Individual stages: config/historystages/individual/");
                 pw.println("  Log files:         config/historystages/logs/");
                 pw.println("  Disable chat debug messages: showDebugErrors=false");
-                pw.println("  in historystages-common.toml");
+                pw.println("  in config/historystages/settings/gameplay.toml");
                 pw.println("================================================================");
             }
 
@@ -249,16 +248,46 @@ public class DebugLogger {
         }
     }
 
+    /**
+     * The categories {@link #printStage} spells out itself, each in its own shape.
+     *
+     * <p>A skip list, not a whitelist: a category missing from it still gets printed, only
+     * plainly. That is the safe direction — the interaction locks this report has always left
+     * out, and every category an addon registers, land in {@link #printOtherCategories} rather
+     * than nowhere.
+     */
+    private static final List<String> DETAILED_CATEGORY_IDS = List.of(
+            "historystages:items", "historystages:tags", "historystages:mods",
+            "historystages:mod_exceptions", "historystages:recipes", "historystages:dimensions",
+            "historystages:structures", "historystages:biomes", "historystages:attacklock",
+            "historystages:spawnlock");
+
+    /** Entries are printed as JSON: it is the only shape that fits a type this class never saw. */
+    private static final Gson ENTRY_GSON = new Gson();
+
+    private static void printOtherCategories(PrintWriter pw, StageEntry s) {
+        for (LockCategory<?> category : LockCategories.all()) {
+            if (DETAILED_CATEGORY_IDS.contains(category.id())) continue;
+            List<?> entries = category.read(s);
+            if (entries.isEmpty()) continue;
+            pw.println("  " + category.id() + " (" + entries.size() + "):");
+            for (Object entry : entries) {
+                pw.println("    - " + (entry instanceof String text ? text : ENTRY_GSON.toJson(entry)));
+            }
+        }
+    }
+
     private static void printStage(PrintWriter pw, String id, StageEntry s) {
         EntityLocks ent = s.getEntities();
-        List<String> structures = s.getStructures();
         List<String> modExceptions = s.getAllModExceptionIds();
-        List<String> attacklock = ent.getAttacklock();
-        List<String> spawnlock = ent.getSpawnlockIds();
 
-        int entryCount = s.getItemEntries().size() + s.getTagEntries().size() + s.getModEntries().size()
-                + modExceptions.size() + s.getRecipes().size() + s.getDimensions().size()
-                + structures.size() + s.getBiomes().size() + attacklock.size() + spawnlock.size();
+        // Summed over the registry, so the number matches what the stage actually holds — the
+        // hand-written sum left out interaction locks and could never have seen an addon's
+        // category.
+        int entryCount = 0;
+        for (LockCategory<?> category : LockCategories.all()) {
+            entryCount += category.read(s).size();
+        }
 
         pw.println("--- " + id + " (" + s.getDisplayName() + ") " + "-".repeat(Math.max(0, 50 - id.length() - s.getDisplayName().length())));
         StageMode mode = s.getMode();
@@ -316,6 +345,7 @@ public class DebugLogger {
         printList(pw, "Entities (attacklock)", ent.getAttacklock());
         printSpawnlockEntries(pw, ent.getSpawnlock());
         printList(pw, "Entities (mod-linked)", ent.getModLinked());
+        printOtherCategories(pw, s);
 
         if (s.hasDependencies()) {
             pw.println("  Dependencies (" + s.getDependencies().size() + " group(s)):");
@@ -505,7 +535,7 @@ public class DebugLogger {
 
     private static boolean isRuntimeEnabled() {
         try {
-            return Config.COMMON.enableRuntimeLogging.get();
+            return Config.GAMEPLAY.enableRuntimeLogging.get();
         } catch (Exception e) {
             return false;
         }

@@ -191,7 +191,7 @@ public final class ScrollTooltipRenderer {
     }
 
     private static List<Component> tierSection(ScrollTooltipLine line, ScrollTooltipContext ctx) {
-        if (!Config.CLIENT.showScrollTierTooltip.get() || ctx.tierMode() == null) return List.of();
+        if (!Config.VISUAL.showScrollTierTooltip.get() || ctx.tierMode() == null) return List.of();
 
         int minTier = ctx.minTier();
         TierMode mode = ctx.tierMode();
@@ -210,7 +210,7 @@ public final class ScrollTooltipRenderer {
         if (ctx.groups().isEmpty()) return List.of();
 
         RequirementResult result = ctx.result();
-        boolean hideFulfilled = Config.COMMON.hideFulfilledDependencies.get();
+        boolean hideFulfilled = Config.VISUAL.hideFulfilledDependencies.get();
 
         ScrollTooltipLine headerLine = byId.get("dep.header");
         ScrollTooltipLine itemLine = byId.get("dep.item");

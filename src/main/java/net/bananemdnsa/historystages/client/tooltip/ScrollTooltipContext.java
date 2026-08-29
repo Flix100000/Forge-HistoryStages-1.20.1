@@ -18,7 +18,7 @@ import java.util.List;
  *       {@code StageManager.isIndividualStage}.</li>
  *   <li>{@code ownerName} — null or empty means the owner row does not render.</li>
  *   <li>{@code minTier} / {@code tierMode} — the tier row renders only when
- *       {@code minTier > 1 || tierMode == TierMode.EXACT} (and the client config toggle is on).
+ *       {@code minTier > 1 || tierMode == TierMode.EXACT} (and the visual config toggle is on).
  *       A null {@code tierMode} means "no stage" and the row does not render.</li>
  *   <li>{@code groups} — the dependency groups; empty means the dependency block does not
  *       render.</li>

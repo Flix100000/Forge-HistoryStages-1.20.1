@@ -31,7 +31,7 @@ public final class AccessoriesEquipLockHandler {
 
     private static TriState canEquip(ItemStack stack, SlotReference reference) {
         if (stack.isEmpty()) return TriState.DEFAULT;
-        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return TriState.DEFAULT;
+        if (!Config.GAMEPLAY.lockItemUsage.get() && !Config.GAMEPLAY.individualLockItemUsage.get()) return TriState.DEFAULT;
 
         LivingEntity entity = reference.entity();
         if (!(entity instanceof Player player)) return TriState.DEFAULT;
@@ -50,14 +50,14 @@ public final class AccessoriesEquipLockHandler {
     }
 
     private static boolean isItemLocked(ItemStack item, Player player, boolean isClient) {
-        if (Config.COMMON.lockItemUsage.get()) {
+        if (Config.GAMEPLAY.lockItemUsage.get()) {
             if (isClient) {
                 if (StageLockHelper.isItemLockedForClient(item)) return true;
             } else {
                 if (StageLockHelper.isItemLockedForPlayer(item, player.getUUID())) return true;
             }
         }
-        if (Config.COMMON.individualLockItemUsage.get()) {
+        if (Config.GAMEPLAY.individualLockItemUsage.get()) {
             if (isClient) {
                 if (StageLockHelper.isItemLockedByIndividualStageClient(item)) return true;
             } else {

@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
+import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -70,6 +71,9 @@ public record DepositDependencyPacket(BlockPos pos, int groupIndex, String depos
                 return;
 
             DependencyGroup group = stageEntry.getDependencies().get(packet.groupIndex);
+            // The packet carries a position — that is all the GUI knows — and it is turned into
+            // the group's own identity here, before anything is written under it.
+            String groupKey = DependencyProgress.groupKey(group, packet.groupIndex);
 
             CompoundTag deposited = tag.contains("DepositedDependencies")
                     ? tag.getCompound("DepositedDependencies")
@@ -91,7 +95,8 @@ public record DepositDependencyPacket(BlockPos pos, int groupIndex, String depos
                 if (matched == null) return;
                 int required = matched.getCount();
 
-                String key = "Group_" + packet.groupIndex + "_Item_" + packet.data;
+                String key = DependencyProgress.key(groupKey,
+                        DependencyProgress.itemSuffix(packet.data));
                 int current = deposited.getInt(key);
                 int needed = required - current;
                 if (needed <= 0) return;
@@ -115,7 +120,7 @@ public record DepositDependencyPacket(BlockPos pos, int groupIndex, String depos
             } else if ("XP".equals(packet.depositType)) {
                 XpLevelDep xpLevel = group.getXpLevel();
                 if (xpLevel != null && xpLevel.isConsume() && xpLevel.getLevel() > 0) {
-                    String key = "Group_" + packet.groupIndex + "_XP";
+                    String key = DependencyProgress.key(groupKey, DependencyProgress.XP_SUFFIX);
                     if (!deposited.getBoolean(key) && player.experienceLevel >= xpLevel.getLevel()) {
                         player.giveExperienceLevels(-xpLevel.getLevel());
                         deposited.putBoolean(key, true);

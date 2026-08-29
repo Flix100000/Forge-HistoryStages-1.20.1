@@ -701,7 +701,7 @@ public class StageStyleScreen extends Screen {
             if (rows.hitTest(entry, contentLeft(), contentRight(), y, mouseX, mouseY)) {
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                clickRow(entry, y);
+                clickRow(entry, y, rows.toggleValueAt(entry, contentLeft(), mouseX));
                 return true;
             }
             y += ConfigRowList.ENTRY_HEIGHT;
@@ -713,7 +713,7 @@ public class StageStyleScreen extends Screen {
      * Editing an inherited row is what turns it into an override, so every arm seeds the value
      * first and writes back through {@link #applyRow}.
      */
-    private void clickRow(ConfigEditorScreen.ConfigEntry entry, int rowY) {
+    private void clickRow(ConfigEditorScreen.ConfigEntry entry, int rowY, Boolean pickedHalf) {
         String leaf = leafOf(entry);
         if (entry.inherited) {
             GraphKey key = keyFor(leaf);
@@ -721,7 +721,11 @@ public class StageStyleScreen extends Screen {
         }
 
         switch (entry.type) {
-            case BOOLEAN -> applyRow(entry, String.valueOf(!Boolean.parseBoolean(entry.value)));
+            // Either half writes an override, the half matching the inherited value included —
+            // that is how a value gets pinned rather than merely left alone.
+            case BOOLEAN -> {
+                if (pickedHalf != null) applyRow(entry, String.valueOf(pickedHalf.booleanValue()));
+            }
             case COLOR -> {
                 applyRow(entry, entry.value);
                 this.minecraft.setScreen(new ColorInputScreen(this, entry));

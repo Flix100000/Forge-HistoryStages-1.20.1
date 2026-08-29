@@ -25,13 +25,13 @@ public final class SpellEngineCompat {
 
     public static void register() {
         SpellEvents.CASTING_ATTEMPT.PRE.register(args -> {
-            if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) {
+            if (!Config.GAMEPLAY.lockItemUsage.get() && !Config.GAMEPLAY.individualLockItemUsage.get()) {
                 return null; // returning null lets the cast proceed
             }
             Player caster = args.caster();
             ItemStack stack = args.itemStack();
             if (LockGate.isActionLocked(stack, caster, "use",
-                    Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage)) {
+                    Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage)) {
                 if (caster instanceof ServerPlayer sp) {
                     ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
                     DebugLogger.runtimeThrottled("Item Use Lock", "cast_" + sp.getUUID() + "_" + itemRL,

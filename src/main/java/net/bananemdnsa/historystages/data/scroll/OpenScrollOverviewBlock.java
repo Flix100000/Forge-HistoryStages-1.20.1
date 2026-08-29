@@ -4,7 +4,7 @@ package net.bananemdnsa.historystages.data.scroll;
  * The blocks of the open scroll's overview page, in their default reading order.
  *
  * <p>Free of Minecraft types for the same reason as {@link OpenScrollChapter}: this is parsed from
- * the common config and drives the screen, and both are easier to test without a running game.
+ * the visual config and drives the screen, and both are easier to test without a running game.
  */
 public enum OpenScrollOverviewBlock {
 

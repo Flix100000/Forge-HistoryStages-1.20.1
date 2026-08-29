@@ -26,7 +26,7 @@ public class ClientToastHandler {
     /**
      * Resolves the icon item. Priority:
      *   1. iconId from the packet (stage-specific icon)
-     *   2. defaultStageIcon from common config
+     *   2. defaultStageIcon from the visual config
      *   3. Hardcoded fallback: research scroll
      */
     public static ItemStack resolveIcon(String iconId) {
@@ -36,7 +36,7 @@ public class ClientToastHandler {
         }
         // Try config default
         try {
-            String configDefault = Config.COMMON.defaultStageIcon.get();
+            String configDefault = Config.VISUAL.defaultStageIcon.get();
             if (configDefault != null && !configDefault.isEmpty()) {
                 ItemStack resolved = tryParseItem(configDefault);
                 if (resolved != null) return resolved;

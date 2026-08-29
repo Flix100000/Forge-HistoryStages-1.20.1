@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.bananemdnsa.historystages.api.editor.CustomFieldScreens;
+import net.bananemdnsa.historystages.api.editor.widget.ToggleControl;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DisplayModeDropdown;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
@@ -137,7 +138,8 @@ public class StageSettingsScreen extends Screen {
     // Display-card vertical metrics (kept in sync with computeDisplayCardHeight()).
     private static final int DISP_BODY_TOP = 28;
     private static final int DISP_ROW_GAP = 12;
-    private static final int DISP_TOGGLE_H = 14;
+    /** The switch decides its own height; the card lays out around whatever that is. */
+    private static final int DISP_TOGGLE_H = ToggleControl.height();
     private static final int DISP_BOTTOM_PAD = 8;
     private static final int DISP_DROPDOWN_W = 72;
     // Name only supports OFF/REPLACE (the title is never blanked); tooltip adds HIDDEN.
@@ -149,7 +151,8 @@ public class StageSettingsScreen extends Screen {
     private int loseRowY, loseToggleX, loseToggleW;
     // Individual-card vertical metrics (kept in sync with computeIndividualCardHeight()).
     private static final int INDIV_BODY_TOP = 28;
-    private static final int INDIV_TOGGLE_H = 14;
+    /** The switch decides its own height; the card lays out around whatever that is. */
+    private static final int INDIV_TOGGLE_H = ToggleControl.height();
     private static final int INDIV_HINT_GAP = 4;
     private static final int INDIV_HINT_H = 10;
     private static final int INDIV_BOTTOM_PAD = 8;
@@ -164,7 +167,8 @@ public class StageSettingsScreen extends Screen {
     private static final int ADDON_BODY_TOP = 28;
     private static final int ADDON_ROW_SPACING = 22;
     private static final int ADDON_BOTTOM_PAD = 8;
-    private static final int ADDON_TOGGLE_H = 14;
+    /** The switch decides its own height; the card lays out around whatever that is. */
+    private static final int ADDON_TOGGLE_H = ToggleControl.height();
     private static final int ADDON_INT_FIELD_W = 80;
     private static final int ADDON_DROPDOWN_MIN_W = 100;
 
@@ -218,9 +222,9 @@ public class StageSettingsScreen extends Screen {
     private final Anim modeOpen = new Anim();
     private final Anim modeHover = new Anim();
     private final Map<Integer, Anim> modeRowHover = new HashMap<>();
-    /** Hover state of the two card toggles, which used to switch colour in one frame. */
-    private final Anim lockHintsHover = new Anim();
-    private final Anim loseHover = new Anim();
+    /** Animation state of the two card switches. */
+    private final ToggleControl.State lockHintsToggle = new ToggleControl.State();
+    private final ToggleControl.State loseToggle = new ToggleControl.State();
     private final Anim scrollThumbHover = new Anim();
     /**
      * Gold wash over the button row after a successful save. Save deliberately stays on this
@@ -874,9 +878,8 @@ public class StageSettingsScreen extends Screen {
 
         // Lock-hints toggle button geometry (label on the left, button to its right).
         String label = Component.translatable("editor.historystages.display.show_lock_hints").getString();
-        String value = lockHintsValue();
         lockHintsToggleX = displayCardX + 12 + this.font.width(label) + 8;
-        lockHintsToggleW = this.font.width(value) + 8;
+        lockHintsToggleW = ToggleControl.width(this.font);
 
         layoutIndividualCard();
         layoutAddonCards();
@@ -896,19 +899,7 @@ public class StageSettingsScreen extends Screen {
         loseRowY = indivCardY + INDIV_BODY_TOP;
         String label = Component.translatable("editor.historystages.individual.lose_on_death").getString();
         loseToggleX = indivCardX + 12 + this.font.width(label) + 8;
-        loseToggleW = this.font.width(loseOnDeathValue()) + 8;
-    }
-
-    private String loseOnDeathValue() {
-        return Component.translatable(editLoseOnDeath
-                ? "editor.historystages.display.on"
-                : "editor.historystages.display.off").getString();
-    }
-
-    private String lockHintsValue() {
-        return Component.translatable(editHiddenDisplay.isShowLockHints()
-                ? "editor.historystages.display.on"
-                : "editor.historystages.display.off").getString();
+        loseToggleW = ToggleControl.width(this.font);
     }
 
     /** Repositions every content widget for the current scroll offset. Called each frame. */
@@ -993,9 +984,8 @@ public class StageSettingsScreen extends Screen {
             row.rowY = bodyY + i * ADDON_ROW_SPACING;
             switch (row.field.kind()) {
                 case BOOL -> {
-                    String value = boolValueLabel(boolValue(card.values, row.field));
                     row.toggleX = controlX;
-                    row.toggleW = this.font.width(value) + 8;
+                    row.toggleW = ToggleControl.width(this.font);
                 }
                 case INTEGER -> row.editBox.setPosition(controlX, row.rowY);
                 case TEXT -> {
@@ -1041,12 +1031,6 @@ public class StageSettingsScreen extends Screen {
     @SuppressWarnings("unchecked")
     private static void setBoolValue(SettingsValues values, Setting<?> field, boolean value) {
         values.set((Setting<Boolean>) field, value);
-    }
-
-    private String boolValueLabel(boolean value) {
-        return Component.translatable(value
-                ? "editor.historystages.display.on"
-                : "editor.historystages.display.off").getString();
     }
 
     private void clampScroll() {
@@ -1538,19 +1522,11 @@ public class StageSettingsScreen extends Screen {
         // Show-lock-hints toggle button (DependencyEditorScreen style)
         g.drawString(this.font, Component.translatable("editor.historystages.display.show_lock_hints").getString(),
                 labelX, lockHintsRowY + 3, 0xAAAAAA, false);
-        boolean tHov = mouseX >= lockHintsToggleX && mouseX < lockHintsToggleX + lockHintsToggleW
-                && mouseY >= lockHintsRowY && mouseY < lockHintsRowY + DISP_TOGGLE_H;
-        float tp = Ease.outCubic(lockHintsHover.ramp(tHov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        g.fill(lockHintsToggleX, lockHintsRowY, lockHintsToggleX + lockHintsToggleW, lockHintsRowY + DISP_TOGGLE_H,
-                Fade.mix(0xFF2A2A2A, 0xFF3D3520, tp));
-        // Gold underline grows in with the hover, matching StyledButton's accent.
-        if (tp > 0.001f) {
-            int w = Math.round(lockHintsToggleW * tp);
-            g.fill(lockHintsToggleX, lockHintsRowY + DISP_TOGGLE_H - 1, lockHintsToggleX + w,
-                    lockHintsRowY + DISP_TOGGLE_H, Fade.rgba(0xFFCC00, tp));
-        }
-        g.drawString(this.font, lockHintsValue(), lockHintsToggleX + 4, lockHintsRowY + 3,
-                Fade.mix(0xFFCCCCCC, 0xFFFFCC00, tp), false);
+        boolean showLockHints = editHiddenDisplay.isShowLockHints();
+        lockHintsToggle.update(showLockHints, ToggleControl.segmentAt(
+                this.font, lockHintsToggleX, lockHintsRowY, mouseX, mouseY));
+        ToggleControl.draw(g, this.font, lockHintsToggleX, lockHintsRowY, showLockHints,
+                lockHintsToggle, false);
     }
 
     private void renderIndividualCardContent(GuiGraphics g, int mouseX, int mouseY) {
@@ -1561,18 +1537,10 @@ public class StageSettingsScreen extends Screen {
                 Component.translatable("editor.historystages.individual.lose_on_death").getString(),
                 labelX, loseRowY + 3, 0xAAAAAA, false);
 
-        boolean hov = mouseX >= loseToggleX && mouseX < loseToggleX + loseToggleW
-                && mouseY >= loseRowY && mouseY < loseRowY + INDIV_TOGGLE_H;
-        float hp = Ease.outCubic(loseHover.ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        g.fill(loseToggleX, loseRowY, loseToggleX + loseToggleW, loseRowY + INDIV_TOGGLE_H,
-                Fade.mix(0xFF2A2A2A, 0xFF3D3520, hp));
-        if (hp > 0.001f) {
-            int w = Math.round(loseToggleW * hp);
-            g.fill(loseToggleX, loseRowY + INDIV_TOGGLE_H - 1, loseToggleX + w,
-                    loseRowY + INDIV_TOGGLE_H, Fade.rgba(0xFFCC00, hp));
-        }
-        g.drawString(this.font, loseOnDeathValue(), loseToggleX + 4, loseRowY + 3,
-                Fade.mix(0xFFCCCCCC, 0xFFFFCC00, hp), false);
+        loseToggle.update(editLoseOnDeath,
+                ToggleControl.segmentAt(this.font, loseToggleX, loseRowY, mouseX, mouseY));
+        ToggleControl.draw(g, this.font, loseToggleX, loseRowY, editLoseOnDeath, loseToggle,
+                false);
 
         drawSmallText(g,
                 Component.translatable("editor.historystages.individual.lose_on_death.hint").getString(),
@@ -1625,21 +1593,12 @@ public class StageSettingsScreen extends Screen {
         g.renderItem(new ItemStack(item), row.button.getX() + 3, row.rowY + 1);
     }
 
-    /** Draws one BOOL row's toggle button, matching the lock-hints/lose-on-death toggle chrome. */
+    /** Draws one BOOL row's switch, the same one the config rows and the cards above use. */
     private void renderAddonToggle(GuiGraphics g, AddonCard card, AddonFieldRow row, int mouseX, int mouseY) {
-        String value = boolValueLabel(boolValue(card.values, row.field));
-        boolean hov = mouseX >= row.toggleX && mouseX < row.toggleX + row.toggleW
-                && mouseY >= row.rowY && mouseY < row.rowY + ADDON_TOGGLE_H;
-        float hp = Ease.outCubic(row.toggleHover.ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        g.fill(row.toggleX, row.rowY, row.toggleX + row.toggleW, row.rowY + ADDON_TOGGLE_H,
-                Fade.mix(0xFF2A2A2A, 0xFF3D3520, hp));
-        if (hp > 0.001f) {
-            int w = Math.round(row.toggleW * hp);
-            g.fill(row.toggleX, row.rowY + ADDON_TOGGLE_H - 1, row.toggleX + w,
-                    row.rowY + ADDON_TOGGLE_H, Fade.rgba(0xFFCC00, hp));
-        }
-        g.drawString(this.font, value, row.toggleX + 4, row.rowY + 3,
-                Fade.mix(0xFFCCCCCC, 0xFFFFCC00, hp), false);
+        boolean value = boolValue(card.values, row.field);
+        row.toggle.update(value,
+                ToggleControl.segmentAt(this.font, row.toggleX, row.rowY, mouseX, mouseY));
+        ToggleControl.draw(g, this.font, row.toggleX, row.rowY, value, row.toggle, false);
     }
 
     /** Returns true if an addon card's dropdown or toggle consumed the click. */
@@ -1653,12 +1612,14 @@ public class StageSettingsScreen extends Screen {
             if (card.h <= 0) continue;
             for (AddonFieldRow row : card.rows) {
                 if (row.field.kind() != SettingKind.BOOL) continue;
-                if (mouseX >= row.toggleX && mouseX < row.toggleX + row.toggleW
-                        && mouseY >= row.rowY && mouseY < row.rowY + ADDON_TOGGLE_H) {
-                    setBoolValue(card.values, row.field, !boolValue(card.values, row.field));
-                    hasChanges = true;
-                    Minecraft.getInstance().getSoundManager().play(
-                            SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                Boolean picked = ToggleControl.valueAt(this.font, row.toggleX, mouseX);
+                if (picked != null && mouseY >= row.rowY && mouseY < row.rowY + ADDON_TOGGLE_H) {
+                    if (boolValue(card.values, row.field) != picked) {
+                        setBoolValue(card.values, row.field, picked);
+                        hasChanges = true;
+                        Minecraft.getInstance().getSoundManager().play(
+                                SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    }
                     return true;
                 }
             }
@@ -1670,10 +1631,15 @@ public class StageSettingsScreen extends Screen {
     private boolean handleIndividualCardClick(double mouseX, double mouseY) {
         if (!isIndividual || indivCardH <= 0) return false;
 
-        if (mouseX >= loseToggleX && mouseX < loseToggleX + loseToggleW
-                && mouseY >= loseRowY && mouseY < loseRowY + INDIV_TOGGLE_H) {
-            editLoseOnDeath = !editLoseOnDeath;
-            onDisplayChanged();
+        Boolean losePicked = ToggleControl.valueAt(this.font, loseToggleX, mouseX);
+        if (losePicked != null && mouseY >= loseRowY && mouseY < loseRowY + INDIV_TOGGLE_H) {
+            // The switch sets the half that was clicked. Landing on the value that is already
+            // set changes nothing, but the click still belongs to the switch — nothing sits
+            // underneath it that should get it instead.
+            if (editLoseOnDeath != losePicked) {
+                editLoseOnDeath = losePicked;
+                onDisplayChanged();
+            }
             return true;
         }
         return false;
@@ -1683,10 +1649,13 @@ public class StageSettingsScreen extends Screen {
     private boolean handleDisplayCardClick(double mouseX, double mouseY) {
         if (displayCardH <= 0) return false;
 
-        if (mouseX >= lockHintsToggleX && mouseX < lockHintsToggleX + lockHintsToggleW
-                && mouseY >= lockHintsRowY && mouseY < lockHintsRowY + DISP_TOGGLE_H) {
-            editHiddenDisplay.setShowLockHints(!editHiddenDisplay.isShowLockHints());
-            onDisplayChanged();
+        Boolean hintsPicked = ToggleControl.valueAt(this.font, lockHintsToggleX, mouseX);
+        if (hintsPicked != null && mouseY >= lockHintsRowY
+                && mouseY < lockHintsRowY + DISP_TOGGLE_H) {
+            if (editHiddenDisplay.isShowLockHints() != hintsPicked) {
+                editHiddenDisplay.setShowLockHints(hintsPicked);
+                onDisplayChanged();
+            }
             return true;
         }
         return false;
@@ -1872,9 +1841,9 @@ public class StageSettingsScreen extends Screen {
     private static final class AddonFieldRow {
         final Setting<?> field;
         int rowY;
-        // BOOL only: hand-drawn toggle geometry + hover animation.
+        // BOOL only: where the switch sits, and its animation state.
         int toggleX, toggleW;
-        final Anim toggleHover = new Anim();
+        final ToggleControl.State toggle = new ToggleControl.State();
         // INTEGER/TEXT only.
         EditBox editBox;
         // CHOICE only.

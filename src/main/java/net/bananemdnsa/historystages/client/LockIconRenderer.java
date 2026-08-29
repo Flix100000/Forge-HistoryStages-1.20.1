@@ -25,12 +25,12 @@ public final class LockIconRenderer {
      * config and distinguishes global, individual, and dual-phase locks.
      */
     public static ResourceLocation iconFor(ItemStack stack) {
-        if (!Config.CLIENT.showLockIcons.get()) return null;
+        if (!Config.VISUAL.showLockIcons.get()) return null;
         if (stack == null || stack.isEmpty()) return null;
 
         boolean globallyLocked     = StageLockHelper.isActionLockedForClient(stack, "icon");
         boolean dualPhaseGlobal    = globallyLocked && StageLockHelper.isDualPhaseGloballyLockedClient(stack);
-        boolean individuallyLocked = !globallyLocked && Config.CLIENT.showSilverLockIcons.get()
+        boolean individuallyLocked = !globallyLocked && Config.VISUAL.showSilverLockIcons.get()
                 && StageLockHelper.isActionLockedByIndividualStageClient(stack, "icon");
 
         if (globallyLocked || individuallyLocked) {

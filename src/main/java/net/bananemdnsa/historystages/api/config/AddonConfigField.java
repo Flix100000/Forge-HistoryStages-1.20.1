@@ -14,7 +14,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p>The field itself holds no value. It carries a {@link Supplier} that reads the addon's own
  * state and a {@link Consumer} that writes back into it — the same shape {@code
- * CommonConfigSync.Entry} already uses for HistoryStages' own synced values. Every value on the
+ * SaveConfigPacket} uses for HistoryStages' own synced values. Every value on the
  * boundary between this field and the screen is a {@code String}; the screen is string-based end
  * to end, and the addon already holds the typed value on its own side, so this class only passes
  * it through.
@@ -98,10 +98,15 @@ public final class AddonConfigField {
         return new Builder(key, AddonConfigKind.ITEM);
     }
 
+    /**
+     * A list of item ids. The value the addon reads and writes is the ids joined by {@code ';'} —
+     * the same separator every list in HistoryStages uses. It was {@code ','} before 6.0.0.
+     */
     public static Builder itemList(String key) {
         return new Builder(key, AddonConfigKind.ITEM_LIST);
     }
 
+    /** A list of tag ids, joined by {@code ';'}. See {@link #itemList(String)}. */
     public static Builder tagList(String key) {
         return new Builder(key, AddonConfigKind.TAG_LIST);
     }

@@ -99,7 +99,7 @@ public class HistoryStageTask extends AbstractBooleanTask {
         StageEntry entry = source.get(stage);
         String iconId = (entry != null && !entry.getIcon().isEmpty())
                 ? entry.getIcon()
-                : Config.COMMON.defaultStageIcon.get();
+                : Config.VISUAL.defaultStageIcon.get();
         if (iconId == null || iconId.isEmpty()) return super.getAltIcon();
         return ItemIcon.getItemIcon(iconId);
     }

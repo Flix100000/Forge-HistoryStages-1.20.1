@@ -215,8 +215,8 @@ public final class AutoTriggerEventBridge {
 
         // Use the same cluster/shape detection as the structure lock so auto-unlock
         // fires exactly when the player enters a lock zone — and support #tag entries.
-        int padding = net.bananemdnsa.historystages.Config.COMMON.structureLockPadding.get();
-        int clusterDistance = net.bananemdnsa.historystages.Config.COMMON.structureClusterDistance.get();
+        int padding = net.bananemdnsa.historystages.Config.GAMEPLAY.structureLockPadding.get();
+        int clusterDistance = net.bananemdnsa.historystages.Config.GAMEPLAY.structureClusterDistance.get();
         java.util.List<net.bananemdnsa.historystages.structure.StructureCluster> clusters =
                 net.bananemdnsa.historystages.structure.ClusterBuilder.collectClustersNear(
                         sl, pos, StructureLockHandler.CHUNK_SCAN_RADIUS, padding, clusterDistance);

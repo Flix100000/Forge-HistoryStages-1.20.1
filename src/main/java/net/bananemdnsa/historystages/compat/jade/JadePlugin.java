@@ -55,7 +55,7 @@ public class JadePlugin implements IWailaPlugin {
 
         @Override
         public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
-            if (!Config.CLIENT.jadeShowInfo.get()) return;
+            if (!Config.VISUAL.jadeShowInfo.get()) return;
 
             var selfState = accessor.getBlockState();
             int pedestalTier = selfState.getBlock() instanceof TieredPedestal tp ? tp.getTier() : 1;
@@ -118,7 +118,7 @@ public class JadePlugin implements IWailaPlugin {
                 tooltip.replace(JadeIds.CORE_OBJECT_NAME, replacement);
             }
 
-            if (!Config.CLIENT.jadeShowInfo.get()) return;
+            if (!Config.VISUAL.jadeShowInfo.get()) return;
             boolean suppressHints = !hidden.showLockHints();
 
             ResourceLocation itemLocation = BuiltInRegistries.ITEM.getKey(blockItem.getItem());
@@ -192,7 +192,7 @@ public class JadePlugin implements IWailaPlugin {
 
         @Override
         public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {
-            if (!Config.CLIENT.jadeShowInfo.get()) return;
+            if (!Config.VISUAL.jadeShowInfo.get()) return;
 
             List<ItemStack> items = new ArrayList<>();
 
@@ -288,7 +288,7 @@ public class JadePlugin implements IWailaPlugin {
     }
 
     private static void appendStageTooltip(ITooltip tooltip, List<StageEntry> totalRequiredStages, boolean individual) {
-        if (Config.CLIENT.jadeStageName.get()) {
+        if (Config.VISUAL.jadeStageName.get()) {
             String header = individual ? "Required Individual Progress:" : "Required Progress:";
             tooltip.add(Component.literal(header).withStyle(ChatFormatting.DARK_RED));
 
@@ -304,7 +304,7 @@ public class JadePlugin implements IWailaPlugin {
                 boolean unlocked = individual
                         ? ClientIndividualStageCache.isStageUnlocked(stageID)
                         : ClientStageCache.isStageUnlocked(stageID);
-                boolean showAll = Config.CLIENT.jadeShowAllUntilComplete.get();
+                boolean showAll = Config.VISUAL.jadeShowAllUntilComplete.get();
 
                 if (totalRequiredStages.size() > 1 && showAll) {
                     ChatFormatting statusColor = unlocked ? ChatFormatting.GREEN : ChatFormatting.RED;

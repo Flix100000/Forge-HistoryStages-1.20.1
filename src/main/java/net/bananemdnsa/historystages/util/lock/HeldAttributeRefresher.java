@@ -19,7 +19,7 @@ public final class HeldAttributeRefresher {
 
     public static void refresh(Player player) {
         if (player.level().isClientSide()) return;
-        boolean lockingEnabled = Config.COMMON.lockItemUsage.get() || Config.COMMON.individualLockItemUsage.get();
+        boolean lockingEnabled = Config.GAMEPLAY.lockItemUsage.get() || Config.GAMEPLAY.individualLockItemUsage.get();
         AttributeMap attributes = player.getAttributes();
 
         for (EquipmentSlot slot : EquipmentSlot.values()) {
@@ -27,7 +27,7 @@ public final class HeldAttributeRefresher {
             if (stack.isEmpty()) continue;
 
             boolean locked = lockingEnabled && LockGate.isActionLocked(stack, player, "use",
-                    Config.COMMON.lockItemUsage, Config.COMMON.individualLockItemUsage);
+                    Config.GAMEPLAY.lockItemUsage, Config.GAMEPLAY.individualLockItemUsage);
 
             stack.forEachModifier(slot, (holder, modifier) -> {
                 AttributeInstance instance = attributes.getInstance(holder);
