@@ -53,12 +53,12 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
                         .rememberBeforeSync(Config.GAMEPLAY_SPEC);
             }
 
-            SaveConfigPacket.applyCommonConfig(msg.configValues);
+            SaveConfigPacket.applyGameplayConfig(msg.configValues);
 
             // An open config editor holds a snapshot taken when it was built. Left alone, it would
             // re-send those pre-sync values on its next Save and undo whichever admin saved first.
-            // The refresh belongs here rather than in applyCommonConfig, which also runs server-side.
-            net.bananemdnsa.historystages.client.editor.ConfigEditorScreen.onCommonConfigSynced();
+            // The refresh belongs here rather than in applyGameplayConfig, which also runs server-side.
+            net.bananemdnsa.historystages.client.editor.ConfigEditorScreen.onGameplayConfigSynced();
         });
     }
 

@@ -19,7 +19,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import java.util.HashMap;
 import java.util.Map;
 
-public record SaveConfigPacket(Map<String, String> configValues, boolean isClient) implements CustomPacketPayload {
+public record SaveConfigPacket(Map<String, String> configValues, boolean visual) implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<SaveConfigPacket> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID, "save_config"));
@@ -28,7 +28,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
             StreamCodec.of(SaveConfigPacket::encode, SaveConfigPacket::decode);
 
     private static void encode(FriendlyByteBuf buffer, SaveConfigPacket msg) {
-        buffer.writeBoolean(msg.isClient);
+        buffer.writeBoolean(msg.visual);
         buffer.writeInt(msg.configValues.size());
         for (Map.Entry<String, String> entry : msg.configValues.entrySet()) {
             buffer.writeUtf(entry.getKey());
@@ -37,13 +37,13 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
     }
 
     private static SaveConfigPacket decode(FriendlyByteBuf buffer) {
-        boolean isClient = buffer.readBoolean();
+        boolean visual = buffer.readBoolean();
         int size = buffer.readInt();
         Map<String, String> values = new HashMap<>();
         for (int i = 0; i < size; i++) {
             values.put(buffer.readUtf(), buffer.readUtf());
         }
-        return new SaveConfigPacket(values, isClient);
+        return new SaveConfigPacket(values, visual);
     }
 
     public static void handle(SaveConfigPacket msg, IPayloadContext ctx) {
@@ -51,7 +51,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
             if (!(ctx.player() instanceof ServerPlayer player)) return;
             if (!player.hasPermissions(2)) return;
 
-            if (msg.isClient) {
+            if (msg.visual) {
                 // The visual settings are server-owned now, so this arrives instead of the editor
                 // writing them into its own client and nowhere else.
                 applyVisualConfig(msg.configValues);
@@ -66,7 +66,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                                 "editor.historystages.toast.visual_config_saved.message"),
                         player);
             } else {
-                applyCommonConfig(msg.configValues);
+                applyGameplayConfig(msg.configValues);
                 Config.GAMEPLAY_SPEC.save();
                 PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());
                 PacketHandler.sendEditorFeedback(
@@ -91,7 +91,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
      * walk to find. Their wire keys come from {@link AddonConfigSections}, which mints them in one
      * place precisely so collect and apply cannot disagree about what a value is called.
      */
-    public static void applyCommonConfig(Map<String, String> values) {
+    public static void applyGameplayConfig(Map<String, String> values) {
         ConfigSpecCodec.apply(Config.GAMEPLAY_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
 
         for (AddonConfigSections.CommonEntry entry : AddonConfigSections.commonEntries()) {
@@ -103,7 +103,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
     }
 
     /**
-     * The visual half of {@link #applyCommonConfig(Map)}. Runs on the server when an admin saves the
+     * The visual half of {@link #applyGameplayConfig(Map)}. Runs on the server when an admin saves the
      * editor, and on the client when the server syncs back.
      *
      * <p>It exists for the rebuild below. The scroll tooltip layout parses a config list into an

@@ -101,8 +101,8 @@ public class ConfigEditorScreen extends Screen {
     // Unsaved changes tracking - computed by comparing current values to initial values
 
     // Config entries grouped by section
-    private List<ConfigSection> clientSections;
-    private List<ConfigSection> commonSections;
+    private List<ConfigSection> visualSections;
+    private List<ConfigSection> gameplaySections;
 
     /**
      * Visual values that have no row of their own because another row's sub-screen edits them.
@@ -192,8 +192,8 @@ public class ConfigEditorScreen extends Screen {
     protected void init() {
         // Build once per instance, not once per init(): init() also runs on every window resize,
         // and rebuilding there would throw away whatever the admin has typed but not saved yet.
-        // Staying stale is instead handled by onCommonConfigSynced().
-        if (clientSections == null) buildConfigEntries();
+        // Staying stale is instead handled by onGameplayConfigSynced().
+        if (visualSections == null) buildConfigEntries();
         if (graphSections == null) buildGraphEntries();
         if (addonSections == null) buildAddonConfigEntries();
 
@@ -263,7 +263,7 @@ public class ConfigEditorScreen extends Screen {
 
     private void buildConfigEntries() {
         // --- VISUAL CONFIG ---
-        clientSections = new ArrayList<>();
+        visualSections = new ArrayList<>();
         // Cleared with the sections: buildConfigEntries runs again on a rebuild, and appending
         // would otherwise leave a stale duplicate that fights the live one on save.
         visualSubEntries.clear();
@@ -287,7 +287,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.openScrollBackdrop.get().toString(), true, "60", 0, 100));
         visuals.add(new ConfigEntry("visuals.showWelcomeMessage", "showWelcomeMessage", ConfigType.BOOLEAN,
                 Config.VISUAL.showWelcomeMessage.get().toString(), true, "true"));
-        clientSections.add(visuals);
+        visualSections.add(visuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");
         jade.add(new ConfigEntry("jade.showInfo", "jadeShowInfo", ConfigType.BOOLEAN,
@@ -296,14 +296,14 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.jadeStageName.get().toString(), true, "true"));
         jade.add(new ConfigEntry("jade.showAllUntilComplete", "jadeShowAllUntilComplete", ConfigType.BOOLEAN,
                 Config.VISUAL.jadeShowAllUntilComplete.get().toString(), true, "true"));
-        clientSections.add(jade);
+        visualSections.add(jade);
 
         ConfigSection individualClient = new ConfigSection("editor.historystages.config.individual_stages");
         individualClient.add(new ConfigEntry("individual_stages.showSilverLockIcons", "showSilverLockIcons", ConfigType.BOOLEAN,
                 Config.VISUAL.showSilverLockIcons.get().toString(), true, "true"));
         individualClient.add(new ConfigEntry("individual_stages.showIndividualTooltips", "showIndividualTooltips", ConfigType.BOOLEAN,
                 Config.VISUAL.showIndividualTooltips.get().toString(), true, "true"));
-        clientSections.add(individualClient);
+        visualSections.add(individualClient);
 
         ConfigSection dimLock = new ConfigSection("editor.historystages.config.dimension_lock");
         dimLock.add(new ConfigEntry("dimension_lock.useActionbar", "dimUseActionbar", ConfigType.BOOLEAN,
@@ -312,7 +312,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.dimShowChat.get().toString(), true, "false"));
         dimLock.add(new ConfigEntry("dimension_lock.showStagesInChat", "dimShowStagesInChat", ConfigType.BOOLEAN,
                 Config.VISUAL.dimShowStagesInChat.get().toString(), true, "true"));
-        clientSections.add(dimLock);
+        visualSections.add(dimLock);
 
         ConfigSection mobLock = new ConfigSection("editor.historystages.config.mob_lock");
         mobLock.add(new ConfigEntry("mob_lock.useActionbar", "mobUseActionbar", ConfigType.BOOLEAN,
@@ -321,7 +321,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.mobShowChat.get().toString(), true, "false"));
         mobLock.add(new ConfigEntry("mob_lock.showStagesInChat", "mobShowStagesInChat", ConfigType.BOOLEAN,
                 Config.VISUAL.mobShowStagesInChat.get().toString(), true, "true"));
-        clientSections.add(mobLock);
+        visualSections.add(mobLock);
 
         ConfigSection structureVisuals = new ConfigSection("editor.historystages.config.structure_visuals");
         structureVisuals.add(new ConfigEntry("structure_overlay.structureBorderEnabled", "structureBorderEnabled", ConfigType.BOOLEAN,
@@ -332,7 +332,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.structureLockOverlayEnabled.get().toString(), true, "true"));
         structureVisuals.add(new ConfigEntry("structure_overlay.structureLockOverlayOpacity", "structureLockOverlayOpacity", ConfigType.DOUBLE,
                 Config.VISUAL.structureLockOverlayOpacity.get().toString(), true, "0.3", 0.0, 1.0));
-        clientSections.add(structureVisuals);
+        visualSections.add(structureVisuals);
 
         // JEI hiding (Issue #64)
         ConfigSection jeiHiding = new ConfigSection("editor.historystages.config.jei_hiding");
@@ -349,7 +349,7 @@ public class ConfigEditorScreen extends Screen {
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null,
                 java.util.Arrays.stream(Config.Visual.MultiStagePolicy.values()).map(Enum::name).toList(),
                 Config.Visual.MultiStagePolicy.class.getSimpleName()));
-        clientSections.add(jeiHiding);
+        visualSections.add(jeiHiding);
 
         ConfigSection notifications = new ConfigSection("editor.historystages.config.notifications");
         notifications.add(new ConfigEntry("notifications.broadcastChat", "broadcastChat", ConfigType.BOOLEAN,
@@ -365,7 +365,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.useToasts.get().toString(), true, "true"));
         notifications.add(new ConfigEntry("notifications.defaultStageIcon", "defaultStageIcon", ConfigType.ITEM,
                 Config.VISUAL.defaultStageIcon.get(), true, "historystages:research_scroll"));
-        clientSections.add(notifications);
+        visualSections.add(notifications);
 
         // A section of its own rather than five more rows in the one above: the individual labels
         // read exactly like the global ones, so a single flat list would show every label twice
@@ -388,7 +388,7 @@ public class ConfigEditorScreen extends Screen {
         notificationsIndividual.add(new ConfigEntry("notifications.individual.useToasts",
                 "individualUseToasts", ConfigType.BOOLEAN,
                 Config.VISUAL.individualUseToasts.get().toString(), true, "true"));
-        clientSections.add(notificationsIndividual);
+        visualSections.add(notificationsIndividual);
 
         ConfigSection lockMessages = new ConfigSection("editor.historystages.config.lock_messages");
         lockMessages.add(new ConfigEntry("lock_messages.dimensionUnknown", "msgDimensionUnknown", ConfigType.RICH_TEXT,
@@ -403,7 +403,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.msgEntityItemLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.enchantmentLocked", "msgEnchantmentLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgEnchantmentLocked.get(), true, ""));
-        clientSections.add(lockMessages);
+        visualSections.add(lockMessages);
 
         ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
         scrollTooltip.add(new ConfigEntry("scroll_tooltip.lines", ConfigType.SUBSCREEN,
@@ -414,7 +414,7 @@ public class ConfigEditorScreen extends Screen {
                 Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, null, List.of(), null));
         scrollTooltip.add(new ConfigEntry("scroll_tooltip.hideFulfilledDependencies", "hideFulfilledDependencies", ConfigType.BOOLEAN,
                 Config.VISUAL.hideFulfilledDependencies.get().toString(), true, "false"));
-        clientSections.add(scrollTooltip);
+        visualSections.add(scrollTooltip);
 
         // One row, not two: chapters and overview blocks answer the same question — what the
         // document shows, in which order — and they were always going to open the same screen.
@@ -460,17 +460,17 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.openScrollInkBody.get(), true, "#4A3416"));
         openScroll.add(new ConfigEntry("open_scroll.inkFaint", "openScrollInkFaint", ConfigType.COLOR,
                 Config.VISUAL.openScrollInkFaint.get(), true, "#7A5A2C"));
-        clientSections.add(openScroll);
+        visualSections.add(openScroll);
 
         // --- GAMEPLAY CONFIG ---
-        commonSections = new ArrayList<>();
+        gameplaySections = new ArrayList<>();
 
         ConfigSection logging = new ConfigSection("editor.historystages.config.logging");
         logging.add(new ConfigEntry("logging.showDebugErrors", "showDebugErrors", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.showDebugErrors.get().toString(), false, "true"));
         logging.add(new ConfigEntry("logging.enableRuntimeLogging", "enableRuntimeLogging", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.enableRuntimeLogging.get().toString(), false, "false"));
-        commonSections.add(logging);
+        gameplaySections.add(logging);
 
         ConfigSection gameplay = new ConfigSection("editor.historystages.config.gameplay");
         gameplay.add(new ConfigEntry("gameplay.lockMobLoot", "lockMobLoot", ConfigType.BOOLEAN,
@@ -486,7 +486,11 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.lockEntityItems.get().toString(), false, "true"));
         gameplay.add(new ConfigEntry("gameplay.lockBlockInteraction", "lockBlockInteraction", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.lockBlockInteraction.get().toString(), false, "true"));
-        commonSections.add(gameplay);
+        gameplay.add(new ConfigEntry("gameplay.lockContainerInteraction", "lockContainerInteraction", ConfigType.BOOLEAN,
+                Config.GAMEPLAY.lockContainerInteraction.get().toString(), false, "true"));
+        gameplay.add(new ConfigEntry("gameplay.lockEnchanting", "lockEnchanting", ConfigType.BOOLEAN,
+                Config.GAMEPLAY.lockEnchanting.get().toString(), false, "true"));
+        gameplaySections.add(gameplay);
 
         ConfigSection individualCommon = new ConfigSection("editor.historystages.config.individual_stages");
         individualCommon.add(new ConfigEntry("individual_stages.lockItemPickup", "individualLockItemPickup", ConfigType.BOOLEAN,
@@ -505,7 +509,9 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.individualLockItemUsage.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individual_stages.lockBlockInteraction", "individualLockBlockInteraction", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.individualLockBlockInteraction.get().toString(), false, "true"));
-        commonSections.add(individualCommon);
+        individualCommon.add(new ConfigEntry("individual_stages.lockEnchanting", "individualLockEnchanting", ConfigType.BOOLEAN,
+                Config.GAMEPLAY.individualLockEnchanting.get().toString(), false, "true"));
+        gameplaySections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");
         research.add(new ConfigEntry("research.researchTimeInSeconds", "researchTimeInSeconds", ConfigType.INTEGER,
@@ -525,7 +531,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.enableScrollResealing.get().toString(), false, "true"));
         research.add(new ConfigEntry("research.researchBoosters", "researchBoosters", ConfigType.BOOSTER_LIST,
                 encodeBoosterList(Config.GAMEPLAY.researchBoosters.get()), false, ""));
-        commonSections.add(research);
+        gameplaySections.add(research);
 
         ConfigSection lootReplace = new ConfigSection("editor.historystages.config.loot_replacements");
         lootReplace.add(new ConfigEntry("loot_replacements.useReplacements", "useReplacements", ConfigType.BOOLEAN,
@@ -535,7 +541,7 @@ public class ConfigEditorScreen extends Screen {
                 "minecraft:cobblestone;minecraft:dirt"));
         lootReplace.add(new ConfigEntry("loot_replacements.replacementTags", "replacementTags", ConfigType.TAG_LIST,
                 String.join(ConfigSpecCodec.LIST_SEPARATOR, Config.GAMEPLAY.replacementTags.get()), false, ""));
-        commonSections.add(lootReplace);
+        gameplaySections.add(lootReplace);
 
         ConfigSection structureLock = new ConfigSection("editor.historystages.config.structure_lock");
         structureLock.add(new ConfigEntry("structure_lock.checkInterval", "structureCheckInterval", ConfigType.INTEGER,
@@ -559,7 +565,11 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.structureBlockLeftClick.get().toString(), false, "true"));
         structureLock.add(new ConfigEntry("structure_lock.blockProjectiles", "structureBlockProjectiles", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.structureBlockProjectiles.get().toString(), false, "true"));
-        commonSections.add(structureLock);
+        structureLock.add(new ConfigEntry("structure_lock.lockPadding", "structureLockPadding", ConfigType.INTEGER,
+                Config.GAMEPLAY.structureLockPadding.get().toString(), false, "0", 0, 16));
+        structureLock.add(new ConfigEntry("structure_lock.clusterDistance", "structureClusterDistance", ConfigType.INTEGER,
+                Config.GAMEPLAY.structureClusterDistance.get().toString(), false, "6", 0, 32));
+        gameplaySections.add(structureLock);
 
         ConfigSection biomeLock = new ConfigSection("editor.historystages.config.biome_lock");
         biomeLock.add(new ConfigEntry("biome_lock.checkInterval", "biomeCheckInterval", ConfigType.INTEGER,
@@ -590,7 +600,7 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.biomeBlockLeftClick.get().toString(), false, "true"));
         biomeLock.add(new ConfigEntry("biome_lock.blockProjectiles", "biomeBlockProjectiles", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.biomeBlockProjectiles.get().toString(), false, "true"));
-        commonSections.add(biomeLock);
+        gameplaySections.add(biomeLock);
     }
 
     /**
@@ -762,11 +772,11 @@ public class ConfigEditorScreen extends Screen {
      */
     private List<ConfigEntry> allEntries() {
         List<ConfigEntry> all = new ArrayList<>();
-        if (clientSections != null) {
-            for (ConfigSection section : clientSections) all.addAll(section.entries);
+        if (visualSections != null) {
+            for (ConfigSection section : visualSections) all.addAll(section.entries);
         }
-        if (commonSections != null) {
-            for (ConfigSection section : commonSections) all.addAll(section.entries);
+        if (gameplaySections != null) {
+            for (ConfigSection section : gameplaySections) all.addAll(section.entries);
         }
         all.addAll(visualSubEntries);
         all.addAll(graphEntries());
@@ -790,9 +800,9 @@ public class ConfigEditorScreen extends Screen {
      * changes one unrelated setting would push their whole stale snapshot back and quietly undo the
      * first admin's work.
      */
-    public static void onCommonConfigSynced() {
+    public static void onGameplayConfigSynced() {
         ConfigEditorScreen screen = active.get();
-        if (screen != null && screen.commonSections != null) screen.refreshCommonValues();
+        if (screen != null && screen.gameplaySections != null) screen.refreshGameplayValues();
     }
 
     /**
@@ -801,12 +811,12 @@ public class ConfigEditorScreen extends Screen {
      * still counts as unsaved and still goes out on the next Save. Overwriting those too would
      * trade one admin losing work for the other.
      */
-    private void refreshCommonValues() {
+    private void refreshGameplayValues() {
         // The packet's own map, spec values and addon values together — the addon rows are not in
         // GAMEPLAY_SPEC, so a plain spec walk here would refresh everything except them and leave an
         // open editor pushing stale addon values back on its next Save.
         Map<String, String> fresh = SyncConfigPacket.readServerConfig();
-        for (ConfigSection section : commonSections) {
+        for (ConfigSection section : gameplaySections) {
             for (ConfigEntry entry : section.entries) {
                 mergeSynced(entry, fresh);
             }
@@ -832,18 +842,18 @@ public class ConfigEditorScreen extends Screen {
     }
 
     /**
-     * The visual counterpart of {@link #onCommonConfigSynced()}, and the same reasoning: Save sends
+     * The visual counterpart of {@link #onGameplayConfigSynced()}, and the same reasoning: Save sends
      * every client row, not just the edited ones, so an editor still holding its build-time
      * snapshot would push that snapshot back and undo whichever admin saved first.
      */
     public static void onVisualConfigSynced() {
         ConfigEditorScreen screen = active.get();
-        if (screen != null && screen.clientSections != null) screen.refreshVisualValues();
+        if (screen != null && screen.visualSections != null) screen.refreshVisualValues();
     }
 
     /**
      * Merges the freshly synced visual values into the client rows. Same split as
-     * {@link #refreshCommonValues()}: untouched rows follow the server, edited rows keep the edit
+     * {@link #refreshGameplayValues()}: untouched rows follow the server, edited rows keep the edit
      * and only get a new baseline.
      *
      * <p>A plain spec walk is enough here, unlike the common side: addon rows are never in
@@ -852,7 +862,7 @@ public class ConfigEditorScreen extends Screen {
      */
     private void refreshVisualValues() {
         Map<String, String> fresh = ConfigSpecCodec.collect(Config.VISUAL_SPEC);
-        for (ConfigSection section : clientSections) {
+        for (ConfigSection section : visualSections) {
             for (ConfigEntry entry : section.entries) {
                 mergeSynced(entry, fresh);
             }
@@ -865,7 +875,7 @@ public class ConfigEditorScreen extends Screen {
     }
 
     /**
-     * The graph counterpart of {@link #onCommonConfigSynced()}. Save sends every graph row that has
+     * The graph counterpart of {@link #onGameplayConfigSynced()}. Save sends every graph row that has
      * a toml path, style blocks included, so an editor still holding its build-time snapshot would
      * push that snapshot back and undo whichever admin saved first.
      */
@@ -877,7 +887,7 @@ public class ConfigEditorScreen extends Screen {
     /**
      * Merges the freshly synced graph values into every graph row, the six style blocks included —
      * {@link GraphStyleScreen} edits those very objects rather than copies. Same split as
-     * {@link #refreshCommonValues()}: untouched rows follow the server, edited rows keep the edit
+     * {@link #refreshGameplayValues()}: untouched rows follow the server, edited rows keep the edit
      * and only get a new baseline.
      */
     private void refreshGraphValues() {
@@ -903,11 +913,11 @@ public class ConfigEditorScreen extends Screen {
 
     private List<ConfigSection> getActiveSections() {
         return switch (activeTab) {
-            case 0 -> clientSections;
+            case 0 -> visualSections;
             case 2 -> graphSections;
             // Only reachable once tabKeys actually has a fourth entry — see init().
             case 3 -> addonSections;
-            default -> commonSections;
+            default -> gameplaySections;
         };
     }
 
@@ -1469,35 +1479,35 @@ public class ConfigEditorScreen extends Screen {
         // everyone. This used to be a local write with no packet at all, which is why an admin
         // tuning these settings changed nothing for any other player. Same rule as the two blocks
         // below: an untouched tab is not worth a write, a sync to every client, and a toast.
-        Map<String, String> clientValues = new HashMap<>();
-        boolean clientChanged = false;
-        for (ConfigSection section : clientSections) {
+        Map<String, String> visualValues = new HashMap<>();
+        boolean visualChanged = false;
+        for (ConfigSection section : visualSections) {
             for (ConfigEntry entry : section.entries) {
-                clientValues.put(entry.key, entry.value);
-                if (!entry.value.equals(entry.initialValue)) clientChanged = true;
+                visualValues.put(entry.key, entry.value);
+                if (!entry.value.equals(entry.initialValue)) visualChanged = true;
             }
         }
         for (ConfigEntry entry : visualSubEntries) {
-            clientValues.put(entry.key, entry.value);
-            if (!entry.value.equals(entry.initialValue)) clientChanged = true;
+            visualValues.put(entry.key, entry.value);
+            if (!entry.value.equals(entry.initialValue)) visualChanged = true;
         }
-        if (clientChanged) {
-            PacketHandler.sendToServer(new SaveConfigPacket(clientValues, true));
+        if (visualChanged) {
+            PacketHandler.sendToServer(new SaveConfigPacket(visualValues, true));
         }
 
         // Send common config to server — but only if something in it actually changed. Each
         // packet's handler answers with its own toast, so sending both unconditionally reported
         // two saves for one edit, and wrote and re-synced a file nobody had touched.
-        Map<String, String> commonValues = new HashMap<>();
-        boolean commonChanged = false;
-        for (ConfigSection section : commonSections) {
+        Map<String, String> gameplayValues = new HashMap<>();
+        boolean gameplayChanged = false;
+        for (ConfigSection section : gameplaySections) {
             for (ConfigEntry entry : section.entries) {
-                commonValues.put(entry.key, entry.value);
-                if (!entry.value.equals(entry.initialValue)) commonChanged = true;
+                gameplayValues.put(entry.key, entry.value);
+                if (!entry.value.equals(entry.initialValue)) gameplayChanged = true;
             }
         }
         // Addon rows split by their section's side. COMMON membership is decided by
-        // AddonConfigSections.commonEntries() — the same list SaveConfigPacket.applyCommonConfig
+        // AddonConfigSections.commonEntries() — the same list SaveConfigPacket.applyGameplayConfig
         // reads to apply them server-side — so the wire key travels here without ever being
         // rebuilt by hand. Anything not in that list is a CLIENT row and is written straight
         // back into the addon's own field; there is nothing else it could be, since
@@ -1513,8 +1523,8 @@ public class ConfigEditorScreen extends Screen {
                 AddonConfigSections.CommonEntry commonEntry = addonCommonByWireKey.get(entry.key);
                 boolean changed = !entry.value.equals(entry.initialValue);
                 if (commonEntry != null) {
-                    commonValues.put(commonEntry.wireKey(), entry.value);
-                    if (changed) commonChanged = true;
+                    gameplayValues.put(commonEntry.wireKey(), entry.value);
+                    if (changed) gameplayChanged = true;
                 } else if (changed) {
                     // Only on a real change: an addon's write callback is its code, and calling
                     // it for every field on every save would hand it work it never asked for.
@@ -1523,8 +1533,8 @@ public class ConfigEditorScreen extends Screen {
             }
         }
 
-        if (commonChanged) {
-            PacketHandler.sendToServer(new SaveConfigPacket(commonValues, false));
+        if (gameplayChanged) {
+            PacketHandler.sendToServer(new SaveConfigPacket(gameplayValues, false));
         }
 
         // Send graph.toml to the server, keyed by toml path. The style rows come along here
@@ -1627,7 +1637,7 @@ public class ConfigEditorScreen extends Screen {
         public final ConfigType type;
         public String value;
         String initialValue;
-        final boolean isClient;
+        final boolean visual;
         /** Public so dialogs outside this package can offer a reset-to-default control. */
         public final String defaultValue;
         /** Lang key of the hover tooltip. */
@@ -1700,37 +1710,37 @@ public class ConfigEditorScreen extends Screen {
          * point, renaming them would have broken every existing translation — including the ones
          * from human translators this project does not touch.
          */
-        ConfigEntry(String key, String langKey, ConfigType type, String value, boolean isClient,
+        ConfigEntry(String key, String langKey, ConfigType type, String value, boolean visual,
                     String defaultValue) {
-            this(key, langKey, type, value, isClient, defaultValue,
+            this(key, langKey, type, value, visual, defaultValue,
                     Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
         }
 
-        ConfigEntry(String key, String langKey, ConfigType type, String value, boolean isClient,
+        ConfigEntry(String key, String langKey, ConfigType type, String value, boolean visual,
                     String defaultValue, double min, double max) {
-            this(key, type, value, isClient, defaultValue,
+            this(key, type, value, visual, defaultValue,
                     "editor.historystages.config." + langKey,
                     "editor.historystages.config." + langKey + ".desc",
                     min, max, null, List.of(), null);
         }
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+        ConfigEntry(String key, ConfigType type, String value, boolean visual,
                     String defaultValue, String labelKey, String descKey,
                     double min, double max, String path, List<String> enumConstants,
                     String enumType) {
-            this(key, type, value, isClient, defaultValue, labelKey, descKey,
+            this(key, type, value, visual, defaultValue, labelKey, descKey,
                     min, max, path, enumConstants, enumType, null, null);
         }
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+        ConfigEntry(String key, ConfigType type, String value, boolean visual,
                     String defaultValue, String labelKey, String descKey,
                     double min, double max, String path, List<String> enumConstants,
                     String enumType, Map<String, String> enumLabels) {
-            this(key, type, value, isClient, defaultValue, labelKey, descKey,
+            this(key, type, value, visual, defaultValue, labelKey, descKey,
                     min, max, path, enumConstants, enumType, enumLabels, null);
         }
 
-        ConfigEntry(String key, ConfigType type, String value, boolean isClient,
+        ConfigEntry(String key, ConfigType type, String value, boolean visual,
                     String defaultValue, String labelKey, String descKey,
                     double min, double max, String path, List<String> enumConstants,
                     String enumType, Map<String, String> enumLabels, List<String> placeholders) {
@@ -1738,7 +1748,7 @@ public class ConfigEditorScreen extends Screen {
             this.type = type;
             this.value = value;
             this.initialValue = value;
-            this.isClient = isClient;
+            this.visual = visual;
             this.defaultValue = defaultValue;
             this.labelKey = labelKey;
             this.descKey = descKey;
@@ -1769,9 +1779,10 @@ public class ConfigEditorScreen extends Screen {
         }
 
         /**
-         * A row for an addon-registered {@link AddonConfigField}. Not client- or common-owned in
-         * the sense {@link #isClient} otherwise distinguishes — that split is Task 3b's, once
-         * these rows are wired into {@link #saveConfig()}.
+         * A row for an addon-registered {@link AddonConfigField}. The {@link #visual} flag does not
+         * decide anything here: an addon row lives on its own tab, and which half of the save it
+         * travels in comes from whether its wire key appears in
+         * {@code AddonConfigSections.commonEntries()} — see {@link #saveConfig()}.
          *
          * @param enumLabels constant to lang key for a CHOICE field's options, or null for
          *                    every non-CHOICE kind.
@@ -1792,16 +1803,16 @@ public class ConfigEditorScreen extends Screen {
      * keeping copies, so one Save here covers them and the unsaved-changes marker stays honest.
      *
      * <p>Searches both tabs rather than only the gameplay one. The open-scroll settings it is
-     * asked for are visual now, and a lookup that still only walked {@code commonSections} would
+     * asked for are visual now, and a lookup that still only walked {@code gameplaySections} would
      * throw on every one of them.
      */
     ConfigEntry findEntry(String key) {
-        for (ConfigSection section : clientSections) {
+        for (ConfigSection section : visualSections) {
             for (ConfigEntry entry : section.entries) {
                 if (entry.key.equals(key)) return entry;
             }
         }
-        for (ConfigSection section : commonSections) {
+        for (ConfigSection section : gameplaySections) {
             for (ConfigEntry entry : section.entries) {
                 if (entry.key.equals(key)) return entry;
             }
