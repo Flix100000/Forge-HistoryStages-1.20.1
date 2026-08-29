@@ -3,6 +3,7 @@ package net.bananemdnsa.historystages.network.serverbound;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.init.ModItems;
+import net.bananemdnsa.historystages.network.PacketReach;
 import net.bananemdnsa.historystages.util.lock.LockGate;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -44,12 +45,11 @@ public record TakeLecternScrollPacket(BlockPos pos) implements CustomPacketPaylo
             // Adventure mode reads but does not loot, exactly as vanilla gates its take-book button.
             if (!player.mayBuild()) return;
 
-            // Reach check: refuse anything the player could not plausibly be using.
-            Level level = player.level();
-            if (!level.isLoaded(packet.pos())) return;
-            if (player.distanceToSqr(packet.pos().getX() + 0.5, packet.pos().getY() + 0.5,
-                    packet.pos().getZ() + 0.5) > 64.0) return;
+            // Reach check: refuse anything the player could not plausibly be using. It has to
+            // come before getBlockState, which loads the chunk exactly as getBlockEntity does.
+            if (!PacketReach.canUse(player, packet.pos())) return;
 
+            Level level = player.level();
             BlockState state = level.getBlockState(packet.pos());
             if (!(state.getBlock() instanceof LecternBlock)) return;
             if (!state.getValue(LecternBlock.HAS_BOOK)) return;
