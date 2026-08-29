@@ -7,10 +7,8 @@ import net.bananemdnsa.historystages.network.clientbound.SyncVisualConfigPacket;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.config.AddonConfigSections;
+import net.bananemdnsa.historystages.data.config.ConfigDerivedCaches;
 import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
-import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout;
-import net.bananemdnsa.historystages.research.ResearchBoosterRegistry;
-import net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -101,13 +99,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
             if (incoming != null) entry.write().accept(incoming);
         }
 
-        // Rebuilt unconditionally rather than only when their own key arrived. These three parse a
-        // config list into an in-memory registry, and a rebuild is cheap; a key-to-rebuild mapping
-        // would be one more hand-written table of exactly the kind this refactor removed, and the
-        // failure it would hide — a list that changed but kept behaving like the old one until the
-        // next restart — is invisible until someone reports it as a ghost.
-        ResearchBoosterRegistry.rebuildFromConfig(Config.GAMEPLAY.researchBoosters.get());
-        BiomeEffectRegistry.rebuildFromConfig(Config.GAMEPLAY.biomeEffects.get());
+        ConfigDerivedCaches.rebuildGameplay();
     }
 
     /**
@@ -121,7 +113,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
      */
     public static void applyVisualConfig(Map<String, String> values) {
         ConfigSpecCodec.apply(Config.VISUAL_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
-        ScrollTooltipLayout.rebuildFromConfig(Config.VISUAL.scrollTooltipLines.get());
+        ConfigDerivedCaches.rebuildVisual();
     }
 
     @Override

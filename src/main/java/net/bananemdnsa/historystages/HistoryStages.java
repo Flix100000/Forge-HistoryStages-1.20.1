@@ -175,17 +175,13 @@ public class HistoryStages {
 
     private void onConfigLoad(net.neoforged.fml.event.config.ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == Config.GAMEPLAY_SPEC) {
-            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
-                    Config.GAMEPLAY.researchBoosters.get());
-            net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
-                    Config.GAMEPLAY.biomeEffects.get());
+            net.bananemdnsa.historystages.data.config.ConfigDerivedCaches.rebuildGameplay();
         }
         // Its own branch: the scroll tooltip layout is read out of the visual spec, so hanging the
         // rebuild off the gameplay spec would read a file that may not be loaded yet and would miss
         // every later change to visual.toml.
         if (event.getConfig().getSpec() == Config.VISUAL_SPEC) {
-            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.VISUAL.scrollTooltipLines.get());
+            net.bananemdnsa.historystages.data.config.ConfigDerivedCaches.rebuildVisual();
         }
         if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
             net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
@@ -194,14 +190,10 @@ public class HistoryStages {
 
     private void onConfigReload(net.neoforged.fml.event.config.ModConfigEvent.Reloading event) {
         if (event.getConfig().getSpec() == Config.GAMEPLAY_SPEC) {
-            net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
-                    Config.GAMEPLAY.researchBoosters.get());
-            net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
-                    Config.GAMEPLAY.biomeEffects.get());
+            net.bananemdnsa.historystages.data.config.ConfigDerivedCaches.rebuildGameplay();
         }
         if (event.getConfig().getSpec() == Config.VISUAL_SPEC) {
-            net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.VISUAL.scrollTooltipLines.get());
+            net.bananemdnsa.historystages.data.config.ConfigDerivedCaches.rebuildVisual();
         }
     }
 

@@ -5,6 +5,8 @@ import net.bananemdnsa.historystages.GraphConfig;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
 import net.bananemdnsa.historystages.data.config.LocalConfigSnapshot;
+import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout;
+import net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLine;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -214,5 +216,68 @@ public final class ConfigCodecTests {
             Config.VISUAL.showLockIcons.set(originalIcons);
             Config.GAMEPLAY.structureCheckInterval.set(originalInterval);
         }
+    }
+
+    @GameTest(template = "empty")
+    public static void restoringAlsoRebuildsWhatTheValuesFeed(GameTestHelper helper) {
+        // Three settings are lists that get parsed into an in-memory structure. Writing the values
+        // back is not enough on its own — without a rebuild the player carries the server's parsed
+        // copy into their next singleplayer world while their own file says something else.
+        //
+        // The observable is the name line's enabled flag, not the line count: parse() fills every
+        // missing id in from the defaults, so the layout is always the same length no matter what
+        // goes in. A first version of this test compared lengths and could not tell the two apart.
+        List<? extends String> originalLines = Config.VISUAL.scrollTooltipLines.get();
+        LocalConfigSnapshot.restore();
+
+        try {
+            ScrollTooltipLine defaultName = ScrollTooltipLayout.defaults().stream()
+                    .filter(l -> l.id().equals(ScrollTooltipLayout.NAME_ID))
+                    .findFirst().orElseThrow();
+            boolean localEnabled = !defaultName.enabled();
+
+            List<String> localLayout = List.of(ScrollTooltipLayout.encodeLine(
+                    new ScrollTooltipLine(ScrollTooltipLayout.NAME_ID, localEnabled,
+                            defaultName.spacerBefore(), defaultName.style(), defaultName.text())));
+            Config.VISUAL.scrollTooltipLines.set(localLayout);
+            ScrollTooltipLayout.rebuildFromConfig(localLayout);
+
+            if (nameLineEnabled() != localEnabled) {
+                helper.fail("the local layout did not survive its own parse, so this test could "
+                        + "not prove anything");
+                return;
+            }
+
+            LocalConfigSnapshot.rememberBeforeSync(Config.VISUAL_SPEC);
+
+            List<String> serverLayout = ScrollTooltipLayout.defaultsEncoded();
+            Config.VISUAL.scrollTooltipLines.set(serverLayout);
+            ScrollTooltipLayout.rebuildFromConfig(serverLayout);
+
+            if (nameLineEnabled() == localEnabled) {
+                helper.fail("the server layout parses the same as the player's, so this test "
+                        + "could not tell them apart");
+                return;
+            }
+
+            LocalConfigSnapshot.restore();
+
+            if (nameLineEnabled() != localEnabled) {
+                helper.fail("the live layout still shows the server's name line — the values came "
+                        + "back but nothing reparsed them");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            LocalConfigSnapshot.restore();
+            Config.VISUAL.scrollTooltipLines.set(originalLines);
+            ScrollTooltipLayout.rebuildFromConfig(originalLines);
+        }
+    }
+
+    private static boolean nameLineEnabled() {
+        return ScrollTooltipLayout.active().stream()
+                .filter(l -> l.id().equals(ScrollTooltipLayout.NAME_ID))
+                .findFirst().orElseThrow().enabled();
     }
 }

@@ -69,6 +69,13 @@ public final class LocalConfigSnapshot {
                     Config.GAMEPLAY_SPEC, gameplay, true, ConfigSpecCodec.NO_EXTRA_CHECK);
             gameplay = null;
         }
+
+        // Putting the values back is only half of it: three of them are lists that were parsed
+        // into in-memory structures when the server's version arrived. Without this the player
+        // would carry the server's scroll tooltip layout, research boosters and biome effects
+        // into their next singleplayer world, with their own files on disk saying otherwise.
+        if (restored > 0) ConfigDerivedCaches.rebuildAll();
+
         return restored;
     }
 

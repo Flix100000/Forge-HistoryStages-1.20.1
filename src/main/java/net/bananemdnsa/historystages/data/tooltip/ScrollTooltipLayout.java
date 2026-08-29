@@ -188,7 +188,7 @@ public final class ScrollTooltipLayout {
 
     private static List<ScrollTooltipLine> ACTIVE = DEFAULTS;
 
-    /** Replaces the live layout from the common config's {@code scrollTooltipLines} list. */
+    /** Replaces the live layout from the visual config's {@code scroll_tooltip.lines} list. */
     public static void rebuildFromConfig(List<? extends String> entries) {
         ACTIVE = parse(entries);
     }
