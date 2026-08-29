@@ -1204,7 +1204,8 @@ public class ConfigEditorScreen extends Screen {
             for (ConfigEntry entry : section.entries) {
                 if (configRows.hitTest(entry, contentLeft, contentRight, y, mouseX, mouseY)) {
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    handleEntryClick(entry, contentLeft, y);
+                    handleEntryClick(entry, contentLeft, y,
+                            configRows.toggleValueAt(entry, contentLeft, mouseX));
                     return true;
                 }
                 y += ConfigRowList.ENTRY_HEIGHT;
@@ -1278,13 +1279,17 @@ public class ConfigEditorScreen extends Screen {
     /**
      * @param contentLeft left edge of the row, and {@code rowY} its screen y — only the ENUM
      *                    case needs them, to anchor its popup to the row that was clicked.
+     * @param picked      for a BOOLEAN row, the half the cursor was over. Null when the caller
+     *                    has no cursor position to offer, which leaves such a row alone —
+     *                    without one, no half is meant.
      */
-    private void handleEntryClick(ConfigEntry entry, int contentLeft, int rowY) {
+    private void handleEntryClick(ConfigEntry entry, int contentLeft, int rowY, Boolean picked) {
         playClick();
         switch (entry.type) {
+            // A segmented switch sets the half the click landed on rather than flipping, so
+            // clicking the value that is already set does nothing.
             case BOOLEAN -> {
-                boolean current = Boolean.parseBoolean(entry.value);
-                entry.value = String.valueOf(!current);
+                if (picked != null) entry.value = String.valueOf(picked.booleanValue());
             }
             case INTEGER, DOUBLE, STRING -> this.minecraft.setScreen(new ValueInputScreen(this, entry));
             case RICH_TEXT -> openRichTextEditor(entry);
