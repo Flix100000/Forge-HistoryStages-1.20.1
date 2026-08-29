@@ -127,6 +127,11 @@ public class StructureLockHandler {
         List<StructureCluster> nearby = ClusterBuilder.collectClustersNear(
                 level, pos, CHUNK_SCAN_RADIUS, padding, clusterDistance);
 
+        // Throttled, because this runs on every chunk crossing: one line per player per interval
+        // is enough to see whether the zone cache is holding or thrashing.
+        DebugLogger.runtimeThrottled("Structure Lock", "cluster_cache_" + player.getUUID(),
+                "Zone cache: " + ClusterBuilder.cacheStats());
+
         state.cachedNearbyClusters = nearby;
 
         if (nearby.isEmpty()) {
