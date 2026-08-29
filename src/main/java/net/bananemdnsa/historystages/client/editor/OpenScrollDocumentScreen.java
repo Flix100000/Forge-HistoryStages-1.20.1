@@ -514,7 +514,7 @@ public class OpenScrollDocumentScreen extends Screen {
             y = switch (entry.block()) {
                 case ICON -> {
                     // A real item, drawn at the real 32px, rather than a coloured rectangle.
-                    ItemStack icon = ClientToastHandler.resolveIcon(Config.COMMON.defaultStageIcon.get());
+                    ItemStack icon = ClientToastHandler.resolveIcon(Config.GAMEPLAY.defaultStageIcon.get());
                     g.pose().pushPose();
                     g.pose().translate((float) (x + (width - 32) / 2), (float) y, 0.0f);
                     g.pose().scale(2.0f, 2.0f, 1.0f);

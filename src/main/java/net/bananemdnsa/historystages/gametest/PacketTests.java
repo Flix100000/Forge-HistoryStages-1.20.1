@@ -76,9 +76,9 @@ public final class PacketTests {
         // is that one actually leaves the server: a changed value, under its dotted toml path, in
         // the payload. Pointed at the wrong spec the payload is still perfectly well-formed and
         // full of plausible values — it just never mentions this key.
-        boolean original = Config.CLIENT.showLockIcons.get();
+        boolean original = Config.VISUAL.showLockIcons.get();
         try {
-            Config.CLIENT.showLockIcons.set(!original);
+            Config.VISUAL.showLockIcons.set(!original);
 
             Map<String, String> sent = SyncVisualConfigPacket.fromServerConfig().values();
             if (!sent.containsKey("visuals.showLockIcons")) {
@@ -94,7 +94,7 @@ public final class PacketTests {
             }
             helper.succeed();
         } finally {
-            Config.CLIENT.showLockIcons.set(original);
+            Config.VISUAL.showLockIcons.set(original);
         }
     }
 

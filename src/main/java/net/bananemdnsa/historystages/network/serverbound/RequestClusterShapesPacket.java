@@ -38,8 +38,8 @@ public record RequestClusterShapesPacket() implements CustomPacketPayload {
             if (!(ctx.player() instanceof ServerPlayer player)) return;
             if (!player.hasPermissions(2)) return;
 
-            int padding = Config.COMMON.structureLockPadding.get();
-            int clusterDistance = Config.COMMON.structureClusterDistance.get();
+            int padding = Config.GAMEPLAY.structureLockPadding.get();
+            int clusterDistance = Config.GAMEPLAY.structureClusterDistance.get();
             var pos = player.blockPosition();
             List<StructureCluster> clusters = ClusterBuilder.collectClustersNear(
                     player.serverLevel(), pos, 8, padding, clusterDistance);

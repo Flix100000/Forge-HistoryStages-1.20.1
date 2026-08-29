@@ -30,7 +30,7 @@ public class ContainerClickMixin {
     private void onClicked(int slotId, int button, ClickType clickType, Player player, CallbackInfo ci) {
         if (player.level().isClientSide()) return;
         if (!(player instanceof ServerPlayer serverPlayer)) return;
-        if (!Config.COMMON.lockContainerInteraction.get()) return;
+        if (!Config.GAMEPLAY.lockContainerInteraction.get()) return;
 
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
 
@@ -62,7 +62,7 @@ public class ContainerClickMixin {
     private void historystages$onEquipLockClicked(int slotId, int button, ClickType clickType, Player player, CallbackInfo ci) {
         if (player.level().isClientSide()) return;
         if (!(player instanceof ServerPlayer serverPlayer)) return;
-        if (!Config.COMMON.lockItemUsage.get() && !Config.COMMON.individualLockItemUsage.get()) return;
+        if (!Config.GAMEPLAY.lockItemUsage.get() && !Config.GAMEPLAY.individualLockItemUsage.get()) return;
 
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
         if (slotId < 0 || slotId >= menu.slots.size()) return;
@@ -164,9 +164,9 @@ public class ContainerClickMixin {
 
     @Unique
     private static boolean historystages$isEquipActionLocked(ItemStack stack, ServerPlayer player) {
-        return (Config.COMMON.lockItemUsage.get()
+        return (Config.GAMEPLAY.lockItemUsage.get()
                     && StageLockHelper.isActionLockedForPlayer(stack, player.getUUID(), "equip"))
-                || (Config.COMMON.individualLockItemUsage.get()
+                || (Config.GAMEPLAY.individualLockItemUsage.get()
                     && StageLockHelper.isActionLockedByIndividualStage(stack, player.getUUID(), "equip"));
     }
 }

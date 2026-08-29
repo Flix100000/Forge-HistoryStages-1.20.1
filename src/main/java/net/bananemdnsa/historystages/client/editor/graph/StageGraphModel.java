@@ -148,7 +148,7 @@ public final class StageGraphModel {
     }
 
     private static String defaultIcon() {
-        return Config.COMMON.defaultStageIcon.get();
+        return Config.GAMEPLAY.defaultStageIcon.get();
     }
 
     private static String resolveIcon(StageEntry entry) {

@@ -22,7 +22,7 @@ import java.util.Map;
  * admin saves.
  *
  * <p>Keys are the dotted toml paths gathered by walking the spec, so a key added to
- * {@code Config.Client} syncs without anyone remembering to list it.
+ * {@code Config.Visual} syncs without anyone remembering to list it.
  *
  * <p>What this deliberately does not do: the received values travel into the client's in-memory
  * spec only. The player's own {@code visual.toml} on disk is never written, so the server's values
@@ -57,7 +57,7 @@ public record SyncVisualConfigPacket(Map<String, String> values) implements Cust
 
     /** Snapshots every value in the visual spec, keyed by its dotted toml path. */
     public static SyncVisualConfigPacket fromServerConfig() {
-        return new SyncVisualConfigPacket(ConfigSpecCodec.collect(Config.CLIENT_SPEC));
+        return new SyncVisualConfigPacket(ConfigSpecCodec.collect(Config.VISUAL_SPEC));
     }
 
     public static void handle(SyncVisualConfigPacket msg, IPayloadContext ctx) {
@@ -70,10 +70,10 @@ public record SyncVisualConfigPacket(Map<String, String> values) implements Cust
         // integrated server, where client and server share this very spec object: there is no
         // server copy to undo, and restoring later would roll back the host's own admin saves.
         if (!net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) {
-            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.VISUAL_SPEC);
         }
 
-        ConfigSpecCodec.apply(Config.CLIENT_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+        ConfigSpecCodec.apply(Config.VISUAL_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
 
         // An open config editor holds a snapshot of the Client tab taken when it was built. Left
         // alone, it would re-send those pre-sync values on its next Save and undo whichever admin

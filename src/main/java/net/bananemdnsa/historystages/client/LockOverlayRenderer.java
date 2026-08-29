@@ -29,7 +29,7 @@ public final class LockOverlayRenderer {
 
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
-        if (!Config.CLIENT.structureLockOverlayEnabled.get()) return;
+        if (!Config.VISUAL.structureLockOverlayEnabled.get()) return;
 
         Minecraft mc = Minecraft.getInstance();
         LocalPlayer player = mc.player;
@@ -38,7 +38,7 @@ public final class LockOverlayRenderer {
 
         if (!isInsideLockedShape(player.getX(), player.getY(), player.getZ())) return;
 
-        double opacity = Config.CLIENT.structureLockOverlayOpacity.get();
+        double opacity = Config.VISUAL.structureLockOverlayOpacity.get();
         if (opacity <= 0.0) return;
 
         int alpha = (int) Math.round(Math.min(1.0, opacity) * 255.0);

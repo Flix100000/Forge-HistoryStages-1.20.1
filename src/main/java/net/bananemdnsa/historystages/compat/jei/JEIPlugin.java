@@ -85,8 +85,8 @@ public class JEIPlugin implements IModPlugin {
         RUNTIME = jeiRuntime;
         REFRESHER = new LockedJeiRefresher(new RuntimeOps(jeiRuntime));
         try {
-            boolean hideItems = Config.CLIENT.hideLockedItemsInJei.get();
-            boolean hideRecipes = Config.CLIENT.hideLockedRecipesInJei.get();
+            boolean hideItems = Config.VISUAL.hideLockedItemsInJei.get();
+            boolean hideRecipes = Config.VISUAL.hideLockedRecipesInJei.get();
             REFRESHER.applyInitial(hideItems, () -> computeLockedItems(jeiRuntime.getIngredientManager()));
             applyRecipeHiding(hideRecipes, jeiRuntime);
             // Seed the name-affected baseline without churn (items were already added with the
@@ -109,8 +109,8 @@ public class JEIPlugin implements IModPlugin {
         if (r == null || runtime == null) return;
 
         try {
-            boolean hideItems = Config.CLIENT.hideLockedItemsInJei.get();
-            boolean hideRecipes = Config.CLIENT.hideLockedRecipesInJei.get();
+            boolean hideItems = Config.VISUAL.hideLockedItemsInJei.get();
+            boolean hideRecipes = Config.VISUAL.hideLockedRecipesInJei.get();
             r.applyDiff(hideItems, () -> computeLockedItems(runtime.getIngredientManager()));
             applyRecipeHiding(hideRecipes, runtime);
             // Re-read items whose hidden-display name just changed (e.g. a stage unlocked),
@@ -165,7 +165,7 @@ public class JEIPlugin implements IModPlugin {
 
     private static Set<ItemStack> computeLockedItems(IIngredientManager mgr) {
         List<ItemStack> all = new ArrayList<>(mgr.getAllItemStacks());
-        return LockedJeiVisibility.computeLockedItems(all, Config.CLIENT.lockedItemMultiStagePolicy.get());
+        return LockedJeiVisibility.computeLockedItems(all, Config.VISUAL.lockedItemMultiStagePolicy.get());
     }
 
     /**
@@ -282,7 +282,7 @@ public class JEIPlugin implements IModPlugin {
         // The resealing recipe is a special recipe with no declared ingredients, so JEI cannot
         // derive it from the recipe manager — one shapeless stand-in per stage is added by hand.
         // These are display only; the real matching still happens in ResealScrollRecipe.
-        if (net.bananemdnsa.historystages.Config.COMMON.enableScrollResealing.get()) {
+        if (net.bananemdnsa.historystages.Config.GAMEPLAY.enableScrollResealing.get()) {
             List<RecipeHolder<CraftingRecipe>> reseal = new ArrayList<>();
             for (String stageId : ScrollVariants.scrollableStageIds()) {
                 NonNullList<Ingredient> inputs = NonNullList.create();

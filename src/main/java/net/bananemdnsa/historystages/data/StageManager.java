@@ -1267,7 +1267,7 @@ public class StageManager {
         if (entry != null && entry.getResearchTime() > 0) {
             return entry.getResearchTime() * 20;
         }
-        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+        return net.bananemdnsa.historystages.Config.GAMEPLAY.researchTimeInSeconds.get() * 20;
     }
 
     public static boolean saveStage(String stageId, StageEntry entry) {
@@ -2088,7 +2088,7 @@ public class StageManager {
         if (entry != null && entry.getResearchTime() > 0) {
             return entry.getResearchTime() * 20;
         }
-        return net.bananemdnsa.historystages.Config.COMMON.researchTimeInSeconds.get() * 20;
+        return net.bananemdnsa.historystages.Config.GAMEPLAY.researchTimeInSeconds.get() * 20;
     }
 
     public static boolean isIndividualStage(String stageId) {

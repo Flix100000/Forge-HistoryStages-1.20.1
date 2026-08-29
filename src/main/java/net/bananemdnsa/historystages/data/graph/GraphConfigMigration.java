@@ -17,7 +17,7 @@ import java.util.Locale;
  *
  * <p>This runs in two steps because of a timing trap: NeoForge corrects (and immediately
  * rewrites) {@code historystages-common.toml} — stripping the now-unknown {@code [graph]} keys —
- * as part of loading {@link net.bananemdnsa.historystages.Config#COMMON_SPEC}, and that happens
+ * as part of loading {@link net.bananemdnsa.historystages.Config#GAMEPLAY_SPEC}, and that happens
  * before ANY {@code ModConfigEvent.Loading} fires, including the common spec's own. By the time
  * {@link net.bananemdnsa.historystages.GraphConfig#GRAPH_SPEC}'s Loading event would normally run
  * this, the block is already gone from disk. So {@link #capture()} reads the raw file directly —

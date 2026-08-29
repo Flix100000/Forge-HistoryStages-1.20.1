@@ -57,8 +57,8 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                 // The visual settings are server-owned now, so this arrives instead of the editor
                 // writing them into its own client and nowhere else.
                 ConfigSpecCodec.apply(
-                        Config.CLIENT_SPEC, msg.configValues, true, ConfigSpecCodec.NO_EXTRA_CHECK);
-                Config.CLIENT_SPEC.save();
+                        Config.VISUAL_SPEC, msg.configValues, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+                Config.VISUAL_SPEC.save();
 
                 // Everyone, including the sender: the sender's own spec is only updated by the
                 // sync path, so it must not be skipped here.
@@ -70,7 +70,7 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
                         player);
             } else {
                 applyCommonConfig(msg.configValues);
-                Config.COMMON_SPEC.save();
+                Config.GAMEPLAY_SPEC.save();
                 PacketHandler.sendConfigToAll(SyncConfigPacket.fromServerConfig());
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.success(
@@ -90,12 +90,12 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
      * editor could change were never sent to any client.
      *
      * <p>Addon values are not in the spec and are applied separately: an addon holds its own state
-     * behind the write callback it registered, so there is nothing in {@code COMMON_SPEC} for the
+     * behind the write callback it registered, so there is nothing in {@code GAMEPLAY_SPEC} for the
      * walk to find. Their wire keys come from {@link AddonConfigSections}, which mints them in one
      * place precisely so collect and apply cannot disagree about what a value is called.
      */
     public static void applyCommonConfig(Map<String, String> values) {
-        ConfigSpecCodec.apply(Config.COMMON_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+        ConfigSpecCodec.apply(Config.GAMEPLAY_SPEC, values, true, ConfigSpecCodec.NO_EXTRA_CHECK);
 
         for (AddonConfigSections.CommonEntry entry : AddonConfigSections.commonEntries()) {
             String incoming = values.get(entry.wireKey());
@@ -107,9 +107,9 @@ public record SaveConfigPacket(Map<String, String> configValues, boolean isClien
         // would be one more hand-written table of exactly the kind this refactor removed, and the
         // failure it would hide — a list that changed but kept behaving like the old one until the
         // next restart — is invisible until someone reports it as a ghost.
-        ResearchBoosterRegistry.rebuildFromConfig(Config.COMMON.researchBoosters.get());
-        BiomeEffectRegistry.rebuildFromConfig(Config.COMMON.biomeEffects.get());
-        ScrollTooltipLayout.rebuildFromConfig(Config.COMMON.scrollTooltipLines.get());
+        ResearchBoosterRegistry.rebuildFromConfig(Config.GAMEPLAY.researchBoosters.get());
+        BiomeEffectRegistry.rebuildFromConfig(Config.GAMEPLAY.biomeEffects.get());
+        ScrollTooltipLayout.rebuildFromConfig(Config.GAMEPLAY.scrollTooltipLines.get());
     }
 
     @Override

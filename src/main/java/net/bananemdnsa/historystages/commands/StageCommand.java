@@ -201,7 +201,7 @@ public class StageCommand {
         if (researchTime > 0) {
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
         } else {
-            int defaultTime = Config.COMMON.researchTimeInSeconds.get();
+            int defaultTime = Config.GAMEPLAY.researchTimeInSeconds.get();
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
         }
 
@@ -458,18 +458,18 @@ public class StageCommand {
     }
 
     private static void broadcastEffect(CommandSourceStack source, String stageID, boolean isUnlock) {
-        if (!Config.COMMON.broadcastChat.get() && !Config.COMMON.useActionbar.get() && !Config.COMMON.useSounds.get() && !Config.COMMON.useToasts.get()) return;
+        if (!Config.GAMEPLAY.broadcastChat.get() && !Config.GAMEPLAY.useActionbar.get() && !Config.GAMEPLAY.useSounds.get() && !Config.GAMEPLAY.useToasts.get()) return;
 
         var stageEntry = StageManager.getStages().get(stageID);
         String name = stageID.equals("*") ? "All Progress" : (stageEntry != null ? stageEntry.getDisplayName() : stageID);
         String iconId = (!stageID.equals("*") && stageEntry != null && !stageEntry.getIcon().isEmpty())
-                ? stageEntry.getIcon() : Config.COMMON.defaultStageIcon.get();
+                ? stageEntry.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
 
         // --- CHAT NACHRICHT LOGIK ---
         Component chatMsg;
         if (isUnlock && !stageID.equals("*")) {
             // Nutze die editierbare Nachricht aus der Config für einzelne Unlocks
-            String rawMsg = Config.COMMON.unlockMessageFormat.get();
+            String rawMsg = Config.GAMEPLAY.unlockMessageFormat.get();
             String formattedMsg = rawMsg.replace("{stage}", name).replace("&", "§");
             chatMsg = Component.literal("[HistoryStages] ")
                     .withStyle(ChatFormatting.GRAY)
@@ -488,21 +488,21 @@ public class StageCommand {
                 : Component.literal("§cStage Locked: " + name);
 
         source.getServer().getPlayerList().getPlayers().forEach(player -> {
-            if (Config.COMMON.broadcastChat.get()) {
+            if (Config.GAMEPLAY.broadcastChat.get()) {
                 player.sendSystemMessage(chatMsg);
             }
 
-            if (Config.COMMON.useActionbar.get()) {
+            if (Config.GAMEPLAY.useActionbar.get()) {
                 player.displayClientMessage(actionMsg, true);
             }
 
-            if (Config.COMMON.useSounds.get()) {
+            if (Config.GAMEPLAY.useSounds.get()) {
                 player.playNotifySound(isUnlock ? SoundEvents.UI_TOAST_CHALLENGE_COMPLETE : SoundEvents.BEACON_DEACTIVATE, SoundSource.MASTER, 0.75F, 1.0F);
             }
         });
 
         // Toast notification
-        if (isUnlock && Config.COMMON.useToasts.get()) {
+        if (isUnlock && Config.GAMEPLAY.useToasts.get()) {
             PacketHandler.sendToastToAll(new net.bananemdnsa.historystages.network.clientbound.StageUnlockedToastPacket(name, iconId));
         }
     }
@@ -538,7 +538,7 @@ public class StageCommand {
         if (researchTime > 0) {
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + researchTime + "s §7(custom)"), false);
         } else {
-            int defaultTime = Config.COMMON.researchTimeInSeconds.get();
+            int defaultTime = Config.GAMEPLAY.researchTimeInSeconds.get();
             source.sendSuccess(() -> Component.literal("§9▶ Research Time: §f" + defaultTime + "s §7(global default)"), false);
         }
 
@@ -606,7 +606,7 @@ public class StageCommand {
                 target
         );
 
-        if (Config.COMMON.useSounds.get()) {
+        if (Config.GAMEPLAY.useSounds.get()) {
             target.playNotifySound(SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundSource.MASTER, 0.75F, 1.0F);
         }
 
@@ -707,14 +707,14 @@ public class StageCommand {
         );
 
         // Notify the target player
-        if (Config.COMMON.individualBroadcastChat.get()) {
+        if (Config.GAMEPLAY.individualBroadcastChat.get()) {
             target.sendSystemMessage(
                     Component.literal("[HistoryStages] ")
                             .withStyle(ChatFormatting.RED)
                             .append(Component.literal("The knowledge of " + displayName + " has been forgotten...").withStyle(ChatFormatting.WHITE))
             );
         }
-        if (Config.COMMON.individualUseSounds.get()) {
+        if (Config.GAMEPLAY.individualUseSounds.get()) {
             target.playNotifySound(SoundEvents.NOTE_BLOCK_BASS.value(), SoundSource.MASTER, 0.75F, 0.5F);
         }
 

@@ -28,7 +28,7 @@ public class EntityItemLockHandler {
 
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        if (!Config.COMMON.lockEntityItems.get()) return;
+        if (!Config.GAMEPLAY.lockEntityItems.get()) return;
 
         boolean isClient = event.getEntity().level().isClientSide();
 
@@ -47,7 +47,7 @@ public class EntityItemLockHandler {
 
     @SubscribeEvent
     public static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
-        if (!Config.COMMON.lockEntityItems.get()) return;
+        if (!Config.GAMEPLAY.lockEntityItems.get()) return;
 
         boolean isClient = event.getEntity().level().isClientSide();
 
@@ -65,7 +65,7 @@ public class EntityItemLockHandler {
 
     @SubscribeEvent
     public static void onAttackEntity(AttackEntityEvent event) {
-        if (!Config.COMMON.lockEntityItems.get()) return;
+        if (!Config.GAMEPLAY.lockEntityItems.get()) return;
 
         boolean isClient = event.getEntity().level().isClientSide();
 

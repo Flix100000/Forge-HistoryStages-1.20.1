@@ -50,7 +50,7 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
             // no server copy to undo, and restoring later would roll back the host's own saves.
             if (!net.minecraft.client.Minecraft.getInstance().hasSingleplayerServer()) {
                 net.bananemdnsa.historystages.data.config.LocalConfigSnapshot
-                        .rememberBeforeSync(Config.COMMON_SPEC);
+                        .rememberBeforeSync(Config.GAMEPLAY_SPEC);
             }
 
             SaveConfigPacket.applyCommonConfig(msg.configValues);
@@ -65,7 +65,7 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
     /**
      * Creates a packet with all current server-side common config values.
      *
-     * <p>Walks {@code COMMON_SPEC} rather than a hand-written key list, then adds the addon
+     * <p>Walks {@code GAMEPLAY_SPEC} rather than a hand-written key list, then adds the addon
      * sections, which are not in that spec — an addon keeps its own state behind the read/write
      * pair it registered, so the walk cannot see it. The two hand-maintained lists this replaced
      * kept drifting apart; at one point 28 keys the editor could change were never sent anywhere.
@@ -81,7 +81,7 @@ public record SyncConfigPacket(Map<String, String> configValues) implements Cust
      * how the addon rows would go stale while the rest of the screen updated.
      */
     public static Map<String, String> readServerConfig() {
-        Map<String, String> values = ConfigSpecCodec.collect(Config.COMMON_SPEC);
+        Map<String, String> values = ConfigSpecCodec.collect(Config.GAMEPLAY_SPEC);
         for (AddonConfigSections.CommonEntry entry : AddonConfigSections.commonEntries()) {
             values.put(entry.wireKey(), entry.read().get());
         }

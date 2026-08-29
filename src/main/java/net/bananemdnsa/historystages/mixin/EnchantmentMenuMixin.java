@@ -31,7 +31,7 @@ public class EnchantmentMenuMixin {
 
     @Inject(method = "clickMenuButton", at = @At("HEAD"), cancellable = true)
     private void onClickMenuButton(Player player, int buttonId, CallbackInfoReturnable<Boolean> cir) {
-        if (!Config.COMMON.lockEnchanting.get() && !Config.COMMON.individualLockEnchanting.get()) return;
+        if (!Config.GAMEPLAY.lockEnchanting.get() && !Config.GAMEPLAY.individualLockEnchanting.get()) return;
         if (player.level().isClientSide()) return;
         if (!(player instanceof ServerPlayer serverPlayer)) return;
         if (buttonId < 0 || buttonId > 2) return;

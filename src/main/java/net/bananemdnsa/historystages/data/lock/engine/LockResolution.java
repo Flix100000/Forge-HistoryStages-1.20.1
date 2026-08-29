@@ -11,7 +11,7 @@ import java.util.List;
  *
  * <p>Two policies exist, and which one applies is a caller decision, not an engine one:
  * STRICT (the mod's default — one missing gating stage is enough to lock) and LENIENT
- * (used by JEI/EMI hiding when {@code Config.CLIENT.lockedItemMultiStagePolicy == LENIENT}
+ * (used by JEI/EMI hiding when {@code Config.VISUAL.lockedItemMultiStagePolicy == LENIENT}
  * — a subject counts as available as soon as any one of its gating stages is unlocked).
  */
 public final class LockResolution {

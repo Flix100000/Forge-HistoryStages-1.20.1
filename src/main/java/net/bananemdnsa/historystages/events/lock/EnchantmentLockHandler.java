@@ -21,7 +21,7 @@ public class EnchantmentLockHandler {
 
     @SubscribeEvent
     public static void onAnvilUpdate(AnvilUpdateEvent event) {
-        if (!Config.COMMON.lockEnchanting.get() && !Config.COMMON.individualLockEnchanting.get()) return;
+        if (!Config.GAMEPLAY.lockEnchanting.get() && !Config.GAMEPLAY.individualLockEnchanting.get()) return;
 
         Player player = event.getPlayer();
         if (player == null || player.level().isClientSide()) return;
@@ -32,8 +32,8 @@ public class EnchantmentLockHandler {
 
         boolean locked = LockGate.isItemLockedServer(
                 right, serverPlayer,
-                Config.COMMON.lockEnchanting,
-                Config.COMMON.individualLockEnchanting);
+                Config.GAMEPLAY.lockEnchanting,
+                Config.GAMEPLAY.individualLockEnchanting);
 
         if (locked) {
             event.setCanceled(true);

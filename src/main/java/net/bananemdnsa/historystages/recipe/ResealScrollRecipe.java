@@ -34,7 +34,7 @@ public class ResealScrollRecipe extends CustomRecipe {
     public boolean matches(CraftingInput input, Level level) {
         // The config gate lives here rather than in recipe loading: a disabled recipe that simply
         // never matches needs no reload and cannot leave a stale entry in the recipe book.
-        if (!Config.COMMON.enableScrollResealing.get()) return false;
+        if (!Config.GAMEPLAY.enableScrollResealing.get()) return false;
 
         ItemStack scroll = ItemStack.EMPTY;
         int paper = 0;

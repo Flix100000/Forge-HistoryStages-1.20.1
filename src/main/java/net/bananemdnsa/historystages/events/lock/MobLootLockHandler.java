@@ -28,7 +28,7 @@ public class MobLootLockHandler {
 
     @SubscribeEvent
     public static void onMobDrops(LivingDropsEvent event) {
-        if (!Config.COMMON.lockMobLoot.get()) return;
+        if (!Config.GAMEPLAY.lockMobLoot.get()) return;
         if (event.getEntity().level().isClientSide()) return;
 
         if (StageData.SERVER_CACHE.isEmpty()) {
@@ -48,7 +48,7 @@ public class MobLootLockHandler {
             if (stack.isEmpty()) continue;
 
             if (isLootLocked(stack, killerUuid)) {
-                if (Config.COMMON.useReplacements.get()) {
+                if (Config.GAMEPLAY.useReplacements.get()) {
                     itemEntity.setItem(getReplacement(stack.getCount()));
                 } else {
                     itemEntity.setItem(new ItemStack(Items.AIR));
@@ -69,12 +69,12 @@ public class MobLootLockHandler {
     private static boolean isLootLocked(ItemStack stack, UUID killerUuid) {
         if (StageLockHelper.isActionLockedForServer(stack, "loot")) return true;
         return killerUuid != null
-                && Config.COMMON.individualLockLoot.get()
+                && Config.GAMEPLAY.individualLockLoot.get()
                 && StageLockHelper.isActionLockedByIndividualStage(stack, killerUuid, "loot");
     }
 
     private static ItemStack getReplacement(int count) {
-        List<? extends String> list = Config.COMMON.replacementItems.get();
+        List<? extends String> list = Config.GAMEPLAY.replacementItems.get();
         if (list == null || list.isEmpty()) return new ItemStack(Items.COBBLESTONE, count);
 
         try {

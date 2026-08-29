@@ -71,11 +71,11 @@ public final class ConfigCodecTests {
         helper.succeed();
     }
 
-    // --- list values, against COMMON_SPEC ---
+    // --- list values, against GAMEPLAY_SPEC ---
     //
     // The graph spec cannot cover these: graph.toml has no list anywhere in it, which is exactly
     // why the codec shipped without list support and every list setting in the common config
-    // would have stopped syncing. COMMON_SPEC is the spec that actually has them.
+    // would have stopped syncing. GAMEPLAY_SPEC is the spec that actually has them.
     //
     // "research.researchBoosters" is the subject throughout because it is defineListAllowEmpty,
     // so clearing it is a legal value the spec accepts rather than something validate=true turns
@@ -85,17 +85,17 @@ public final class ConfigCodecTests {
 
     @GameTest(template = "empty")
     public static void listsRoundTripThroughTheWireString(GameTestHelper helper) {
-        List<? extends String> original = Config.COMMON.researchBoosters.get();
+        List<? extends String> original = Config.GAMEPLAY.researchBoosters.get();
         try {
             Map<String, String> wire = new HashMap<>();
             wire.put(BOOSTERS, "minecraft:gold_block, 20, 0, 1, min;minecraft:diamond_block, 40, 10, 2, exact");
 
-            if (ConfigSpecCodec.apply(Config.COMMON_SPEC, wire, true, ConfigSpecCodec.NO_EXTRA_CHECK) != 1) {
+            if (ConfigSpecCodec.apply(Config.GAMEPLAY_SPEC, wire, true, ConfigSpecCodec.NO_EXTRA_CHECK) != 1) {
                 helper.fail("the booster list was not applied at all");
                 return;
             }
 
-            List<? extends String> applied = Config.COMMON.researchBoosters.get();
+            List<? extends String> applied = Config.GAMEPLAY.researchBoosters.get();
             if (applied.size() != 2) {
                 helper.fail("expected 2 boosters, got " + applied.size() + ": " + applied);
                 return;
@@ -107,44 +107,44 @@ public final class ConfigCodecTests {
                 return;
             }
 
-            String collected = ConfigSpecCodec.collect(Config.COMMON_SPEC).get(BOOSTERS);
+            String collected = ConfigSpecCodec.collect(Config.GAMEPLAY_SPEC).get(BOOSTERS);
             if (!collected.equals(wire.get(BOOSTERS))) {
                 helper.fail("collect gave '" + collected + "', expected '" + wire.get(BOOSTERS) + "'");
                 return;
             }
             helper.succeed();
         } finally {
-            Config.COMMON.researchBoosters.set(original);
+            Config.GAMEPLAY.researchBoosters.set(original);
         }
     }
 
     @GameTest(template = "empty")
     public static void emptyStringIsAnEmptyList(GameTestHelper helper) {
-        List<? extends String> original = Config.COMMON.researchBoosters.get();
+        List<? extends String> original = Config.GAMEPLAY.researchBoosters.get();
         try {
             // Seeded first, and not left to the default. researchBoosters defaults to empty, so a
             // codec that applied nothing at all would leave the list empty and pass this test
             // without ever having cleared anything.
-            Config.COMMON.researchBoosters.set(List.of("minecraft:gold_block, 20, 0, 1, min"));
+            Config.GAMEPLAY.researchBoosters.set(List.of("minecraft:gold_block, 20, 0, 1, min"));
 
             Map<String, String> wire = new HashMap<>();
             wire.put(BOOSTERS, "");
-            ConfigSpecCodec.apply(Config.COMMON_SPEC, wire, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+            ConfigSpecCodec.apply(Config.GAMEPLAY_SPEC, wire, true, ConfigSpecCodec.NO_EXTRA_CHECK);
 
-            List<? extends String> applied = Config.COMMON.researchBoosters.get();
+            List<? extends String> applied = Config.GAMEPLAY.researchBoosters.get();
             // The failure being guarded against is a list holding one empty string, which reads as
             // "one booster" everywhere downstream and parses into a warning rather than nothing.
             if (!applied.isEmpty()) {
                 helper.fail("clearing the list gave " + applied.size() + " entries: " + applied);
                 return;
             }
-            if (!ConfigSpecCodec.collect(Config.COMMON_SPEC).get(BOOSTERS).isEmpty()) {
+            if (!ConfigSpecCodec.collect(Config.GAMEPLAY_SPEC).get(BOOSTERS).isEmpty()) {
                 helper.fail("an empty list did not collect back to an empty string");
                 return;
             }
             helper.succeed();
         } finally {
-            Config.COMMON.researchBoosters.set(original);
+            Config.GAMEPLAY.researchBoosters.set(original);
         }
     }
 
@@ -152,7 +152,7 @@ public final class ConfigCodecTests {
     public static void everyCommonListCollectsWithoutBrackets(GameTestHelper helper) {
         // String.valueOf on a List yields "[a, b]". That parses back as a single entry named
         // "[a" and would have gone out to every client on login.
-        Map<String, String> all = ConfigSpecCodec.collect(Config.COMMON_SPEC);
+        Map<String, String> all = ConfigSpecCodec.collect(Config.GAMEPLAY_SPEC);
         for (Map.Entry<String, String> entry : all.entrySet()) {
             String value = entry.getValue();
             if (value.startsWith("[") && value.endsWith("]")) {
@@ -165,8 +165,8 @@ public final class ConfigCodecTests {
 
     @GameTest(template = "empty")
     public static void leavingAServerBringsBackTheOwnValues(GameTestHelper helper) {
-        boolean originalIcons = Config.CLIENT.showLockIcons.get();
-        int originalInterval = Config.COMMON.structureCheckInterval.get();
+        boolean originalIcons = Config.VISUAL.showLockIcons.get();
+        int originalInterval = Config.GAMEPLAY.structureCheckInterval.get();
 
         // Anything left over from an earlier test would make this one lie.
         LocalConfigSnapshot.restore();
@@ -174,33 +174,33 @@ public final class ConfigCodecTests {
         try {
             // What the player has in their own files. Deliberately not the defaults: a snapshot
             // that silently did nothing would still look right if these matched.
-            Config.CLIENT.showLockIcons.set(false);
-            Config.COMMON.structureCheckInterval.set(77);
+            Config.VISUAL.showLockIcons.set(false);
+            Config.GAMEPLAY.structureCheckInterval.set(77);
 
-            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
-            LocalConfigSnapshot.rememberBeforeSync(Config.COMMON_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.VISUAL_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.GAMEPLAY_SPEC);
 
             // What the server pushes over them on login.
-            Config.CLIENT.showLockIcons.set(true);
-            Config.COMMON.structureCheckInterval.set(5);
+            Config.VISUAL.showLockIcons.set(true);
+            Config.GAMEPLAY.structureCheckInterval.set(5);
 
             // An admin saves mid-session, so a second round of server values arrives. This must
             // NOT become the new baseline, or the player would keep the server's settings.
-            LocalConfigSnapshot.rememberBeforeSync(Config.CLIENT_SPEC);
-            LocalConfigSnapshot.rememberBeforeSync(Config.COMMON_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.VISUAL_SPEC);
+            LocalConfigSnapshot.rememberBeforeSync(Config.GAMEPLAY_SPEC);
 
             int restored = LocalConfigSnapshot.restore();
             if (restored < 2) {
                 helper.fail("restore() only wrote " + restored + " values, expected at least 2");
                 return;
             }
-            if (Config.CLIENT.showLockIcons.get()) {
+            if (Config.VISUAL.showLockIcons.get()) {
                 helper.fail("showLockIcons stayed on the server's value instead of coming back false");
                 return;
             }
-            if (Config.COMMON.structureCheckInterval.get() != 77) {
+            if (Config.GAMEPLAY.structureCheckInterval.get() != 77) {
                 helper.fail("structureCheckInterval came back as "
-                        + Config.COMMON.structureCheckInterval.get() + " instead of 77");
+                        + Config.GAMEPLAY.structureCheckInterval.get() + " instead of 77");
                 return;
             }
             if (LocalConfigSnapshot.holdsServerValues()) {
@@ -211,8 +211,8 @@ public final class ConfigCodecTests {
             helper.succeed();
         } finally {
             LocalConfigSnapshot.restore();
-            Config.CLIENT.showLockIcons.set(originalIcons);
-            Config.COMMON.structureCheckInterval.set(originalInterval);
+            Config.VISUAL.showLockIcons.set(originalIcons);
+            Config.GAMEPLAY.structureCheckInterval.set(originalInterval);
         }
     }
 }

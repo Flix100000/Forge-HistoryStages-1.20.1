@@ -10,7 +10,7 @@ import java.util.List;
 public class Config {
 
     // --- CLIENT CONFIG (Nur Dinge, die die eigene Anzeige/UI betreffen) ---
-    public static class Client {
+    public static class Visual {
         public final ModConfigSpec.BooleanValue showTooltips;
         public final ModConfigSpec.BooleanValue showStageName;
         public final ModConfigSpec.BooleanValue showAllUntilComplete;
@@ -47,7 +47,7 @@ public class Config {
             LENIENT   // unlocked as soon as ANY assigned stage is unlocked
         }
 
-        public Client(ModConfigSpec.Builder builder) {
+        public Visual(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
                     "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
@@ -188,7 +188,7 @@ public class Config {
     }
 
     // --- COMMON CONFIG (Server-Einstellungen und globale Logik) ---
-    public static class Common {
+    public static class Gameplay {
         public final ModConfigSpec.BooleanValue showWelcomeMessage;
         public final ModConfigSpec.BooleanValue showDebugErrors;
         public final ModConfigSpec.BooleanValue enableRuntimeLogging;
@@ -291,7 +291,7 @@ public class Config {
         public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
         public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
 
-        public Common(ModConfigSpec.Builder builder) {
+        public Gameplay(ModConfigSpec.Builder builder) {
             builder.comment(
                     "Found a bug or have a feature request?",
                     "Report it on GitHub: https://github.com/Flix100000/History-Stages/issues",
@@ -757,18 +757,18 @@ public class Config {
         }
     }
 
-    public static final ModConfigSpec CLIENT_SPEC;
-    public static final Client CLIENT;
-    public static final ModConfigSpec COMMON_SPEC;
-    public static final Common COMMON;
+    public static final ModConfigSpec VISUAL_SPEC;
+    public static final Visual VISUAL;
+    public static final ModConfigSpec GAMEPLAY_SPEC;
+    public static final Gameplay GAMEPLAY;
 
     static {
-        final Pair<Client, ModConfigSpec> clientPair = new ModConfigSpec.Builder().configure(Client::new);
-        CLIENT = clientPair.getLeft();
-        CLIENT_SPEC = clientPair.getRight();
+        final Pair<Visual, ModConfigSpec> visualPair = new ModConfigSpec.Builder().configure(Visual::new);
+        VISUAL = visualPair.getLeft();
+        VISUAL_SPEC = visualPair.getRight();
 
-        final Pair<Common, ModConfigSpec> commonPair = new ModConfigSpec.Builder().configure(Common::new);
-        COMMON = commonPair.getLeft();
-        COMMON_SPEC = commonPair.getRight();
+        final Pair<Gameplay, ModConfigSpec> gameplayPair = new ModConfigSpec.Builder().configure(Gameplay::new);
+        GAMEPLAY = gameplayPair.getLeft();
+        GAMEPLAY_SPEC = gameplayPair.getRight();
     }
 }

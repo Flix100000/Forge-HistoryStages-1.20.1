@@ -42,9 +42,9 @@ public final class LocalConfigSnapshot {
      * server's settings after they disconnect — the exact bug this class exists to prevent.
      */
     public static void rememberBeforeSync(ModConfigSpec spec) {
-        if (spec == Config.CLIENT_SPEC) {
+        if (spec == Config.VISUAL_SPEC) {
             if (visual == null) visual = ConfigSpecCodec.collect(spec);
-        } else if (spec == Config.COMMON_SPEC) {
+        } else if (spec == Config.GAMEPLAY_SPEC) {
             if (gameplay == null) gameplay = ConfigSpecCodec.collect(spec);
         }
     }
@@ -61,12 +61,12 @@ public final class LocalConfigSnapshot {
         int restored = 0;
         if (visual != null) {
             restored += ConfigSpecCodec.apply(
-                    Config.CLIENT_SPEC, visual, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+                    Config.VISUAL_SPEC, visual, true, ConfigSpecCodec.NO_EXTRA_CHECK);
             visual = null;
         }
         if (gameplay != null) {
             restored += ConfigSpecCodec.apply(
-                    Config.COMMON_SPEC, gameplay, true, ConfigSpecCodec.NO_EXTRA_CHECK);
+                    Config.GAMEPLAY_SPEC, gameplay, true, ConfigSpecCodec.NO_EXTRA_CHECK);
             gameplay = null;
         }
         return restored;

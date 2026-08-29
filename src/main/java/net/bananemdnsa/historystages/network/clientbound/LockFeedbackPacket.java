@@ -50,14 +50,14 @@ public record LockFeedbackPacket(byte kind, List<String> displayNames) implement
 
             boolean isDimension = msg.kind == KIND_DIMENSION;
             boolean showChat = isDimension
-                    ? Config.CLIENT.dimShowChat.get()
-                    : Config.CLIENT.mobShowChat.get();
+                    ? Config.VISUAL.dimShowChat.get()
+                    : Config.VISUAL.mobShowChat.get();
             boolean showStagesInChat = isDimension
-                    ? Config.CLIENT.dimShowStagesInChat.get()
-                    : Config.CLIENT.mobShowStagesInChat.get();
+                    ? Config.VISUAL.dimShowStagesInChat.get()
+                    : Config.VISUAL.mobShowStagesInChat.get();
             boolean useActionbar = isDimension
-                    ? Config.CLIENT.dimUseActionbar.get()
-                    : Config.CLIENT.mobUseActionbar.get();
+                    ? Config.VISUAL.dimUseActionbar.get()
+                    : Config.VISUAL.mobUseActionbar.get();
 
             String chatKey = isDimension
                     ? "message.historystages.dimension_locked"

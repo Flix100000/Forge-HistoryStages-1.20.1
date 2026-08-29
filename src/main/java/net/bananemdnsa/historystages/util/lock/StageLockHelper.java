@@ -176,7 +176,7 @@ public class StageLockHelper {
     /**
      * Lenient client check: an item counts as locked only when it is gated at all and none of
      * its gating stages is unlocked. Used by JEI/EMI hiding when
-     * {@code Config.CLIENT.lockedItemMultiStagePolicy == LENIENT}.
+     * {@code Config.VISUAL.lockedItemMultiStagePolicy == LENIENT}.
      */
     public static boolean isItemLockedForClientLenient(ItemStack stack) {
         ResourceLocation res = itemKey(stack);

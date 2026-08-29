@@ -210,19 +210,19 @@ public class DebugLogger {
                 pw.println();
                 try {
                     pw.println("  [common]");
-                    pw.println("    lockMobLoot          = " + Config.COMMON.lockMobLoot.get());
-                    pw.println("    lockBlockBreaking    = " + Config.COMMON.lockBlockBreaking.get());
-                    pw.println("    lockBlockBreakSpeed  = " + Config.COMMON.lockedBlockBreakSpeedMultiplier.get());
-                    pw.println("    lockItemUsage        = " + Config.COMMON.lockItemUsage.get());
-                    pw.println("    lockEntityItems      = " + Config.COMMON.lockEntityItems.get());
-                    pw.println("    lockBlockInteraction = " + Config.COMMON.lockBlockInteraction.get());
-                    pw.println("    researchTimeSeconds  = " + Config.COMMON.researchTimeInSeconds.get());
-                    pw.println("    useReplacements      = " + Config.COMMON.useReplacements.get());
-                    pw.println("    broadcastChat        = " + Config.COMMON.broadcastChat.get());
-                    pw.println("    useSounds            = " + Config.COMMON.useSounds.get());
-                    pw.println("    useToasts            = " + Config.COMMON.useToasts.get());
-                    pw.println("    showDebugErrors      = " + Config.COMMON.showDebugErrors.get());
-                    pw.println("    enableRuntimeLogging = " + Config.COMMON.enableRuntimeLogging.get());
+                    pw.println("    lockMobLoot          = " + Config.GAMEPLAY.lockMobLoot.get());
+                    pw.println("    lockBlockBreaking    = " + Config.GAMEPLAY.lockBlockBreaking.get());
+                    pw.println("    lockBlockBreakSpeed  = " + Config.GAMEPLAY.lockedBlockBreakSpeedMultiplier.get());
+                    pw.println("    lockItemUsage        = " + Config.GAMEPLAY.lockItemUsage.get());
+                    pw.println("    lockEntityItems      = " + Config.GAMEPLAY.lockEntityItems.get());
+                    pw.println("    lockBlockInteraction = " + Config.GAMEPLAY.lockBlockInteraction.get());
+                    pw.println("    researchTimeSeconds  = " + Config.GAMEPLAY.researchTimeInSeconds.get());
+                    pw.println("    useReplacements      = " + Config.GAMEPLAY.useReplacements.get());
+                    pw.println("    broadcastChat        = " + Config.GAMEPLAY.broadcastChat.get());
+                    pw.println("    useSounds            = " + Config.GAMEPLAY.useSounds.get());
+                    pw.println("    useToasts            = " + Config.GAMEPLAY.useToasts.get());
+                    pw.println("    showDebugErrors      = " + Config.GAMEPLAY.showDebugErrors.get());
+                    pw.println("    enableRuntimeLogging = " + Config.GAMEPLAY.enableRuntimeLogging.get());
                 } catch (Exception e) {
                     pw.println("  (Config not yet available: " + e.getMessage() + ")");
                 }
@@ -535,7 +535,7 @@ public class DebugLogger {
 
     private static boolean isRuntimeEnabled() {
         try {
-            return Config.COMMON.enableRuntimeLogging.get();
+            return Config.GAMEPLAY.enableRuntimeLogging.get();
         } catch (Exception e) {
             return false;
         }

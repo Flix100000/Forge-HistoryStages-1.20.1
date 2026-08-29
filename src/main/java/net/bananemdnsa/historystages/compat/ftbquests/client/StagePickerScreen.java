@@ -445,7 +445,7 @@ public class StagePickerScreen extends Screen {
     }
 
     private static ItemStack iconStack(StageEntry e) {
-        String iconId = (e != null && !e.getIcon().isEmpty()) ? e.getIcon() : Config.COMMON.defaultStageIcon.get();
+        String iconId = (e != null && !e.getIcon().isEmpty()) ? e.getIcon() : Config.GAMEPLAY.defaultStageIcon.get();
         if (iconId == null || iconId.isEmpty()) return ItemStack.EMPTY;
         try {
             Item item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(iconId));

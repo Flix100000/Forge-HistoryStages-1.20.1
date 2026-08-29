@@ -86,9 +86,9 @@ public class HistoryStages {
         // Both specs must name their own file. NeoForge derives the default name from modid and
         // type, so two COMMON registrations without explicit paths both claim
         // historystages-common.toml and mod loading dies on the conflict.
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.CLIENT_SPEC,
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.VISUAL_SPEC,
                 "historystages/settings/visual.toml");
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC,
+        modContainer.registerConfig(ModConfig.Type.COMMON, Config.GAMEPLAY_SPEC,
                 "historystages/settings/gameplay.toml");
         modContainer.registerConfig(ModConfig.Type.COMMON, GraphConfig.GRAPH_SPEC,
                 "historystages/settings/graph.toml");
@@ -174,13 +174,13 @@ public class HistoryStages {
     }
 
     private void onConfigLoad(net.neoforged.fml.event.config.ModConfigEvent.Loading event) {
-        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+        if (event.getConfig().getSpec() == Config.GAMEPLAY_SPEC) {
             net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
-                    Config.COMMON.researchBoosters.get());
+                    Config.GAMEPLAY.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
-                    Config.COMMON.biomeEffects.get());
+                    Config.GAMEPLAY.biomeEffects.get());
             net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.COMMON.scrollTooltipLines.get());
+                    Config.GAMEPLAY.scrollTooltipLines.get());
         }
         if (event.getConfig().getSpec() == GraphConfig.GRAPH_SPEC) {
             net.bananemdnsa.historystages.data.graph.GraphConfigMigration.apply();
@@ -188,13 +188,13 @@ public class HistoryStages {
     }
 
     private void onConfigReload(net.neoforged.fml.event.config.ModConfigEvent.Reloading event) {
-        if (event.getConfig().getSpec() == Config.COMMON_SPEC) {
+        if (event.getConfig().getSpec() == Config.GAMEPLAY_SPEC) {
             net.bananemdnsa.historystages.research.ResearchBoosterRegistry.rebuildFromConfig(
-                    Config.COMMON.researchBoosters.get());
+                    Config.GAMEPLAY.researchBoosters.get());
             net.bananemdnsa.historystages.util.lock.BiomeEffectRegistry.rebuildFromConfig(
-                    Config.COMMON.biomeEffects.get());
+                    Config.GAMEPLAY.biomeEffects.get());
             net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout.rebuildFromConfig(
-                    Config.COMMON.scrollTooltipLines.get());
+                    Config.GAMEPLAY.scrollTooltipLines.get());
         }
     }
 
@@ -279,7 +279,7 @@ public class HistoryStages {
             logLockedInventoryItems(player);
 
             // Welcome message
-            if (Config.COMMON.showWelcomeMessage.get()) {
+            if (Config.GAMEPLAY.showWelcomeMessage.get()) {
                 int stageCount = StageManager.getStages().size();
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
                 player.sendSystemMessage(Component.literal("  §b§lHistory Stages §7— §fWelcome!"));
@@ -290,7 +290,7 @@ public class HistoryStages {
             }
 
             // Debug error/warning messages (INFO only in log file, not in chat)
-            if (Config.COMMON.showDebugErrors.get()) {
+            if (Config.GAMEPLAY.showDebugErrors.get()) {
                 List<StageManager.LoadingMessage> messages = StageManager.getLoadingMessages();
                 List<StageManager.LoadingMessage> chatMessages = messages.stream()
                         .filter(m -> m.level() != StageManager.MessageLevel.INFO)
@@ -415,7 +415,7 @@ public class HistoryStages {
         if (stack.isEmpty()) return;
 
         // Individual stages: prevent pickup of individually-locked items (respects lock_actions)
-        if (Config.COMMON.individualLockItemPickup.get()
+        if (Config.GAMEPLAY.individualLockItemPickup.get()
                 && StageLockHelper.isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
             event.setCanPickup(TriState.FALSE);
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());
