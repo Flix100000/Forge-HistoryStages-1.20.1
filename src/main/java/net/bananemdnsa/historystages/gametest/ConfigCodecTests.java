@@ -76,7 +76,7 @@ public final class ConfigCodecTests {
     // --- list values, against GAMEPLAY_SPEC ---
     //
     // The graph spec cannot cover these: graph.toml has no list anywhere in it, which is exactly
-    // why the codec shipped without list support and every list setting in the common config
+    // why the codec shipped without list support and every list setting in the gameplay config
     // would have stopped syncing. GAMEPLAY_SPEC is the spec that actually has them.
     //
     // "research.researchBoosters" is the subject throughout because it is defineListAllowEmpty,

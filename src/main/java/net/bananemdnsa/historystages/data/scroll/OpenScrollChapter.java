@@ -3,7 +3,7 @@ package net.bananemdnsa.historystages.data.scroll;
 /**
  * The chapters of the open scroll document, in their default order.
  *
- * <p>Deliberately free of Minecraft types: this is parsed from the common config and drives the
+ * <p>Deliberately free of Minecraft types: this is parsed from the visual config and drives the
  * screen, and both of those are easier to test without a running game.
  */
 public enum OpenScrollChapter {

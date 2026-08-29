@@ -295,8 +295,8 @@ public class HistoryStages {
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
                 player.sendSystemMessage(Component.literal("  §b§lHistory Stages §7— §fWelcome!"));
                 player.sendSystemMessage(Component.literal("  §7Loaded §f" + stageCount + " §7stage" + (stageCount != 1 ? "s" : "") + " from §fconfig/historystages/"));
-                player.sendSystemMessage(Component.literal("  §7Settings: §fhistorystages-common.toml §7& §fhistorystages-client.toml §7& §fhistorystages/settings/graph.toml"));
-                player.sendSystemMessage(Component.literal("  §8(Disable this message in the common config)"));
+                player.sendSystemMessage(Component.translatable("message.historystages.welcome.settings"));
+                player.sendSystemMessage(Component.translatable("message.historystages.welcome.disable"));
                 player.sendSystemMessage(Component.literal("§8§m                                                §r"));
             }
 

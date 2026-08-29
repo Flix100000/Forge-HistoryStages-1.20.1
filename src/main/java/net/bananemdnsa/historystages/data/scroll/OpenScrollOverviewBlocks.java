@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Reads and writes the common config's {@code openScrollOverviewBlocks} list — which blocks the
+ * Reads and writes the visual config's {@code open_scroll.overviewBlocks} list — which blocks the
  * overview page has and in which order.
  *
  * <p>Same forgiving shape as {@link OpenScrollChapters}: unknown ids and repeats are dropped, and

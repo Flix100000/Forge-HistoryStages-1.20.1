@@ -8,9 +8,9 @@ import java.util.Map;
 /**
  * Reads and writes {@code graph.toml} values as a flat map of dotted TOML paths.
  *
- * <p>Both directions walk the spec itself rather than a hand-maintained key list. That
- * list is what rotted in the common config, where several keys are saved server-side and
- * never reach clients.
+ * <p>Both directions walk the spec itself rather than a hand-maintained key list. Two such lists
+ * used to exist for the other configs and both rotted — keys were saved server-side and never
+ * reached a single client. They are gone now; {@link ConfigSpecCodec} does this for every spec.
  */
 public final class GraphConfigCodec {
 

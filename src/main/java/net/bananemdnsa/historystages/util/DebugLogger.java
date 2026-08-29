@@ -237,7 +237,7 @@ public class DebugLogger {
                 pw.println("  Individual stages: config/historystages/individual/");
                 pw.println("  Log files:         config/historystages/logs/");
                 pw.println("  Disable chat debug messages: showDebugErrors=false");
-                pw.println("  in historystages-common.toml");
+                pw.println("  in config/historystages/settings/gameplay.toml");
                 pw.println("================================================================");
             }
 

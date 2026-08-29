@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Reads and writes the common config's {@code openScrollChapters} list — which chapters the open
+ * Reads and writes the visual config's {@code open_scroll.chapters} list — which chapters the open
  * scroll document has, in which order, and how each one draws.
  *
  * <p>Same shape as {@link net.bananemdnsa.historystages.data.tooltip.ScrollTooltipLayout}: a

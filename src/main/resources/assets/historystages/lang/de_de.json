@@ -462,6 +462,8 @@
   "editor.historystages.tab.visual.tooltip": "Alles, was ein Spieler sieht oder hört. Wird auf dem Server in historystages/settings/visual.toml gespeichert und an alle verbundenen Spieler gesendet.",
   "editor.historystages.tab.gameplay": "Spielverlauf",
   "editor.historystages.tab.gameplay.tooltip": "Alles, was im Hintergrund passiert. Wird auf dem Server in historystages/settings/gameplay.toml gespeichert und an alle verbundenen Spieler gesendet.",
+  "message.historystages.welcome.settings": "  §7Einstellungen: §fhistorystages/settings/§fvisual.toml §7& §fgameplay.toml §7& §fgraph.toml",
+  "message.historystages.welcome.disable": "  §8(Diese Meldung lässt sich über showWelcomeMessage in der visual.toml abschalten)",
   "editor.historystages.toast.config_migrated.title": "Einstellungen umgezogen",
   "editor.historystages.toast.config_migrated.message": "%s Einstellungen wurden nach historystages/settings/ übernommen. Die alten Dateien liegen als .migrated daneben.",
   "editor.historystages.tab.addons": "Addons",

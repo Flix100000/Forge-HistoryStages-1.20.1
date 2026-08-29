@@ -119,7 +119,7 @@ public class OpenScrollScreen extends Screen {
     private final int inkHeading;
     private final int inkBody;
     private final int inkFaint;
-    /** Alpha-shifted backdrop colour, from the client config's 0-100 percentage. */
+    /** Alpha-shifted backdrop colour, from the visual config's 0-100 percentage. */
     private final int backdrop;
 
     private final boolean showSearch;

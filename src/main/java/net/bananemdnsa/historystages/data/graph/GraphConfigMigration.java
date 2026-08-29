@@ -15,15 +15,19 @@ import java.util.Locale;
  * <p>Without this, updating would silently switch every pack's graph off: {@code enabled}
  * defaults to false, so a pack author who turned it on would find it off again with no hint why.
  *
- * <p>This runs in two steps because of a timing trap: NeoForge corrects (and immediately
- * rewrites) {@code historystages-common.toml} — stripping the now-unknown {@code [graph]} keys —
- * as part of loading {@link net.bananemdnsa.historystages.Config#GAMEPLAY_SPEC}, and that happens
- * before ANY {@code ModConfigEvent.Loading} fires, including the common spec's own. By the time
- * {@link net.bananemdnsa.historystages.GraphConfig#GRAPH_SPEC}'s Loading event would normally run
- * this, the block is already gone from disk. So {@link #capture()} reads the raw file directly —
- * bypassing NeoForge's config objects entirely — as early as possible, before either spec is
- * registered. {@link #apply()} then writes the captured values into {@code graph.toml} once that
- * spec has actually loaded, so our writes are not immediately overwritten by its own file load.
+ * <p>This runs in two steps because the old file does not survive startup. Originally the threat
+ * was NeoForge itself: it corrects a config file while loading it and writes the corrected version
+ * straight back, so loading the old common spec stripped the now-unknown {@code [graph]} keys
+ * before any {@code ModConfigEvent} fired. Since 6.0.0 nothing registers
+ * {@code historystages-common.toml} at all, but the deadline is if anything tighter —
+ * {@link net.bananemdnsa.historystages.data.config.LegacyConfigMigration} renames that file out of
+ * the way once it has taken its own copy.
+ *
+ * <p>So {@link #capture()} reads the raw file directly, bypassing NeoForge's config objects, as the
+ * very first thing the mod constructor does — ahead of the general migration's capture, and long
+ * before either spec is registered. {@link #apply()} then writes the captured values into
+ * {@code graph.toml} once that spec has actually loaded, so our writes are not immediately
+ * overwritten by its own file load.
  */
 public final class GraphConfigMigration {
 

@@ -26,7 +26,7 @@ public class ClientToastHandler {
     /**
      * Resolves the icon item. Priority:
      *   1. iconId from the packet (stage-specific icon)
-     *   2. defaultStageIcon from common config
+     *   2. defaultStageIcon from the visual config
      *   3. Hardcoded fallback: research scroll
      */
     public static ItemStack resolveIcon(String iconId) {
