@@ -77,6 +77,9 @@ public final class LegacyConfigMigration {
     /** Set the moment {@link #apply()} commits, so a second config load cannot run it again. */
     private static boolean applied;
 
+    /** How many values were written, for the editor's one-off notice. */
+    private static int carried;
+
     private LegacyConfigMigration() {}
 
     /**
@@ -142,6 +145,22 @@ public final class LegacyConfigMigration {
      * <p>Safe to call on every config load: it does nothing until both specs are loaded, and
      * nothing ever again once it has run.
      */
+    /**
+     * How many values the migration carried over, or zero if it never ran.
+     *
+     * <p>Read by the config editor, which tells a pack author their settings moved. A log line
+     * alone is not enough: someone who updates, launches and goes straight to the editor to look
+     * for a setting never sees it.
+     */
+    public static int carriedCount() {
+        return carried;
+    }
+
+    /** True once a migration actually moved something. */
+    public static boolean migrated() {
+        return carried > 0;
+    }
+
     public static void apply() {
         if (applied || captured == null) return;
         if (!Config.VISUAL_SPEC.isLoaded() || !Config.GAMEPLAY_SPEC.isLoaded()) return;
@@ -189,6 +208,7 @@ public final class LegacyConfigMigration {
             // effects and scroll tooltip layout until the next restart.
             ConfigDerivedCaches.rebuildAll();
 
+            carried = wrote;
             LOGGER.info("[HistoryStages] Carried " + wrote + " of " + (visual.size() + gameplay.size())
                     + " settings from the pre-6.0 config files into visual.toml and gameplay.toml.");
             if (!homeless.isEmpty()) {

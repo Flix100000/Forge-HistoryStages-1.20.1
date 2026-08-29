@@ -24,6 +24,9 @@ import net.bananemdnsa.historystages.api.editor.widget.InputValues;
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.EditorTooltip;
 import net.bananemdnsa.historystages.data.config.ConfigSpecCodec;
+import net.bananemdnsa.historystages.data.config.LegacyConfigMigration;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
+import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.network.clientbound.SyncConfigPacket;
 import net.bananemdnsa.historystages.network.PacketHandler;
 import net.bananemdnsa.historystages.network.serverbound.SaveConfigPacket;
@@ -139,8 +142,8 @@ public class ConfigEditorScreen extends Screen {
      *  registers a section — never fewer, never reordered, so indices 0-2 always mean what
      *  they mean today. */
     private static final String[] BASE_TAB_KEYS = {
-            "editor.historystages.tab.client",
-            "editor.historystages.tab.common",
+            "editor.historystages.tab.visual",
+            "editor.historystages.tab.gameplay",
             "editor.historystages.tab.graph"
     };
     /**
@@ -165,6 +168,26 @@ public class ConfigEditorScreen extends Screen {
         this.parent = parent;
     }
 
+    /** Set once a session, so a resize or a second visit to the screen does not repeat the notice. */
+    private static boolean migrationNoticeShown;
+
+    /**
+     * Tells a pack author their settings moved, in the place they went looking for them.
+     *
+     * <p>The migration also writes a log line, but someone who updates, launches and opens the
+     * editor to find a setting never reads the log. Only meaningful in singleplayer: the counter
+     * lives on whichever side ran the migration, and on a dedicated server that is not this
+     * client. That is the case that matters, because a pack is built locally.
+     */
+    private static void showMigrationNoticeOnce() {
+        if (migrationNoticeShown || !LegacyConfigMigration.migrated()) return;
+        migrationNoticeShown = true;
+        EditorToastHandler.show(EditorToast.Level.INFO,
+                Component.translatable("editor.historystages.toast.config_migrated.title"),
+                Component.translatable("editor.historystages.toast.config_migrated.message",
+                        LegacyConfigMigration.carriedCount()));
+    }
+
     @Override
     protected void init() {
         // Build once per instance, not once per init(): init() also runs on every window resize,
@@ -173,6 +196,8 @@ public class ConfigEditorScreen extends Screen {
         if (clientSections == null) buildConfigEntries();
         if (graphSections == null) buildGraphEntries();
         if (addonSections == null) buildAddonConfigEntries();
+
+        showMigrationNoticeOnce();
 
         // Addons tab only when it has something to show — a tab that opens onto nothing would
         // promise a feature that isn't there. Built fresh every init() (not just guarded like
