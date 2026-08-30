@@ -51,6 +51,7 @@ Quick rules:
 - Use in modpacks (public, private, commercial): **allowed**
 - Use in Let's Plays, streams, servers: **allowed**
 - Fork to prepare a PR: **allowed**
+- Port to another Minecraft version or mod loader: **allowed under conditions** (see Section 3 of the license)
 - Publish forks / modified versions / re-uploads: **not allowed**
 
 Full terms: [LICENSE.txt](LICENSE.txt).
