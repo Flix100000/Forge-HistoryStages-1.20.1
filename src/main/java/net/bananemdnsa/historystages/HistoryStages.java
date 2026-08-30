@@ -170,6 +170,27 @@ public class HistoryStages {
             }
         }
 
+        // Script bridges. Both mods find their own entry point — KubeJS through
+        // kubejs.plugins.txt, CraftTweaker by scanning for @ZenRegister — so all that is needed
+        // here is the NeoForge-side wiring that turns StageEvent into something scripts hear.
+        if (ModList.get().isLoaded("kubejs")) {
+            try {
+                net.bananemdnsa.historystages.compat.kubejs.StageEventForwarder.register(NeoForge.EVENT_BUS);
+                LOGGER.info("[HistoryStages] KubeJS integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load KubeJS integration.", e);
+            }
+        }
+
+        if (ModList.get().isLoaded("crafttweaker")) {
+            try {
+                net.bananemdnsa.historystages.compat.crafttweaker.CTScriptReloadHook.register(NeoForge.EVENT_BUS);
+                LOGGER.info("[HistoryStages] CraftTweaker integration loaded.");
+            } catch (Exception e) {
+                LOGGER.error("[HistoryStages] Failed to load CraftTweaker integration.", e);
+            }
+        }
+
         // Optional per-mod lock adapters (custom actions that bypass vanilla interaction events).
         net.bananemdnsa.historystages.compat.LockInterceptors.init();
 
