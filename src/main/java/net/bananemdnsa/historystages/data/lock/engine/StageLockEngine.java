@@ -92,6 +92,17 @@ public interface StageLockEngine {
         return false;
     }
 
+    /**
+     * Fast-out for the entity-spawn handler: is any entity spawn gated at all?
+     *
+     * <p>That handler runs on EntityJoinLevel, which fires for every arrow, item, XP orb and
+     * falling block in the world - so the question has to be answerable before anything is built
+     * to ask it with.
+     */
+    default boolean anyEntitySpawnLocks() {
+        return false;
+    }
+
     /** Fast-out for the per-tick biome handler: is any biome gated at all? */
     default boolean anyBiomeLocks() {
         return false;

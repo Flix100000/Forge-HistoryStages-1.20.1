@@ -170,9 +170,13 @@ public class StringStageLockEngine implements StageLockEngine {
         String modId = res.getNamespace();
 
         boolean global = scope == StageScope.GLOBAL;
-        Iterable<String> candidates = global
+        Collection<String> candidates = global
                 ? CategoryLockIndexes.globalCandidates(itemId, modId, stack.getItem())
                 : CategoryLockIndexes.individualCandidates(itemId, modId, stack.getItem());
+        // Nothing to ask, so nothing to build the question with. This is the answer for almost
+        // every item, and the recipe path asks it once per furnace per tick.
+        if (candidates.isEmpty()) return false;
+
         Map<String, StageEntry> stages = stagesOf(scope);
         LockSubjects.ItemSubject subject =
                 new LockSubjects.ItemSubject(itemId, modId, stack, stack.getItem());
@@ -247,6 +251,11 @@ public class StringStageLockEngine implements StageLockEngine {
     @Override
     public boolean anyStructureLocks() {
         return CategoryLockIndexes.anyStageUses("historystages:structures");
+    }
+
+    @Override
+    public boolean anyEntitySpawnLocks() {
+        return CategoryLockIndexes.anyStageUses("historystages:spawnlock");
     }
 
     @Override

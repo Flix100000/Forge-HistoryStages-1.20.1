@@ -27,6 +27,11 @@ public class ClientDisconnectHandler {
         // the next one. Missing here until 2026-08-23, which is why the stage graph could show a
         // stale requirement list for a whole client session.
         ClientDependencyCache.clear();
+        // Nothing cleared these until now, so the force-field and the red overlay kept drawing
+        // the last server's lock zones into the next world, until some sync happened to replace
+        // them. The renderer's face masks are derived from exactly those boxes and go with them.
+        LockBorderClientCache.clear();
+        LockBorderRenderer.forgetMasks();
         // The server pushed its config values into our specs and never wrote our file, so our own
         // settings are only a memory away. Without this they would stay until the game restarts,
         // and the visual ones are visible the moment the next singleplayer world opens.

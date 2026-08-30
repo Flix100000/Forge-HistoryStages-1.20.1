@@ -306,6 +306,71 @@ public final class LockTests {
         }
     }
 
+    // --- Action locks ---
+    //
+    // isItemActionLocked is a different question from isItemLocked, and until now nothing
+    // watched it: it decides whether a recipe may be crafted, whether loot may drop and whether
+    // an icon is drawn, and it runs on the furnace path once per tick. Both directions appear,
+    // because an implementation that always says "blocked" passes the first case alone and one
+    // that always says "free" passes the second.
+
+    @GameTest(template = "empty")
+    public static void anActionListedOnTheEntryIsBlocked(GameTestHelper helper) {
+        try {
+            stageLockingActions("action_blocked", List.of("recipe"));
+
+            if (!StageLockHelper.isActionLockedForServer(new ItemStack(Items.DIAMOND_SWORD), "recipe")) {
+                helper.fail(LOCKED_ITEM + " lists \"recipe\" among its locked actions in a stage "
+                        + "that is not unlocked, but the engine reports the action as allowed");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void anActionTheEntryDoesNotListIsFree(GameTestHelper helper) {
+        try {
+            stageLockingActions("action_allowed", List.of("recipe"));
+
+            if (StageLockHelper.isActionLockedForServer(new ItemStack(Items.DIAMOND_SWORD), "loot")) {
+                helper.fail(LOCKED_ITEM + " locks only \"recipe\", but \"loot\" was reported as "
+                        + "blocked - the entry's action list is being ignored");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void anItemNoStageMentionsHasNoBlockedAction(GameTestHelper helper) {
+        try {
+            stageLockingActions("action_other_item", List.of("recipe"));
+
+            // The path that made this worth guarding: an item no stage has ever heard of. The
+            // candidate list is empty, so the answer is settled before anything is built to ask
+            // the question with - and it must still be "free", not "free by accident".
+            if (StageLockHelper.isActionLockedForServer(new ItemStack(Items.STONE), "recipe")) {
+                helper.fail("minecraft:stone appears in no stage, but an action on it was "
+                        + "reported as blocked");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    /** A stage locking {@link #LOCKED_ITEM} for only the named actions. */
+    private static void stageLockingActions(String name, List<String> actions) {
+        GameTestStages.global(name, stage -> stage.setItemEntries(new ArrayList<>(
+                List.of(new ItemEntry(LOCKED_ITEM, null, new ArrayList<>(actions))))));
+    }
+
     /** A stage that locks {@link #LOCKED_ITEM}, written the way the editor tab writes it. */
     private static void lockingStage(String name) {
         GameTestStages.global(name, stage ->

@@ -6,6 +6,7 @@ import net.bananemdnsa.historystages.block.entity.ResearchPedestalBlockEntity;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
+import net.bananemdnsa.historystages.network.PacketReach;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.minecraft.core.BlockPos;
@@ -56,10 +57,13 @@ public record CheckDependencyPacket(String stageId, boolean isIndividual, BlockP
 
             if (entry == null) return;
 
-            // Try to read deposited NBT from the pedestal scroll for accurate status
+            // Try to read deposited NBT from the pedestal scroll for accurate status. The
+            // position is the client's, so it goes through PacketReach: a pedestal the player
+            // cannot be standing at simply yields no scroll data, and the answer still goes out
+            // rather than being dropped.
             CompoundTag depositedTag = null;
             double costReduction = 0.0;
-            BlockEntity be = player.level().getBlockEntity(packet.pos);
+            BlockEntity be = PacketReach.blockEntityInReach(player, packet.pos);
             if (be instanceof ResearchPedestalBlockEntity pedestal) {
                 ItemStack scroll = pedestal.getScrollStack();
                 CompoundTag scrollTag = scroll.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();

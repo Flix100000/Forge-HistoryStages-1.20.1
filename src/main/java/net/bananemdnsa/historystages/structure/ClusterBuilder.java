@@ -12,12 +12,12 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 
+import net.bananemdnsa.historystages.util.DerivedCache;
+
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -67,6 +67,33 @@ public final class ClusterBuilder {
 
     private ClusterBuilder() {}
 
+    /**
+     * One structure start's clusters, kept for as long as the start itself is loaded.
+     *
+     * <p>The zone a start produces is a pure function of its pieces and the two settings below,
+     * and its pieces never change while it is loaded. Recomputing it was the expensive half of
+     * every scan: {@link #ensureMinHeight} allocates an {@code int[width * depth]} pair over the
+     * cluster's envelope, so one large jigsaw village costs a few hundred kilobytes and a pass
+     * over every column — and both callers used to pay that again per player and per chunk
+     * crossing, for zones that had not moved.
+     *
+     * <p>Nothing invalidates this by hand. Unloading the chunk drops the start and the entry with
+     * it; a settings change is caught by the stamp. See {@link DerivedCache}.
+     */
+    private static final DerivedCache<StructureStart, List<StructureCluster>> ZONES =
+            new DerivedCache<>();
+
+    /**
+     * How often a scan reused a remembered zone, and how often it had to build one.
+     *
+     * <p>For the runtime log. Whether this cache is working is not visible from the outside —
+     * a broken one is only slow — so the numbers have to be readable somewhere.
+     */
+    public static String cacheStats() {
+        return ZONES.hits() + " reused / " + ZONES.derivations() + " built, "
+                + ZONES.size() + " held";
+    }
+
     public static List<StructureCluster> collectClustersNear(
             ServerLevel level,
             BlockPos center,
@@ -74,31 +101,42 @@ public final class ClusterBuilder {
             int padding,
             int clusterDistance
     ) {
-        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
         ChunkPos centerChunk = new ChunkPos(center);
 
-        Map<StructureStart, Structure> starts = new LinkedHashMap<>();
+        Set<StructureStart> starts = new LinkedHashSet<>();
         for (int cx = centerChunk.x - chunkRadius; cx <= centerChunk.x + chunkRadius; cx++) {
             for (int cz = centerChunk.z - chunkRadius; cz <= centerChunk.z + chunkRadius; cz++) {
                 ChunkAccess chunk = level.getChunkSource().getChunkNow(cx, cz);
                 if (chunk == null) continue;
-                for (Map.Entry<Structure, StructureStart> e : chunk.getAllStarts().entrySet()) {
-                    StructureStart start = e.getValue();
+                for (StructureStart start : chunk.getAllStarts().values()) {
                     if (start == null || !start.isValid()) continue;
-                    starts.putIfAbsent(start, e.getKey());
+                    starts.add(start);
                 }
             }
         }
 
         if (starts.isEmpty()) return List.of();
 
+        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        long settings = DerivedCache.stamp(padding, clusterDistance);
+
         List<StructureCluster> result = new ArrayList<>();
-        for (Map.Entry<StructureStart, Structure> entry : starts.entrySet()) {
-            Holder.Reference<Structure> holder = resolveHolder(registry, entry.getValue());
-            if (holder == null) continue;
-            buildFor(entry.getKey(), holder, padding, clusterDistance, result);
+        for (StructureStart start : starts) {
+            result.addAll(ZONES.get(start, settings, () -> zonesOf(registry, start, padding, clusterDistance)));
         }
         return result;
+    }
+
+    /** The uncached build for one start, and the only thing {@link #ZONES} ever runs. */
+    private static List<StructureCluster> zonesOf(Registry<Structure> registry, StructureStart start,
+                                                  int padding, int clusterDistance) {
+        Holder.Reference<Structure> holder = resolveHolder(registry, start.getStructure());
+        if (holder == null) return List.of();
+
+        List<StructureCluster> zones = new ArrayList<>();
+        buildFor(start, holder, padding, clusterDistance, zones);
+        // Immutable, because every caller from here on shares this exact list.
+        return List.copyOf(zones);
     }
 
     private static Holder.Reference<Structure> resolveHolder(Registry<Structure> registry, Structure structure) {

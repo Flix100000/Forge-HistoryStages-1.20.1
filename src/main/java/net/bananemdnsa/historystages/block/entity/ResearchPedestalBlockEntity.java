@@ -106,6 +106,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     private UUID ownerUUID = null;
     private UUID lastInteractingPlayer = null;
     private boolean dependenciesMet = true;
+    /** Counts down to the next {@link #checkDependencies} run; see {@link #DEPENDENCY_CHECK_INTERVAL}. */
+    private int dependencyCheckCooldown = 0;
+    /** What that run last answered. Neither saved nor synced: it is re-derived within half a second. */
+    private boolean lastDependencyVerdict = false;
     private boolean running = false;
     private double progressAccumulator = 0.0;
     private int currentSpeedPercent = 0;
@@ -273,6 +277,10 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         this.requiredTier = 1;
         this.requiredTierMode = TierMode.MIN;
         this.running = false;
+        // Whatever the last scroll's requirements answered says nothing about the next one's,
+        // so the next tick that sees a scroll checks rather than reading a leftover verdict.
+        this.dependencyCheckCooldown = 0;
+        this.lastDependencyVerdict = false;
     }
 
     private void loadProgressFromItem(ItemStack stack) {
@@ -431,6 +439,21 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         return false;
     }
 
+    /**
+     * Ticks between two dependency checks while a scroll sits in a pedestal.
+     *
+     * <p>{@link DependencyChecker#checkAll} does not answer "is it met" — it builds the whole
+     * checklist the screen draws: a list per group, an entry record per requirement, a formatted
+     * label per item, and {@code item.getDescription().getString()} to get that label. Running
+     * that every tick meant every pedestal in the world rebuilt a GUI nobody was looking at,
+     * twenty times a second.
+     *
+     * <p>Half a second of staleness is invisible against a research that takes hundreds of ticks,
+     * and the two moments where it would be visible are both covered: depositing pushes a fresh
+     * check of its own, and {@link #tryStart} re-checks rather than trusting this.
+     */
+    private static final int DEPENDENCY_CHECK_INTERVAL = 10;
+
     public static void tick(Level level, BlockPos pos, BlockState state, ResearchPedestalBlockEntity entity) {
         if (level.isClientSide) return;
 
@@ -461,10 +484,15 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         ItemStack stack = entity.itemHandler.getStackInSlot(0);
         int maxProgress = entity.getMaxProgressForCurrentStage();
 
-        CompoundTag stackTag = !stack.isEmpty()
-                ? stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag()
-                : new CompoundTag();
-        boolean hasValidBook = isResearchable(stack) && stackTag.contains("StageResearch");
+        // contains() reads the component in place; copyTag() deep-copies it. Deciding first and
+        // copying second means a pedestal holding nothing, or holding something that is not a
+        // research scroll, no longer pays for a copy every tick. Everything below reads stackTag
+        // only inside the hasValidBook branch.
+        CustomData custom = stack.isEmpty()
+                ? CustomData.EMPTY
+                : stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY);
+        boolean hasValidBook = isResearchable(stack) && custom.contains("StageResearch");
+        CompoundTag stackTag = hasValidBook ? custom.copyTag() : new CompoundTag();
         boolean isResearching = false;
 
         if (hasValidBook) {
@@ -520,31 +548,13 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
                     if (stageEntry != null) {
                         if (stageEntry.hasDependencies()) {
-                            net.minecraft.server.level.ServerPlayer researchPlayer = null;
-                            // Before anyone has started, an individual scroll has no owner yet,
-                            // so fall back to whoever is at the pedestal. Checking against a
-                            // null owner would report "requirements not met", which disables the
-                            // start button — and only starting can set the owner.
-                            UUID checkUUID = isIndividual && entity.ownerUUID != null
-                                    ? entity.ownerUUID
-                                    : entity.lastInteractingPlayer;
-                            if (checkUUID != null && level.getServer() != null) {
-                                researchPlayer = level.getServer().getPlayerList().getPlayer(checkUUID);
+                            entity.dependencyCheckCooldown--;
+                            if (entity.dependencyCheckCooldown <= 0) {
+                                entity.dependencyCheckCooldown = DEPENDENCY_CHECK_INTERVAL;
+                                entity.lastDependencyVerdict =
+                                        entity.checkDependencies(stageEntry, isIndividual, stackTag);
                             }
-                            if (researchPlayer != null) {
-                                CompoundTag depositedTag = stackTag.contains("DepositedDependencies")
-                                        ? stackTag.getCompound("DepositedDependencies")
-                                        : null;
-                                double tickCost = stackTag.contains("LockedCostReduction")
-                                        ? stackTag.getDouble("LockedCostReduction") : 0.0;
-                                RequirementResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
-                                        isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
-                                        depositedTag, tickCost);
-                                metTotal = result.isFulfilled();
-                            } else {
-                                // No player available — pause research
-                                metTotal = false;
-                            }
+                            metTotal = entity.lastDependencyVerdict;
                         } else {
                             // No dependencies defined — always fulfilled
                             metTotal = true;
@@ -619,6 +629,41 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
         }
         setChanged(level, pos, state);
         entity.updateComparatorIfChanged(level, pos, state);
+    }
+
+    /**
+     * Whether the scroll's requirements are met right now, asked properly.
+     *
+     * <p>Lifted out of {@code tick} so {@link #tryStart} can ask the same question without
+     * waiting for the next scheduled check — a player who deposits the last item and presses
+     * start in the same moment must not be turned away by a verdict from nine ticks ago.
+     */
+    private boolean checkDependencies(StageEntry stageEntry, boolean isIndividual, CompoundTag stackTag) {
+        if (level == null) return false;
+
+        // Before anyone has started, an individual scroll has no owner yet, so fall back to
+        // whoever is at the pedestal. Checking against a null owner would report "requirements
+        // not met", which disables the start button — and only starting can set the owner.
+        UUID checkUUID = isIndividual && this.ownerUUID != null
+                ? this.ownerUUID
+                : this.lastInteractingPlayer;
+        if (checkUUID == null || level.getServer() == null) return false;
+
+        net.minecraft.server.level.ServerPlayer researchPlayer =
+                level.getServer().getPlayerList().getPlayer(checkUUID);
+        // No player available — pause research
+        if (researchPlayer == null) return false;
+
+        CompoundTag depositedTag = stackTag.contains("DepositedDependencies")
+                ? stackTag.getCompound("DepositedDependencies")
+                : null;
+        double tickCost = stackTag.contains("LockedCostReduction")
+                ? stackTag.getDouble("LockedCostReduction") : 0.0;
+
+        RequirementResult result = DependencyChecker.checkAll(stageEntry, researchPlayer, level,
+                isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL,
+                depositedTag, tickCost);
+        return result.isFulfilled();
     }
 
     private void finishResearch(ItemStack stack) {
@@ -908,10 +953,22 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
             // Only DEFAULT stages are researchable here; AUTO/EXTERNAL/TEMPORARY are not.
             if (entry == null || entry.getMode() != StageMode.DEFAULT) return false;
 
-            // The same two conditions the screen greys the button out for. Both are kept
-            // current by tick(). Without them a start would latch `running` on and lock the
-            // scroll into a pedestal where progress can never advance.
-            if (this.tierMismatch || !this.dependenciesMet) return false;
+            // The same two conditions the screen greys the button out for. Without them a start
+            // would latch `running` on and lock the scroll into a pedestal where progress can
+            // never advance.
+            //
+            // The tier comes from tick(), which recomputes it every tick. The requirements do
+            // not: tick() only refreshes them every DEPENDENCY_CHECK_INTERVAL ticks, and a
+            // button press is exactly the moment a stale answer would be felt - deposit the last
+            // item, press start, get refused. So this asks again rather than reading the field,
+            // and stores what it learns so the screen agrees with what just happened.
+            if (this.tierMismatch) return false;
+            if (entry.hasDependencies()) {
+                this.lastDependencyVerdict = checkDependencies(entry, individual, tag);
+                this.dependencyCheckCooldown = DEPENDENCY_CHECK_INTERVAL;
+                this.dependenciesMet = this.lastDependencyVerdict;
+                if (!this.lastDependencyVerdict) return false;
+            }
 
             if (individual) {
                 // Anyone may press start, but the research belongs to whoever started it
