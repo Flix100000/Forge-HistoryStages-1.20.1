@@ -1318,7 +1318,18 @@ public class StageDetailScreen extends Screen {
                         Component.translatable(tooltipKey).getString(), dualMap.get(entry));
             }
         }
-        row.text(entry + (dual ? " [Dual]" : ""));
+        // A recipe lock pointing at a recipe that is not loaded gates nothing. Red plus a
+        // tooltip rather than removal: the entry is still what the author wrote, and a recipe
+        // comes back when its mod or its script does. Script-generated ids land here most often,
+        // because KubeJS renumbers them whenever the script is reordered.
+        boolean missingRecipe = activeTab == 4
+                && net.bananemdnsa.historystages.data.lock.MissingRecipeIds.isMissing(entry);
+        if (missingRecipe && row.isHovered()) {
+            currentTooltipKey = "missing-recipe:" + entry;
+            currentTooltipText = Component.translatable("editor.historystages.recipes.missing").getString();
+        }
+
+        row.text((missingRecipe ? "§c" : "") + entry + (dual ? " [Dual]" : ""));
     }
 
     private CategoryTab activeTabObject() {
