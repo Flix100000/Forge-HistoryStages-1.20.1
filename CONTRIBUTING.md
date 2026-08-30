@@ -143,6 +143,26 @@ In short:
 - Forking to prepare a pull request: **allowed**
 - Publishing a fork, a modified build, or a re-upload as a standalone mod: **not allowed**
 - Using the official jar in modpacks, videos and on servers: **allowed**
+- Porting the mod to a Minecraft version or loader this repository doesn't cover: **allowed under
+  conditions** — see below
+
+### Ports to versions and loaders outside this repository
+
+Section 3 of the license lets anyone port History Stages to a different Minecraft version or a
+different mod loader without asking for permission first. This is a different thing from the branch
+table further up, which is about the versions maintained here.
+
+The conditions, in short: the port stays a technical adaptation and adds no gameplay of its own; you
+contact the maintainer and hand over access to the port's source before or when you release; the
+source stays publicly available; and every project page credits History Stages as the original and
+links back to this repository. Your port ships the fill-in-the-blanks license template from Appendix
+A next to an unmodified copy of the original license, and its license field on CurseForge and
+Modrinth points at that file.
+
+Read Section 3 and Appendix A of [LICENSE](LICENSE) before you start — that text is what
+counts. The [Porting History Stages](https://github.com/Flix100000/History-Stages/wiki/Porting-History-Stages)
+wiki page walks through the same conditions in plainer terms. Ports that meet them can be listed as
+verified on the wiki and on the official CurseForge, Modrinth and GitHub pages.
 
 By submitting a contribution you agree that it is licensed to the project owner (Flix100000) under the project's
 license terms and may be relicensed by the project owner as needed. Read [LICENSE](LICENSE) for the full
