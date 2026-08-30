@@ -166,6 +166,7 @@
   "editor.historystages.search.placeholder.stats": "Search stats...",
   "editor.historystages.search.placeholder.structures": "Search structures...",
   "editor.historystages.search.placeholder.tags": "Search tags...",
+  "editor.historystages.recipes.missing": "This recipe is not loaded, so the lock does nothing. Script-generated ids change when the script is reordered.",
   "editor.historystages.search.placeholder.recipes": "Search recipes...",
   "editor.historystages.search.placeholder.structure_tags": "Search structure tags...",
   "editor.historystages.demo.tab.relics": "Relics (demo)",

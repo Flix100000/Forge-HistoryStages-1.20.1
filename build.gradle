@@ -56,6 +56,23 @@ repositories {
         url "https://maven.su5ed.dev/releases"
     }
     maven {
+        // KubeJS pulls animated-gif-lib-for-java at runtime and it lives nowhere but JitPack.
+        // Scoped to that one group so nothing else starts resolving from here by accident.
+        name = "JitPack"
+        url "https://jitpack.io"
+        content {
+            includeGroup "com.github.rtyley"
+        }
+    }
+    maven {
+        name = "KubeJS"
+        url "https://maven.latvian.dev/releases"
+        content {
+            includeGroup "dev.latvian.mods"
+            includeGroup "dev.latvian.apps"
+        }
+    }
+    maven {
         name = "Modrinth"
         url "https://api.modrinth.com/maven"
         content {
@@ -209,6 +226,17 @@ dependencies {
 
     // Spell Engine API (optional integration — adapter only loads when the mod is present at runtime)
     compileOnly "maven.modrinth:spell-engine:1.9.9+1.21.1-neoforge"
+
+    // KubeJS (optional integration). The bridge is reached only because KubeJS reads
+    // kubejs.plugins.txt, so nothing here is a hard dependency. localRuntime as well as
+    // compileOnly, or the integration could not be exercised in the dev client at all.
+    compileOnly "dev.latvian.mods:kubejs-neoforge:2101.7.2-build.374"
+    localRuntime "dev.latvian.mods:kubejs-neoforge:2101.7.2-build.374"
+
+    // CraftTweaker (optional integration). Found the same way: CraftTweaker scans for
+    // @ZenRegister, nothing in this mod references the bridge classes.
+    compileOnly "com.blamejared.crafttweaker:CraftTweaker-neoforge-1.21.1:21.0.38"
+    localRuntime "com.blamejared.crafttweaker:CraftTweaker-neoforge-1.21.1:21.0.38"
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar

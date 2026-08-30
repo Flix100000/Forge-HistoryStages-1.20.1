@@ -1,6 +1,7 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
@@ -49,11 +50,13 @@ public class SearchableRecipeList implements PickerOverlay {
     private boolean inRecipePhase = false;
     private boolean keepVisibleOnSelect = false;
 
-    // Marquee scroll state for truncated recipe IDs
+    // Which recipe row the cursor is over, so the tooltip knows whose id to show.
     private int hoveredRecipeIndex = -1;
-    private long hoverStartTime = 0;
-    private static final long MARQUEE_DELAY_MS = 600;
-    private static final float MARQUEE_SPEED = 30.0f;
+
+    // Enough ingredient icons to tell recipes apart without crowding the namespace label off
+    // the right edge; anything beyond is summarised as "+n".
+    private static final int MAX_INGREDIENT_ICONS = 5;
+    private static final int INGREDIENT_ICON_SPACING = 15;
 
     // Phase 1: Item grid
     private final List<ItemEntry> allRecipeItems = new ArrayList<>();
@@ -416,40 +419,39 @@ public class SearchableRecipeList implements PickerOverlay {
                 guiGraphics.renderItem(recipe.result, 0, 0);
                 guiGraphics.pose().popPose();
 
-                String fullText = recipe.recipeId;
-                int textX = listX + 22;
-                int availW = listX + listW - textX - 2;
-                int fullTextW = font.width(fullText);
+                // Ingredients, not the raw id. By this phase the output item is already chosen,
+                // so what tells two recipes apart is what goes into them — while the id was the
+                // least useful thing in the row and took the whole width to say nothing. It is
+                // worst for script-generated recipes, where "kubejs:crafting_shaped_7" is all
+                // there was to read.
+                int iconX = listX + 22;
+                int shown = Math.min(MAX_INGREDIENT_ICONS, recipe.ingredients.size());
+                for (int ing = 0; ing < shown; ing++) {
+                    guiGraphics.pose().pushPose();
+                    guiGraphics.pose().translate(iconX + ing * INGREDIENT_ICON_SPACING, rowY + 3, 0);
+                    guiGraphics.pose().scale(0.8f, 0.8f, 1.0f);
+                    guiGraphics.renderItem(recipe.ingredients.get(ing), 0, 0);
+                    guiGraphics.pose().popPose();
+                }
+                if (recipe.ingredients.size() > shown) {
+                    guiGraphics.drawString(font, "+" + (recipe.ingredients.size() - shown),
+                            iconX + shown * INGREDIENT_ICON_SPACING, rowY + 7, 0x888888, false);
+                }
 
-                if (fullTextW > availW && rowHovered && index == hoveredRecipeIndex) {
-                    long elapsed = System.currentTimeMillis() - hoverStartTime;
-                    if (elapsed > MARQUEE_DELAY_MS) {
-                        float scrollProgress = (elapsed - MARQUEE_DELAY_MS) / 1000.0f * MARQUEE_SPEED;
-                        int maxScroll = fullTextW - availW + 10;
-                        float cycle = (float) maxScroll * 2;
-                        float pos = scrollProgress % cycle;
-                        int scrollOff = pos <= maxScroll ? (int) pos : (int) (cycle - pos);
-
-                        guiGraphics.enableScissor(textX, rowY, textX + availW, rowY + RECIPE_ROW_HEIGHT);
-                        guiGraphics.drawString(font, fullText, textX - scrollOff, rowY + 7, 0xFFFFFF, false);
-                        guiGraphics.disableScissor();
-                    } else {
-                        String truncated = font.plainSubstrByWidth(fullText, availW - 8) + "...";
-                        guiGraphics.drawString(font, truncated, textX, rowY + 7, 0xFFFFFF, false);
-                    }
-                } else if (fullTextW > availW) {
-                    String truncated = font.plainSubstrByWidth(fullText, availW - 8) + "...";
-                    guiGraphics.drawString(font, truncated, textX, rowY + 7, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
-                } else {
-                    guiGraphics.drawString(font, fullText, textX, rowY + 7, rowHovered ? 0xFFFFFF : 0xBBBBBB, false);
+                // Namespace on the right: the orientation that used to be buried in the id,
+                // without the rest of it. "kubejs" and "crafttweaker" show up here as themselves.
+                String namespace = recipe.recipeId.contains(":")
+                        ? recipe.recipeId.substring(0, recipe.recipeId.indexOf(':'))
+                        : "";
+                if (!namespace.isEmpty()) {
+                    int nsW = font.width(namespace);
+                    guiGraphics.drawString(font, namespace, listX + listW - nsW - 2, rowY + 7,
+                            rowHovered ? 0xAAAAAA : 0x666666, false);
                 }
             }
         }
 
-        if (currentHoveredIndex != hoveredRecipeIndex) {
-            hoveredRecipeIndex = currentHoveredIndex;
-            hoverStartTime = System.currentTimeMillis();
-        }
+        hoveredRecipeIndex = currentHoveredIndex;
 
         if (recipeMaxScrollRow > 0) {
             int scrollBarX = listX + listW + 2;
@@ -462,6 +464,19 @@ public class SearchableRecipeList implements PickerOverlay {
             int thumbY = scrollBarTop
                     + (int) ((float) recipeScrollRow / recipeMaxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+        }
+
+        // The id still matters to whoever is debugging a lock, so it moves into the tooltip
+        // rather than off the screen. Drawn last and lifted, or the rows below paint over it.
+        if (hoveredRecipeIndex >= 0 && hoveredRecipeIndex < currentRecipes.size()) {
+            RecipeInfo hovered = currentRecipes.get(hoveredRecipeIndex);
+            guiGraphics.pose().pushPose();
+            guiGraphics.pose().translate(0, 0, 300);
+            guiGraphics.renderTooltip(font,
+                    List.of(Component.literal(hovered.recipeId),
+                            Component.literal(hovered.type).withStyle(ChatFormatting.DARK_GRAY)),
+                    Optional.empty(), mouseX, mouseY);
+            guiGraphics.pose().popPose();
         }
     }
 

@@ -44,6 +44,42 @@ public class RecipeManagerMixin {
         }
 
         AllRecipesCache.set(new ArrayList<>(this.byName.values()));
+        auditRecipeLocks();
+    }
+
+    /**
+     * Warns about stage recipe locks that point at recipes which are not loaded.
+     *
+     * <p>Here rather than in {@code StageManager} because this is the first moment the answer
+     * exists: stages load at server start, recipes load later, and script-generated recipes land
+     * during this very call. It also re-runs on every {@code /reload}, which is exactly when a
+     * pack author has just changed the script that renumbered the recipe.
+     *
+     * <p>It warns and never removes. A recipe can be legitimately absent — a mod temporarily out,
+     * a recipe disabled by a datapack — and deleting the entry would take the lock with it for
+     * good, which is worse than the problem being reported.
+     */
+    private void auditRecipeLocks() {
+        Map<String, List<String>> byStage = new HashMap<>();
+        net.bananemdnsa.historystages.data.StageManager.getStages()
+                .forEach((stageId, entry) -> byStage.put(stageId, entry.getRecipes()));
+
+        Set<String> loaded = new HashSet<>();
+        for (ResourceLocation id : this.byName.keySet()) {
+            loaded.add(id.toString());
+        }
+
+        List<net.bananemdnsa.historystages.data.lock.RecipeIdAudit.MissingRecipe> missing =
+                net.bananemdnsa.historystages.data.lock.RecipeIdAudit.missing(byStage, loaded);
+
+        for (var entry : missing) {
+            net.bananemdnsa.historystages.util.DebugLogger.warn("Recipe Locks",
+                    "Stage '" + entry.stageId() + "' gates recipe '" + entry.recipeId()
+                            + "', which is not loaded. The lock does nothing. Script-generated "
+                            + "ids change when the script is reordered.");
+        }
+
+        net.bananemdnsa.historystages.data.lock.MissingRecipeIds.set(missing);
     }
 
     /**

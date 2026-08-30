@@ -166,6 +166,7 @@
   "editor.historystages.search.placeholder.stats": "Statistiken suchen...",
   "editor.historystages.search.placeholder.structures": "Strukturen suchen...",
   "editor.historystages.search.placeholder.tags": "Tags suchen...",
+  "editor.historystages.recipes.missing": "Dieses Rezept ist nicht geladen, die Sperre greift also nicht. Von Skripten erzeugte IDs ändern sich, wenn das Skript umsortiert wird.",
   "editor.historystages.search.placeholder.recipes": "Rezepte suchen...",
   "editor.historystages.search.placeholder.structure_tags": "Struktur-Tags suchen...",
   "editor.historystages.demo.tab.relics": "Relikte (Demo)",
