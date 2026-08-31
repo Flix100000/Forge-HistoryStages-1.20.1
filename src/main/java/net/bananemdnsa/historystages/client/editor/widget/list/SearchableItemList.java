@@ -7,8 +7,8 @@ import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
+import net.bananemdnsa.historystages.client.editor.nbt.ComponentShapes;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
@@ -20,25 +20,19 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
-import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.Potion;
-import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.component.CustomData;
-import net.minecraft.world.item.component.CustomModelData;
-import net.minecraft.world.item.component.ItemLore;
-import net.minecraft.world.item.component.Unbreakable;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -100,6 +94,11 @@ public class SearchableItemList implements PickerOverlay {
      * add).
      */
     private BiConsumer<String, JsonObject> onSelectWithNbt = null;
+    /** See {@link #setValueMode()}. */
+    private boolean alwaysWithNbt = false;
+    private boolean openOnInventory = false;
+    /** See {@link #setStackFilter}. */
+    private java.util.function.Predicate<ItemStack> stackFilter = null;
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
 
@@ -167,13 +166,34 @@ public class SearchableItemList implements PickerOverlay {
         this.onSelectWithNbt = onSelectWithNbt;
     }
 
+    /**
+     * Opens on the inventory tab and makes every pick there carry its NBT, without Ctrl.
+     *
+     * <p>For callers that want a value read off a real stack rather than an item id — the NBT
+     * editor filling in one component's encoded form. Ctrl-add is a shortcut for callers that want
+     * either; here the stack is the whole point, so requiring the modifier would only produce
+     * clicks that appear to do nothing.
+     */
+    public void setValueMode() {
+        this.alwaysWithNbt = true;
+        this.openOnInventory = true;
+    }
+
+    /**
+     * Hides inventory stacks the predicate rejects, so the grid only offers what the caller can
+     * actually use — an item that lacks the component being filled in has nothing to give.
+     */
+    public void setStackFilter(java.util.function.Predicate<ItemStack> stackFilter) {
+        this.stackFilter = stackFilter;
+    }
+
     public void show(int centerX, int centerY, int parentWidth) {
         this.centerX = centerX;
         this.centerY = centerY;
         this.visible = true;
         this.scrollRow = 0;
-        searchBar.setFocused(true);
-        this.currentTab = TAB_REGISTRY;
+        this.currentTab = openOnInventory ? TAB_INVENTORY : TAB_REGISTRY;
+        searchBar.setFocused(currentTab != TAB_INVENTORY);
         this.selectedRegistryIds.clear();
         this.selectedInventorySlots.clear();
         this.nbtSelectedInventorySlots.clear();
@@ -718,6 +738,8 @@ public class SearchableItemList implements PickerOverlay {
     private boolean isItemAllowedByModFilter(ItemStack stack) {
         if (stack.isEmpty())
             return false;
+        if (stackFilter != null && !stackFilter.test(stack))
+            return false;
         ResourceLocation key = BuiltInRegistries.ITEM.getKey(stack.getItem());
         if (key == null)
             return false;
@@ -1218,7 +1240,7 @@ public class SearchableItemList implements PickerOverlay {
             if (type.codec() == null) continue;
             ResourceLocation id = BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type);
             if (id == null) continue;
-            JsonElement encoded = encodeComponent(type, value);
+            JsonElement encoded = ComponentShapes.encode(stack, type);
             if (encoded != null) components.add(id.toString(), encoded);
         }
         if (components.size() > 0) result.add("components", components);
@@ -1227,9 +1249,15 @@ public class SearchableItemList implements PickerOverlay {
     }
 
     /**
-     * Translates a single data component into one of the editor's Data
-     * Properties top-level keys. Returns true when the component was handled
-     * (caller then skips it from the {@code components} sub-object).
+     * Enchantments are the only components that belong at the top level: {@code NbtMatcher}
+     * synthesises {@code Enchantments} and {@code StoredEnchantments} from the stack's enchantment
+     * components, so criteria written that way match.
+     *
+     * <p>Everything else goes into the {@code components} object. Mapping it back to pre-1.20.5 key
+     * names — which this method used to do for unbreakable, custom_model_data, repair_cost,
+     * potion_contents, custom_name and lore, so the old editor's checkboxes would light up —
+     * produced criteria that are looked up in {@code custom_data} and can therefore never match a
+     * normal item.
      */
     private static boolean emitLegacyTopLevel(JsonObject result, DataComponentType<?> type, Object value) {
         if (type == DataComponents.ENCHANTMENTS && value instanceof ItemEnchantments ench) {
@@ -1240,79 +1268,7 @@ public class SearchableItemList implements PickerOverlay {
             if (!stored.isEmpty()) result.add("StoredEnchantments", toEnchantmentJsonList(stored));
             return true;
         }
-        if (type == DataComponents.CUSTOM_MODEL_DATA && value instanceof CustomModelData cmd) {
-            result.addProperty("CustomModelData", cmd.value());
-            return true;
-        }
-        if (type == DataComponents.UNBREAKABLE && value instanceof Unbreakable) {
-            result.addProperty("Unbreakable", true);
-            return true;
-        }
-        if (type == DataComponents.REPAIR_COST && value instanceof Integer repair) {
-            result.addProperty("RepairCost", repair);
-            return true;
-        }
-        if (type == DataComponents.POTION_CONTENTS && value instanceof PotionContents pc) {
-            ResourceLocation potionId = pc.potion()
-                    .flatMap(Holder::unwrapKey)
-                    .map(ResourceKey::location)
-                    .orElse(null);
-            if (potionId != null) result.addProperty("Potion", potionId.toString());
-            return true;
-        }
-        if (type == DataComponents.CUSTOM_NAME && value instanceof Component nameComp) {
-            String json = chatComponentToJson(nameComp);
-            if (json != null) ensureDisplay(result).addProperty("Name", json);
-            return true;
-        }
-        if (type == DataComponents.ITEM_NAME && value instanceof Component itemNameComp) {
-            // item_name is a 1.21 fallback display name that the editor doesn't
-            // have a dedicated row for; surface it as display.Name so the user
-            // sees something rather than nothing.
-            JsonObject display = ensureDisplay(result);
-            if (!display.has("Name")) {
-                String json = chatComponentToJson(itemNameComp);
-                if (json != null) display.addProperty("Name", json);
-            }
-            return true;
-        }
-        if (type == DataComponents.LORE && value instanceof ItemLore lore) {
-            if (!lore.lines().isEmpty()) {
-                JsonArray loreArr = new JsonArray();
-                for (Component line : lore.lines()) {
-                    String s = chatComponentToJson(line);
-                    if (s != null) loreArr.add(s);
-                }
-                if (loreArr.size() > 0) ensureDisplay(result).add("Lore", loreArr);
-            }
-            return true;
-        }
         return false;
-    }
-
-    private static JsonObject ensureDisplay(JsonObject root) {
-        if (root.has("display") && root.get("display").isJsonObject()) {
-            return root.getAsJsonObject("display");
-        }
-        JsonObject display = new JsonObject();
-        root.add("display", display);
-        return display;
-    }
-
-    /**
-     * Serializes a chat {@link Component} into the JSON string the legacy
-     * {@code display.Name}/{@code display.Lore} fields expect. Needs registry
-     * access (available client-side once a world is loaded). Returns null if
-     * not available — caller treats that as "skip this entry".
-     */
-    private static String chatComponentToJson(Component comp) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return null;
-        try {
-            return Component.Serializer.toJson(comp, mc.level.registryAccess());
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     private static JsonArray toEnchantmentJsonList(ItemEnchantments enchantments) {
@@ -1326,23 +1282,6 @@ public class SearchableItemList implements PickerOverlay {
             arr.add(e);
         }
         return arr;
-    }
-
-    /**
-     * Registry-backed components (e.g. a mod's {@code RegistryFixedCodec<Holder<T>>},
-     * such as Iron's Jewelry's {@code stored_pattern}) only encode through a
-     * {@link RegistryOps} that knows about that registry — plain
-     * {@link JsonOps#INSTANCE} makes their codec fail silently, dropping the
-     * component from the captured criteria.
-     */
-    @SuppressWarnings("unchecked")
-    private static <T> JsonElement encodeComponent(DataComponentType<T> type, Object value) {
-        var level = Minecraft.getInstance().level;
-        JsonOps ops = JsonOps.INSTANCE;
-        DynamicOps<JsonElement> registryOps = level != null
-                ? RegistryOps.create(ops, level.registryAccess())
-                : ops;
-        return type.codec().encodeStart(registryOps, (T) value).result().orElse(null);
     }
 
     private boolean isAddButtonAt(double mouseX, double mouseY) {
@@ -1374,7 +1313,7 @@ public class SearchableItemList implements PickerOverlay {
                 nbtSelectedInventorySlots.clear();
             }
             selectedInventorySlots.add(slot);
-            if (withNbt && onSelectWithNbt != null) {
+            if ((withNbt || alwaysWithNbt) && onSelectWithNbt != null) {
                 nbtSelectedInventorySlots.add(slot);
             }
         }

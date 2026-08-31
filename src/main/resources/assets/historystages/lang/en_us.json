@@ -1182,7 +1182,6 @@
   "editor.historystages.nbt.ok": "OK",
   "editor.historystages.nbt.desc.enchantments": "Enchantments working on the item — an enchanted sword, for instance.",
   "editor.historystages.nbt.desc.stored_enchantments": "Enchantments an enchanted book carries that are not working yet.",
-  "editor.historystages.nbt.input.enchantment_id": "Enchantment ID",
   "editor.historystages.nbt.input.level_range": "Level (or range, e.g. 1-4)",
   "editor.historystages.nbt.input.value": "Value",
   "editor.historystages.nbt.custom.heading": "Custom NBT Key",
@@ -1247,5 +1246,8 @@
   "editor.historystages.nbt.shape.subset": "Only the fields you want checked have to be in there.",
   "editor.historystages.nbt.shape.requires": "This property's codec requires:",
   "editor.historystages.nbt.enchantments.active": "Active enchantments",
-  "editor.historystages.nbt.enchantments.stored": "Enchantments in a book"
+  "editor.historystages.nbt.enchantments.stored": "Enchantments in a book",
+  "editor.historystages.nbt.shape.skeleton": "The smallest value this property accepts:",
+  "editor.historystages.nbt.shape.presence_ok": "That only checks whether the property is set at all.",
+  "editor.historystages.search.placeholder.enchantments": "Search enchantments..."
 }

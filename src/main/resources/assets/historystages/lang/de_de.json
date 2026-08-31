@@ -1182,7 +1182,6 @@
   "editor.historystages.nbt.ok": "OK",
   "editor.historystages.nbt.desc.enchantments": "Verzauberungen, die auf dem Gegenstand wirken — ein verzaubertes Schwert etwa.",
   "editor.historystages.nbt.desc.stored_enchantments": "Verzauberungen, die ein verzaubertes Buch mit sich trägt und die noch nicht wirken.",
-  "editor.historystages.nbt.input.enchantment_id": "Verzauberungs-ID",
   "editor.historystages.nbt.input.level_range": "Stufe (oder Bereich, z.B. 1-4)",
   "editor.historystages.nbt.input.value": "Wert",
   "editor.historystages.nbt.custom.heading": "Eigener NBT-Schlüssel",
@@ -1247,5 +1246,8 @@
   "editor.historystages.nbt.shape.subset": "Es müssen nur die Felder drinstehen, auf die geprüft werden soll.",
   "editor.historystages.nbt.shape.requires": "Der Codec dieser Eigenschaft verlangt:",
   "editor.historystages.nbt.enchantments.active": "Wirkende Verzauberungen",
-  "editor.historystages.nbt.enchantments.stored": "Verzauberungen im Buch"
+  "editor.historystages.nbt.enchantments.stored": "Verzauberungen im Buch",
+  "editor.historystages.nbt.shape.skeleton": "Der kleinste Wert, den diese Eigenschaft annimmt:",
+  "editor.historystages.nbt.shape.presence_ok": "Damit prüfst du nur, ob die Eigenschaft überhaupt gesetzt ist.",
+  "editor.historystages.search.placeholder.enchantments": "Verzauberungen suchen..."
 }
