@@ -12,6 +12,7 @@ import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CategoryRoundTripTest {
@@ -52,7 +53,6 @@ class CategoryRoundTripTest {
     @Test
     void dualPhaseIdsAreEmptyForTheCategoriesThatOptOut() {
         for (String optedOut : List.of("historystages:mod_exceptions",
-                                       "historystages:recipes",
                                        "historystages:spawnlock")) {
             StageEntry stage = new StageEntry();
             LockCategory<?> category = LockCategories.byId(optedOut);
@@ -63,6 +63,23 @@ class CategoryRoundTripTest {
             assertEquals("", category.dualPhaseLabel(),
                     optedOut + " should not declare a dual-phase label");
         }
+    }
+
+    @Test
+    void recipesTakePartInDualPhaseDetection() {
+        // They did not until 6.0.0, because there was no second phase to overlap with. Now that a
+        // station can gate per player, the same recipe can be gated globally and individually at
+        // once — which is the case the whole check exists for.
+        StageEntry stage = new StageEntry();
+        LockCategory<?> recipes = LockCategories.byId("historystages:recipes");
+        writeSample(recipes, stage);
+
+        assertFalse(recipes.globalDualPhaseIds(stage).isEmpty(),
+                "a global stage's recipes belong in the overlap scan");
+        assertFalse(recipes.individualDualPhaseIds(stage).isEmpty(),
+                "an individual stage's recipes belong in the overlap scan");
+        assertEquals("recipe", recipes.dualPhaseLabel(),
+                "the label is printed in the dual-phase load message");
     }
 
     @Test

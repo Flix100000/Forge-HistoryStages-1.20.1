@@ -64,6 +64,21 @@ class DualPhaseIndexTest {
 
     @Test
     void aCategoryThatOptsOutIsNeverIndexed() {
+        // Mod exceptions carve holes in the mods category rather than locking, so an overlap
+        // between a global and an individual exception means nothing.
+        StageEntry global = new StageEntry();
+        global.setModExceptionEntries(List.of(new ItemEntry("minecraft:stone")));
+        StageEntry individual = new StageEntry();
+        individual.setModExceptionEntries(List.of(new ItemEntry("minecraft:stone")));
+
+        DualPhaseIndex index = DualPhaseIndex.build(stages("bronze", global), stages("quest", individual));
+
+        assertTrue(index.global("historystages:mod_exceptions").isEmpty(),
+                "a mod exception overlap is not a dual-phase lock");
+    }
+
+    @Test
+    void aRecipeGatedInBothScopesIsDualPhase() {
         StageEntry global = new StageEntry();
         global.setRecipes(List.of("minecraft:stone_stairs"));
         StageEntry individual = new StageEntry();
@@ -71,8 +86,10 @@ class DualPhaseIndexTest {
 
         DualPhaseIndex index = DualPhaseIndex.build(stages("bronze", global), stages("quest", individual));
 
-        assertTrue(index.global("historystages:recipes").isEmpty(),
-                "recipes never took part in dual-phase detection");
+        assertEquals(Set.of("bronze"),
+                index.global("historystages:recipes").get("minecraft:stone_stairs"));
+        assertEquals(Set.of("quest"),
+                index.individual("historystages:recipes").get("minecraft:stone_stairs"));
     }
 
     @Test

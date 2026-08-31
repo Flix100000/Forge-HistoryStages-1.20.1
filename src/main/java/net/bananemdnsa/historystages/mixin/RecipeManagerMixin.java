@@ -63,6 +63,10 @@ public class RecipeManagerMixin {
         Map<String, List<String>> byStage = new HashMap<>();
         net.bananemdnsa.historystages.data.StageManager.getStages()
                 .forEach((stageId, entry) -> byStage.put(stageId, entry.getRecipes()));
+        // Individual stages hold recipes since 6.0.0, so a lock pointing at nothing can hide
+        // there just as well.
+        net.bananemdnsa.historystages.data.StageManager.getIndividualStages()
+                .forEach((stageId, entry) -> byStage.put(stageId, entry.getRecipes()));
 
         Set<String> loaded = new HashSet<>();
         for (ResourceLocation id : this.byName.keySet()) {
@@ -80,6 +84,50 @@ public class RecipeManagerMixin {
         }
 
         net.bananemdnsa.historystages.data.lock.MissingRecipeIds.set(missing);
+
+        auditIndividualRecipeTypes();
+    }
+
+    /**
+     * Warns when an individual stage gates a recipe whose station never knows who is crafting.
+     *
+     * <p>The editor's picker keeps these out, but a hand-edited stage file does not go through it.
+     * Without this line the entry sits in the file looking correct and gating nothing — which is
+     * the exact complaint this whole feature came from, one level down.
+     *
+     * <p>Here rather than in {@code StageManager} for the same reason as the check above: stages
+     * load before recipes do, so a recipe's type does not exist yet when the stage is read.
+     *
+     * <p>Warns and never removes. The entry stays as the author wrote it.
+     */
+    private void auditIndividualRecipeTypes() {
+        net.bananemdnsa.historystages.data.StageManager.getIndividualStages()
+                .forEach((stageId, entry) -> {
+                    for (String recipeId : entry.getRecipes()) {
+                        if (recipeId == null) continue;
+
+                        ResourceLocation id = ResourceLocation.tryParse(recipeId);
+                        if (id == null) continue;
+
+                        RecipeHolder<?> holder = this.byName.get(id);
+                        if (holder == null) continue; // already reported as not loaded
+
+                        ResourceLocation typeKey = net.minecraft.core.registries.BuiltInRegistries
+                                .RECIPE_TYPE.getKey(holder.value().getType());
+                        if (typeKey == null
+                                || net.bananemdnsa.historystages.data.lock.IndividualRecipeSupport
+                                        .supports(typeKey.toString())) {
+                            continue;
+                        }
+
+                        net.bananemdnsa.historystages.util.DebugLogger.warn("Recipe Locks",
+                                "Individual stage '" + stageId + "' gates recipe '" + recipeId
+                                        + "' of type '" + typeKey + "'. That station resolves its "
+                                        + "recipes with no player present, so an individual stage "
+                                        + "cannot gate it — the entry does nothing. Put it on a "
+                                        + "global stage instead. The entry is left as written.");
+                    }
+                });
     }
 
     /**

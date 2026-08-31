@@ -8,7 +8,7 @@
   "textures": {
     "0": "historystages:block/research_pedestal",
     "1": "historystages:block/research_pedestal_big",
-    "particle": "historystages:block/research_pedestal"
+    "particle": "historystages:block/research_pedestal_particle"
   },
   "elements": [
     {

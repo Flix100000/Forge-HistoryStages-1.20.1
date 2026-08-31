@@ -83,11 +83,13 @@ final class BuiltInLockCategories {
                 StageEntry::getModExceptionEntries, StageEntry::setModExceptionEntries,
                 stage -> List.of(), never(), NO_INDEX));
 
-        // Recipes were never part of dual-phase detection. Preserved as-is, and global-only:
-        // there is no per-player recipe gate to write to.
-        categories.add(new GlobalOnly<>("recipes", "recipes", "",
+        // Both scopes since 6.0.0. A station with a player standing at it sets a
+        // RecipeCraftContext around its one resolution, so an individual stage finally has a gate
+        // to write to. Dual-phase came along with it: the same recipe can now be gated globally
+        // and individually at once, which is exactly the overlap that check exists to spot.
+        categories.add(new Simple<>("recipes", "recipes", "recipe",
                 StageEntry::getRecipes, StageEntry::setRecipes,
-                stage -> List.of(), ID_EQUALS, StageEntry::getRecipes));
+                StageEntry::getRecipes, ID_EQUALS, StageEntry::getRecipes));
 
         categories.add(new Simple<>("dimensions", "dimensions", "dimension",
                 StageEntry::getDimensions, StageEntry::setDimensions,
@@ -127,37 +129,6 @@ final class BuiltInLockCategories {
         @Override public boolean matches(T entry, Object subject) { return matcher.test(entry, subject); }
         @Override public List<String> indexKeys(StageEntry stage) { return indexKeys.apply(stage); }
         @Override public String lookupKey(Object subject) { return SUBJECT_IS_THE_KEY.apply(subject); }
-    }
-
-    /** A {@link Simple} category that only means anything on a global stage. */
-    private static final class GlobalOnly<T> implements LockCategory<T> {
-        private final Simple<T> delegate;
-
-        GlobalOnly(String name, String tabName, String dualPhaseLabel,
-                   java.util.function.Function<StageEntry, List<T>> reader,
-                   java.util.function.BiConsumer<StageEntry, List<T>> writer,
-                   java.util.function.Function<StageEntry, List<String>> dualPhase,
-                   BiPredicate<T, Object> matcher,
-                   java.util.function.Function<StageEntry, List<String>> indexKeys) {
-            this.delegate = new Simple<>(name, tabName, dualPhaseLabel, reader, writer, dualPhase,
-                    matcher, indexKeys);
-        }
-
-        @Override public java.util.Set<StageScope> supportedScopes() {
-            return java.util.EnumSet.of(StageScope.GLOBAL);
-        }
-
-        @Override public String id() { return delegate.id(); }
-        @Override public String tabLangKey() { return delegate.tabLangKey(); }
-        @Override public String tooltipLangKey() { return delegate.tooltipLangKey(); }
-        @Override public String dualPhaseLabel() { return delegate.dualPhaseLabel(); }
-        @Override public List<T> read(StageEntry stage) { return delegate.read(stage); }
-        @Override public void write(StageEntry stage, List<T> entries) { delegate.write(stage, entries); }
-        @Override public List<String> globalDualPhaseIds(StageEntry stage) { return delegate.globalDualPhaseIds(stage); }
-        @Override public List<String> individualDualPhaseIds(StageEntry stage) { return delegate.individualDualPhaseIds(stage); }
-        @Override public boolean matches(T entry, Object subject) { return delegate.matches(entry, subject); }
-        @Override public List<String> indexKeys(StageEntry stage) { return delegate.indexKeys(stage); }
-        @Override public String lookupKey(Object subject) { return delegate.lookupKey(subject); }
     }
 
     /**

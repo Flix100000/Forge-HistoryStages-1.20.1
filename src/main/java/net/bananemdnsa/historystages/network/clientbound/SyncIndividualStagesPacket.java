@@ -45,6 +45,10 @@ public record SyncIndividualStagesPacket(Set<String> unlockedStages) implements 
                 mc.levelRenderer.allChanged();
             }
 
+            // The vanilla recipe book is filtered as it is built, and nothing else rebuilds it
+            // on an individual unlock — no recipe packet is sent for one.
+            net.bananemdnsa.historystages.client.ClientRecipeBookRefresh.rebuild();
+
             // JEI hiding (Issue #64): refresh visibility after individual-stage cache updated.
             if (net.neoforged.fml.ModList.get().isLoaded("jei")) {
                 try {

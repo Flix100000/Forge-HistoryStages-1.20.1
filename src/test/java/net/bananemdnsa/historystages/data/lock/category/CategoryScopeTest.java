@@ -59,18 +59,23 @@ class CategoryScopeTest {
     }
 
     @Test
-    void recipesAndSpawnLocksAreGlobalOnly() {
-        for (String id : new String[]{"historystages:recipes", "historystages:spawnlock"}) {
-            Set<StageScope> scopes = LockCategories.byId(id).supportedScopes();
-            assertEquals(Set.of(StageScope.GLOBAL), scopes, id + " should be global-only");
-        }
+    void spawnLocksAreTheOnlyGlobalOnlyBuiltIn() {
+        assertEquals(Set.of(StageScope.GLOBAL),
+                LockCategories.byId("historystages:spawnlock").supportedScopes(),
+                "historystages:spawnlock should be global-only");
+    }
+
+    @Test
+    void recipesMeanSomethingOnAnIndividualStage() {
+        assertEquals(EnumSet.allOf(StageScope.class),
+                LockCategories.byId("historystages:recipes").supportedScopes(),
+                "a station that knows who is crafting gives recipes an individual gate");
     }
 
     @Test
     void everyOtherBuiltInMeansSomethingInBothScopes() {
         for (LockCategory<?> category : LockCategories.builtIns()) {
-            if (category.id().equals("historystages:recipes")
-                    || category.id().equals("historystages:spawnlock")) continue;
+            if (category.id().equals("historystages:spawnlock")) continue;
             assertEquals(EnumSet.allOf(StageScope.class), category.supportedScopes(),
                     category.id() + " changed scope unexpectedly");
         }

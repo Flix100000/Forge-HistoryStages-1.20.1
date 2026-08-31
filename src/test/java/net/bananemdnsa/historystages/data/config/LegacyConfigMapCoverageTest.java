@@ -63,26 +63,27 @@ class LegacyConfigMapCoverageTest {
                         + " gameplay keys, which is far too few — the parser is broken, and a "
                         + "broken parser reports perfect coverage of nothing. Found: " + keys);
 
-        Set<String> destinations = LegacyConfigMap.destinations();
-        List<String> missing = keys.stream().filter(k -> !destinations.contains(k)).toList();
+        Set<String> accountedFor = LegacyConfigMap.accountedFor();
+        List<String> missing = keys.stream().filter(k -> !accountedFor.contains(k)).toList();
 
         assertTrue(missing.isEmpty(),
-                "these config keys are in no LegacyConfigMap destination, so a pack updating from "
-                        + "5.x silently loses whatever it had set for them: " + missing);
+                "these config keys are neither a LegacyConfigMap destination nor listed as new "
+                        + "since the split, so a pack updating from 5.x silently loses whatever it "
+                        + "had set for them: " + missing);
     }
 
     @Test
     void everyDestinationIsAKeyThatStillExists() throws IOException {
         Set<String> keys = new LinkedHashSet<>(currentKeys());
-        List<String> stale = LegacyConfigMap.destinations().stream()
+        List<String> stale = LegacyConfigMap.accountedFor().stream()
                 .filter(destination -> !keys.contains(destination))
                 .sorted()
                 .toList();
 
         assertTrue(stale.isEmpty(),
-                "these LegacyConfigMap destinations name no key in Config.java — either the key "
-                        + "was renamed and the table was not, or the destination is a typo, and "
-                        + "either way the value it carries lands nowhere: " + stale);
+                "these LegacyConfigMap entries name no key in Config.java — either the key was "
+                        + "renamed and the table was not, or the entry is a typo, and either way "
+                        + "the value it carries lands nowhere: " + stale);
     }
 
     /** Every key the two specs declare, as {@code "<TARGET>|<dotted path>"}. */

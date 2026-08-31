@@ -22,6 +22,7 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.core.registries.BuiltInRegistries;
 
+import net.bananemdnsa.historystages.data.lock.IndividualRecipeSupport;
 import net.bananemdnsa.historystages.util.AllRecipesCache;
 
 import java.util.*;
@@ -58,6 +59,9 @@ public class SearchableRecipeList implements PickerOverlay {
     private static final int MAX_INGREDIENT_ICONS = 5;
     private static final int INGREDIENT_ICON_SPACING = 15;
 
+    // Room for the one line explaining why an individual stage sees fewer recipes.
+    private static final int SCOPE_HINT_HEIGHT = 11;
+
     // Phase 1: Item grid
     private final List<ItemEntry> allRecipeItems = new ArrayList<>();
     private final List<ItemEntry> filteredItems = new ArrayList<>();
@@ -77,17 +81,32 @@ public class SearchableRecipeList implements PickerOverlay {
 
     // Recipe data: maps output item ID -> list of recipe IDs
     private final Map<String, List<RecipeInfo>> recipesByOutput = new LinkedHashMap<>();
+    // On an individual stage only recipes from stations that know the player can be gated, so the
+    // picker shows only those. Read by buildRecipeIndex(), which the constructor runs.
+    private final boolean individualScope;
     private final Consumer<String> onSelect;
     private final Supplier<Collection<String>> alreadyAddedSupplier;
     private final SearchBar searchBar;
 
     public SearchableRecipeList(Consumer<String> onSelect) {
-        this(onSelect, null);
+        this(onSelect, null, false);
     }
 
     public SearchableRecipeList(Consumer<String> onSelect, Supplier<Collection<String>> alreadyAddedSupplier) {
+        this(onSelect, alreadyAddedSupplier, false);
+    }
+
+    /**
+     * @param individualScope true on an individual stage, where only stations that know who is
+     *                        crafting can gate anything — the picker then offers only those
+     *                        recipes rather than showing entries that would do nothing
+     */
+    public SearchableRecipeList(Consumer<String> onSelect,
+                                Supplier<Collection<String>> alreadyAddedSupplier,
+                                boolean individualScope) {
         this.onSelect = onSelect;
         this.alreadyAddedSupplier = alreadyAddedSupplier;
+        this.individualScope = individualScope;
         this.searchBar = SearchPanelChrome.createSearchBar(Component.translatable("editor.historystages.search.placeholder.recipes").getString(), this::applyFilter, alreadyAddedSupplier);
         buildRecipeIndex();
     }
@@ -106,6 +125,9 @@ public class SearchableRecipeList implements PickerOverlay {
         for (RecipeHolder<?> holder : recipes) {
             try {
                 Recipe<?> recipe = holder.value();
+                if (individualScope && !isIndividuallyGateable(recipe.getType()))
+                    continue;
+
                 ItemStack result = recipe.getResultItem(registryAccess);
                 if (result.isEmpty())
                     continue;
@@ -157,6 +179,15 @@ public class SearchableRecipeList implements PickerOverlay {
         filteredItems.addAll(allRecipeItems);
     }
 
+    /**
+     * Whether an individual stage could gate this recipe at all. The answer comes from
+     * {@link IndividualRecipeSupport}, which the load-time audit reads too — one list, two readers.
+     */
+    private static boolean isIndividuallyGateable(RecipeType<?> type) {
+        ResourceLocation typeKey = BuiltInRegistries.RECIPE_TYPE.getKey(type);
+        return typeKey != null && IndividualRecipeSupport.supports(typeKey.toString());
+    }
+
     private static ItemStack getWorkstationForType(RecipeType<?> type) {
         if (type == RecipeType.CRAFTING)
             return new ItemStack(Blocks.CRAFTING_TABLE);
@@ -178,7 +209,8 @@ public class SearchableRecipeList implements PickerOverlay {
     public void show(int centerX, int centerY, int parentWidth) {
         inRecipePhase = false;
         panelW = GRID_COLS * SLOT_SIZE + PADDING * 2 + 8;
-        panelH = SearchBar.HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4;
+        panelH = SearchBar.HEIGHT + PADDING * 2 + GRID_ROWS * SLOT_SIZE + PADDING + 4
+                + (individualScope ? SCOPE_HINT_HEIGHT : 0);
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
         if (panelX < 4)
@@ -334,6 +366,14 @@ public class SearchableRecipeList implements PickerOverlay {
             int thumbHeight = Math.max(10, (int) ((float) GRID_ROWS / (maxScrollRow + GRID_ROWS) * scrollBarHeight));
             int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
             guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+        }
+
+        // Says why there is less here than on a global stage, rather than leaving the author to
+        // wonder whether their recipe is missing.
+        if (individualScope) {
+            String hint = Component.translatable("editor.historystages.recipes.individual_only").getString();
+            guiGraphics.drawString(font, hint, panelX + (panelW - font.width(hint)) / 2,
+                    gridY + GRID_ROWS * SLOT_SIZE + 3, 0xFF888888, false);
         }
 
         // Tooltip for hovered item — suppressed when filter UI overlaps the cursor.

@@ -228,12 +228,28 @@ public class StageLockHelper {
     }
 
     /**
-     * Global-scope-only recipe check on the client. Kept separate from
-     * {@link #isRecipeLockedForClient} (both scopes) because {@code RecipeManagerMixin} feeds
-     * this into live recipe resolution (crafting-grid output prediction, recipe book), where
-     * consulting individual stages would newly filter recipes that were never gated there
-     * before — a real verdict change, not just a tidiness one. Matches the legacy behavior of
-     * {@code RecipeHandler.isRecipeIdLocked}'s client branch exactly.
+     * Both scopes for one player — what a station asks once it knows who is crafting.
+     *
+     * <p>Only reachable through {@link RecipeCraftContext}. A resolution with nobody standing at
+     * it has no player to resolve the individual half against and stays on
+     * {@link #isRecipeLockedForServer}, which is what it always did.
+     */
+    public static boolean isRecipeLockedForPlayer(String recipeId, UUID playerUuid) {
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.GLOBAL),
+                StageLocks.serverGlobal(),
+                StageLocks.engine().gatingStagesForRecipe(recipeId, StageScope.INDIVIDUAL),
+                StageLocks.serverIndividual(playerUuid));
+    }
+
+    /**
+     * Global-scope-only recipe check on the client — the answer where nobody is known to be
+     * crafting. Live recipe resolution runs on the client too (stonecutter, smithing table), and
+     * without a {@link RecipeCraftContext} there is no player whose individual stages could be
+     * consulted; automation and unknown mod menus land here and keep their old behaviour.
+     *
+     * @see #isRecipeLockedForClient for the both-scope answer, which is what a station with a
+     *      player standing at it gets.
      */
     public static boolean isRecipeLockedForClientGlobalOnly(String recipeId) {
         return LockResolution.isLocked(

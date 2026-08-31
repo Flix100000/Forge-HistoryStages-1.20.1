@@ -31,9 +31,9 @@ public interface LockCategory<T> {
     /**
      * Which stage scopes this category means anything in.
      *
-     * <p>A fact about the data, not about the editor: recipes and spawn locks are global-only
-     * because there is no per-player recipe or spawn gate to write to, and that is equally true
-     * for a lock check as it is for a tab. Both scopes unless a category says otherwise.
+     * <p>A fact about the data, not about the editor: spawn locks are global-only because there
+     * is no per-player spawn gate to write to, and that is equally true for a lock check as it is
+     * for a tab. Both scopes unless a category says otherwise.
      */
     default java.util.Set<StageScope> supportedScopes() {
         return java.util.EnumSet.allOf(StageScope.class);
