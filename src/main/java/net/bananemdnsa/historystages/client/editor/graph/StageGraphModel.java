@@ -117,6 +117,10 @@ public final class StageGraphModel {
      * dependency touching it is skipped here too, and no dangling line or placeholder "???" node
      * is ever produced.
      *
+     * <p>{@code satisfied} needs the same restraint the node states do: an edge whose group
+     * cannot be evaluated from here — an individual stage demanded of everyone — is drawn open
+     * rather than met, however much of it the viewer personally holds.
+     *
      * <p>{@code orGroup} comes from the group the reference sits in, so the canvas can draw
      * alternatives differently ({@code [edges] orGroupStyle}). If the same prerequisite appears in
      * more than one group, the first occurrence wins and the duplicate is dropped — two lines
@@ -134,8 +138,9 @@ public final class StageGraphModel {
                     Node fromNode = nodes.get(fromKey);
                     if (fromNode == null) continue;
                     if (!seen.add(fromKey + "->" + toKey)) continue;
-                    edges.add(new Edge(fromKey, toKey,
-                            fromNode.state() == NodeState.UNLOCKED, group.or()));
+                    boolean satisfied = group.checkableKeys().contains(fromKey)
+                            && fromNode.state() == NodeState.UNLOCKED;
+                    edges.add(new Edge(fromKey, toKey, satisfied, group.or()));
                 }
             }
         }

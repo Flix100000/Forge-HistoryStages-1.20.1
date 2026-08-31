@@ -31,6 +31,11 @@ public final class GraphReachability {
      * that references no stages at all is therefore satisfied, and in an OR group they act as an
      * escape hatch around a locked stage reference.</p>
      *
+     * <p>An individual stage demanded of everyone online, or of everyone ever seen, is in exactly
+     * that category and is treated the same way — see
+     * {@link StageManager.StageDepGroup#checkableKeys()}. Only a prerequisite the viewer can be
+     * asked about is decided here.</p>
+     *
      * @param key      namespaced graph key, see {@link StageManager#graphKey(String, boolean)}
      * @param prereqs  dependency groups from {@link StageManager#graphDependencyGroups()}
      * @param unlocked answers whether a namespaced key is unlocked for the viewer
@@ -53,15 +58,15 @@ public final class GraphReachability {
     }
 
     private static boolean groupSatisfied(StageManager.StageDepGroup group, Predicate<String> unlocked) {
-        if (group.stageKeys().isEmpty()) return true;
+        if (group.checkableKeys().isEmpty()) return true;
         if (group.or()) {
             if (group.hasOtherRequirements()) return true;
-            for (String depKey : group.stageKeys()) {
+            for (String depKey : group.checkableKeys()) {
                 if (unlocked.test(depKey)) return true;
             }
             return false;
         }
-        for (String depKey : group.stageKeys()) {
+        for (String depKey : group.checkableKeys()) {
             if (!unlocked.test(depKey)) return false;
         }
         return true;

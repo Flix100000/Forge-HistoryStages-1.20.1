@@ -8,6 +8,7 @@ import java.util.Map;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
 import net.bananemdnsa.historystages.api.editor.TabInputContext;
 import net.bananemdnsa.historystages.api.editor.TabRenderContext;
 import net.minecraft.client.gui.Font;
@@ -37,6 +38,9 @@ public final class EditorRowList {
     /** Clearance between the rightmost badge or button and the row's right edge. */
     private static final int SLOT_MARGIN = 2;
 
+    /** Width a dropdown slot adds for its caret. */
+    private static final int CARET_SLOT_W = DropdownChrome.CARET_WIDTH;
+
     /** Content height for a list of plain rows at the default height. */
     public static int heightFor(int rowCount) {
         return rowCount * (CARD_HEIGHT + CARD_GAP);
@@ -55,6 +59,18 @@ public final class EditorRowList {
     }
 
     /**
+     * A slot's click, told where the slot was drawn.
+     *
+     * <p>A plain {@code Runnable} is enough for a slot that only flips a value. It is not enough
+     * for one that opens something anchored to itself: the row list lays the slots out, so it is
+     * the only thing that knows where the popup has to appear.
+     */
+    @FunctionalInterface
+    public interface SlotClick {
+        void fire(int x, int y, int width, int height);
+    }
+
+    /**
      * One row's declaration: what to put in it, not how to draw it.
      *
      * <p>Four slots and no more, read off the seven built-in dependency tabs rather than invented.
@@ -65,6 +81,7 @@ public final class EditorRowList {
         private RowPainter leadingPainter;
         private String text = "";
         private boolean hovered;
+        private boolean caretUp;
         private final List<Slot> slots = new ArrayList<>();
 
         /**
@@ -94,7 +111,7 @@ public final class EditorRowList {
         }
 
         public Row badge(String text, int colour) {
-            slots.add(new Slot(text, colour, null, null));
+            slots.add(new Slot(text, colour, null, null, false));
             return this;
         }
 
@@ -104,18 +121,33 @@ public final class EditorRowList {
         }
 
         public Row button(String label, @Nullable String tooltip, Runnable onClick) {
-            slots.add(new Slot(label, 0xCCCCCC, tooltip, onClick));
+            slots.add(new Slot(label, 0xCCCCCC, tooltip, (x, y, w, h) -> onClick.run(), false));
+            return this;
+        }
+
+        /**
+         * A button that opens a picker: the same box, plus the caret every other dropdown in the
+         * editor wears. The handler is told the slot's rectangle, so the popup can hang off it.
+         *
+         * @param expanded whether the popup is up, which turns the caret over
+         */
+        public Row dropdown(String label, @Nullable String tooltip, boolean expanded, SlotClick onClick) {
+            slots.add(new Slot(label, 0xCCCCCC, tooltip, onClick, true));
+            this.caretUp = expanded;
             return this;
         }
     }
 
-    private record Slot(String text, int colour, @Nullable String tooltip, @Nullable Runnable onClick) {}
+    private record Slot(String text, int colour, @Nullable String tooltip,
+                        @Nullable SlotClick onClick, boolean caret) {}
 
     /** A button's rectangle from the last frame, so a click can find it. */
-    private record ButtonZone(int x, int y, int width, int height, Runnable onClick) {}
+    private record ButtonZone(int x, int y, int width, int height, SlotClick onClick) {}
 
     private final int rowHeight;
     private final Map<Integer, Anim> hoverAnim = new HashMap<>();
+    /** Caret rotation per row, so a dropdown slot turns over instead of jumping. */
+    private final Map<Integer, Anim> caretAnim = new HashMap<>();
     private final List<ButtonZone> buttonZones = new ArrayList<>();
     private int hoveredRow = -1;
     private long hoverStart = 0;
@@ -204,8 +236,8 @@ public final class EditorRowList {
         for (ButtonZone zone : buttonZones) {
             if (ctx.mouseX() >= zone.x() && ctx.mouseX() < zone.x() + zone.width()
                     && ctx.mouseY() >= zone.y() && ctx.mouseY() < zone.y() + zone.height()) {
-                // The accessor hands back the handler; run() is what fires it.
-                zone.onClick().run();
+                // The accessor hands back the handler; fire() is what runs it.
+                zone.onClick().fire(zone.x(), zone.y(), zone.width(), zone.height());
                 return true;
             }
         }
@@ -249,7 +281,7 @@ public final class EditorRowList {
         int used = SLOT_MARGIN;
         for (int i = row.slots.size() - 1; i >= 0; i--) {
             Slot slot = row.slots.get(i);
-            int slotW = font.width(slot.text()) + 6;
+            int slotW = font.width(slot.text()) + 6 + (slot.caret() ? CARET_SLOT_W : 0);
             int slotX = right - used - slotW;
             if (slot.onClick() == null) {
                 g.drawString(font, slot.text(), slotX, textY, slot.colour(), false);
@@ -261,6 +293,12 @@ public final class EditorRowList {
                         slotHovered ? 0xFF3D3520 : 0xFF2A2A2A);
                 g.drawString(font, slot.text(), slotX + 3, textY,
                         slotHovered ? 0xFFCC00 : 0xCCCCCC, false);
+                if (slot.caret()) {
+                    float flip = caretAnim.computeIfAbsent(index, k -> new Anim())
+                            .ramp(row.caretUp ? 1.0f : 0.0f, Timing.POPUP_MS);
+                    DropdownChrome.drawCaret(g, slotX + slotW - 8, cardY + rowHeight / 2 - 2,
+                            slotHovered ? 0xFFDDDDDD : 0xFF999999, flip);
+                }
                 buttonZones.add(new ButtonZone(slotX, cardY + 3, slotW, rowHeight - 6, slot.onClick()));
                 if (slotHovered && slot.tooltip() != null) {
                     ctx.tooltip("row." + index + ".slot." + i, slot.tooltip());

@@ -16,6 +16,9 @@ import net.bananemdnsa.historystages.api.editor.DependencyTab;
 import net.bananemdnsa.historystages.client.editor.dep.IdCountTab;
 import net.bananemdnsa.historystages.client.editor.dep.EntityKillTab;
 import net.bananemdnsa.historystages.client.editor.dep.IndividualStageTab;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownOverlay;
+import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
 import net.bananemdnsa.historystages.client.editor.dep.ItemRequirementTab;
 import net.bananemdnsa.historystages.api.editor.RequirementEditor;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
@@ -122,6 +125,12 @@ public class DependencyEditorScreen extends Screen {
 
     // Layout
     private static final int LEFT_PANEL_W = 130;
+
+    /** Height of the AND/OR badge in a group card. */
+    private static final int LOGIC_BADGE_H = 12;
+
+    /** What a group's logic may be, in the order the picker offers it. */
+    private static final List<String> LOGIC_OPTIONS = List.of("AND", "OR");
     private static final int CARD_HEIGHT = 22;
     private static final int CARD_GAP = 3;
     private static final int TAB_HEIGHT = 16;
@@ -325,22 +334,70 @@ public class DependencyEditorScreen extends Screen {
      * its overlays is showing.
      */
     private boolean isOverlayOpen() {
-        return (addonPicker() != null && addonPicker().isVisible()) || actionOverlay() != null;
+        return (addonPicker() != null && addonPicker().isVisible()) || screenOverlay() != null;
     }
 
     /**
-     * The overlay a declared action put up, while it is still up.
+     * Whichever overlay this screen itself put up, while it is still holding input.
      *
-     * <p>Drops the reference as soon as the popup hides itself. Holding on to a hidden overlay is
+     * <p>Two of them: the popup a declared action opens, and the group's AND/OR picker. One
+     * accessor rather than two, because every input path already asks this one first and a second
+     * question beside it would be six more lines that must not be forgotten.
+     *
+     * <p>Drops the action overlay as soon as it hides itself. Holding on to a hidden overlay is
      * how an editor stops responding without throwing anything: every click keeps being forwarded
-     * to something invisible.
+     * to something invisible. The logic picker is not held here at all once closed — it is still
+     * drawn for a moment by {@link #renderLogicPicker}, but a popup rolling up must not go on
+     * swallowing clicks.
      */
-    private PickerOverlay actionOverlay() {
+    private PickerOverlay screenOverlay() {
         if (actionOverlay != null && !actionOverlay.isVisible()) actionOverlay = null;
+        if (logicPicker != null && logicPicker.isVisible()) return logicPicker;
         return actionOverlay;
     }
 
+    /**
+     * Draws the AND/OR picker, including the roll-up after the click that closed it.
+     *
+     * <p>Not folded into the overlay rendering above: that one draws whatever currently holds
+     * input, and this popup deliberately outlives that by the length of its own animation.
+     */
+    private void renderLogicPicker(GuiGraphics g, int mouseX, int mouseY) {
+        if (logicPicker != null) logicPicker.render(g, this.font, mouseX, mouseY);
+    }
+
     // --- Count dialog ---
+
+    /**
+     * Opens the AND/OR picker under the badge that was clicked.
+     *
+     * <p>One instance across all five groups, so {@code logicPickerGroup} is what a pick lands on.
+     * The value is pushed in before it opens: the last group looked at is not this one.
+     */
+    private void openLogicPicker(int groupIndex, int x, int y) {
+        if (groupIndex < 0 || groupIndex >= groups.size()) return;
+        if (logicPicker == null) {
+            logicPicker = new DropdownOverlay(new EnumDropdown(LOGIC_OPTIONS,
+                    groups.get(groupIndex).getLogic(), 0, Component::literal, this::applyLogic));
+        }
+        logicPickerGroup = groupIndex;
+        logicPicker.dropdown().setValue(groups.get(groupIndex).getLogic());
+        logicPicker.openAt(x, y, LOGIC_BADGE_H);
+    }
+
+    /** Guarded on the group still being there: a picker can outlive the row it was opened from. */
+    private void applyLogic(String logic) {
+        if (logicPickerGroup < 0 || logicPickerGroup >= groups.size()) return;
+        groups.get(logicPickerGroup).setLogic(logic);
+        hasChanges = true;
+    }
+
+    /** Wide enough for either label plus its caret, so the badge does not resize as it is picked. */
+    private int logicBadgeWidth() {
+        int widest = 0;
+        for (String option : LOGIC_OPTIONS) widest = Math.max(widest, this.font.width(option));
+        return widest + 6 + DropdownChrome.CARET_WIDTH;
+    }
 
     private boolean atGroupLimit() {
         return groups.size() >= DependencyGroup.MAX_GROUPS;
@@ -437,8 +494,9 @@ public class DependencyEditorScreen extends Screen {
 
         if (addonPicker() != null)
             addonPicker().render(g, this.font, mouseX, mouseY);
-        if (actionOverlay() != null)
-            actionOverlay().render(g, this.font, mouseX, mouseY);
+        if (screenOverlay() != null)
+            screenOverlay().render(g, this.font, mouseX, mouseY);
+        renderLogicPicker(g, mouseX, mouseY);
 
         // Context menu on top of everything
         contextMenu.render(g, this.font, mouseX, mouseY);
@@ -495,21 +553,26 @@ public class DependencyEditorScreen extends Screen {
             g.drawString(this.font, t("editor.historystages.dep.group", i + 1), 14, y + 3,
                     selected ? 0xFFFFFF : 0xCCCCCC, false);
 
-            // AND/OR toggle button
+            // AND/OR picker
             String logic = group.getLogic();
-            int badgeX = LEFT_PANEL_W - 28;
+            int badgeW = logicBadgeWidth();
+            int badgeX = LEFT_PANEL_W - 3 - badgeW;
             boolean badgeHovered = !isOverlayOpen() && !contextMenu.isVisible() && mouseX >= badgeX
-                    && mouseX <= badgeX + 25 && mouseY >= y + 2 && mouseY < y + 14;
+                    && mouseX < badgeX + badgeW && mouseY >= y + 2 && mouseY < y + LOGIC_BADGE_H + 2;
             int badgeBg = badgeHovered ? 0xFF3D3520 : 0xFF2A2A2A;
+            // Kept from the old badge: the logic is legible at a glance by colour, which is worth
+            // more in a column of five groups than the label alone.
             int badgeColor = group.isOr() ? (badgeHovered ? 0xFF77CCFF : 0xFF55AAFF)
                     : (badgeHovered ? 0xFF77FF77 : 0xFF55FF55);
-            g.fill(badgeX, y + 2, badgeX + 25, y + 14, badgeBg);
-            g.fill(badgeX, y + 12, badgeX + 25, y + 14, badgeHovered ? 0xAAFFCC00 : 0x40FFCC00);
+            g.fill(badgeX, y + 2, badgeX + badgeW, y + LOGIC_BADGE_H + 2, badgeBg);
             g.drawString(this.font, logic, badgeX + 3, y + 3, badgeColor, false);
+            DropdownChrome.drawCaret(g, badgeX + badgeW - 7, y + LOGIC_BADGE_H / 2 + 1,
+                    badgeHovered ? 0xFFDDDDDD : 0xFF999999,
+                    logicPickerGroup == i && logicPicker != null && logicPicker.isVisible()
+                            ? 1.0f : 0.0f);
 
             if (badgeHovered) {
-                tooltip = new String[] { "logic." + i,
-                        "Click to toggle.\nAND: All conditions must be met.\nOR: Any one condition is enough." };
+                tooltip = new String[] { "logic." + i, t("editor.historystages.dep.tooltip.logic") };
             }
 
             int entryCount = countGroupEntries(group);
@@ -858,8 +921,8 @@ public class DependencyEditorScreen extends Screen {
         }
 
         // Widget overlays
-        if (actionOverlay() != null)
-            return actionOverlay().mouseClicked(mouseX, mouseY);
+        if (screenOverlay() != null)
+            return screenOverlay().mouseClicked(mouseX, mouseY);
         if (addonPicker() != null && addonPicker().isVisible())
             return addonPicker().mouseClicked(mouseX, mouseY);
 
@@ -930,14 +993,12 @@ public class DependencyEditorScreen extends Screen {
                         contextMenu.show(mx, my, this.font);
                         return true;
                     }
-                    // Left-click on AND/OR badge: toggle logic
-                    int badgeX2 = LEFT_PANEL_W - 28;
-                    if (button == 0 && mx >= badgeX2 && mx <= badgeX2 + 25 && my >= y + 2 && my < y + 14) {
-                        DependencyGroup grp = groups.get(i);
-                        grp.setLogic(grp.isOr() ? "AND" : "OR");
-                        hasChanges = true;
-                        Minecraft.getInstance().getSoundManager()
-                                .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+                    // Left-click on the AND/OR badge: open its picker
+                    int badgeW2 = logicBadgeWidth();
+                    int badgeX2 = LEFT_PANEL_W - 3 - badgeW2;
+                    if (button == 0 && mx >= badgeX2 && mx < badgeX2 + badgeW2
+                            && my >= y + 2 && my < y + LOGIC_BADGE_H + 2) {
+                        openLogicPicker(i, badgeX2, y + 2);
                         return true;
                     }
                     // Left-click: select
@@ -1031,6 +1092,12 @@ public class DependencyEditorScreen extends Screen {
      */
     private PickerOverlay actionOverlay;
 
+    /** The group list's AND/OR picker, built on first use — it measures labels against the font. */
+    private DropdownOverlay logicPicker;
+
+    /** Which group the open AND/OR picker belongs to, or -1. */
+    private int logicPickerGroup = -1;
+
     /** One row list per requirement id. Created lazily, so a tab that draws itself never gets one. */
     private final Map<String, EditorRowList> rowLists = new HashMap<>();
 
@@ -1089,7 +1156,8 @@ public class DependencyEditorScreen extends Screen {
                     picker.setMultiSelect(true);
                     return picker;
                 },
-                () -> hasChanges = true));
+                () -> hasChanges = true,
+                isIndividual));
 
         buildBuiltInTab("advancement", requirement -> new StringListTab(requirement,
                 (onSelect, alreadyAdded) -> {
@@ -1359,7 +1427,7 @@ public class DependencyEditorScreen extends Screen {
         if (tab instanceof IndividualStageTab individualTab) {
             String stageId = individualTab.idAt(idx);
             contextMenu.addEntry(t("editor.historystages.dep.context.toggle_mode"),
-                    () -> individualTab.toggleMode(idx));
+                    () -> individualTab.cycleMode(idx));
             addCopyEntry(stageId);
             contextMenu.addEntry(t("editor.historystages.duplicate"),
                     () -> individualTab.duplicateAt(idx));
@@ -1520,8 +1588,8 @@ public class DependencyEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (actionOverlay() != null)
-            return actionOverlay().mouseDragged(mouseX, mouseY);
+        if (screenOverlay() != null)
+            return screenOverlay().mouseDragged(mouseX, mouseY);
         if (addonPicker() != null && addonPicker().isVisible())
             return addonPicker().mouseDragged(mouseX, mouseY);
         DependencyTab draggedTab = activeAddonTab();
@@ -1542,7 +1610,7 @@ public class DependencyEditorScreen extends Screen {
             draggingContentScrollbar = false;
             return true;
         }
-        if (actionOverlay() != null && actionOverlay().mouseReleased())
+        if (screenOverlay() != null && screenOverlay().mouseReleased())
             return true;
         if (addonPicker() != null && addonPicker().mouseReleased())
             return true;
@@ -1554,8 +1622,8 @@ public class DependencyEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (actionOverlay() != null)
-            return actionOverlay().keyPressed(keyCode);
+        if (screenOverlay() != null)
+            return screenOverlay().keyPressed(keyCode);
         if (addonPicker() != null && addonPicker().isVisible())
             return addonPicker().keyPressed(keyCode);
         DependencyTab keyTab = activeAddonTab();
@@ -1566,8 +1634,8 @@ public class DependencyEditorScreen extends Screen {
 
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
-        if (actionOverlay() != null)
-            return actionOverlay().charTyped(codePoint);
+        if (screenOverlay() != null)
+            return screenOverlay().charTyped(codePoint);
         if (addonPicker() != null && addonPicker().isVisible())
             return addonPicker().charTyped(codePoint);
         DependencyTab charTab = activeAddonTab();
@@ -1579,8 +1647,8 @@ public class DependencyEditorScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         double delta = scrollY;
-        if (actionOverlay() != null)
-            return actionOverlay().mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (screenOverlay() != null)
+            return screenOverlay().mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (addonPicker() != null && addonPicker().isVisible())
             return addonPicker().mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         DependencyTab scrollTab = activeAddonTab();

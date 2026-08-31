@@ -9,10 +9,12 @@ import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
 import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
+import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.StatDep;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
 import net.bananemdnsa.historystages.api.stage.StageScope;
+import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
 import net.bananemdnsa.historystages.data.saveddata.StageData;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -277,6 +279,65 @@ public final class DependencyCheckerTests {
     private static DependencyGroup stageGroup() {
         DependencyGroup group = new DependencyGroup();
         group.setStages(new ArrayList<>(List.of(GameTestStages.PREFIX + "prerequisite")));
+        return group;
+    }
+
+    // --- An individual stage as a prerequisite, demanded of the researcher alone ---
+
+    @GameTest(template = "empty")
+    public static void playerModeIsUnmetWhileTheResearcherLacksTheStage(GameTestHelper helper) {
+        try {
+            GameTestStages.individual("prerequisite");
+            StageEntry stage = GameTestStages.individual("dependent", playerModeGroup());
+            ServerPlayer player = GameTestPlayers.create(helper);
+
+            if (check(stage, player, StageScope.INDIVIDUAL, null).isFulfilled()) {
+                helper.fail("the researcher does not have the prerequisite individual stage, "
+                        + "but the checker reported the dependent stage as fulfilled");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    /**
+     * The case the mode exists for, and the one that catches it being ignored.
+     *
+     * <p>Nobody is online in a test — the player below is built directly and never joins — so
+     * {@code all_online} and {@code all_ever} both answer no here whatever this player holds. A
+     * {@code player} mode that fell through to either of them would leave this test failing, which
+     * is what makes it worth writing.
+     */
+    @GameTest(template = "empty")
+    public static void playerModeIsMetOnceTheResearcherHasTheStage(GameTestHelper helper) {
+        IndividualStageData data = IndividualStageData.get(helper.getLevel());
+        ServerPlayer player = GameTestPlayers.create(helper);
+        String prerequisite = GameTestStages.PREFIX + "prerequisite";
+        try {
+            GameTestStages.individual("prerequisite");
+            data.addStage(player.getUUID(), prerequisite);
+
+            StageEntry stage = GameTestStages.individual("dependent", playerModeGroup());
+
+            if (!check(stage, player, StageScope.INDIVIDUAL, null).isFulfilled()) {
+                helper.fail("the researcher has the prerequisite individual stage, "
+                        + "but the checker reported the dependent stage as unfulfilled");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+            // Unlocked state lives in SavedData and outlives both the test and the stage entry.
+            data.removeStage(player.getUUID(), prerequisite);
+        }
+    }
+
+    private static DependencyGroup playerModeGroup() {
+        DependencyGroup group = new DependencyGroup();
+        group.setIndividualStages(new ArrayList<>(List.of(new IndividualStageDep(
+                GameTestStages.PREFIX + "prerequisite", IndividualStageDep.MODE_PLAYER))));
         return group;
     }
 

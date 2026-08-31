@@ -192,8 +192,19 @@ public class StageManager {
      * concerned — its item/XP/advancement requirements cannot be evaluated client-side.
      * {@link #hasOtherRequirements()} records whether such unevaluatable requirements exist,
      * which matters for OR groups; see {@code GraphReachability}.
+     *
+     * <p>Two key sets, because drawing and deciding are different questions. {@link #stageKeys()}
+     * is every stage this group names: the dependency exists, so the line is drawn and the layout
+     * places the pair, whatever the viewer can work out. {@link #checkableKeys()} is the subset
+     * the viewing client can actually answer for itself, and it is the only one reachability may
+     * read. An individual stage demanded of everyone online — or of everyone ever seen — is not
+     * in it: that you hold the stage says nothing about whether everybody does, and colouring the
+     * node green on your own copy of it was a claim no client is in a position to make. Such a
+     * reference lands in {@link #hasOtherRequirements()} instead, beside the items and the XP the
+     * client has never been able to evaluate either.
      */
-    public record StageDepGroup(boolean or, Set<String> stageKeys, boolean hasOtherRequirements) {}
+    public record StageDepGroup(boolean or, Set<String> stageKeys, Set<String> checkableKeys,
+                                boolean hasOtherRequirements) {}
 
     /**
      * Dependency groups for the stage graph, over both collections at once, with the group
@@ -219,12 +230,25 @@ public class StageManager {
             if (groups != null) {
                 for (DependencyGroup group : groups) {
                     Set<String> keys = new java.util.LinkedHashSet<>();
-                    for (String ref : group.getStages()) keys.add(graphKey(ref, false));
+                    Set<String> checkable = new java.util.LinkedHashSet<>();
+                    boolean demandedOfEveryone = false;
+                    for (String ref : group.getStages()) {
+                        String key = graphKey(ref, false);
+                        keys.add(key);
+                        checkable.add(key);
+                    }
                     for (net.bananemdnsa.historystages.data.dependency.IndividualStageDep dep
                             : group.getIndividualStages()) {
-                        if (dep.getStageId() != null) keys.add(graphKey(dep.getStageId(), true));
+                        if (dep.getStageId() == null) continue;
+                        String key = graphKey(dep.getStageId(), true);
+                        keys.add(key);
+                        // Only the player mode asks about the viewer, which is the one client-side
+                        // question a client can answer.
+                        if (dep.isPlayer()) checkable.add(key);
+                        else demandedOfEveryone = true;
                     }
-                    collected.add(new StageDepGroup(group.isOr(), keys, group.hasNonStageRequirements()));
+                    collected.add(new StageDepGroup(group.isOr(), keys, checkable,
+                            group.hasNonStageRequirements() || demandedOfEveryone));
                 }
             }
             out.put(graphKey(entry.getKey(), individual), collected);
@@ -694,11 +718,20 @@ public class StageManager {
                         return true;
                     }
                     String mode = dep.getMode();
-                    if (!"all_online".equals(mode) && !"all_ever".equals(mode)) {
+                    if (!net.bananemdnsa.historystages.data.dependency.IndividualStageDep.isValidMode(mode)) {
                         String msg = "Dependency individual_stage '" + dep.getStageId() + "' has invalid mode '" + mode + "' (" + groupLabel + "). Defaulting to all_online.";
                         addMessage(MessageLevel.WARN, msg);
                         DebugLogger.warn("Invalid Dependencies", msg);
-                        dep.setMode("all_online");
+                        dep.setMode(net.bananemdnsa.historystages.data.dependency.IndividualStageDep.MODE_ALL_ONLINE);
+                    } else if (!net.bananemdnsa.historystages.data.dependency.IndividualStageDep
+                            .modesFor(false).contains(mode)) {
+                        // This runs on the global path only. Corrected rather than left alone: the
+                        // editor no longer offers the mode here, so a file carrying it would gate
+                        // on something nobody could see or change again.
+                        String msg = "Dependency individual_stage '" + dep.getStageId() + "' uses mode '" + mode + "', which a global stage cannot use (" + groupLabel + "). Defaulting to all_online.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        dep.setMode(net.bananemdnsa.historystages.data.dependency.IndividualStageDep.MODE_ALL_ONLINE);
                     }
                     return false;
                 });

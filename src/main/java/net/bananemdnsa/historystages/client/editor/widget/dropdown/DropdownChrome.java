@@ -18,6 +18,14 @@ public final class DropdownChrome {
     /** Depth the popup is lifted to, clearing the widgets it overlaps. */
     private static final int POPUP_Z = 400;
 
+    /**
+     * Horizontal room a caret needs beside its label: the 5px glyph plus the clearance on either
+     * side. Public so that everything drawing a collapsed dropdown by hand reserves the same
+     * space — a control whose caret sits two pixels off is a control that looks like a different
+     * control.
+     */
+    public static final int CARET_WIDTH = 8;
+
     private DropdownChrome() {
     }
 

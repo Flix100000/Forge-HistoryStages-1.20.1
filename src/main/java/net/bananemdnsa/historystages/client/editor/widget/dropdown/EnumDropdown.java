@@ -81,6 +81,16 @@ public class EnumDropdown {
         if (value != null && options.contains(value)) current = value;
     }
     public boolean isExpanded() { return expanded; }
+
+    /**
+     * Whether the popup still has something to draw — open, or rolling back up.
+     *
+     * <p>Not the same question as {@link #isExpanded()}, and a host that asks the wrong one loses
+     * the close animation: the popup keeps drawing for a moment after the click that dismissed it,
+     * which is what makes it roll up into its button instead of blinking out.
+     */
+    public boolean isShowing() { return expanded || open.value() > 0.02f; }
+
     public void close() { expanded = false; }
 
     /**

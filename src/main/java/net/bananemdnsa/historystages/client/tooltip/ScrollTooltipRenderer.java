@@ -349,8 +349,7 @@ public final class ScrollTooltipRenderer {
         String icon = er != null ? (fulfilled ? icons.fulfilled() : icons.open()) : icons.unknown();
         StageEntry se = StageManager.getIndividualStages().get(dep.getStageId());
         String name = se != null ? se.getDisplayName() : dep.getStageId();
-        String mode = Component.translatable(dep.isAllEver()
-                ? "tooltip.historystages.dep.all" : "tooltip.historystages.dep.online").getString();
+        String mode = Component.translatable(modeKey(dep)).getString();
 
         String template = line.text().isEmpty()
                 ? Language.getInstance().getOrDefault("tooltip.historystages.dep.individual")
@@ -359,6 +358,12 @@ public final class ScrollTooltipRenderer {
         return styledLines(ScrollTooltipLayout.fill(template, vars),
                 fulfilled ? colors.fulfilled() : colors.open(),
                 fulfilled ? ChatFormatting.GREEN : ChatFormatting.GRAY);
+    }
+
+    /** Which suffix the mode reads as: whose stage the scroll is waiting on. */
+    private static String modeKey(IndividualStageDep dep) {
+        if (dep.isPlayer()) return "tooltip.historystages.dep.player";
+        return dep.isAllEver() ? "tooltip.historystages.dep.all" : "tooltip.historystages.dep.online";
     }
 
     private static List<Component> xpComponent(ScrollTooltipLine line, XpLevelDep xp, RequirementResult.EntryResult er,
