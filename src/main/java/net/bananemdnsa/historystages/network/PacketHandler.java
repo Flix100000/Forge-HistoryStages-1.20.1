@@ -214,11 +214,27 @@ public class PacketHandler {
          });
     }
 
+    /**
+     * Resends the recipe list, and the recipe book behind it.
+     *
+     * <p><strong>Never send the list on its own.</strong> {@code handleUpdateRecipes} throws away
+     * every {@code RecipeCollection} the client had and builds new ones, and a new collection
+     * knows none of the player's recipes until the book is resent — so the vanilla recipe book at
+     * the crafting table goes blank and stays blank, past an F3+T, until the player rejoins.
+     *
+     * <p>Vanilla pairs the two everywhere it sends them: on join and in
+     * {@code PlayerList.reloadResources}. This path sent only the first half.
+     *
+     * <p>{@code getOrderedRecipes} rather than {@code getRecipes} for the same reason — it is
+     * what vanilla puts in this packet. The two hold the same recipes, so this is about not
+     * differing from vanilla without a reason to.
+     */
     private static void resyncRecipes(MinecraftServer server) {
         ClientboundUpdateRecipesPacket recipePacket = new ClientboundUpdateRecipesPacket(
-                server.getRecipeManager().getRecipes());
+                server.getRecipeManager().getOrderedRecipes());
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             p.connection.send(recipePacket);
+            p.getRecipeBook().sendInitialRecipeBook(p);
         }
     }
 }

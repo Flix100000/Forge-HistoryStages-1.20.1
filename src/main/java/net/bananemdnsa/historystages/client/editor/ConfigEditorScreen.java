@@ -335,6 +335,11 @@ public class ConfigEditorScreen extends Screen {
         visualSections.add(structureVisuals);
 
         // JEI hiding (Issue #64)
+        ConfigSection recipeBook = new ConfigSection("editor.historystages.config.recipe_book");
+        recipeBook.add(new ConfigEntry("recipe_book.hideLockedRecipesInBook", "hideLockedRecipesInBook", ConfigType.BOOLEAN,
+                Config.VISUAL.hideLockedRecipesInBook.get().toString(), true, "true"));
+        visualSections.add(recipeBook);
+
         ConfigSection jeiHiding = new ConfigSection("editor.historystages.config.jei_hiding");
         jeiHiding.add(new ConfigEntry("jei_hiding.hideLockedItemsInJei", "hideLockedItemsInJei", ConfigType.BOOLEAN,
                 Config.VISUAL.hideLockedItemsInJei.get().toString(), true, "false"));
@@ -403,6 +408,8 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.msgEntityItemLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.enchantmentLocked", "msgEnchantmentLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgEnchantmentLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.recipeLocked", "msgRecipeLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgRecipeLocked.get(), true, ""));
         visualSections.add(lockMessages);
 
         ConfigSection scrollTooltip = new ConfigSection("editor.historystages.config.scroll_tooltip");
@@ -511,6 +518,8 @@ public class ConfigEditorScreen extends Screen {
                 Config.GAMEPLAY.individualLockBlockInteraction.get().toString(), false, "true"));
         individualCommon.add(new ConfigEntry("individual_stages.lockEnchanting", "individualLockEnchanting", ConfigType.BOOLEAN,
                 Config.GAMEPLAY.individualLockEnchanting.get().toString(), false, "true"));
+        individualCommon.add(new ConfigEntry("individual_stages.lockRecipes", "individualLockRecipes", ConfigType.BOOLEAN,
+                Config.GAMEPLAY.individualLockRecipes.get().toString(), false, "true"));
         gameplaySections.add(individualCommon);
 
         ConfigSection research = new ConfigSection("editor.historystages.config.research");

@@ -1485,13 +1485,6 @@ public class StageManager {
     }
 
     private static void stripUnsupportedIndividualCategories(String stageId, StageEntry entry) {
-        if (entry.getRecipes() != null && !entry.getRecipes().isEmpty()) {
-            String msg = "Individual stage '" + stageId + "' contains 'recipes' — not supported for individual stages. Entries removed.";
-            addMessage(MessageLevel.ERROR, msg);
-            DebugLogger.error("Individual Stage Loading", msg);
-            entry.getRecipes().clear();
-        }
-
         if (entry.getEntities().getSpawnlock() != null && !entry.getEntities().getSpawnlock().isEmpty()) {
             String msg = "Individual stage '" + stageId + "' contains 'entities.spawnlock' — not supported for individual stages. Entries removed.";
             addMessage(MessageLevel.ERROR, msg);

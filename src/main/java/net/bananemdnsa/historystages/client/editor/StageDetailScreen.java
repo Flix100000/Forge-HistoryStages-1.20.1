@@ -326,7 +326,7 @@ public class StageDetailScreen extends Screen {
      */
     private final String targetFolder;
 
-    // Tabs that are disabled for individual stages (Recipes=4, Spawnlock=7)
+    // Tabs that are disabled for individual stages (Spawnlock=7)
     private boolean isTabDisabled(int tab) {
         CategoryTab categoryTab = categoryTabs.get(tab);
         return categoryTab != null && isIndividual && !categoryTab.availableForIndividualStages();
@@ -432,10 +432,11 @@ public class StageDetailScreen extends Screen {
         @SuppressWarnings("unchecked")
         LockCategory<String> recipeCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:recipes");
-        // Recipes are global-only; there is no per-player recipe gate in the data model.
+        // Both scopes: the recipes tab is offered on individual stages too, and its picker then
+        // filters to the recipe types a per-player gate can actually reach.
         CategoryTab recipeTab = new StringListCategoryTab(recipeCategory,
                 (onSelect, alreadyAdded) -> {
-                    SearchableRecipeList list = new SearchableRecipeList(onSelect, alreadyAdded);
+                    SearchableRecipeList list = new SearchableRecipeList(onSelect, alreadyAdded, isIndividual);
                     list.setKeepVisibleOnSelect(true);
                     return list;
                 },

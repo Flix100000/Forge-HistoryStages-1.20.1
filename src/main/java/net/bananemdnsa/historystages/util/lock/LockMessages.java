@@ -44,4 +44,8 @@ public final class LockMessages {
     public static MutableComponent enchantmentLocked() {
         return resolve(Config.VISUAL.msgEnchantmentLocked, "message.historystages.enchantment_locked");
     }
+
+    public static MutableComponent recipeLocked() {
+        return resolve(Config.VISUAL.msgRecipeLocked, "message.historystages.recipe_locked");
+    }
 }

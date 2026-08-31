@@ -48,6 +48,22 @@ public final class LegacyConfigMap {
     private static final Map<String, Destination> MOVES = buildMoves();
     private static final Map<String, String> DROPPED = buildDropped();
 
+    /**
+     * Settings that did not exist before the split, as {@code "<TARGET>|<path>"}.
+     *
+     * <p>They have no old home to come from, and that is not an omission: a setting nobody could
+     * have configured in 5.x cannot lose a value on the way over. Without this list the coverage
+     * test would demand a migration entry for them, and the only way to satisfy it would be to
+     * claim an old key that never existed — a lie the table would then carry until 6.3.
+     */
+    private static final Set<String> ADDED_SINCE = Set.of(
+            // Individual stages could not gate recipes at all before 6.0, so neither the switch
+            // nor the message a blocked recipe-book click sends had anything to configure.
+            "GAMEPLAY|individual_stages.lockRecipes",
+            "VISUAL|lock_messages.recipeLocked",
+            // The vanilla recipe book showed locked recipes before 6.0; there was no switch.
+            "VISUAL|recipe_book.hideLockedRecipesInBook");
+
     private LegacyConfigMap() {}
 
     /**
@@ -87,6 +103,18 @@ public final class LegacyConfigMap {
         for (Destination destination : MOVES.values()) {
             out.add(destination.target().name() + "|" + destination.path());
         }
+        return out;
+    }
+
+    /**
+     * Every setting the table can account for: the ones that moved, plus the ones that are new.
+     *
+     * <p>What the coverage test asks against. A key in neither half is one an updating pack
+     * silently loses.
+     */
+    public static Set<String> accountedFor() {
+        Set<String> out = destinations();
+        out.addAll(ADDED_SINCE);
         return out;
     }
 

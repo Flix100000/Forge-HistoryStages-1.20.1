@@ -72,11 +72,21 @@ public final class StageStates {
         broadcastGlobalUnlock(level.getServer(), stageId, displayName, entry);
 
         invalidateLockCaches();
+
         MinecraftServer unlockServer = level.getServer();
         if (unlockServer != null) {
             // Recipes gate globally only, so this belongs on the global paths and nowhere else.
-            // Without it a stage unlocked at a pedestal grants its recipes to nobody until
-            // something else reloads them — which was true of every path except the editor's.
+            //
+            // This was removed once, on the grounds that the recipe list it resends is provably
+            // unchanged (1299 before, the same 1299 after) and that the gate flips on its own —
+            // both of which are true, and two GameTests hold the second. Removing it broke JEI
+            // anyway: items hidden by a stage never came back after an unlock. The resend restarts
+            // JEI, and that restart is doing work nothing else does. Two attempts to replace it
+            // from our side failed, so it stays until someone can explain what JEI does on a
+            // restart that tryApplyDiff does not.
+            //
+            // If you are about to remove it again: the symptom is JEI-only, it does not show up in
+            // any test, and it needs a client with hideLockedItemsInJei on to see.
             PacketHandler.reloadRecipesOnly(unlockServer);
         }
 
@@ -146,16 +156,8 @@ public final class StageStates {
 
         MinecraftServer server = level.getServer();
         if (server != null) {
-            // The same recipe-only reload as unlocking, which it was not until 2026-08-24: a full
-            // reloadResources had stood here since the temporary-stage mode was added, and it
-            // stutters visibly on a large pack.
-            //
-            // Nothing this mod does needs the rest of it. Recipes are not removed from the game
-            // when a stage locks — they are asked about at craft and display time — so the reload
-            // exists to resend the list to clients, which reloadRecipesOnly does. And the mod
-            // registers no reload listener at all: no AddReloadListenerEvent, no TagsUpdatedEvent,
-            // no OnDatapackSyncEvent. Tags, advancements and loot tables were being rebuilt for
-            // nobody.
+            // The same recipe-only reload as unlocking, and kept for the same reason — see the
+            // note there before removing it.
             PacketHandler.reloadRecipesOnly(server);
         }
         return true;
