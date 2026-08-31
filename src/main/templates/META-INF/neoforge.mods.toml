@@ -8,6 +8,8 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
 description='''${mod_description}'''
+logoFile="assets/${mod_id}/icon.png"
+logoBlur=false
 
 [[mixins]]
 config="${mod_id}.mixins.json"
