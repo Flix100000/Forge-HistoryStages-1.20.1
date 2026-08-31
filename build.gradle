@@ -198,25 +198,26 @@ dependencies {
     // compileOnly "mezz.jei:jei-${mc_version}-neoforge-api:${jei_version}"
     // We add the full version to localRuntime, not runtimeOnly, so that we do not publish a dependency on it
     // localRuntime "mezz.jei:jei-${mc_version}-neoforge:${jei_version}"
-    implementation "curse.maven:lootr-361276:7293581"
+    implementation "curse.maven:lootr-361276:8695784"
 
-    // JEI for MC 1.21 NeoForge
-    compileOnly "mezz.jei:jei-1.21-common-api:19.8.2.99"
-    compileOnly "mezz.jei:jei-1.21-neoforge-api:19.8.2.99"
-    localRuntime "mezz.jei:jei-1.21-neoforge:19.8.2.99"
+    // JEI for MC 1.21.1 NeoForge. The 1.21 artifacts stop at 19.8.2.99; everything newer is
+    // published under the 1.21.1 id, which is the version this mod builds against anyway.
+    compileOnly "mezz.jei:jei-1.21.1-common-api:19.51.0.417"
+    compileOnly "mezz.jei:jei-1.21.1-neoforge-api:19.51.0.417"
+    localRuntime "mezz.jei:jei-1.21.1-neoforge:19.51.0.417"
 
-    // EMI for MC 1.21 NeoForge
-    compileOnly "dev.emi:emi-neoforge:1.1.10+1.21:api"
-    //localRuntime "dev.emi:emi-neoforge:1.1.10+1.21"
+    // EMI for MC 1.21.1 NeoForge
+    compileOnly "dev.emi:emi-neoforge:1.1.24+1.21.1:api"
+    //localRuntime "dev.emi:emi-neoforge:1.1.24+1.21.1"
 
     // Jade
-    implementation "curse.maven:jade-324717:7545219"
+    implementation "curse.maven:jade-324717:8591319"
 
     // FTB Quests (optional integration) — targets MC 1.21.1 (2101.x). FTBQuests for MC 1.21 (2100.x) never left beta and has broken tooltips for custom tasks/rewards.
-    implementation "curse.maven:ftb-library-forge-404465:7746959"
-    implementation "curse.maven:ftb-teams-forge-404468:7878281"
-    implementation "curse.maven:ftb-quests-forge-289412:7878289"
-    implementation "curse.maven:architectury-api-419699:5786327"
+    implementation "curse.maven:ftb-library-forge-404465:8569579"
+    implementation "curse.maven:ftb-teams-forge-404468:8724782"
+    implementation "curse.maven:ftb-quests-forge-289412:8730556"
+    implementation "curse.maven:architectury-api-419699:8492726"
 
     // Curios
     compileOnly "top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1"
@@ -225,7 +226,7 @@ dependencies {
     compileOnly "io.wispforest:accessories-neoforge:1.1.0-beta.53+1.21.1"
 
     // Spell Engine API (optional integration — adapter only loads when the mod is present at runtime)
-    compileOnly "maven.modrinth:spell-engine:1.9.9+1.21.1-neoforge"
+    compileOnly "maven.modrinth:spell-engine:1.10.4+1.21.1-neoforge"
 
     // KubeJS (optional integration). The bridge is reached only because KubeJS reads
     // kubejs.plugins.txt, so nothing here is a hard dependency. localRuntime as well as
