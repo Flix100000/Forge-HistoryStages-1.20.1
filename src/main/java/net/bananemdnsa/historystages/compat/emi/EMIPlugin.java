@@ -9,6 +9,7 @@ import dev.emi.emi.api.recipe.EmiCraftingRecipe;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.compat.ScrollVariants;
+import net.bananemdnsa.historystages.compat.StageDisplayPath;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
 import net.bananemdnsa.historystages.research.BoosterUtil;
@@ -50,7 +51,7 @@ public class EMIPlugin implements EmiPlugin {
                         List.of(open.copy().setRemainder(open.copy()), EmiStack.of(Items.PAPER)),
                         EmiStack.of(ScrollVariants.createScroll(stageId)),
                         ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID,
-                                "reseal_scroll/" + stageId.replace(':', '_'))));
+                                "reseal_scroll/" + StageDisplayPath.of(stageId))));
             }
         }
 

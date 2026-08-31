@@ -18,6 +18,7 @@ import mezz.jei.api.runtime.IJeiRuntime;
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.compat.ScrollVariants;
+import net.bananemdnsa.historystages.compat.StageDisplayPath;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.init.ModBlocks;
 import net.bananemdnsa.historystages.init.ModItems;
@@ -87,12 +88,20 @@ public class JEIPlugin implements IModPlugin {
         try {
             boolean hideItems = Config.VISUAL.hideLockedItemsInJei.get();
             boolean hideRecipes = Config.VISUAL.hideLockedRecipesInJei.get();
-            REFRESHER.applyInitial(hideItems, () -> computeLockedItems(jeiRuntime.getIngredientManager()));
+            // The count, not just the switches. A pass that reports items=true and then hides
+            // nothing looks identical in the log to one that worked, and telling those two apart
+            // is the whole question when items come back after a stage unlock.
+            java.util.concurrent.atomic.AtomicInteger lockedCount = new java.util.concurrent.atomic.AtomicInteger(-1);
+            REFRESHER.applyInitial(hideItems, () -> {
+                Set<ItemStack> locked = computeLockedItems(jeiRuntime.getIngredientManager());
+                lockedCount.set(locked.size());
+                return locked;
+            });
             applyRecipeHiding(hideRecipes, jeiRuntime);
             // Seed the name-affected baseline without churn (items were already added with the
             // replaced name in effect).
             prevNameAffectedIds = computeNameAffectedIds(jeiRuntime.getIngredientManager());
-            LOGGER.info("[HistoryStages/JEI] Initial hide pass complete (items={}, recipes={}).", hideItems, hideRecipes);
+            LOGGER.info("[HistoryStages/JEI] Initial hide pass complete (items={}, recipes={}, lockedItems={}).", hideItems, hideRecipes, lockedCount.get());
         } catch (Exception e) {
             LOGGER.warn("[HistoryStages/JEI] Initial hide pass failed", e);
         }
@@ -116,6 +125,10 @@ public class JEIPlugin implements IModPlugin {
             // Re-read items whose hidden-display name just changed (e.g. a stage unlocked),
             // so JEI's cached names + search index reflect the new name.
             refreshNameChangedItems(runtime);
+            // Kept from the debugging round: says outright how much is hidden after a stage
+            // change, which is the number nobody had when JEI last misbehaved here.
+            LOGGER.info("[HistoryStages/JEI] Stage change applied (items={}, stillHidden={}).",
+                    hideItems, r.currentlyHiddenItems().size());
         } catch (Exception e) {
             LOGGER.warn("[HistoryStages/JEI] applyDiff failed", e);
         }
@@ -290,7 +303,7 @@ public class JEIPlugin implements IModPlugin {
                 inputs.add(Ingredient.of(Items.PAPER));
                 reseal.add(new RecipeHolder<>(
                         ResourceLocation.fromNamespaceAndPath(HistoryStages.MOD_ID,
-                                "reseal_scroll/" + stageId.replace(':', '_')),
+                                "reseal_scroll/" + StageDisplayPath.of(stageId)),
                         new ShapelessRecipe("", CraftingBookCategory.MISC,
                                 ScrollVariants.createScroll(stageId), inputs)));
             }
