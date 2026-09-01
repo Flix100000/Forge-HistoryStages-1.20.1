@@ -404,6 +404,8 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.msgMobUnknown.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.itemLocked", "msgItemLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgItemLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.fluidLocked", "msgFluidLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgFluidLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.blockLocked", "msgBlockLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgBlockLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.entityItemLocked", "msgEntityItemLocked", ConfigType.RICH_TEXT,

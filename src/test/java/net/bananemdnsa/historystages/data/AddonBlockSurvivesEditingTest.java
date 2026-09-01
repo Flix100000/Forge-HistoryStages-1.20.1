@@ -105,7 +105,7 @@ class AddonBlockSurvivesEditingTest {
 
         // Fields the editor no longer sets by name because a CategoryTab stores them through
         // LockCategory.write(). This list grows as tabs migrate onto the category-driven path.
-        List<String> storedByACategoryTab = List.of("items", "tags", "mods", "modExceptions", "recipes", "dimensions", "structures", "biomes", "entities");
+        List<String> storedByACategoryTab = List.of("items", "fluids", "tags", "mods", "modExceptions", "recipes", "dimensions", "structures", "biomes", "entities");
         assertTrue(body.contains("tab.store(newEntry)"),
                 "the snapshot must still run the category tabs store loop");
         unset.removeAll(storedByACategoryTab);

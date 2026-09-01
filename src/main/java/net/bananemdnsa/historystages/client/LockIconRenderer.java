@@ -41,6 +41,30 @@ public final class LockIconRenderer {
         return null;
     }
 
+    /**
+     * The lock-icon texture for a gated fluid, or {@code null} when none should be drawn.
+     *
+     * <p>A separate entry point because a fluid in a recipe viewer is not an {@link ItemStack}
+     * and never passes through {@link #iconFor}: the vanilla decorator that draws the overlay is
+     * an item decorator, so a fluid slot got nothing at all until this existed.
+     *
+     * <p>No dual-phase icon. That distinction is answered from a stack, and the fluid question
+     * has none — a fluid gated globally and individually at once shows the global lock, which is
+     * the truthful half of the answer rather than a guess at the other.
+     */
+    public static ResourceLocation iconForFluid(String fluidId) {
+        if (!Config.VISUAL.showLockIcons.get()) return null;
+        if (fluidId == null) return null;
+
+        boolean globallyLocked = StageLockHelper.isFluidActionLockedForClient(fluidId, "icon");
+        boolean individuallyLocked = !globallyLocked && Config.VISUAL.showSilverLockIcons.get()
+                && StageLockHelper.isFluidActionLockedByIndividualStageClient(fluidId, "icon");
+
+        if (globallyLocked) return LOCK_ICON;
+        if (individuallyLocked) return SILVER_LOCK_ICON;
+        return null;
+    }
+
     /** Draws the given lock icon as an 8x8 overlay at the slot's top-left corner. */
     public static void draw(GuiGraphics guiGraphics, ResourceLocation icon, int x, int y) {
         guiGraphics.pose().pushPose();

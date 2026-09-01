@@ -39,6 +39,21 @@ public interface LockCategory<T> {
         return java.util.EnumSet.allOf(StageScope.class);
     }
 
+    /**
+     * The action vocabulary an entry of this category may narrow itself to.
+     *
+     * <p>A property of the subject, not of the editor: a fluid is never worn and never mined, so
+     * offering it {@code equip} or {@code break} would be a checkbox nothing could honour. The
+     * editor reads the list from here rather than knowing it, which is also what lets an addon
+     * declare actions of its own.
+     *
+     * <p>Defaults to {@link LockActions#ITEM} — the ten the mod has always offered — so a
+     * category written before this method existed keeps behaving exactly as it did.
+     */
+    default List<String> lockActions() {
+        return LockActions.ITEM;
+    }
+
     /** Lang key for the editor tab tooltip. */
     String tooltipLangKey();
 

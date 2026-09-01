@@ -24,6 +24,11 @@ public final class OpenScrollContent {
     public static final String DIMENSIONS_KEY = "gui.historystages.open_scroll.world.dimensions";
     public static final String STRUCTURES_KEY = "gui.historystages.open_scroll.world.structures";
     public static final String BIOMES_KEY = "gui.historystages.open_scroll.world.biomes";
+    /**
+     * Fluids sit in the world group rather than beside the items, because the group renders a
+     * plain id list and the item list renders icons — a fluid id has no item icon to draw.
+     */
+    public static final String FLUIDS_KEY = "gui.historystages.open_scroll.world.fluids";
 
     /** The item ids behind an item tag. The client implementation asks the item registry. */
     public interface TagResolver {
@@ -75,12 +80,13 @@ public final class OpenScrollContent {
         return out;
     }
 
-    /** Dimensions, structures, biomes — a group with nothing in it gets no heading. */
+    /** Dimensions, structures, biomes, fluids — a group with nothing in it gets no heading. */
     private static List<OpenScrollWorldGroup> world(StageEntry entry) {
-        List<OpenScrollWorldGroup> out = new ArrayList<>(3);
+        List<OpenScrollWorldGroup> out = new ArrayList<>(4);
         addGroup(out, DIMENSIONS_KEY, entry.getDimensions());
         addGroup(out, STRUCTURES_KEY, entry.getStructures());
         addGroup(out, BIOMES_KEY, entry.getBiomes());
+        addGroup(out, FLUIDS_KEY, entry.getAllFluidIds());
         return out;
     }
 

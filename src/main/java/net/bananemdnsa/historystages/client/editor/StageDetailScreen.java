@@ -13,6 +13,7 @@ import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityL
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableFluidList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableModList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
@@ -259,7 +260,9 @@ public class StageDetailScreen extends Screen {
     private int cachedOverrideX, cachedOverrideY, cachedOverrideW, cachedOverrideH;
 
     // All recognized lock actions in display order
-    private static final String[] LOCK_ACTION_KEYS = {"equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"};
+    // No constant vocabulary here any more: the list belongs to the category, because a fluid
+    // can be neither worn nor mined and an addon may declare actions of its own.
+    // See lockActionsForTab.
 
     // Spawn sources popup state (per-entity source filter for spawnlock entries)
     private static final String[] SPAWN_SOURCE_KEYS = {"natural", "spawner", "structure", "breeding", "summon", "spawn_egg"};
@@ -268,7 +271,9 @@ public class StageDetailScreen extends Screen {
     private static final String[][] LOCK_ACTION_GROUPS = {
             {"item",   "use",   "attack", "equip", "pickup"},
             {"block",  "place", "break",  "gui"},
-            {"output", "loot",  "recipe", "icon"}
+            // "ingredient" exists only in the fluid vocabulary; lockActionGroupsForPopup drops
+            // it again for every tab that does not offer it.
+            {"output", "loot",  "recipe", "ingredient", "icon"}
     };
 
     // Recipe detail popup state
@@ -418,7 +423,7 @@ public class StageDetailScreen extends Screen {
                         NAMED_LOCK_ENTRY_ADAPTER);
         tagTabLocal.load(e);
         this.tagTab = tagTabLocal;
-        this.categoryTabs.put(1, tagTabLocal);
+        this.categoryTabs.put(2, tagTabLocal);
         // Safe cast: the built-in mod-exceptions category stores ItemEntry.
         @SuppressWarnings("unchecked")
         LockCategory<net.bananemdnsa.historystages.data.ItemEntry> exceptionCategory =
@@ -434,7 +439,7 @@ public class StageDetailScreen extends Screen {
         exceptionTabLocal.setRebuildPickerOnOpen(true);
         exceptionTabLocal.load(e);
         this.modExceptionTab = exceptionTabLocal;
-        this.categoryTabs.put(3, exceptionTabLocal);
+        this.categoryTabs.put(4, exceptionTabLocal);
         // Safe cast: the built-in recipes category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> recipeCategory =
@@ -449,7 +454,7 @@ public class StageDetailScreen extends Screen {
                 },
                 () -> { hasChanges = true; updateMaxScroll(); });
         recipeTab.load(e);
-        this.categoryTabs.put(4, recipeTab);
+        this.categoryTabs.put(5, recipeTab);
         // Safe cast: the built-in dimensions category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> dimensionCategory =
@@ -462,7 +467,7 @@ public class StageDetailScreen extends Screen {
                 },
                 () -> { hasChanges = true; updateMaxScroll(); });
         dimensionTab.load(e);
-        this.categoryTabs.put(5, dimensionTab);
+        this.categoryTabs.put(6, dimensionTab);
         // Safe cast: the built-in structures category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> structureCategory =
@@ -476,7 +481,7 @@ public class StageDetailScreen extends Screen {
                 () -> { hasChanges = true; updateMaxScroll(); });
         structureTabLocal.load(e);
         this.structureTab = structureTabLocal;
-        this.categoryTabs.put(9, structureTabLocal);
+        this.categoryTabs.put(10, structureTabLocal);
         // Safe cast: the built-in biomes category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> biomeCategory =
@@ -491,23 +496,43 @@ public class StageDetailScreen extends Screen {
                 StageEntry::getBiomeModLinked, StageEntry::setBiomeModLinked);
         biomeTabLocal.load(e);
         this.biomeTab = biomeTabLocal;
-        this.categoryTabs.put(10, biomeTabLocal);
+        this.categoryTabs.put(11, biomeTabLocal);
+        // Index 11, after the built-ins rather than beside items. The tab index is not private
+        // bookkeeping — it keys categoryTabs, the dual-phase lookup and the popup state — so
+        // inserting at 1 would renumber eight tabs for a cosmetic gain. Addon tabs still land
+        // after this one, because their first index is categoryTabs.size().
+        @SuppressWarnings("unchecked")
+        LockCategory<net.bananemdnsa.historystages.data.FluidEntry> fluidCategory =
+                (LockCategory<net.bananemdnsa.historystages.data.FluidEntry>)
+                        LockCategories.byId("historystages:fluids");
+        RichEntryCategoryTab<net.bananemdnsa.historystages.data.FluidEntry> fluidTabLocal =
+                new RichEntryCategoryTab<>(fluidCategory,
+                        (onSelect, alreadyAdded) -> {
+                            SearchableFluidList list =
+                                    new SearchableFluidList(onSelect::accept, alreadyAdded::get);
+                            list.setMultiSelect(true);
+                            return list;
+                        },
+                        () -> { hasChanges = true; updateMaxScroll(); },
+                        FLUID_ENTRY_ADAPTER);
+        fluidTabLocal.load(e);
+        this.categoryTabs.put(1, fluidTabLocal);
         this.editIcon = e.getIcon();
         this.editScrollCompletion = e.getScrollCompletion();
         entityState.load(e);
         @SuppressWarnings("unchecked")
         LockCategory<String> attackCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:attacklock");
-        this.categoryTabs.put(6, new EntityCategoryTab(attackCategory,
+        this.categoryTabs.put(7, new EntityCategoryTab(attackCategory,
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
                 entityState, entityState.attacklock()));
-        this.categoryTabs.put(7, new EntityCategoryTab(
+        this.categoryTabs.put(8, new EntityCategoryTab(
                 LockCategories.byId("historystages:spawnlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
                 entityState, entityState.spawnlock()));
-        this.categoryTabs.put(8, new EntityCategoryTab(
+        this.categoryTabs.put(9, new EntityCategoryTab(
                 LockCategories.byId("historystages:interactionlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
@@ -543,7 +568,7 @@ public class StageDetailScreen extends Screen {
                         NAMED_LOCK_ENTRY_ADAPTER);
         modTabLocal.load(e);
         this.modTab = modTabLocal;
-        this.categoryTabs.put(2, modTabLocal);
+        this.categoryTabs.put(3, modTabLocal);
 
         // Addon categories take their place in the strip after the built-ins, provided they
         // registered an editor. One without an editor still gates and still stores — it simply
@@ -1078,6 +1103,21 @@ public class StageDetailScreen extends Screen {
         }
     };
 
+    /** Splits and rebuilds a FluidEntry. Hands back null for nbt — a fluid entry has none. */
+    private static final RichEntryCategoryTab.EntryAdapter<net.bananemdnsa.historystages.data.FluidEntry>
+            FLUID_ENTRY_ADAPTER = new RichEntryCategoryTab.EntryAdapter<>() {
+        @Override public String id(net.bananemdnsa.historystages.data.FluidEntry e) { return e.getId(); }
+        @Override public com.google.gson.JsonObject nbt(net.bananemdnsa.historystages.data.FluidEntry e) { return null; }
+        @Override public List<String> lockActions(net.bananemdnsa.historystages.data.FluidEntry e) { return e.getLockActions(); }
+        @Override public String nameText(net.bananemdnsa.historystages.data.FluidEntry e) { return e.getNameTextOverride(); }
+        @Override public String tooltipText(net.bananemdnsa.historystages.data.FluidEntry e) { return e.getTooltipTextOverride(); }
+        @Override public net.bananemdnsa.historystages.data.FluidEntry build(
+                String id, com.google.gson.JsonObject nbt, List<String> lockActions,
+                String nameText, String tooltipText) {
+            return new net.bananemdnsa.historystages.data.FluidEntry(id, lockActions, nameText, tooltipText);
+        }
+    };
+
     /** Splits and rebuilds a NamedLockEntry, which is how tags and mods store their rows. */
 
     private static final RichEntryCategoryTab.EntryAdapter<net.bananemdnsa.historystages.data.lock.NamedLockEntry>
@@ -1127,6 +1167,35 @@ public class StageDetailScreen extends Screen {
 
 
         return getListForSection(activeTab);
+    }
+
+    // Category ids, so the screen can ask "is this the items tab?" instead of "is this tab 0?".
+    // The tab index is a position in the strip and moves whenever a tab is added or reordered;
+    // the category id does not. Every behavioural check below goes through isTab.
+    private static final String CAT_ITEMS      = "historystages:items";
+    private static final String CAT_FLUIDS     = "historystages:fluids";
+    private static final String CAT_TAGS       = "historystages:tags";
+    private static final String CAT_MODS       = "historystages:mods";
+    private static final String CAT_ATTACK     = "historystages:attacklock";
+    private static final String CAT_EXCEPTIONS = "historystages:mod_exceptions";
+    private static final String CAT_RECIPES    = "historystages:recipes";
+    private static final String CAT_SPAWN      = "historystages:spawnlock";
+    private static final String CAT_INTERACT   = "historystages:interactionlock";
+    private static final String CAT_STRUCTURES = "historystages:structures";
+    private static final String CAT_BIOMES     = "historystages:biomes";
+
+    /** Whether the tab at this index belongs to that category. */
+    private boolean isTab(int tab, String categoryId) {
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        return categoryTab != null && categoryId.equals(categoryTab.categoryId());
+    }
+
+    /** Whether the tab at this index is any of the given categories. */
+    private boolean isAnyTab(int tab, String... categoryIds) {
+        for (String id : categoryIds) {
+            if (isTab(tab, id)) return true;
+        }
+        return false;
     }
 
     List<String> getListForSection(int sectionIndex) {
@@ -1194,16 +1263,16 @@ public class StageDetailScreen extends Screen {
      * adding to it, so it could draw over an earlier badge. Declaring them stacks them correctly.
      */
     private void decorateRow(EditorRowList.Row row, int index, String entry) {
-        boolean isItemsTab = activeTab == 0;
-        boolean isTagsTab = activeTab == 1;
-        boolean isExceptionsTab = activeTab == 3;
-        boolean isEntityTab = activeTab == 6 || activeTab == 7 || activeTab == 8;
+        boolean isItemsTab = isTab(activeTab, CAT_ITEMS);
+        boolean isTagsTab = isTab(activeTab, CAT_TAGS);
+        boolean isExceptionsTab = isTab(activeTab, CAT_EXCEPTIONS);
+        boolean isEntityTab = isAnyTab(activeTab, CAT_ATTACK, CAT_SPAWN, CAT_INTERACT);
 
         // Leading icon
         if (isItemsTab || isExceptionsTab) {
             ItemStack stack = getItemStack(entry);
             if (!stack.isEmpty()) row.leading(14, (g, x, y, w, h) -> renderStackIcon(g, stack, x, y));
-        } else if (activeTab == 4) {
+        } else if (isTab(activeTab, CAT_RECIPES)) {
             ItemStack[] info = getRecipeInfo(entry);
             if (info != null && info.length > 1 && !info[1].isEmpty()) {
                 ItemStack result = info[1];
@@ -1240,17 +1309,16 @@ public class StageDetailScreen extends Screen {
             row.badge("§6[NBT]", 0xFFCC00);
         }
 
-        List<String> entryLockActions = null;
-        if (activeTab == 0) entryLockActions = itemTab.lockActionsByIndex().get(index);
-        else if (activeTab == 1) entryLockActions = tagTab.lockActionsByIndex().get(index);
-        else if (activeTab == 2) entryLockActions = modTab.lockActionsByIndex().get(index);
+        Map<Integer, List<String>> tabLockActions = getLockActionsMapForTab(activeTab);
+        List<String> entryLockActions = tabLockActions != null ? tabLockActions.get(index) : null;
         if (entryLockActions != null) {
             String label = Component.translatable("editor.historystages.badge.actions").getString();
-            row.badge("[" + label + ": " + entryLockActions.size() + "/" + LOCK_ACTION_KEYS.length + "]",
+            row.badge("[" + label + ": " + entryLockActions.size() + "/"
+                            + lockActionsForTab(activeTab).size() + "]",
                     0xCCAA66);
         }
 
-        if (activeTab == 0 || activeTab == 1 || activeTab == 2) {
+        if (isAnyTab(activeTab, CAT_ITEMS, CAT_FLUIDS, CAT_TAGS, CAT_MODS)) {
             if (overrideNameMap(activeTab).containsKey(index)) {
                 row.badge("[" + Component.translatable("editor.historystages.badge.name_override")
                         .getString() + "]", 0xBBBBBB);
@@ -1261,7 +1329,7 @@ public class StageDetailScreen extends Screen {
             }
         }
 
-        if (activeTab == 7) {
+        if (isTab(activeTab, CAT_SPAWN)) {
             List<String> srcFilter = editSpawnlockSources.get(entry);
             if (srcFilter != null && !srcFilter.isEmpty() && srcFilter.size() < SPAWN_SOURCE_KEYS.length) {
                 String label = Component.translatable("editor.historystages.badge.sources").getString();
@@ -1275,7 +1343,7 @@ public class StageDetailScreen extends Screen {
             }
         }
 
-        if (activeTab == 8) {
+        if (isTab(activeTab, CAT_INTERACT)) {
             List<String> actFilter = editInteractionlockActions.get(entry);
             int allActions = net.bananemdnsa.historystages.data.lock.EntityInteractionLockEntry.ALL_ACTIONS.size();
             if (actFilter != null && !actFilter.isEmpty() && actFilter.size() < allActions) {
@@ -1291,12 +1359,12 @@ public class StageDetailScreen extends Screen {
         }
 
         if ((isEntityTab && editModLinked.contains(entry))
-                || (activeTab == 9 && structureTab.modLinkedEntries().contains(entry))
-                || (activeTab == 10 && biomeTab.modLinkedEntries().contains(entry))) {
+                || (isTab(activeTab, CAT_STRUCTURES) && structureTab.modLinkedEntries().contains(entry))
+                || (isTab(activeTab, CAT_BIOMES) && biomeTab.modLinkedEntries().contains(entry))) {
             row.badge("§7[mod]", 0x999999);
         }
 
-        if (activeTab == 9) {
+        if (isTab(activeTab, CAT_STRUCTURES)) {
             StructureGenerationRule genRule = generationRuleFor(entry);
             if (genRule != null) {
                 row.badge(genRule.max() == 0
@@ -1330,7 +1398,7 @@ public class StageDetailScreen extends Screen {
         // tooltip rather than removal: the entry is still what the author wrote, and a recipe
         // comes back when its mod or its script does. Script-generated ids land here most often,
         // because KubeJS renumbers them whenever the script is reordered.
-        boolean missingRecipe = activeTab == 4
+        boolean missingRecipe = isTab(activeTab, CAT_RECIPES)
                 && net.bananemdnsa.historystages.data.lock.MissingRecipeIds.isMissing(entry);
         if (missingRecipe && row.isHovered()) {
             currentTooltipKey = "missing-recipe:" + entry;
@@ -2131,13 +2199,52 @@ public class StageDetailScreen extends Screen {
     // LOCK ACTIONS POPUP
     // =============================================
 
+    /**
+     * The per-row action map of whichever tab is asking, or null where narrowing an entry to
+     * some actions would mean nothing.
+     *
+     * <p>Was a switch on three tab indices, which is why a fourth rich tab had no way in. Mod
+     * exceptions stay out deliberately, exactly as that switch left them out: an exception
+     * carves a hole in the mods category rather than locking anything, so it has no action to
+     * narrow.
+     */
     private Map<Integer, List<String>> getLockActionsMapForTab(int tab) {
-        return switch (tab) {
-            case 0 -> itemTab.lockActionsByIndex();
-            case 1 -> tagTab.lockActionsByIndex();
-            case 2 -> modTab.lockActionsByIndex();
-            default -> null;
-        };
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        if (!(categoryTab instanceof RichEntryCategoryTab<?> rich)) return null;
+        if ("historystages:mod_exceptions".equals(categoryTab.categoryId())) return null;
+        return rich.lockActionsByIndex();
+    }
+
+    /**
+     * The action vocabulary of the tab's category — ten for items, tags and mods, seven for
+     * fluids, whatever an addon declared for its own.
+     */
+    private List<String> lockActionsForTab(int tab) {
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        if (categoryTab != null) {
+            LockCategory<?> category = LockCategories.byId(categoryTab.categoryId());
+            if (category != null) return category.lockActions();
+        }
+        return net.bananemdnsa.historystages.api.lock.LockActions.ITEM;
+    }
+
+    /**
+     * The grouped popup layout with every action the asking tab does not offer removed, and any
+     * group left empty dropped entirely. One layout table serves all categories instead of one
+     * table per vocabulary.
+     */
+    private List<String[]> lockActionGroupsForPopup() {
+        List<String> vocabulary = lockActionsForTab(lockActionsPopupTab);
+        List<String[]> groups = new ArrayList<>();
+        for (String[] group : LOCK_ACTION_GROUPS) {
+            List<String> kept = new ArrayList<>();
+            kept.add(group[0]);
+            for (int i = 1; i < group.length; i++) {
+                if (vocabulary.contains(group[i])) kept.add(group[i]);
+            }
+            if (kept.size() > 1) groups.add(kept.toArray(new String[0]));
+        }
+        return groups;
     }
 
     private void openLockActionsPopup(int tab, int idx) {
@@ -2148,7 +2255,7 @@ public class StageDetailScreen extends Screen {
             lockActionsPopupCurrent = new ArrayList<>(map.get(idx));
         } else {
             // All actions locked by default
-            lockActionsPopupCurrent = new ArrayList<>(java.util.Arrays.asList(LOCK_ACTION_KEYS));
+            lockActionsPopupCurrent = new ArrayList<>(lockActionsForTab(tab));
         }
         lockActionsPopupVisible = true;
     }
@@ -2157,7 +2264,8 @@ public class StageDetailScreen extends Screen {
         Map<Integer, List<String>> map = getLockActionsMapForTab(lockActionsPopupTab);
         if (map == null) return;
         // If all actions are selected → remove from map (null = all locked = default, no JSON bloat)
-        boolean allLocked = lockActionsPopupCurrent.size() == LOCK_ACTION_KEYS.length;
+        boolean allLocked =
+                lockActionsPopupCurrent.size() == lockActionsForTab(lockActionsPopupTab).size();
         if (allLocked) {
             map.remove(lockActionsPopupIdx);
         } else {
@@ -2204,7 +2312,7 @@ public class StageDetailScreen extends Screen {
         if (mouseX >= allX && mouseX < allX + qBtnW && mouseY >= btnY && mouseY < btnY + btnH) {
             Minecraft.getInstance().getSoundManager()
                     .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-            lockActionsPopupCurrent = new ArrayList<>(java.util.Arrays.asList(LOCK_ACTION_KEYS));
+            lockActionsPopupCurrent = new ArrayList<>(lockActionsForTab(lockActionsPopupTab));
             return true;
         }
 
@@ -2220,7 +2328,7 @@ public class StageDetailScreen extends Screen {
         // Toggle clicks — walk the grouped layout
         int curY = popupY + LP_HEADER_H + LP_HINT_H + 3;
         int toggleW = (popupW - 2 * LP_PAD - (LP_COLS - 1) * 3) / LP_COLS;
-        for (String[] group : LOCK_ACTION_GROUPS) {
+        for (String[] group : lockActionGroupsForPopup()) {
             curY += LP_GROUP_HEAD_H;
             int actionCount = group.length - 1;
             for (int j = 0; j < actionCount; j++) {
@@ -2254,7 +2362,7 @@ public class StageDetailScreen extends Screen {
     private void renderLockActionsPopup(GuiGraphics g, int mouseX, int mouseY) {
         // Compute popup height from group structure
         int contentH = 0;
-        for (String[] group : LOCK_ACTION_GROUPS) {
+        for (String[] group : lockActionGroupsForPopup()) {
             int actionCount = group.length - 1;
             int rowsInGroup = (actionCount + LP_COLS - 1) / LP_COLS;
             contentH += LP_GROUP_HEAD_H + rowsInGroup * LP_TOGGLE_H + (rowsInGroup - 1) * LP_TOGGLE_GAP + LP_GROUP_GAP;
@@ -2297,7 +2405,7 @@ public class StageDetailScreen extends Screen {
         int toggleW = (popupW - 2 * LP_PAD - (LP_COLS - 1) * 3) / LP_COLS;
         String hoveredAction = null;
 
-        for (String[] group : LOCK_ACTION_GROUPS) {
+        for (String[] group : lockActionGroupsForPopup()) {
             String groupKey = group[0];
             Component groupLabel = Component.translatable("editor.historystages.lock_actions.group." + groupKey);
 
@@ -2358,7 +2466,7 @@ public class StageDetailScreen extends Screen {
         } else {
             int blockedCount = lockActionsPopupCurrent.size();
             descText = Component.translatable("editor.historystages.lock_actions.status",
-                    blockedCount, LOCK_ACTION_KEYS.length);
+                    blockedCount, lockActionsForTab(lockActionsPopupTab).size());
             descColor = 0x888888;
         }
         g.drawCenteredString(this.font, descText, popupX + popupW / 2, descY + 2, descColor);
@@ -2405,7 +2513,8 @@ public class StageDetailScreen extends Screen {
     private int computeLockPopupWidth() {
         int maxToggleW = 0;
         int maxLineW = 0;
-        for (String action : LOCK_ACTION_KEYS) {
+        List<String> vocabulary = lockActionsForTab(lockActionsPopupTab);
+        for (String action : vocabulary) {
             Component name = Component.translatable("editor.historystages.lock_actions.action." + action);
             Component desc = Component.translatable("editor.historystages.lock_actions.desc." + action);
             maxToggleW = Math.max(maxToggleW, this.font.width(name));
@@ -2413,7 +2522,7 @@ public class StageDetailScreen extends Screen {
             maxLineW = Math.max(maxLineW, this.font.width(combined));
         }
         Component status = Component.translatable("editor.historystages.lock_actions.status",
-                LOCK_ACTION_KEYS.length, LOCK_ACTION_KEYS.length);
+                vocabulary.size(), vocabulary.size());
         maxLineW = Math.max(maxLineW, this.font.width(status));
         // Centered header lines must fit too.
         maxLineW = Math.max(maxLineW, this.font.width(Component.translatable("editor.historystages.lock_actions.title")));
@@ -2625,7 +2734,7 @@ public class StageDetailScreen extends Screen {
 
         for (int i = 0; i < list.size(); i++) {
             if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
-                if (button == 0 && activeTab == 4) {
+                if (button == 0 && isTab(activeTab, CAT_RECIPES)) {
                     // Left-click on recipe card: show recipe detail popup (view-only)
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     recipePopupId = list.get(i);
@@ -2640,30 +2749,33 @@ public class StageDetailScreen extends Screen {
                     final String entryValue = list.get(i);
                     final int tabIdx = activeTab;
                     contextMenu = new ContextMenu();
-                    if (tabIdx == 0) {
+                    if (isTab(tabIdx, CAT_ITEMS)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openNbtEditScreen(entryIdx, entryValue));
                     }
-                    if (tabIdx == 1) {
+                    if (isTab(tabIdx, CAT_TAGS)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openTagNbtEditScreen(entryIdx, entryValue));
                     }
-                    if (tabIdx == 0 || tabIdx == 1 || tabIdx == 2) {
+                    // Fluids belong here too: they carry an action list and text overrides, only
+                    // no NBT. Asked by category rather than by tab index, which is exactly what
+                    // left them out while the tab sat at the end of the strip.
+                    if (getLockActionsMapForTab(tabIdx) != null) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.lock_actions").getString(),
                                 () -> openLockActionsPopup(tabIdx, entryIdx));
                     }
-                    if ((tabIdx == 0 || tabIdx == 1 || tabIdx == 2) && hasReplaceAxis()) {
+                    if (isAnyTab(tabIdx, CAT_ITEMS, CAT_FLUIDS, CAT_TAGS, CAT_MODS) && hasReplaceAxis()) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.text_override").getString(),
                                 () -> openOverridePopup(tabIdx, entryIdx));
                     }
-                    if (tabIdx == 7) {
+                    if (isTab(tabIdx, CAT_SPAWN)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.spawn_sources").getString(),
                                 () -> spawnSourcesPopup.show(entryValue, editSpawnlockSources.get(entryValue)));
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.dimension_filter").getString(),
                                 () -> dimFilterPopup.show(entryValue, editSpawnlockDimensions.get(entryValue),
                                         this.width / 2, this.height / 2));
                     }
-                    if (tabIdx == 8) {
+                    if (isTab(tabIdx, CAT_INTERACT)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.interaction_actions").getString(),
                                 () -> interactionActionsPopup.show(entryValue, editInteractionlockActions.get(entryValue)));
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.interaction_items").getString(),
@@ -2674,12 +2786,12 @@ public class StageDetailScreen extends Screen {
                     }
                     // World generation is global and baked into the chunk, so an individual
                     // (per-player) stage has no coherent answer — no settings offered there.
-                    if (tabIdx == 9 && !isIndividual) {
+                    if (isTab(tabIdx, CAT_STRUCTURES) && !isIndividual) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.generation").getString(),
                                 () -> generationLimitPopup.show(entryValue, generationRuleFor(entryValue),
                                         this.width / 2, this.height / 2));
                     }
-                    if (tabIdx == 2) {
+                    if (isTab(tabIdx, CAT_MODS)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.edit").getString(),
                                 () -> {
                                     pendingModId = entryValue;
@@ -2700,7 +2812,7 @@ public class StageDetailScreen extends Screen {
                                     }
                                 });
                     }
-                    if (tabIdx == 3) {
+                    if (isTab(tabIdx, CAT_EXCEPTIONS)) {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
@@ -2719,7 +2831,7 @@ public class StageDetailScreen extends Screen {
                         // When removing an interactionlock entry, drop its action + item filters (keyed by entity ID)
                         // When removing a mod exception, shift NBT indices
                         // When removing a mod, also remove mod-linked entities and exceptions from that mod
-                        if (tabIdx == 2 && removedValue != null) {
+                        if (isTab(tabIdx, CAT_MODS) && removedValue != null) {
                             String prefix = removedValue + ":";
                             editSpawnlock.removeIf(id -> {
                                 if (id.startsWith(prefix) && editModLinked.contains(id)) {
@@ -3141,12 +3253,25 @@ public class StageDetailScreen extends Screen {
                 || editHiddenDisplay.getTooltipMode() == net.bananemdnsa.historystages.data.display.DisplayMode.REPLACE;
     }
 
+    /**
+     * The per-row name-override map of whichever tab is asking.
+     *
+     * <p>Was a chain of tab-index comparisons ending in "otherwise the items tab", so a new rich
+     * tab would have written its overrides straight into the item list. Every caller sits behind
+     * an isTab check already, which makes the empty fallback unreachable — it is there so that a
+     * future tab loses its own edits visibly rather than corrupting a neighbour's.
+     */
     private Map<Integer, String> overrideNameMap(int tab) {
-        return tab == 1 ? tagTab.nameTextByIndex() : tab == 2 ? modTab.nameTextByIndex() : itemTab.nameTextByIndex();
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        return categoryTab instanceof RichEntryCategoryTab<?> rich
+                ? rich.nameTextByIndex() : new HashMap<>();
     }
 
+    /** The tooltip counterpart of {@link #overrideNameMap}. */
     private Map<Integer, String> overrideTooltipMap(int tab) {
-        return tab == 1 ? tagTab.tooltipTextByIndex() : tab == 2 ? modTab.tooltipTextByIndex() : itemTab.tooltipTextByIndex();
+        CategoryTab categoryTab = categoryTabs.get(tab);
+        return categoryTab instanceof RichEntryCategoryTab<?> rich
+                ? rich.tooltipTextByIndex() : new HashMap<>();
     }
 
     private void openOverridePopup(int tab, int entryIdx) {

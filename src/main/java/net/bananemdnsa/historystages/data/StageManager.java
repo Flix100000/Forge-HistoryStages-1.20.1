@@ -87,7 +87,7 @@ public class StageManager {
     }
 
     private static final Set<String> KNOWN_KEYS = Set.of(
-            "display_name", "research_time", "items", "tags", "mods",
+            "display_name", "research_time", "items", "fluids", "tags", "mods",
             "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
             "mode", "auto_trigger", "temporary", "hidden_display", "lose_on_death",
@@ -107,9 +107,13 @@ public class StageManager {
     private static final Set<String> KNOWN_BIOME_KEYS = Set.of(
             "biomes", "mod_linked"
     );
-    private static final Set<String> KNOWN_LOCK_ACTIONS = Set.of(
-            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
-    );
+    /**
+     * The union of every category's vocabulary, because this set is used to spot a typo in a
+     * hand-edited file: validating an item entry against the fluid list, or the other way round,
+     * would report a perfectly good file as broken.
+     */
+    private static final Set<String> KNOWN_LOCK_ACTIONS =
+            net.bananemdnsa.historystages.api.lock.LockActions.KNOWN;
     private static final Set<String> KNOWN_SPAWN_SOURCES = Set.of(
             "natural", "spawner", "structure", "breeding", "summon", "spawn_egg"
     );

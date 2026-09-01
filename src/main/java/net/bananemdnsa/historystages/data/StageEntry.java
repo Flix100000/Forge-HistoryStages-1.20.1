@@ -63,6 +63,13 @@ public class StageEntry {
     @JsonAdapter(ItemEntryListAdapter.class)
     private List<ItemEntry> modExceptions;
 
+    /**
+     * Gated fluids. Matched through whatever container is carrying the fluid, so one entry here
+     * covers every bucket and tank item of that fluid, in any mod, without naming one of them.
+     */
+    @JsonAdapter(FluidEntryListAdapter.class)
+    private List<FluidEntry> fluids;
+
     private List<String> recipes;
     private List<String> dimensions;
 
@@ -121,6 +128,7 @@ public class StageEntry {
         this.mods = new ArrayList<>();
         // tags/mods are List<NamedLockEntry>, initialized as empty lists above
         this.modExceptions = new ArrayList<>();
+        this.fluids = new ArrayList<>();
         this.recipes = new ArrayList<>();
         this.dimensions = new ArrayList<>();
         this.structures = new StructureLocks();
@@ -165,6 +173,17 @@ public class StageEntry {
     /** Returns the full item entries with NBT data. */
     public List<ItemEntry> getItemEntries() {
         return items != null ? items : new ArrayList<>();
+    }
+
+    /** Returns the full fluid entries. */
+    public List<FluidEntry> getFluidEntries() {
+        return fluids != null ? fluids : new ArrayList<>();
+    }
+
+    /** Fluid IDs only — for the reverse index, the overview counters and the debug log. */
+    public List<String> getAllFluidIds() {
+        if (fluids == null) return new ArrayList<>();
+        return fluids.stream().map(FluidEntry::getId).collect(Collectors.toCollection(ArrayList::new));
     }
 
     /** Returns tag IDs only (no lock_actions). For backwards-compatible iteration. */
@@ -410,6 +429,11 @@ public class StageEntry {
         this.items = items != null ? new ArrayList<>(items) : new ArrayList<>();
     }
 
+    /** Sets the gated fluids. */
+    public void setFluidEntries(List<FluidEntry> fluids) {
+        this.fluids = fluids != null ? new ArrayList<>(fluids) : new ArrayList<>();
+    }
+
     /** Sets tags from plain IDs (no lock_actions — all actions locked). */
     public void setTags(List<String> tags) {
         if (tags == null) {
@@ -515,6 +539,7 @@ public class StageEntry {
         copy.setTagEntries(getTagEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));
         copy.setModEntries(getModEntries().stream().map(NamedLockEntry::copy).collect(Collectors.toList()));
         copy.setModExceptionEntries(getModExceptionEntries().stream().map(ItemEntry::copy).collect(Collectors.toList()));
+        copy.setFluidEntries(getFluidEntries().stream().map(FluidEntry::copy).collect(Collectors.toList()));
         copy.setRecipes(getRecipes());
         copy.setDimensions(getDimensions());
         copy.setStructures(getStructures());

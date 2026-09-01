@@ -34,20 +34,23 @@ import net.minecraft.world.item.Item;
 public final class LockRelevanceIndex {
 
     public static final LockRelevanceIndex EMPTY =
-            new LockRelevanceIndex(Map.of(), Map.of(), List.of());
+            new LockRelevanceIndex(Map.of(), Map.of(), Map.of(), List.of());
 
     /** A tag entry together with the stage that declared it. */
     private record TaggedStage(NamedLockEntry tag, String stageId) {}
 
     private final Map<String, List<String>> stagesByItemId;
     private final Map<String, List<String>> stagesByModId;
+    private final Map<String, List<String>> stagesByFluidId;
     private final List<TaggedStage> taggedStages;
 
     private LockRelevanceIndex(Map<String, List<String>> stagesByItemId,
                                Map<String, List<String>> stagesByModId,
+                               Map<String, List<String>> stagesByFluidId,
                                List<TaggedStage> taggedStages) {
         this.stagesByItemId = stagesByItemId;
         this.stagesByModId = stagesByModId;
+        this.stagesByFluidId = stagesByFluidId;
         this.taggedStages = taggedStages;
     }
 
@@ -56,6 +59,7 @@ public final class LockRelevanceIndex {
 
         Map<String, List<String>> byItem = new HashMap<>();
         Map<String, List<String>> byMod = new HashMap<>();
+        Map<String, List<String>> byFluid = new HashMap<>();
         List<TaggedStage> byTag = new ArrayList<>();
 
         for (Map.Entry<String, StageEntry> e : stages.entrySet()) {
@@ -72,10 +76,13 @@ public final class LockRelevanceIndex {
             for (NamedLockEntry tag : stage.getTagEntries()) {
                 byTag.add(new TaggedStage(tag, stageId));
             }
+            for (String fluidId : stage.getAllFluidIds()) {
+                addStage(byFluid, fluidId, stageId);
+            }
         }
 
-        if (byItem.isEmpty() && byMod.isEmpty() && byTag.isEmpty()) return EMPTY;
-        return new LockRelevanceIndex(byItem, byMod, byTag);
+        if (byItem.isEmpty() && byMod.isEmpty() && byFluid.isEmpty() && byTag.isEmpty()) return EMPTY;
+        return new LockRelevanceIndex(byItem, byMod, byFluid, byTag);
     }
 
     /** A stage can list the same ID more than once; the candidate list stays free of duplicates. */
@@ -85,7 +92,8 @@ public final class LockRelevanceIndex {
     }
 
     public boolean isEmpty() {
-        return stagesByItemId.isEmpty() && stagesByModId.isEmpty() && taggedStages.isEmpty();
+        return stagesByItemId.isEmpty() && stagesByModId.isEmpty()
+                && stagesByFluidId.isEmpty() && taggedStages.isEmpty();
     }
 
     /**
@@ -96,7 +104,23 @@ public final class LockRelevanceIndex {
      * the overwhelmingly common shape and the one the per-frame callers hit.</p>
      */
     public Collection<String> candidateStages(String itemId, String modId, Item item) {
-        return merge(stagesByItemId.get(itemId), stagesByModId.get(modId), tagCandidates(item));
+        return candidateStages(itemId, modId, item, null);
+    }
+
+    /**
+     * The same, for a stack that is carrying a fluid.
+     *
+     * <p>A separate source rather than a special item id, because a fluid entry gates by what the
+     * container <em>holds</em>: a stage that lists only {@code minecraft:lava} mentions no item
+     * at all, so without this the narrowing would find no candidate and the gate would never
+     * fire. {@code fluidId} is null for everything that is not a filled container, which is
+     * almost every call — and then this costs one null check.
+     */
+    public Collection<String> candidateStages(String itemId, String modId, Item item,
+                                              String fluidId) {
+        List<String> byFluid = fluidId != null ? stagesByFluidId.get(fluidId) : null;
+        return merge(stagesByItemId.get(itemId), stagesByModId.get(modId),
+                tagCandidates(item), byFluid);
     }
 
     /**
@@ -104,19 +128,33 @@ public final class LockRelevanceIndex {
      * {@link #candidateStages} so it can be exercised without a live item registry.
      */
     public Collection<String> candidateStagesByIdOrMod(String itemId, String modId) {
-        return merge(stagesByItemId.get(itemId), stagesByModId.get(modId), null);
+        return candidateStagesByIdOrMod(itemId, modId, null);
+    }
+
+    /**
+     * The same, plus the fluid the container holds. Still tag-free, so it stays reachable without
+     * a live item registry — which is the only way the fluid narrowing can be pinned by a unit
+     * test at all.
+     */
+    public Collection<String> candidateStagesByIdOrMod(String itemId, String modId,
+                                                       String fluidId) {
+        List<String> byFluid = fluidId != null ? stagesByFluidId.get(fluidId) : null;
+        return merge(stagesByItemId.get(itemId), stagesByModId.get(modId), null, byFluid);
     }
 
     /** Null lists mean "no hits from that source". Single-source results are returned as-is. */
-    private static Collection<String> merge(List<String> byItem, List<String> byMod, List<String> byTag) {
-        if (byMod == null && byTag == null) return byItem != null ? byItem : List.of();
-        if (byItem == null && byTag == null) return byMod;
-        if (byItem == null && byMod == null) return byTag;
+    private static Collection<String> merge(List<String> byItem, List<String> byMod,
+                                            List<String> byTag, List<String> byFluid) {
+        if (byMod == null && byTag == null && byFluid == null) return byItem != null ? byItem : List.of();
+        if (byItem == null && byTag == null && byFluid == null) return byMod;
+        if (byItem == null && byMod == null && byFluid == null) return byTag;
+        if (byItem == null && byMod == null && byTag == null) return byFluid;
 
         LinkedHashSet<String> merged = new LinkedHashSet<>();
         if (byItem != null) merged.addAll(byItem);
         if (byMod != null) merged.addAll(byMod);
         if (byTag != null) merged.addAll(byTag);
+        if (byFluid != null) merged.addAll(byFluid);
         return merged;
     }
 

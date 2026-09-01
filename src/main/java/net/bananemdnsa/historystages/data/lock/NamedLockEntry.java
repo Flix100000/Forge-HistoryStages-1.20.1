@@ -19,10 +19,14 @@ import java.util.List;
  */
 public class NamedLockEntry implements net.bananemdnsa.historystages.data.display.TextOverrideHolder {
 
-    /** Canonical ordered list of all recognised lock actions. */
-    public static final List<String> ALL_ACTIONS = List.of(
-            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
-    );
+    /**
+     * Canonical ordered list of the actions a named entry recognises.
+     *
+     * <p>Kept as a field rather than replaced at the call sites: the Gson adapters read it on
+     * the save path, and addon code has always named it here.
+     */
+    public static final List<String> ALL_ACTIONS =
+            net.bananemdnsa.historystages.api.lock.LockActions.ITEM;
 
     private final String id;
     private final List<String> lockActions; // null = all actions locked, empty = none locked

@@ -28,8 +28,10 @@
     "toast.ToastInstanceAccessor",
     "emi.RecipeScreenMixin",
     "emi.ItemEmiStackMixin",
+    "emi.FluidEmiStackMixin",
     "emi.StackBatcherMixin",
-    "emi.SlotWidgetMixin"
+    "emi.SlotWidgetMixin",
+    "jei.FluidTankRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

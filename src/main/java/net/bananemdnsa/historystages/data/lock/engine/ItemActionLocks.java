@@ -35,6 +35,15 @@ public final class ItemActionLocks {
             if (nbtMatch) return isActionInList(entry.getLockActions(), action);
         }
 
+        // Right after items and before mods: naming what the container holds is a statement
+        // about this exact stack, closer to an id than to a namespace. An item entry for the
+        // bucket itself still wins, so a pack can carve out one container of a gated fluid.
+        for (net.bananemdnsa.historystages.data.FluidEntry fluidEntry : stage.getFluidEntries()) {
+            if (BuiltInLockMatching.fluidEntryMatches(fluidEntry, subject)) {
+                return isActionInList(fluidEntry.getLockActions(), action);
+            }
+        }
+
         for (NamedLockEntry modEntry : stage.getModEntries()) {
             if (modEntry.getId().equals(subject.modId())
                     && !stage.isModExcepted(subject.itemId(), subject.stack())) {

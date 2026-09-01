@@ -41,6 +41,18 @@ public final class BuiltInLockMatching {
         return subject.stack() != null && NbtMatcher.matches(subject.stack(), entry.getNbt());
     }
 
+    /**
+     * A fluid entry gates the subject when the stack is carrying that fluid.
+     *
+     * <p>No criterion branch, unlike the item and tag forms: a fluid entry has no NBT to match
+     * on, because only one of the four paths that ask about a fluid could ever supply the
+     * {@code FluidStack} a criterion would need.
+     */
+    public static boolean fluidEntryMatches(net.bananemdnsa.historystages.data.FluidEntry entry,
+                                            LockSubjects.ItemSubject subject) {
+        return subject.fluidId() != null && entry.getId().equals(subject.fluidId());
+    }
+
     /** The same rule for a tag entry, preceded by the tag-membership test itself. */
     public static boolean tagEntryMatches(NamedLockEntry entry, LockSubjects.ItemSubject subject) {
         return tagEntryMatches(entry, subject.stack(), subject.item());

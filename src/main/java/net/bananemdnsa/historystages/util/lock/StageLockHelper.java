@@ -136,6 +136,41 @@ public class StageLockHelper {
                 ClientStageStates.individual());
     }
 
+    // =============================================
+    // FLUID CHECKS BY BARE ID (no stack behind them)
+    // =============================================
+
+    /**
+     * Whether an action is blocked for this fluid by a locked global stage. Server-side.
+     *
+     * <p>Separate from the stack-driven forms because the fluid standing in the world has no
+     * stack: an empty bucket held against a pool carries nothing, so the subject built from the
+     * held item cannot answer what the player is reaching for.
+     */
+    public static boolean isFluidActionLockedForServer(String fluidId, String action) {
+        return StageLocks.engine().isFluidActionLocked(fluidId, action, StageScope.GLOBAL,
+                StageLocks.serverGlobal());
+    }
+
+    /** The individual-stage half of {@link #isFluidActionLockedForServer}. Server-side. */
+    public static boolean isFluidActionLockedByIndividualStage(String fluidId, UUID playerUuid,
+                                                               String action) {
+        return StageLocks.engine().isFluidActionLocked(fluidId, action, StageScope.INDIVIDUAL,
+                StageLocks.serverIndividual(playerUuid));
+    }
+
+    /** Global-scope fluid action check on the client. */
+    public static boolean isFluidActionLockedForClient(String fluidId, String action) {
+        return StageLocks.engine().isFluidActionLocked(fluidId, action, StageScope.GLOBAL,
+                ClientStageStates.global());
+    }
+
+    /** Individual-scope fluid action check on the client. */
+    public static boolean isFluidActionLockedByIndividualStageClient(String fluidId, String action) {
+        return StageLocks.engine().isFluidActionLocked(fluidId, action, StageScope.INDIVIDUAL,
+                ClientStageStates.individual());
+    }
+
     /**
      * Checks if a dimension is locked for a specific player (global OR individual).
      * Server-side only.

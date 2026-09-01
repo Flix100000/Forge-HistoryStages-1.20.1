@@ -33,6 +33,15 @@ public final class LockMessages {
         return resolve(Config.VISUAL.msgItemLocked, "message.historystages.item_locked");
     }
 
+    /**
+     * Its own message rather than the item one, because the two say different things. Holding a
+     * gated bucket is "you do not know this item"; scooping from a gated pool is "you do not know
+     * what is in there" — the bucket may be perfectly familiar.
+     */
+    public static MutableComponent fluidLocked() {
+        return resolve(Config.VISUAL.msgFluidLocked, "message.historystages.fluid_locked");
+    }
+
     public static MutableComponent blockLocked() {
         return resolve(Config.VISUAL.msgBlockLocked, "message.historystages.block_locked");
     }

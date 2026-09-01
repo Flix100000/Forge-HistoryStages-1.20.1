@@ -209,6 +209,10 @@ public class StageCommand {
             source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
             entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
         }
+        if (!entry.getAllFluidIds().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§b▶ Fluids:"), false);
+            entry.getAllFluidIds().forEach(f -> source.sendSuccess(() -> Component.literal("  §8• §7" + f), false));
+        }
         if (!entry.getMods().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);
             entry.getMods().forEach(m -> source.sendSuccess(() -> Component.literal("  §8• §7" + m), false));
@@ -545,6 +549,10 @@ public class StageCommand {
         if (!entry.getAllItemIds().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§b▶ Items:"), false);
             entry.getAllItemIds().forEach(i -> source.sendSuccess(() -> Component.literal("  §8• §7" + i), false));
+        }
+        if (!entry.getAllFluidIds().isEmpty()) {
+            source.sendSuccess(() -> Component.literal("§b▶ Fluids:"), false);
+            entry.getAllFluidIds().forEach(f -> source.sendSuccess(() -> Component.literal("  §8• §7" + f), false));
         }
         if (!entry.getMods().isEmpty()) {
             source.sendSuccess(() -> Component.literal("§a▶ Mods:"), false);

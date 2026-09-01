@@ -313,14 +313,31 @@ public final class CategoryLockIndexes {
      * may skip its scan; a returned stage still has to be checked properly.
      */
     public static Collection<String> globalCandidates(String itemId, String modId, Item item) {
+        return globalCandidates(itemId, modId, item, null);
+    }
+
+    /**
+     * The same, narrowed also by the fluid the stack is carrying.
+     *
+     * <p>A stage that gates only a fluid names no item, so without this it would never appear as
+     * a candidate and its gate would never fire.
+     */
+    public static Collection<String> globalCandidates(String itemId, String modId, Item item,
+                                                      String fluidId) {
         rebuildRelevanceIfDirty();
-        return global.candidateStages(itemId, modId, item);
+        return global.candidateStages(itemId, modId, item, fluidId);
     }
 
     /** Individual-stage counterpart of {@link #globalCandidates}. */
     public static Collection<String> individualCandidates(String itemId, String modId, Item item) {
+        return individualCandidates(itemId, modId, item, null);
+    }
+
+    /** Individual-stage counterpart of {@link #globalCandidates(String, String, Item, String)}. */
+    public static Collection<String> individualCandidates(String itemId, String modId, Item item,
+                                                          String fluidId) {
         rebuildRelevanceIfDirty();
-        return individual.candidateStages(itemId, modId, item);
+        return individual.candidateStages(itemId, modId, item, fluidId);
     }
 
     private static void rebuildRelevanceIfDirty() {

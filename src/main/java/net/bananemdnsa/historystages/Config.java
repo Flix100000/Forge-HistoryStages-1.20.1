@@ -66,6 +66,7 @@ public class Config {
         public final ModConfigSpec.ConfigValue<String> msgDimensionUnknown;
         public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
         public final ModConfigSpec.ConfigValue<String> msgItemLocked;
+        public final ModConfigSpec.ConfigValue<String> msgFluidLocked;
         public final ModConfigSpec.ConfigValue<String> msgBlockLocked;
         public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
         public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
@@ -326,6 +327,10 @@ public class Config {
             msgItemLocked = builder
                     .comment("Actionbar message when interacting with a locked item. Lang key: message.historystages.item_locked")
                     .define("itemLocked", "");
+
+            msgFluidLocked = builder
+                    .comment("Actionbar message when taking a locked fluid out of the world. Lang key: message.historystages.fluid_locked")
+                    .define("fluidLocked", "");
 
             msgBlockLocked = builder
                     .comment("Actionbar message when interacting with a locked block. Lang key: message.historystages.block_locked")

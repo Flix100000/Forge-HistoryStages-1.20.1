@@ -14,10 +14,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LockCategoriesTest {
 
     @Test
-    void theElevenBuiltInsAreRegisteredInEditorTabOrder() {
+    void theTwelveBuiltInsAreRegisteredInEditorTabOrder() {
         List<String> ids = LockCategories.all().stream().map(LockCategory::id).toList();
         assertEquals(List.of(
                 "historystages:items",
+                // Next to items on purpose: it answers about the same subject, reading what the
+                // stack carries rather than what it is.
+                "historystages:fluids",
                 "historystages:tags",
                 "historystages:mods",
                 "historystages:mod_exceptions",

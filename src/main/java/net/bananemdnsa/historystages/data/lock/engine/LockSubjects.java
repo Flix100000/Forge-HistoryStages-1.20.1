@@ -28,9 +28,30 @@ public final class LockSubjects {
      * result or a tooltip may only know an item id. An entry with an NBT criterion cannot confirm
      * a match without a stack and therefore answers "no" there — which is what the code did
      * before this record existed.
+     *
+     * <p>{@code fluidId} is what the stack is carrying, resolved through the fluid capability.
+     * Null on the stackless paths and for anything that is not a container — an empty bucket
+     * included, which is why taking a fluid out of the world needs its own handler rather than
+     * this field.
      */
     public record ItemSubject(String itemId, String modId,
-                              @Nullable ItemStack stack, @Nullable Item item) {}
+                              @Nullable ItemStack stack, @Nullable Item item,
+                              @Nullable String fluidId) {
+
+        /**
+         * The four-argument form every caller used before fluids existed, resolving the fluid
+         * from the stack.
+         *
+         * <p>Deliberately a second constructor rather than a canonical one that computes the
+         * fifth component: {@link FluidContent#of} touches the registry, and the fluid-block
+         * path builds this record from an id with no stack at all — it must be able to set the
+         * field directly.
+         */
+        public ItemSubject(String itemId, String modId,
+                           @Nullable ItemStack stack, @Nullable Item item) {
+            this(itemId, modId, stack, item, FluidContent.of(stack));
+        }
+    }
 
     /**
      * A spawn attempt.

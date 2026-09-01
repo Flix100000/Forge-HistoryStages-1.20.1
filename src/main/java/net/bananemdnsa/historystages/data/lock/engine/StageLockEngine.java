@@ -46,6 +46,19 @@ public interface StageLockEngine {
         return false;
     }
 
+    /**
+     * Whether a specific action is blocked for a bare fluid id, with no stack behind it.
+     *
+     * <p>The counterpart to {@link #isItemActionLocked} for the one fluid question no container
+     * can answer: an <em>empty</em> bucket held against a pool carries nothing, so the subject
+     * built from the stack says nothing about the fluid the player is reaching for. That fluid
+     * comes from the block, and this is how it gets asked about.
+     */
+    default boolean isFluidActionLocked(String fluidId, String action, StageScope scope,
+                                        StageStateView state) {
+        return false;
+    }
+
     default List<String> gatingStagesForRecipe(String recipeId, StageScope scope) {
         return List.of();
     }

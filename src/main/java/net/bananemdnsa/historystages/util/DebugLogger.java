@@ -303,6 +303,7 @@ public class DebugLogger {
         pw.println("  Total entries: " + entryCount);
 
         printItemEntries(pw, "Items", s.getItemEntries());
+        printList(pw, "Fluids", s.getAllFluidIds());
         printNamedLockEntries(pw, "Tags", s.getTagEntries());
         printNamedLockEntries(pw, "Mods", s.getModEntries());
         if (!modExceptions.isEmpty()) printList(pw, "Mod Exceptions", modExceptions);

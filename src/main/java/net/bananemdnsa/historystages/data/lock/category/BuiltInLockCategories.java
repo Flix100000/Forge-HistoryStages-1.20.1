@@ -16,10 +16,10 @@ import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 import net.bananemdnsa.historystages.data.lock.engine.LockSubjects;
 
 /**
- * The eleven categories the mod ships with, in editor tab order.
+ * The twelve categories the mod ships with, in editor tab order.
  *
  * <p>Each one is a thin adapter onto the typed accessors {@link StageEntry} already has. The
- * point is not to move data — it is to stop every consumer from naming all eleven fields.
+ * point is not to move data — it is to stop every consumer from naming all twelve fields.
  */
 final class BuiltInLockCategories {
 
@@ -67,6 +67,8 @@ final class BuiltInLockCategories {
                 // Items, mods and tags are narrowed by LockRelevanceIndex instead, which serves
                 // all three key kinds at once — an id, a namespace and tag membership.
                 NO_INDEX));
+
+        categories.add(new FluidLock());
 
         categories.add(new Simple<>("tags", "tags", "tag",
                 StageEntry::getTagEntries, StageEntry::setTagEntries,
@@ -129,6 +131,65 @@ final class BuiltInLockCategories {
         @Override public boolean matches(T entry, Object subject) { return matcher.test(entry, subject); }
         @Override public List<String> indexKeys(StageEntry stage) { return indexKeys.apply(stage); }
         @Override public String lookupKey(Object subject) { return SUBJECT_IS_THE_KEY.apply(subject); }
+    }
+
+    /**
+     * Fluid locks. Asked about the same {@link LockSubjects.ItemSubject} as items, but reading a
+     * different part of it: what the stack is <em>carrying</em> rather than what it is. That is
+     * what lets one entry cover the vanilla bucket, every modded bucket and every tank item
+     * without a single item id being listed.
+     *
+     * <p>A class of its own rather than a {@link Simple}, because it differs from that shape in
+     * two ways at once. Its action vocabulary is shorter — a fluid is never worn, swung or mined
+     * — and its index is keyed by the fluid the subject carries, where {@code Simple} keys on
+     * subjects that <em>are</em> their own id. Filing under {@link #indexKeys} without a matching
+     * {@link #lookupKey} would build an index nothing ever reads.
+     */
+    private static final class FluidLock
+            implements LockCategory<net.bananemdnsa.historystages.data.FluidEntry> {
+
+        @Override public String id() { return "historystages:fluids"; }
+        @Override public String tabLangKey() { return "editor.historystages.tab.fluids"; }
+        @Override public String tooltipLangKey() { return "editor.historystages.tooltip.fluids"; }
+        @Override public String dualPhaseLabel() { return "fluid"; }
+
+        @Override public List<String> lockActions() {
+            return net.bananemdnsa.historystages.api.lock.LockActions.FLUID;
+        }
+
+        @Override
+        public List<net.bananemdnsa.historystages.data.FluidEntry> read(StageEntry stage) {
+            return stage.getFluidEntries();
+        }
+
+        @Override
+        public void write(StageEntry stage,
+                          List<net.bananemdnsa.historystages.data.FluidEntry> entries) {
+            stage.setFluidEntries(entries);
+        }
+
+        @Override public List<String> globalDualPhaseIds(StageEntry stage) {
+            return stage.getAllFluidIds();
+        }
+
+        @Override public List<String> individualDualPhaseIds(StageEntry stage) {
+            return stage.getAllFluidIds();
+        }
+
+        @Override
+        public boolean matches(net.bananemdnsa.historystages.data.FluidEntry entry, Object subject) {
+            return subject instanceof LockSubjects.ItemSubject item
+                    && BuiltInLockMatching.fluidEntryMatches(entry, item);
+        }
+
+        /** Exact: a fluid entry carries no criterion, so a keyed stage always really matches. */
+        @Override public List<String> indexKeys(StageEntry stage) {
+            return stage.getAllFluidIds();
+        }
+
+        @Override public String lookupKey(Object subject) {
+            return subject instanceof LockSubjects.ItemSubject item ? item.fluidId() : null;
+        }
     }
 
     /**
