@@ -3,14 +3,20 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToast;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 import net.bananemdnsa.historystages.api.editor.widget.AbstractSearchableList;
+import net.bananemdnsa.historystages.api.editor.widget.ChoiceOverlay;
+import net.bananemdnsa.historystages.api.editor.widget.CountInputScreen;
+import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.bananemdnsa.historystages.client.editor.dialog.TimeWindowScreen;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.EntityPreviewRenderer;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableAdvancementList;
 import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEffectList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStatList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
 import net.bananemdnsa.historystages.client.editor.widget.StageLockFilter;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrome;
@@ -22,12 +28,21 @@ import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.DayCountTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.EffectTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.EntitySubMode;
 import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.StatCategory;
+import net.bananemdnsa.historystages.data.auto.conditions.StatTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TimeOfDayTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TimePreset;
+import net.bananemdnsa.historystages.data.auto.conditions.WeatherState;
+import net.bananemdnsa.historystages.data.auto.conditions.WeatherTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.XpLevelTrigger;
 import net.bananemdnsa.historystages.api.editor.GenericIdPicker;
 import net.bananemdnsa.historystages.api.editor.TriggerEditor;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
@@ -37,12 +52,9 @@ import net.bananemdnsa.historystages.data.auto.TriggerTypes;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
-import net.bananemdnsa.historystages.client.editor.anim.Fade;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -58,6 +70,7 @@ import net.minecraft.world.level.block.Block;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -78,6 +91,9 @@ public class AutoTriggerEditorScreen extends Screen {
     /** Width reserved for the popup's scrollbar, only added when it has one. */
     private static final int ADD_POPUP_SCROLL_W = 4;
 
+    /** Footer button width. Read by the unsaved marker, which right-aligns against Save. */
+    private static final int FOOTER_BTN_W = 90;
+
     private static final TriggerType[] TYPES = TriggerType.values();
 
     /**
@@ -93,7 +109,7 @@ public class AutoTriggerEditorScreen extends Screen {
     /** Built-ins first, in their long-standing order, then whatever addons registered. */
     private List<AddableTrigger> addableTriggers() {
         List<AddableTrigger> rows = new ArrayList<>(TYPES.length);
-        // Not filtered by scope: all nine built-ins support both scopes (see TriggerTypes), so a
+        // Not filtered by scope: every built-in supports both scopes (see TriggerTypes), so a
         // filter here would be a no-op that only invites a later reader to wonder what it guards.
         for (TriggerType type : TYPES) {
             rows.add(new AddableTrigger(typeLabel(type), () -> openPickerFor(type)));
@@ -145,13 +161,13 @@ public class AutoTriggerEditorScreen extends Screen {
     private int listX, listY, listW, listH;
     private int pillX, pillY, pillAnyW, pillAllW;
     private int addBtnX, addBtnY, addBtnW;
+    /** Left edge of the Save button; the unsaved marker right-aligns against it. */
+    private int saveBtnX;
     private int searchY;
     private int scrollOffset = 0;
     /** Sub-pixel scroll chasing {@link #scrollOffset}; render and the click paths both read it. */
     private final Anim smoothScroll = new Anim();
     private final Anim addBtnHover = new Anim();
-    /** Hover progress of the soft buttons, keyed by their left edge — stable per button. */
-    private final java.util.Map<Integer, Anim> softBtnHover = new java.util.HashMap<>();
     private final Anim listThumbHover = new Anim();
     private boolean draggingScrollbar = false;
 
@@ -164,6 +180,7 @@ public class AutoTriggerEditorScreen extends Screen {
     private boolean addDropdownOpen = false;
     /** First visible row of the add popup, once it holds more types than fit on screen. */
     private int addDropdownScroll = 0;
+    private boolean draggingAddScrollbar = false;
     /**
      * Whether anything changed since this screen last persisted.
      *
@@ -175,14 +192,12 @@ public class AutoTriggerEditorScreen extends Screen {
     /** Reveal progress of the add popup; also drives the caret turning over. */
     private final Anim addOpen = new Anim();
     private final java.util.Map<Integer, Anim> addRowHover = new java.util.HashMap<>();
-    private OverlayHandler currentList = null;
+    /**
+     * The one modal overlay slot. A searchable picker and a choice list are both a
+     * {@link PickerOverlay}, so they take turns in the same field rather than each having one.
+     */
+    private PickerOverlay currentList = null;
     private int editIndex = -1;             // -1 = adding, ≥0 = replacing at this row
-    private String pendingEntityId = null;  // entity picked, waiting for sub-mode choice
-
-    // Playtime dialog state
-    private boolean playtimeDialogOpen = false;
-    private int playtimeEditIndex = -1;
-    private EditBox playtimeField;
 
     // Context menu
     private ContextMenu contextMenu = new ContextMenu();
@@ -255,21 +270,15 @@ public class AutoTriggerEditorScreen extends Screen {
         applyTriggerFilter();
 
         // Footer buttons
+        saveBtnX = this.width - 20 - FOOTER_BTN_W;
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.save"),
                 btn -> saveAndStay(),
-                this.width - 110, this.height - 25, 90, 20));
+                saveBtnX, this.height - 25, FOOTER_BTN_W, 20));
         this.addRenderableWidget(StyledButton.of(
                 Component.translatable("editor.historystages.cancel"),
                 btn -> this.minecraft.setScreen(parent),
-                20, this.height - 25, 90, 20));
-
-        // Playtime field (re-positioned each time the dialog opens; visible flag controls display)
-        playtimeField = new EditBox(this.font, this.width / 2 - 60, this.height / 2 - 5, 120, 18,
-                Component.translatable("editor.historystages.auto_trigger.playtime.input_title"));
-        playtimeField.setMaxLength(6);
-        playtimeField.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
-        playtimeField.visible = false;
+                20, this.height - 25, FOOTER_BTN_W, 20));
     }
 
     // =============================================
@@ -308,7 +317,6 @@ public class AutoTriggerEditorScreen extends Screen {
         // below any overlays; the actual tooltip box is rendered with editor styling)
         if (isOver(mx, my, pillX, pillY, pillAnyW + pillAllW, 14)
                 && currentList == null && !addDropdownOpen
-                && pendingEntityId == null && !playtimeDialogOpen
                 && !contextMenu.isVisible()) {
             drawEditorTooltip(g,
                     Component.translatable("editor.historystages.auto_trigger.combine.tooltip").getString(),
@@ -318,9 +326,9 @@ public class AutoTriggerEditorScreen extends Screen {
         // Add-dropdown popup — always rendered; the reveal animation decides what is visible.
         renderAddDropdown(g, mx, my);
 
-        // Dim the rest of the screen whenever a modal overlay is active (Searchable widget,
-        // sub-mode chooser, or playtime dialog). Without this the editor's title and the
-        // empty-state text bleed through around the overlay's panel.
+        // Dim the rest of the screen whenever a modal overlay is active (Searchable widget or
+        // the choice list). Without this the editor's title and the empty-state text bleed
+        // through around the overlay's panel.
         boolean overlayActive = isOverlayActive();
         if (overlayActive) {
             g.pose().pushPose();
@@ -336,12 +344,6 @@ public class AutoTriggerEditorScreen extends Screen {
             currentList.render(g, this.font, mx, my);
             g.pose().popPose();
         }
-
-        // Entity sub-mode chooser
-        if (pendingEntityId != null) renderSubmodeChooser(g, mx, my);
-
-        // Playtime dialog
-        if (playtimeDialogOpen) renderPlaytimeDialog(g, mx, my);
 
         // Context menu always on top
         g.pose().pushPose();
@@ -642,78 +644,6 @@ public class AutoTriggerEditorScreen extends Screen {
         return Component.translatable("editor.historystages.auto_trigger.type." + type.id).getString();
     }
 
-    private void renderSubmodeChooser(GuiGraphics g, int mx, int my) {
-        int boxW = 200;
-        int boxH = 80;
-        int bx = (this.width - boxW) / 2;
-        int by = (this.height - boxH) / 2;
-
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 350);
-        g.fill(0, 0, this.width, this.height, 0xA0000000);
-        g.fill(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, 0xFF555555);
-        g.fill(bx, by, bx + boxW, by + boxH, 0xFF1A1A1A);
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.auto_trigger.entity.submode_label").getString(),
-                bx + boxW / 2, by + 10, 0xFFFFFF);
-
-        int btnY = by + 30;
-        int btnW = 80;
-        for (int i = 0; i < 2; i++) {
-            EntitySubMode m = i == 0 ? EntitySubMode.KILL : EntitySubMode.INTERACT;
-            int btnX = bx + 10 + i * (btnW + 10);
-            boolean hov = isOver(mx, my, btnX, btnY, btnW, 20);
-            float hp = Ease.outCubic(softBtnHover.computeIfAbsent(btnX, k -> new Anim())
-                    .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-            g.fill(btnX, btnY, btnX + btnW, btnY + 20, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
-            g.fill(btnX, btnY + 19, btnX + btnW, btnY + 20, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
-            String label = Component.translatable("editor.historystages.auto_trigger.entity." + m.serialize()).getString();
-            g.drawString(this.font, label, btnX + (btnW - this.font.width(label)) / 2, btnY + 6,
-                    0xFFFFFFFF, false);
-        }
-        g.pose().popPose();
-    }
-
-    private void renderPlaytimeDialog(GuiGraphics g, int mx, int my) {
-        int boxW = 200;
-        int boxH = 90;
-        int bx = (this.width - boxW) / 2;
-        int by = (this.height - boxH) / 2;
-
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 350);
-        g.fill(0, 0, this.width, this.height, 0xA0000000);
-        g.fill(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1, 0xFF555555);
-        g.fill(bx, by, bx + boxW, by + boxH, 0xFF1A1A1A);
-        g.drawCenteredString(this.font,
-                Component.translatable("editor.historystages.auto_trigger.playtime.input_title").getString(),
-                bx + boxW / 2, by + 10, 0xFFFFFF);
-
-        playtimeField.setPosition(bx + 40, by + 30);
-        playtimeField.setWidth(120);
-        playtimeField.visible = true;
-        playtimeField.render(g, mx, my, 0);
-
-        // Confirm / Cancel buttons
-        int btnY = by + 60;
-        int btnW = 80;
-        int okX = bx + 10;
-        int cancelX = bx + boxW - 10 - btnW;
-        drawDialogButton(g, mx, my, okX, btnY, btnW,
-                Component.translatable("editor.historystages.confirm").getString());
-        drawDialogButton(g, mx, my, cancelX, btnY, btnW,
-                Component.translatable("editor.historystages.cancel").getString());
-        g.pose().popPose();
-    }
-
-    private void drawDialogButton(GuiGraphics g, int mx, int my, int x, int y, int w, String label) {
-        boolean hov = isOver(mx, my, x, y, w, 20);
-        float hp = Ease.outCubic(softBtnHover.computeIfAbsent(x, k -> new Anim())
-                .ramp(hov, Timing.HOVER_IN_MS, Timing.HOVER_OUT_MS));
-        g.fill(x, y, x + w, y + 20, Fade.mix(0x25FFFFFF, 0x40FFFFFF, hp));
-        g.fill(x, y + 19, x + w, y + 20, Fade.mix(0x60FFCC00, 0xFFFFCC00, hp));
-        g.drawString(this.font, label, x + (w - this.font.width(label)) / 2, y + 6, 0xFFFFFF, false);
-    }
 
     // =============================================
     // Input
@@ -726,15 +656,7 @@ public class AutoTriggerEditorScreen extends Screen {
             contextMenu.mouseClicked(mouseX, mouseY, button);
             return true;
         }
-        // Playtime dialog
-        if (playtimeDialogOpen) {
-            return handlePlaytimeDialogClick(mouseX, mouseY, button);
-        }
-        // Sub-mode chooser
-        if (pendingEntityId != null) {
-            return handleSubmodeClick(mouseX, mouseY, button);
-        }
-        // Searchable list overlay
+        // Modal overlay: a searchable picker or a choice list
         if (currentList != null && currentList.isVisible()) {
             return currentList.mouseClicked(mouseX, mouseY);
         }
@@ -808,11 +730,53 @@ public class AutoTriggerEditorScreen extends Screen {
         smoothScroll.set((float) scrollOffset);
     }
 
+    /**
+     * Track rectangle of the add popup's scrollbar, or null when it does not have one.
+     *
+     * @return [x, y, w, h]
+     */
+    private int[] addScrollbarTrack() {
+        if (addPopupMaxScroll() <= 0) return null;
+        int[] geom = addPopupGeometry();
+        return new int[] {
+                geom[0] + geom[2] - ADD_POPUP_SCROLL_W + 1,
+                geom[1] + ADD_POPUP_PAD,
+                ADD_POPUP_SCROLL_W - 2,
+                addPopupVisibleRows() * ADD_ROW_H };
+    }
+
+    /** Places the thumb's centre under the cursor, inverting what {@link #renderAddDropdown} draws. */
+    private void updateAddScrollFromMouse(double mouseY) {
+        int[] track = addScrollbarTrack();
+        if (track == null) return;
+        int maxScroll = addPopupMaxScroll();
+        int trackY = track[1];
+        int trackH = track[3];
+        int thumbH = Math.max(8, trackH * addPopupVisibleRows() / addableTriggers().size());
+        float usableH = trackH - thumbH;
+        if (usableH <= 0) {
+            addDropdownScroll = 0;
+            return;
+        }
+        float frac = (float) ((mouseY - trackY - thumbH / 2.0) / usableH);
+        addDropdownScroll = Math.max(0, Math.min(maxScroll, Math.round(frac * maxScroll)));
+    }
+
     private boolean handleAddDropdownClick(double mouseX, double mouseY, int button) {
         // Click back on the button closes rather than closing and immediately re-opening.
         if (button == 0 && isOver((int) mouseX, (int) mouseY, addBtnX, addBtnY, addBtnW, ADD_BTN_H)) {
             addDropdownOpen = false;
             Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            return true;
+        }
+        // The scrollbar, before the rows: the popup used to draw a thumb nothing could grab, so
+        // the only way past the visible rows was the wheel.
+        int[] track = addScrollbarTrack();
+        if (button == 0 && track != null
+                && mouseX >= track[0] - 1 && mouseX <= track[0] + track[2] + 1
+                && mouseY >= track[1] && mouseY <= track[1] + track[3]) {
+            draggingAddScrollbar = true;
+            updateAddScrollFromMouse(mouseY);
             return true;
         }
         int[] geom = addPopupGeometry();
@@ -835,54 +799,6 @@ public class AutoTriggerEditorScreen extends Screen {
             }
         }
         addDropdownOpen = false;
-        return true;
-    }
-
-    private boolean handleSubmodeClick(double mouseX, double mouseY, int button) {
-        int boxW = 200;
-        int boxH = 80;
-        int bx = (this.width - boxW) / 2;
-        int by = (this.height - boxH) / 2;
-        int btnY = by + 30;
-        int btnW = 80;
-        if (button == 0) {
-            for (int i = 0; i < 2; i++) {
-                int btnX = bx + 10 + i * (btnW + 10);
-                if (isOver((int) mouseX, (int) mouseY, btnX, btnY, btnW, 20)) {
-                    EntitySubMode m = i == 0 ? EntitySubMode.KILL : EntitySubMode.INTERACT;
-                    placeTrigger(new EntityTrigger(pendingEntityId, m.serialize()));
-                    pendingEntityId = null;
-                    return true;
-                }
-            }
-            // click outside dialog box -> cancel
-            if (!isOver((int) mouseX, (int) mouseY, bx, by, boxW, boxH)) {
-                pendingEntityId = null;
-                return true;
-            }
-        }
-        return true;
-    }
-
-    private boolean handlePlaytimeDialogClick(double mouseX, double mouseY, int button) {
-        if (playtimeField.mouseClicked(mouseX, mouseY, button)) return true;
-
-        int boxW = 200;
-        int boxH = 90;
-        int bx = (this.width - boxW) / 2;
-        int by = (this.height - boxH) / 2;
-        int btnY = by + 60;
-        int btnW = 80;
-        int okX = bx + 10;
-        int cancelX = bx + boxW - 10 - btnW;
-        if (button == 0 && isOver((int) mouseX, (int) mouseY, okX, btnY, btnW, 20)) {
-            confirmPlaytimeDialog();
-            return true;
-        }
-        if (button == 0 && isOver((int) mouseX, (int) mouseY, cancelX, btnY, btnW, 20)) {
-            closePlaytimeDialog();
-            return true;
-        }
         return true;
     }
 
@@ -932,6 +848,10 @@ public class AutoTriggerEditorScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (draggingAddScrollbar) {
+            updateAddScrollFromMouse(mouseY);
+            return true;
+        }
         if (currentList != null && currentList.isVisible()
                 && currentList.mouseDragged(mouseX, mouseY)) return true;
         if (draggingScrollbar) {
@@ -943,6 +863,7 @@ public class AutoTriggerEditorScreen extends Screen {
 
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (draggingAddScrollbar) { draggingAddScrollbar = false; return true; }
         if (currentList != null && currentList.isVisible() && currentList.mouseReleased()) return true;
         if (draggingScrollbar) { draggingScrollbar = false; return true; }
         return super.mouseReleased(mouseX, mouseY, button);
@@ -950,19 +871,12 @@ public class AutoTriggerEditorScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (playtimeDialogOpen) {
-            if (keyCode == 256) { closePlaytimeDialog(); return true; }
-            if (keyCode == 257) { confirmPlaytimeDialog(); return true; }
-            return playtimeField.keyPressed(keyCode, scanCode, modifiers)
-                    || super.keyPressed(keyCode, scanCode, modifiers);
-        }
         if (currentList != null && currentList.isVisible()) {
             if (currentList.keyPressed(keyCode)) return true;
         }
         if (listSearchBar != null && listSearchBar.keyPressed(keyCode)) return true;
         if (keyCode == 256) {
-            if (addDropdownOpen) { addDropdownOpen = false; return true; }
-            if (pendingEntityId != null) { pendingEntityId = null; return true; }
+            if (addDropdownOpen) { addDropdownOpen = false; draggingAddScrollbar = false; return true; }
             this.minecraft.setScreen(parent);
             return true;
         }
@@ -971,9 +885,6 @@ public class AutoTriggerEditorScreen extends Screen {
 
     @Override
     public boolean charTyped(char c, int modifiers) {
-        if (playtimeDialogOpen) {
-            return playtimeField.charTyped(c, modifiers) || super.charTyped(c, modifiers);
-        }
         if (currentList != null && currentList.isVisible()) {
             if (currentList.charTyped(c)) return true;
         }
@@ -995,8 +906,24 @@ public class AutoTriggerEditorScreen extends Screen {
             case BlockPlaceTrigger bp -> showItem(new SearchableItemList(id -> placeTrigger(new BlockPlaceTrigger(id))));
             case BlockBreakTrigger bb -> showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
             case AdvancementTrigger a -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
-            case EntityTrigger e -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
-            case PlaytimeTrigger p -> openPlaytimeDialog(idx, p.days());
+            case EntityTrigger e -> showEntity(new SearchableEntityList(this::openSubmodeChooser));
+            case PlaytimeTrigger p -> openCountDialog(idx,
+                    Component.translatable("editor.historystages.auto_trigger.playtime.input_title"),
+                    "", Math.max(1, p.days()), 1, 999999,
+                    days -> placeTrigger(new PlaytimeTrigger(days)));
+            case StatTrigger s -> openStatCategoryChooser(idx);
+            case XpLevelTrigger x -> openCountDialog(idx,
+                    Component.translatable("editor.historystages.auto_trigger.xp_level.input_title"),
+                    "", x.requiredLevel(), 0, 10000,
+                    level -> placeTrigger(new XpLevelTrigger(level)));
+            case EffectTrigger e -> showAbstract(
+                    new SearchableEffectList(id -> placeTrigger(new EffectTrigger(id))), null, false);
+            case WeatherTrigger w -> openWeatherChooser();
+            case DayCountTrigger d -> openCountDialog(idx,
+                    Component.translatable("editor.historystages.auto_trigger.day_count.input_title"),
+                    "", d.requiredDays(), 0, 999999,
+                    days -> placeTrigger(new DayCountTrigger(days)));
+            case TimeOfDayTrigger tod -> openTimePresetChooser(idx, tod.windowFrom(), tod.windowTo());
             // An addon that registered an editor for its type opens the same picker the add menu
             // uses. Without one — an unparsed trigger, or a type registered without an editor —
             // nothing here knows what would satisfy it, so there is no picker to open. The row
@@ -1017,11 +944,25 @@ public class AutoTriggerEditorScreen extends Screen {
             case STRUCTURE -> showAbstract(new SearchableStructureList(id -> placeTrigger(new StructureTrigger(id))), TriggerType.STRUCTURE, true);
             case DIMENSION -> showAbstract(new SearchableDimensionList(id -> placeTrigger(new DimensionTrigger(id))), TriggerType.DIMENSION, true);
             case ITEM -> showItem(new SearchableItemList(id -> placeTrigger(new ItemTrigger(id))));
-            case ENTITY -> showEntity(new SearchableEntityList(id -> pendingEntityId = id));
+            case ENTITY -> showEntity(new SearchableEntityList(this::openSubmodeChooser));
             case BLOCK_PLACE -> showItem(new SearchableItemList(id -> placeTrigger(new BlockPlaceTrigger(id))));
             case BLOCK_BREAK -> showItem(new SearchableItemList(id -> placeTrigger(new BlockBreakTrigger(id))));
             case ADVANCEMENT -> showAbstract(new SearchableAdvancementList(id -> placeTrigger(new AdvancementTrigger(id))), null, true);
-            case PLAYTIME -> openPlaytimeDialog(-1, 1);
+            case PLAYTIME -> openCountDialog(-1,
+                    Component.translatable("editor.historystages.auto_trigger.playtime.input_title"),
+                    "", 1, 1, 999999,
+                    days -> placeTrigger(new PlaytimeTrigger(days)));
+            case STAT -> openStatCategoryChooser(-1);
+            case XP_LEVEL -> openCountDialog(-1,
+                    Component.translatable("editor.historystages.auto_trigger.xp_level.input_title"),
+                    "", 1, 0, 10000, level -> placeTrigger(new XpLevelTrigger(level)));
+            case EFFECT -> showAbstract(
+                    new SearchableEffectList(id -> placeTrigger(new EffectTrigger(id))), null, true);
+            case WEATHER -> openWeatherChooser();
+            case DAY_COUNT -> openCountDialog(-1,
+                    Component.translatable("editor.historystages.auto_trigger.day_count.input_title"),
+                    "", 1, 0, 999999, days -> placeTrigger(new DayCountTrigger(days)));
+            case WORLD_TIME -> openTimePresetChooser(-1, 0, 23999);
         }
     }
 
@@ -1041,11 +982,19 @@ public class AutoTriggerEditorScreen extends Screen {
             }
         }
         list.show(this.width / 2, this.height / 2, this.width);
-        currentList = wrap(list);
+        currentList = list;
     }
 
     private void showItem(SearchableItemList list) {
-        list.setMultiSelect(true);
+        showItem(list, true);
+    }
+
+    /**
+     * Single-select when the picked id is only the first half of the answer — the statistic flow
+     * asks for a count afterwards, and a multi-select list would have nothing to ask it about.
+     */
+    private void showItem(SearchableItemList list, boolean multi) {
+        list.setMultiSelect(multi);
         StageEntry stage = lockSnapshot == null ? null : lockSnapshot.get();
         if (stage != null) {
             list.setLockedFilter(
@@ -1053,7 +1002,7 @@ public class AutoTriggerEditorScreen extends Screen {
                     StageLockFilter.forItems(stage));
         }
         list.show(this.width / 2, this.height / 2, this.width);
-        currentList = wrap(list);
+        currentList = list;
     }
 
     private void showEntity(SearchableEntityList list) {
@@ -1064,82 +1013,129 @@ public class AutoTriggerEditorScreen extends Screen {
                     StageLockFilter.forEntities(stage));
         }
         list.show(this.width / 2, this.height / 2, this.width);
-        currentList = wrap(list);
+        currentList = list;
     }
 
-    // Adapter interface so the screen can hold any of the Searchable overlays uniformly.
-    private interface OverlayHandler {
-        void render(GuiGraphics g, Font font, int mx, int my);
-        boolean isVisible();
-        boolean mouseClicked(double mx, double my);
-        boolean mouseScrolled(double mx, double my, double sx, double sy);
-        boolean mouseDragged(double mx, double my);
-        boolean mouseReleased();
-        boolean keyPressed(int keyCode);
-        boolean charTyped(char c);
+    /**
+     * Opens the shared count dialog on top of this screen.
+     *
+     * <p>{@code idx} is the row being replaced, or -1 when adding. It is re-applied inside the
+     * callback rather than read from the field: the dialog is a separate screen, and by the time it
+     * confirms, this one has been through {@code init()} again.
+     */
+    private void openCountDialog(int idx, Component title, String subject, int initial,
+                                 int min, int max, IntConsumer onDone) {
+        this.minecraft.setScreen(new CountInputScreen(this, title, subject, initial, min, max,
+                value -> {
+                    editIndex = idx;
+                    onDone.accept(value);
+                }));
     }
 
-    private static OverlayHandler wrap(AbstractSearchableList<?> l) {
-        return new OverlayHandler() {
-            @Override public void render(GuiGraphics g, Font f, int mx, int my) { l.render(g, f, mx, my); }
-            @Override public boolean isVisible() { return l.isVisible(); }
-            @Override public boolean mouseClicked(double mx, double my) { return l.mouseClicked(mx, my); }
-            @Override public boolean mouseScrolled(double mx, double my, double sx, double sy) { return l.mouseScrolled(mx, my, sx, sy); }
-            @Override public boolean mouseDragged(double mx, double my) { return l.mouseDragged(mx, my); }
-            @Override public boolean mouseReleased() { return l.mouseReleased(); }
-            @Override public boolean keyPressed(int k) { return l.keyPressed(k); }
-            @Override public boolean charTyped(char c) { return l.charTyped(c); }
-        };
+    /** Shows a choice list through the same overlay slot the searchable pickers use. */
+    private void showChoices(String title, List<ChoiceOverlay.Option> options) {
+        ChoiceOverlay overlay = new ChoiceOverlay(title, options);
+        overlay.show(this.width / 2, this.height / 2, this.width);
+        currentList = overlay;
     }
 
-    private static OverlayHandler wrap(SearchableItemList l) {
-        return new OverlayHandler() {
-            @Override public void render(GuiGraphics g, Font f, int mx, int my) { l.render(g, f, mx, my); }
-            @Override public boolean isVisible() { return l.isVisible(); }
-            @Override public boolean mouseClicked(double mx, double my) { return l.mouseClicked(mx, my); }
-            @Override public boolean mouseScrolled(double mx, double my, double sx, double sy) { return l.mouseScrolled(mx, my, sx, sy); }
-            @Override public boolean mouseDragged(double mx, double my) { return l.mouseDragged(mx, my); }
-            @Override public boolean mouseReleased() { return l.mouseReleased(); }
-            @Override public boolean keyPressed(int k) { return l.keyPressed(k); }
-            @Override public boolean charTyped(char c) { return l.charTyped(c); }
-        };
+    /** The entity sub-mode, asked after the mob was picked. */
+    private void openSubmodeChooser(String entityId) {
+        showChoices(
+                Component.translatable("editor.historystages.auto_trigger.entity.submode_label").getString(),
+                List.of(
+                        ChoiceOverlay.Option.of(
+                                Component.translatable("editor.historystages.auto_trigger.entity.kill").getString(),
+                                () -> placeTrigger(new EntityTrigger(entityId, EntitySubMode.KILL.serialize()))),
+                        ChoiceOverlay.Option.of(
+                                Component.translatable("editor.historystages.auto_trigger.entity.interact").getString(),
+                                () -> placeTrigger(new EntityTrigger(entityId, EntitySubMode.INTERACT.serialize())))));
     }
 
-    private static OverlayHandler wrap(SearchableEntityList l) {
-        return new OverlayHandler() {
-            @Override public void render(GuiGraphics g, Font f, int mx, int my) { l.render(g, f, mx, my); }
-            @Override public boolean isVisible() { return l.isVisible(); }
-            @Override public boolean mouseClicked(double mx, double my) { return l.mouseClicked(mx, my); }
-            @Override public boolean mouseScrolled(double mx, double my, double sx, double sy) { return l.mouseScrolled(mx, my, sx, sy); }
-            @Override public boolean mouseDragged(double mx, double my) { return l.mouseDragged(mx, my); }
-            @Override public boolean mouseReleased() { return l.mouseReleased(); }
-            @Override public boolean keyPressed(int k) { return l.keyPressed(k); }
-            @Override public boolean charTyped(char c) { return l.charTyped(c); }
-        };
+    private void openWeatherChooser() {
+        List<ChoiceOverlay.Option> options = new ArrayList<>();
+        for (WeatherState state : WeatherState.values()) {
+            options.add(ChoiceOverlay.Option.of(
+                    Component.translatable("editor.historystages.auto_trigger.weather."
+                            + state.serialize()).getString(),
+                    () -> placeTrigger(new WeatherTrigger(state.serialize()))));
+        }
+        showChoices(
+                Component.translatable("editor.historystages.auto_trigger.weather.label").getString(),
+                options);
     }
 
-    private void openPlaytimeDialog(int idx, int initial) {
-        playtimeEditIndex = idx;
-        playtimeDialogOpen = true;
-        playtimeField.setValue(String.valueOf(Math.max(1, initial)));
-        playtimeField.setFocused(true);
-        setInitialFocus(playtimeField);
+    /**
+     * The five time-of-day rows. {@code idx} is captured rather than read from {@link #editIndex}
+     * later, because the custom window opens a screen of its own and this one re-inits on the way
+     * back.
+     */
+    private void openTimePresetChooser(int idx, int initialFrom, int initialTo) {
+        List<ChoiceOverlay.Option> options = new ArrayList<>();
+        for (TimePreset preset : TimePreset.values()) {
+            String label = Component.translatable(
+                    "editor.historystages.auto_trigger.world_time." + preset.serialize()).getString();
+            options.add(preset == TimePreset.CUSTOM
+                    ? ChoiceOverlay.Option.more(label, () -> openTimeWindowDialog(idx, initialFrom, initialTo))
+                    : ChoiceOverlay.Option.of(label, () -> {
+                        editIndex = idx;
+                        placeTrigger(TimeOfDayTrigger.of(preset));
+                    }));
+        }
+        showChoices(
+                Component.translatable("editor.historystages.auto_trigger.world_time.label").getString(),
+                options);
     }
 
-    private void closePlaytimeDialog() {
-        playtimeDialogOpen = false;
-        playtimeField.visible = false;
-        playtimeField.setFocused(false);
+    private void openTimeWindowDialog(int idx, int initialFrom, int initialTo) {
+        this.minecraft.setScreen(new TimeWindowScreen(this,
+                Component.translatable("editor.historystages.auto_trigger.world_time.window_title"),
+                initialFrom, initialTo,
+                (from, to) -> {
+                    editIndex = idx;
+                    placeTrigger(TimeOfDayTrigger.custom(from, to));
+                }));
     }
 
-    private void confirmPlaytimeDialog() {
-        String v = playtimeField.getValue().trim();
-        int days;
-        try { days = Math.max(1, Integer.parseInt(v)); }
-        catch (NumberFormatException nfe) { return; }
-        editIndex = playtimeEditIndex;
-        placeTrigger(new PlaytimeTrigger(days));
-        closePlaytimeDialog();
+    /** Step one of the statistic flow: which of the nine statistic types. */
+    private void openStatCategoryChooser(int idx) {
+        List<ChoiceOverlay.Option> options = new ArrayList<>();
+        for (StatCategory category : StatCategory.values()) {
+            options.add(ChoiceOverlay.Option.more(
+                    Component.translatable("editor.historystages.auto_trigger.stat.category."
+                            + category.serialize()).getString(),
+                    () -> openStatIdPicker(idx, category)));
+        }
+        showChoices(
+                Component.translatable("editor.historystages.auto_trigger.stat.category_label").getString(),
+                options);
+    }
+
+    /**
+     * Step two: which id, from whichever registry the category counts.
+     *
+     * <p>{@code MINED} picks from the item list, the same compromise the block_place and
+     * block_break triggers already make: a block's item shares its id, and a block without one
+     * cannot be mined by hand anyway.
+     */
+    private void openStatIdPicker(int idx, StatCategory category) {
+        switch (category) {
+            case CUSTOM -> showAbstract(
+                    new SearchableStatList(id -> openStatCountDialog(idx, category, id)), null, false);
+            case KILLED, KILLED_BY -> showEntity(
+                    new SearchableEntityList(id -> openStatCountDialog(idx, category, id)));
+            default -> showItem(
+                    new SearchableItemList(id -> openStatCountDialog(idx, category, id)), false);
+        }
+    }
+
+    /** Step three: how many. */
+    private void openStatCountDialog(int idx, StatCategory category, String id) {
+        currentList = null;
+        openCountDialog(idx,
+                Component.translatable("editor.historystages.auto_trigger.stat.count_title"),
+                id, 1, 1, 999999,
+                count -> placeTrigger(new StatTrigger(category.serialize(), id, count)));
     }
 
     /** Insert (or replace at {@code editIndex}) the given trigger and notify the parent. */
@@ -1167,7 +1163,10 @@ public class AutoTriggerEditorScreen extends Screen {
         int dotAlpha = (int) ((0.35f + 0.45f * Ease.breathe(phase)) * 255);
         String label = Component.translatable("editor.historystages.unsaved").getString();
         int labelW = this.font.width(label);
-        int labelX = this.width - 12 - labelW;
+        // Right-aligned against the Save button's left edge, not the screen's. Against the screen's
+        // it drew straight over the button, because this footer's button is 90px wide where the
+        // screens this was copied from use 50.
+        int labelX = saveBtnX - 8 - labelW;
         g.fill(labelX - 8, this.height - 17, labelX - 2, this.height - 11,
                 (dotAlpha << 24) | 0xFFCC00);
         g.drawString(this.font, label, labelX, this.height - 18, 0xFFCC00, false);
@@ -1196,27 +1195,21 @@ public class AutoTriggerEditorScreen extends Screen {
     }
 
     /**
-     * True when a modal picker / dialog is up (Searchable widget, sub-mode chooser, or
-     * playtime dialog). Used to gate the dim layer and suppress chrome that would
-     * otherwise show through the overlay.
+     * True when a modal picker is up (Searchable widget or the choice list). Used to gate the dim
+     * layer and suppress chrome that would otherwise show through the overlay.
      */
     private boolean isOverlayActive() {
-        return (currentList != null && currentList.isVisible())
-                || pendingEntityId != null
-                || playtimeDialogOpen;
+        return currentList != null && currentList.isVisible();
     }
 
     /**
-     * True when an overlay (add-dropdown, Searchable widget, sub-mode chooser, playtime
-     * dialog, context menu, or the list search bar's own filter dropdown) is intercepting
-     * input. Used to suppress trigger-row hover lighting that would otherwise bleed
-     * through the overlay.
+     * True when an overlay (add-dropdown, Searchable widget, choice list, context menu, or the
+     * list search bar's own filter dropdown) is intercepting input. Used to suppress trigger-row
+     * hover lighting that would otherwise bleed through the overlay.
      */
     private boolean isInputBlocked() {
         if (addDropdownOpen) return true;
         if (currentList != null && currentList.isVisible()) return true;
-        if (pendingEntityId != null) return true;
-        if (playtimeDialogOpen) return true;
         if (contextMenu.isVisible()) return true;
         if (listSearchBar != null && listSearchBar.filters().isExpanded()) return true;
         return false;
@@ -1274,7 +1267,13 @@ public class AutoTriggerEditorScreen extends Screen {
         BLOCK_PLACE("block_place"),
         BLOCK_BREAK("block_break"),
         ADVANCEMENT("advancement"),
-        PLAYTIME("playtime");
+        PLAYTIME("playtime"),
+        STAT("stat"),
+        XP_LEVEL("xp_level"),
+        EFFECT("effect"),
+        WEATHER("weather"),
+        DAY_COUNT("day_count"),
+        WORLD_TIME("world_time");
 
         final String id;
         TriggerType(String id) { this.id = id; }

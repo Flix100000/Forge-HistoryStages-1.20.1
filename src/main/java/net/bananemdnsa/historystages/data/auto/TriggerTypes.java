@@ -10,11 +10,17 @@ import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.DayCountTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.EffectTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.StatTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TimeOfDayTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.WeatherTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.XpLevelTrigger;
 import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import org.jetbrains.annotations.Nullable;
@@ -55,6 +61,12 @@ public final class TriggerTypes {
         BUILT_IN.put("block_break", BlockBreakTrigger.class);
         BUILT_IN.put("advancement", AdvancementTrigger.class);
         BUILT_IN.put("playtime", PlaytimeTrigger.class);
+        BUILT_IN.put("stat", StatTrigger.class);
+        BUILT_IN.put("xp_level", XpLevelTrigger.class);
+        BUILT_IN.put("effect", EffectTrigger.class);
+        BUILT_IN.put("weather", WeatherTrigger.class);
+        BUILT_IN.put("day_count", DayCountTrigger.class);
+        BUILT_IN.put("world_time", TimeOfDayTrigger.class);
         BY_TYPE.putAll(BUILT_IN);
     }
 

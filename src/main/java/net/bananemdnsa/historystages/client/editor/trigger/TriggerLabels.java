@@ -6,11 +6,20 @@ import net.bananemdnsa.historystages.data.auto.conditions.AdvancementTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BiomeTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockBreakTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.BlockPlaceTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.DayCountTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.DimensionTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.EffectTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.EntityTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.ItemTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.PlaytimeTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.StatCategory;
+import net.bananemdnsa.historystages.data.auto.conditions.StatTrigger;
 import net.bananemdnsa.historystages.data.auto.conditions.StructureTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TimeOfDayTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.TimePreset;
+import net.bananemdnsa.historystages.data.auto.conditions.WeatherState;
+import net.bananemdnsa.historystages.data.auto.conditions.WeatherTrigger;
+import net.bananemdnsa.historystages.data.auto.conditions.XpLevelTrigger;
 import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.data.auto.conditions.UnknownTrigger;
 import net.minecraft.network.chat.Component;
@@ -60,6 +69,36 @@ public final class TriggerLabels {
             case AdvancementTrigger a -> a.id();
             case PlaytimeTrigger p -> Component.translatable(
                     "editor.historystages.auto_trigger.playtime.days", p.days()).getString();
+            case StatTrigger s -> {
+                StatCategory category = s.resolvedCategory();
+                String categoryLabel = Component.translatable(
+                        "editor.historystages.auto_trigger.stat.category."
+                                + (category == null ? "unknown" : category.serialize())).getString();
+                yield Component.translatable("editor.historystages.auto_trigger.stat.value",
+                        categoryLabel, s.id(), s.requiredCount()).getString();
+            }
+            case XpLevelTrigger x -> Component.translatable(
+                    "editor.historystages.auto_trigger.xp_level.value", x.requiredLevel()).getString();
+            case EffectTrigger e -> e.id();
+            case WeatherTrigger w -> {
+                WeatherState state = w.resolvedState();
+                yield Component.translatable("editor.historystages.auto_trigger.weather."
+                        + (state == null ? "unknown" : state.serialize())).getString();
+            }
+            case DayCountTrigger d -> Component.translatable(
+                    "editor.historystages.auto_trigger.day_count.value", d.requiredDays()).getString();
+            case TimeOfDayTrigger tod -> {
+                TimePreset p = tod.resolvedPreset();
+                if (p == null) {
+                    yield Component.translatable(
+                            "editor.historystages.auto_trigger.world_time.unknown").getString();
+                }
+                yield p == TimePreset.CUSTOM
+                        ? Component.translatable("editor.historystages.auto_trigger.world_time.window",
+                                tod.windowFrom(), tod.windowTo()).getString()
+                        : Component.translatable("editor.historystages.auto_trigger.world_time."
+                                + p.serialize()).getString();
+            }
             // An addon's trigger can say what it holds; one from a mod that is not loaded cannot,
             // and then the type is the only informative half there is.
             default -> {

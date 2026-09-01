@@ -74,6 +74,8 @@ public final class DemoAddonCategory {
         event.register(TRIGGER_TYPE, RelicFoundTrigger.class, StageScope.GLOBAL);
         // Carries a number and no id, so it cannot be authored by picking from a list.
         event.register(RelicHoardTrigger.TYPE, RelicHoardTrigger.class);
+        // Carries one of three named things, which is neither a list nor a number.
+        event.register(RelicRarityTrigger.TYPE, RelicRarityTrigger.class);
     }
 
     /**
