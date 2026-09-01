@@ -529,6 +529,15 @@ public class OpenScrollScreen extends Screen {
         return Component.literal(text).withStyle(style -> style.withFont(GLYPH_FONT));
     }
 
+    /**
+     * Stage name and description are pack-authored text, so they carry the mod's {@code &} format
+     * codes the same way the scroll tooltip and the chat messages do. Without the swap for the
+     * section sign the page draws the codes as the two characters they are typed as.
+     */
+    private static Component formatted(String text) {
+        return Component.literal(text.replace('&', '§'));
+    }
+
     /** Items answer through the same check the inventory lock overlay uses, so the two agree. */
     private boolean isHidden(ItemStack stack) {
         return visibility.hidesLocked() && LockIconRenderer.iconFor(stack) != null;
@@ -570,7 +579,7 @@ public class OpenScrollScreen extends Screen {
     private void repaginateOverview() {
         descriptionLines = document.description().isEmpty()
                 ? List.of()
-                : this.font.split(Component.literal(document.description()),
+                : this.font.split(formatted(document.description()),
                         OpenScrollGeometry.CONTENT_WIDTH);
 
         int fixed = 0;
@@ -729,7 +738,7 @@ public class OpenScrollScreen extends Screen {
     }
 
     private int drawOverviewTitle(GuiGraphics g, int x, int y, int width) {
-        Component title = Component.literal(document.displayName());
+        Component title = formatted(document.displayName());
         g.drawString(this.font, title, x + (width - this.font.width(title)) / 2, y, inkHeading, false);
         return y + LINE_ADVANCE + 1;
     }
