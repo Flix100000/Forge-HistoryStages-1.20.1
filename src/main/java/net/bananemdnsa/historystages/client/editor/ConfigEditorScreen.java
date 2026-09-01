@@ -287,6 +287,8 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.openScrollBackdrop.get().toString(), true, "60", 0, 100));
         visuals.add(new ConfigEntry("visuals.showWelcomeMessage", "showWelcomeMessage", ConfigType.BOOLEAN,
                 Config.VISUAL.showWelcomeMessage.get().toString(), true, "true"));
+        visuals.add(new ConfigEntry("visuals.showEditorButton", "showEditorButton", ConfigType.BOOLEAN,
+                Config.VISUAL.showEditorButton.get().toString(), true, "true"));
         visualSections.add(visuals);
 
         ConfigSection jade = new ConfigSection("editor.historystages.config.jade");

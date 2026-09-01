@@ -519,6 +519,8 @@
   "editor.historystages.config.mobShowStagesInChat.desc": "If mobShowChat is true, should the required stages also be listed?",
   "editor.historystages.config.showWelcomeMessage": "Show Welcome Message",
   "editor.historystages.config.showWelcomeMessage.desc": "Show a welcome message in chat when a player joins the world?",
+  "editor.historystages.config.showEditorButton": "Show Editor Button",
+  "editor.historystages.config.showEditorButton.desc": "Show the Stage Editor button in the pause menu? Operators can still open it with /history debug editor.",
   "editor.historystages.config.showDebugErrors": "Show Debug Errors",
   "editor.historystages.config.showDebugErrors.desc": "Show debug messages in chat if a JSON stage has errors or missing items?",
   "editor.historystages.config.enableRuntimeLogging": "Enable Runtime Logging",

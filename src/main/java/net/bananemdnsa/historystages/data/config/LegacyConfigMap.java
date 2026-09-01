@@ -62,7 +62,9 @@ public final class LegacyConfigMap {
             "GAMEPLAY|individual_stages.lockRecipes",
             "VISUAL|lock_messages.recipeLocked",
             // The vanilla recipe book showed locked recipes before 6.0; there was no switch.
-            "VISUAL|recipe_book.hideLockedRecipesInBook");
+            "VISUAL|recipe_book.hideLockedRecipesInBook",
+            // The pause-menu editor button was always there for operators before 6.0.
+            "VISUAL|visuals.showEditorButton");
 
     private LegacyConfigMap() {}
 

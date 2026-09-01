@@ -26,7 +26,9 @@ public class EditorButtonHandler {
 
         int screenWidth = event.getScreen().width;
 
-        if (mc.player.hasPermissions(2)) {
+        // The button is a shortcut, not the only door: '/history debug editor' opens the same
+        // screen behind the same permission check, so hiding it costs an operator nothing.
+        if (mc.player.hasPermissions(2) && Config.VISUAL.showEditorButton.get()) {
             event.addListener(Button.builder(
                     Component.translatable("editor.historystages.title"),
                     btn -> mc.setScreen(new StageOverviewScreen())
