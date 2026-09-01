@@ -3,6 +3,7 @@ import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
+import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntitySelectionPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntrySelectionPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup;
@@ -223,6 +224,12 @@ public class StageDetailScreen extends Screen {
     private static final int MAX_DROPDOWN_ENTRIES = 8;   // visible rows
     private static final int MAX_DROPDOWN_COLLECT = 50;  // max suggestions collected
     private int categoryDropdownScrollOffset = 0;
+    /**
+     * Long entry ids are the rule in the suggestion list, not the exception — the dropdown is
+     * only as wide as the search box. Same marquee the searchable pickers use, so a hovered
+     * suggestion reads the same here as it does there.
+     */
+    private final MarqueeText categoryDropdownMarquee = new MarqueeText();
 
     // Marquee state for card entries
     private int hoveredCardIndex = -1;
@@ -1623,11 +1630,13 @@ public class StageDetailScreen extends Screen {
                         && mouseY >= sugY && mouseY < sugY + DROPDOWN_ENTRY_H;
                 if (sugHov) guiGraphics.fill(dropX, sugY, dropX + textAreaW, sugY + DROPDOWN_ENTRY_H, 0x30FFCC00);
                 int availW = textAreaW - 8;
-                String display = this.font.width(sug) > availW
-                        ? this.font.plainSubstrByWidth(sug, availW - 8) + "..."
-                        : sug;
-                guiGraphics.drawString(this.font, display, dropX + 4, sugY + 2,
-                        sugHov ? 0xFFFFFF : 0xBBBBBB, false);
+                // The visible index is not an identity: scrolling the list puts a different
+                // suggestion under the same row, and the label would carry on from wherever the
+                // previous one had scrolled to. Pairing it with the text restarts the delay.
+                String marqueeKey = i + "\0" + sug;
+                categoryDropdownMarquee.draw(guiGraphics, this.font, marqueeKey, sug,
+                        dropX + 4, sugY + 2, availW, sugY, sugY + DROPDOWN_ENTRY_H,
+                        sugHov ? 0xFFFFFF : 0xBBBBBB, sugHov, true);
             }
 
             // Scrollbar

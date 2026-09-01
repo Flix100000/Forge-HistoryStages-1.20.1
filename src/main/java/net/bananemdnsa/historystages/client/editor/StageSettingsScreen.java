@@ -73,7 +73,7 @@ public class StageSettingsScreen extends Screen {
      * Top of the first card. Everything above it is the four stacked fields — id, display name,
      * mode, description — so adding a field means moving this and nothing else.
      */
-    private static final int CARD_TOP = 140;
+    private static final int CARD_TOP = 118;
     private static final float SMALL_SCALE = 0.85f;
 
     private final Screen parent;
@@ -99,6 +99,10 @@ public class StageSettingsScreen extends Screen {
      * Per-stage override for what happens to the scroll when this stage finishes. Empty means
      * "follow the config default", exactly the way an empty icon falls back to the default icon —
      * the global value stays in the config editor, the exception lives with the stage.
+     *
+     * <p>Lives in the research card because that is the only place it can do anything: the
+     * pedestal turns away any stage that is not {@link StageMode#DEFAULT}, so an AUTO or
+     * TEMPORARY stage never has a scroll to consume, replace or open in the first place.
      */
     private String editScrollCompletion;
     private final String origScrollCompletion;
@@ -326,11 +330,9 @@ public class StageSettingsScreen extends Screen {
         String labelName = Component.translatable("editor.historystages.field.display_name").getString();
         String labelStageMode = Component.translatable("editor.historystages.mode.label").getString();
         String labelDescription = Component.translatable("editor.historystages.field.description").getString();
-        String labelCompletion = Component.translatable("editor.historystages.field.scroll_completion").getString();
         int maxLabelW = Math.max(
                 Math.max(this.font.width(labelId), this.font.width(labelName)),
-                Math.max(Math.max(this.font.width(labelStageMode), this.font.width(labelDescription)),
-                        this.font.width(labelCompletion)));
+                Math.max(this.font.width(labelStageMode), this.font.width(labelDescription)));
         fieldX = labelX + maxLabelW + 10;
         fieldWidth = Math.min(220, this.width - fieldX - 40);
 
@@ -387,17 +389,6 @@ public class StageSettingsScreen extends Screen {
                 fieldX, 88, fieldWidth, FIELD_HEIGHT);
         addContentWidget(descriptionButton);
 
-        // The inherit state is one of the options rather than a separate checkbox: it is a choice
-        // about where the value comes from, and it belongs in the same list as the values.
-        scrollCompletionDropdown = new EnumDropdown(
-                SCROLL_COMPLETION_OPTIONS, editScrollCompletion, fieldWidth,
-                StageSettingsScreen::scrollCompletionLabel,
-                value -> {
-                    editScrollCompletion = value == null ? "" : value;
-                    if (!editScrollCompletion.equals(origScrollCompletion)) hasChanges = true;
-                });
-        scrollCompletionDropdown.setPosition(fieldX, 110);
-
         // --- Card-internal widgets ---
         // Positions inside the card body (cardY + 28 = body start)
         int bodyY = cardY + 28;
@@ -437,6 +428,18 @@ public class StageSettingsScreen extends Screen {
                 },
                 cardFieldX, bodyY + 44, 160, FIELD_HEIGHT);
         addContentWidget(tierModeButton);
+
+        // Scroll on completion (DEFAULT card). The inherit state is one of the options rather
+        // than a separate checkbox: it is a choice about where the value comes from, and it
+        // belongs in the same list as the values.
+        scrollCompletionDropdown = new EnumDropdown(
+                SCROLL_COMPLETION_OPTIONS, editScrollCompletion, 160,
+                StageSettingsScreen::scrollCompletionLabel,
+                value -> {
+                    editScrollCompletion = value == null ? "" : value;
+                    if (!editScrollCompletion.equals(origScrollCompletion)) hasChanges = true;
+                });
+        scrollCompletionDropdown.setPosition(cardFieldX, bodyY + 66);
 
         // Auto-trigger configure button (AUTO card)
         autoTriggerButton = StyledButton.of(
@@ -780,6 +783,7 @@ public class StageSettingsScreen extends Screen {
         w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.research_time").getString()));
         w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.min_pedestal_tier").getString()));
         w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.pedestal_tier_mode").getString()));
+        w = Math.max(w, this.font.width(Component.translatable("editor.historystages.field.scroll_completion").getString()));
         return w + 6;
     }
 
@@ -834,6 +838,7 @@ public class StageSettingsScreen extends Screen {
         // doesn't linger after switching modes.
         if (!isTemporary) durationUnitDropdown.close();
         if (!reTrig) cooldownUnitDropdown.close();
+        if (!isDefault && scrollCompletionDropdown != null) scrollCompletionDropdown.close();
 
         layoutDisplayCard();
     }
@@ -914,13 +919,13 @@ public class StageSettingsScreen extends Screen {
         modeDropdownY = 66 - renderScroll;
         modeDropdownW = computeModeDropdownWidth();
         descriptionButton.setPosition(fieldX, 88 - renderScroll);
-        scrollCompletionDropdown.setPosition(fieldX, 110 - renderScroll);
 
         int bodyY = cardY + 28;
         int cardFieldX = cardX + 12 + labelInsetW();
         researchTimeField.setPosition(cardFieldX, bodyY);
         tierDropdown.setPosition(cardFieldX, bodyY + 22);
         tierModeButton.setPosition(cardFieldX, bodyY + 44);
+        scrollCompletionDropdown.setPosition(cardFieldX, bodyY + 66);
         autoTriggerButton.setPosition(cardX + 12, bodyY);
 
         int tempFieldX = cardX + 12 + tempLabelInsetW();
@@ -1323,9 +1328,6 @@ public class StageSettingsScreen extends Screen {
         guiGraphics.drawString(this.font,
                 Component.translatable("editor.historystages.field.description"),
                 labelX, 93 - renderScroll, 0xAAAAAA, false);
-        guiGraphics.drawString(this.font,
-                Component.translatable("editor.historystages.field.scroll_completion"),
-                labelX, 115 - renderScroll, 0xAAAAAA, false);
 
         // Card chrome (before widgets so they sit on top)
         int cardH = computeCardHeight();
@@ -1362,7 +1364,11 @@ public class StageSettingsScreen extends Screen {
             guiGraphics.drawString(this.font,
                     Component.translatable("editor.historystages.field.pedestal_tier_mode").getString(),
                     cardLabelX, bodyY + 49, 0xAAAAAA, false);
+            guiGraphics.drawString(this.font,
+                    Component.translatable("editor.historystages.field.scroll_completion").getString(),
+                    cardLabelX, bodyY + 71, 0xAAAAAA, false);
             tierDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
+            scrollCompletionDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
         } else if (editMode == StageMode.AUTO) {
             int count = editAutoTrigger == null ? 0 : editAutoTrigger.getTriggers().size();
             if (count == 0) {
@@ -1395,7 +1401,6 @@ public class StageSettingsScreen extends Screen {
 
         // Mode dropdown button (inside the viewport)
         renderModeDropdownButton(guiGraphics, mouseX, mouseY);
-        scrollCompletionDropdown.renderButton(guiGraphics, this.font, mouseX, mouseY);
 
         guiGraphics.disableScissor();
 
@@ -1453,7 +1458,15 @@ public class StageSettingsScreen extends Screen {
 
         // Popups (must be last so they overlay everything; drawn unclipped)
         if (editMode == StageMode.DEFAULT) {
-            tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            // Neighbouring rows, each opening a popup across the other: the expanded one draws
+            // last so it covers the one that is still rolling back up, not the reverse.
+            if (scrollCompletionDropdown.isExpanded()) {
+                tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+                scrollCompletionDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            } else {
+                scrollCompletionDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+                tierDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
+            }
         }
         if (editMode == StageMode.TEMPORARY) {
             durationUnitDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
@@ -1462,7 +1475,6 @@ public class StageSettingsScreen extends Screen {
             }
         }
         renderModeDropdownPopup(guiGraphics, mouseX, mouseY);
-        scrollCompletionDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         nameModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         tooltipModeDropdown.renderPopup(guiGraphics, this.font, mouseX, mouseY);
         for (AddonCard card : addonCards) {
@@ -1486,7 +1498,7 @@ public class StageSettingsScreen extends Screen {
 
     private int computeCardHeight() {
         return switch (editMode) {
-            case DEFAULT -> 28 + 66 + 8;   // header + 3 rows
+            case DEFAULT -> 28 + 88 + 8;   // header + 4 rows
             case AUTO    -> 28 + FIELD_HEIGHT + 24; // header + button + warn area
             case EXTERNAL -> 28 + 20;
             // header + auto-trigger button + duration row + re-trigger row (+ cooldown row when re-triggerable)
@@ -1782,9 +1794,14 @@ public class StageSettingsScreen extends Screen {
             return true;
         }
 
-        if (editMode == StageMode.DEFAULT && tierDropdown != null
-                && tierDropdown.mouseClicked(mouseX, mouseY)) {
-            return true;
+        if (editMode == StageMode.DEFAULT) {
+            // The two sit in neighbouring rows and each opens a popup over the other, so a fixed
+            // order would let the covered one eat a click meant for an option drawn on top of it.
+            // Whichever is expanded is the one on top, and it gets asked first.
+            boolean scrollFirst = scrollCompletionDropdown.isExpanded();
+            if (scrollFirst && scrollCompletionDropdown.mouseClicked(mouseX, mouseY)) return true;
+            if (tierDropdown != null && tierDropdown.mouseClicked(mouseX, mouseY)) return true;
+            if (!scrollFirst && scrollCompletionDropdown.mouseClicked(mouseX, mouseY)) return true;
         }
         if (editMode == StageMode.TEMPORARY) {
             if (durationUnitDropdown.mouseClicked(mouseX, mouseY)) return true;
@@ -1793,7 +1810,6 @@ public class StageSettingsScreen extends Screen {
                 return true;
             }
         }
-        if (scrollCompletionDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (nameModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (tooltipModeDropdown.mouseClicked(mouseX, mouseY)) return true;
         if (button == 0 && handleDisplayCardClick(mouseX, mouseY)) return true;
