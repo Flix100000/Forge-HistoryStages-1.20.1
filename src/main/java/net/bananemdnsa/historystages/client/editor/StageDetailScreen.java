@@ -819,7 +819,9 @@ public class StageDetailScreen extends Screen {
         });
 
         interactionActionsPopup = new net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup((entityId, blocked) -> {
-            if (blocked.isEmpty()) {
+            // null = every action blocked, which is the default and stored as no filter at all.
+            // An empty list is a different answer — the entry blocks nothing — and is kept.
+            if (blocked == null) {
                 editInteractionlockActions.remove(entityId);
             } else {
                 editInteractionlockActions.put(entityId, blocked);
@@ -1316,6 +1318,18 @@ public class StageDetailScreen extends Screen {
             row.badge("[" + label + ": " + entryLockActions.size() + "/"
                             + lockActionsForTab(activeTab).size() + "]",
                     0xCCAA66);
+        }
+
+        // How much of the pack this one entry reaches. Gating a common fluid can take out four
+        // figures of recipes, and "ingredient" is on by default — so the number belongs on the
+        // row, where it is seen before the decision rather than after it.
+        if (isTab(activeTab, CAT_FLUIDS)) {
+            int recipeCount = net.bananemdnsa.historystages.data.lock.FluidRecipeIndex
+                    .recipeCountFor(entry);
+            if (recipeCount > 0) {
+                String label = Component.translatable("editor.historystages.badge.recipes").getString();
+                row.badge("[" + label + ": " + recipeCount + "]", 0xCCAA66);
+            }
         }
 
         if (isAnyTab(activeTab, CAT_ITEMS, CAT_FLUIDS, CAT_TAGS, CAT_MODS)) {
