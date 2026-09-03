@@ -29,6 +29,22 @@ public interface StageLockEngine {
     }
 
     /**
+     * The same question narrowed to one action: which stages block <em>this</em> action on the
+     * item.
+     *
+     * <p>{@link #isItemActionLocked} answers the same thing faster, but only as a yes or no
+     * against one viewer. A caller that has to apply its own resolution policy over the gating
+     * stages — recipe-viewer hiding does, it treats "some stage is unlocked" differently from
+     * "none is" — needs them named. The default ignores the action, which is what an engine that
+     * does not model actions should answer.
+     */
+    default List<String> gatingStagesForItemAction(String itemId, String modId,
+                                                   @Nullable ItemStack stack, String action,
+                                                   StageScope scope) {
+        return gatingStagesForItem(itemId, modId, stack, scope);
+    }
+
+    /**
      * Dual-phase means the same item is gated by a global stage <em>and</em> an individual one.
      * Only the global half is asked for here — the client uses it to tell "not yours yet" apart
      * from "not anyone's yet". Global scope only, which is why there is no scope parameter.

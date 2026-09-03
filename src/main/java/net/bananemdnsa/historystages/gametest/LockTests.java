@@ -6,6 +6,7 @@ import java.util.List;
 import net.bananemdnsa.historystages.HistoryStages;
 import com.google.gson.JsonObject;
 import net.bananemdnsa.historystages.data.ItemEntry;
+import net.bananemdnsa.historystages.data.lock.NamedLockEntry;
 import net.bananemdnsa.historystages.data.lock.engine.StageLocks;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.saveddata.IndividualStageData;
@@ -363,6 +364,64 @@ public final class LockTests {
         } finally {
             GameTestStages.removeAll();
         }
+    }
+
+    // --- Mod entries, narrowed (Issue #117) ---
+    //
+    // The item tests above cover the item tab. A mod entry is the one a pack reaches for to gate
+    // a whole namespace at once, and it is where the narrowing was reported broken: an
+    // individual stage locking "create" for nothing but recipes froze everything else the mod
+    // owned. Both the narrowed list and the empty one are asked about, because they used to be
+    // written to disk as the same file.
+
+    @GameTest(template = "empty")
+    public static void aModEntryNarrowedToOneActionLeavesTheRestFree(GameTestHelper helper) {
+        try {
+            individualStageLockingMod("mod_narrowed", List.of("recipe"));
+            ServerPlayer player = GameTestPlayers.create(helper);
+            ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
+
+            if (!StageLockHelper.isActionLockedByIndividualStage(sword, player.getUUID(), "recipe")) {
+                helper.fail("the mod entry lists \"recipe\", but the engine reports it as allowed");
+                return;
+            }
+            for (String free : List.of("pickup", "use", "equip", "break")) {
+                if (StageLockHelper.isActionLockedByIndividualStage(sword, player.getUUID(), free)) {
+                    helper.fail("the mod entry locks only \"recipe\", but \"" + free + "\" was "
+                            + "reported as blocked - the entry's action list is being ignored");
+                    return;
+                }
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void aModEntryWithEveryActionClearedBlocksNothing(GameTestHelper helper) {
+        try {
+            individualStageLockingMod("mod_cleared", List.of());
+            ServerPlayer player = GameTestPlayers.create(helper);
+            ItemStack sword = new ItemStack(Items.DIAMOND_SWORD);
+
+            for (String action : net.bananemdnsa.historystages.api.lock.LockActions.ITEM) {
+                if (StageLockHelper.isActionLockedByIndividualStage(sword, player.getUUID(), action)) {
+                    helper.fail("every action was cleared on the mod entry, but \"" + action
+                            + "\" was reported as blocked");
+                    return;
+                }
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    /** An individual stage locking the whole {@code minecraft} namespace, for the named actions. */
+    private static void individualStageLockingMod(String name, List<String> actions) {
+        GameTestStages.individual(name, stage -> stage.setModEntries(new ArrayList<>(
+                List.of(new NamedLockEntry("minecraft", new ArrayList<>(actions))))));
     }
 
     /** A stage locking {@link #LOCKED_ITEM} for only the named actions. */

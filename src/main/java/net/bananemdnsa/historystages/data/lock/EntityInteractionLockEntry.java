@@ -32,7 +32,7 @@ public class EntityInteractionLockEntry {
     );
 
     private final String id;
-    private final List<String> lockActions; // null = all actions locked, empty = treated as all locked
+    private final List<String> lockActions; // null = all actions locked, empty = none locked
     private final List<ItemEntry> lockItems; // null/empty = no item filter (lock applies to any held item)
 
     public EntityInteractionLockEntry(String id) {
@@ -45,7 +45,7 @@ public class EntityInteractionLockEntry {
 
     public EntityInteractionLockEntry(String id, List<String> lockActions, List<ItemEntry> lockItems) {
         this.id = id;
-        this.lockActions = (lockActions != null && !lockActions.isEmpty()) ? new ArrayList<>(lockActions) : null;
+        this.lockActions = lockActions != null ? new ArrayList<>(lockActions) : null;
         this.lockItems = (lockItems != null && !lockItems.isEmpty()) ? new ArrayList<>(lockItems) : null;
     }
 
@@ -54,7 +54,8 @@ public class EntityInteractionLockEntry {
     /** Returns null if all actions are locked, otherwise the explicit list of locked actions. */
     public List<String> getLockActions() { return lockActions; }
 
-    public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+    /** Whether the entry names an action list at all — an empty one still counts as narrowed. */
+    public boolean hasLockActions() { return lockActions != null; }
 
     /** Returns null if there is no item filter, otherwise the held items this lock is limited to. */
     public List<ItemEntry> getLockItems() { return lockItems; }

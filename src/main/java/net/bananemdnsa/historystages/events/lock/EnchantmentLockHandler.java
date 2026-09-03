@@ -30,8 +30,9 @@ public class EnchantmentLockHandler {
         ItemStack right = event.getRight();
         if (right.isEmpty()) return;
 
-        boolean locked = LockGate.isItemLockedServer(
-                right, serverPlayer,
+        // Feeding an item into an anvil is a use of it, so the entry's "use" narrowing decides.
+        boolean locked = LockGate.isActionLockedServer(
+                right, serverPlayer, "use",
                 Config.GAMEPLAY.lockEnchanting,
                 Config.GAMEPLAY.individualLockEnchanting);
 

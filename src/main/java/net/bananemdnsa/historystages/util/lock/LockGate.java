@@ -60,19 +60,4 @@ public final class LockGate {
         return false;
     }
 
-    /**
-     * Server-only item-level (no action key) check. Used by handlers that lock the item
-     * wholesale regardless of action — e.g. the anvil/enchantment path.
-     */
-    public static boolean isItemLockedServer(ItemStack stack,
-                                             ServerPlayer player,
-                                             ModConfigSpec.BooleanValue globalEnabled,
-                                             ModConfigSpec.BooleanValue individualEnabled) {
-        if (stack.isEmpty()) return false;
-        if (globalEnabled.get()
-                && StageLockHelper.isItemLockedForPlayer(stack, player)) return true;
-        if (individualEnabled.get()
-                && StageLockHelper.isItemLockedByIndividualStage(stack, player.getUUID())) return true;
-        return false;
-    }
 }

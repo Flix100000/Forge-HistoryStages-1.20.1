@@ -24,7 +24,7 @@ public class FluidEntry implements TextOverrideHolder {
 
     private final String id;
 
-    /** null = every action this category offers is locked. */
+    /** null = every action this category offers is locked; empty = none of them is. */
     private final List<String> lockActions;
 
     // Per-fluid text overrides for the stage's hidden-display REPLACE mode.
@@ -39,8 +39,7 @@ public class FluidEntry implements TextOverrideHolder {
     public FluidEntry(String id, List<String> lockActions,
                       String nameTextOverride, String tooltipTextOverride) {
         this.id = id;
-        this.lockActions = (lockActions != null && !lockActions.isEmpty())
-                ? new ArrayList<>(lockActions) : null;
+        this.lockActions = lockActions != null ? new ArrayList<>(lockActions) : null;
         this.nameTextOverride = emptyToNull(nameTextOverride);
         this.tooltipTextOverride = emptyToNull(tooltipTextOverride);
     }
@@ -54,7 +53,8 @@ public class FluidEntry implements TextOverrideHolder {
     /** Returns null if all actions are locked, otherwise the explicit list of locked actions. */
     public List<String> getLockActions() { return lockActions; }
 
-    public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+    /** Whether the entry names an action list at all — an empty one still counts as narrowed. */
+    public boolean hasLockActions() { return lockActions != null; }
 
     /** Per-fluid REPLACE name override, or null to use the stage default. */
     public String getNameTextOverride() { return nameTextOverride; }

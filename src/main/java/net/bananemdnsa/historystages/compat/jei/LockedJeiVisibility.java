@@ -33,9 +33,11 @@ public final class LockedJeiVisibility {
      */
     public static Set<ItemStack> computeLockedItems(Iterable<ItemStack> allStacks,
                                                      MultiStagePolicy policy) {
+        // "recipe" and not the item as a whole: the action is described in the editor as
+        // "Show in JEI / EMI", so an entry that leaves it unlocked must leave the item listed.
         Predicate<ItemStack> isLocked = switch (policy) {
-            case STRICT  -> StageLockHelper::isItemLockedForClient;
-            case LENIENT -> StageLockHelper::isItemLockedForClientLenient;
+            case STRICT  -> stack -> StageLockHelper.isItemActionLockedForClient(stack, "recipe");
+            case LENIENT -> stack -> StageLockHelper.isItemActionLockedForClientLenient(stack, "recipe");
         };
 
         Set<ItemStack> locked = new HashSet<>();

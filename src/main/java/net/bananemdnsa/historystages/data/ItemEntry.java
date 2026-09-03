@@ -10,7 +10,7 @@ public class ItemEntry implements TextOverrideHolder {
 
     private final String id;
     private final JsonObject nbt;
-    private final List<String> lockActions; // null = all actions locked
+    private final List<String> lockActions; // null = all actions locked, empty = none locked
 
     // Per-item text overrides for the stage's hidden-display REPLACE mode.
     // null = no override → fall back to the stage default text.
@@ -33,7 +33,7 @@ public class ItemEntry implements TextOverrideHolder {
                      String nameTextOverride, String tooltipTextOverride) {
         this.id = id;
         this.nbt = nbt;
-        this.lockActions = (lockActions != null && !lockActions.isEmpty()) ? new ArrayList<>(lockActions) : null;
+        this.lockActions = lockActions != null ? new ArrayList<>(lockActions) : null;
         this.nameTextOverride = emptyToNull(nameTextOverride);
         this.tooltipTextOverride = emptyToNull(tooltipTextOverride);
     }
@@ -49,7 +49,8 @@ public class ItemEntry implements TextOverrideHolder {
     /** Returns null if all actions are locked, otherwise the explicit list of locked actions. */
     public List<String> getLockActions() { return lockActions; }
 
-    public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+    /** Whether the entry names an action list at all — an empty one still counts as narrowed. */
+    public boolean hasLockActions() { return lockActions != null; }
 
     /** Per-item REPLACE name override, or null to use the stage default. */
     public String getNameTextOverride() { return nameTextOverride; }

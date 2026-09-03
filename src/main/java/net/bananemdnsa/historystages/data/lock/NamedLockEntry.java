@@ -15,7 +15,12 @@ import java.util.List;
  * When lockActions is an empty list, no actions are locked.
  *
  * In JSON the field is written as {@code unlock_actions} (the complement — actions that are
- * NOT locked). {@code null} / no field means all actions are locked.
+ * NOT locked). {@code null} / no field means all actions are locked; an empty list is therefore
+ * written as every action being unlocked.
+ *
+ * <p>Empty and null are kept apart on purpose. Folding them together — which this did until
+ * Issue #117 — makes an entry the maintainer cleared every tick from read back as one that locks
+ * everything, the exact opposite of what the editor showed.
  */
 public class NamedLockEntry implements net.bananemdnsa.historystages.data.display.TextOverrideHolder {
 
@@ -54,7 +59,7 @@ public class NamedLockEntry implements net.bananemdnsa.historystages.data.displa
 
     public NamedLockEntry(String id, List<String> lockActions, String nameTextOverride, String tooltipTextOverride, JsonObject nbt) {
         this.id = id;
-        this.lockActions = (lockActions != null && !lockActions.isEmpty()) ? new ArrayList<>(lockActions) : null;
+        this.lockActions = lockActions != null ? new ArrayList<>(lockActions) : null;
         this.nameTextOverride = (nameTextOverride != null && !nameTextOverride.isEmpty()) ? nameTextOverride : null;
         this.tooltipTextOverride = (tooltipTextOverride != null && !tooltipTextOverride.isEmpty()) ? tooltipTextOverride : null;
         this.nbt = nbt;
@@ -65,7 +70,8 @@ public class NamedLockEntry implements net.bananemdnsa.historystages.data.displa
     /** Returns null if all actions are locked, otherwise the explicit list of locked actions. */
     public List<String> getLockActions() { return lockActions; }
 
-    public boolean hasLockActions() { return lockActions != null && !lockActions.isEmpty(); }
+    /** Whether the entry names an action list at all — an empty one still counts as narrowed. */
+    public boolean hasLockActions() { return lockActions != null; }
 
     public JsonObject getNbt() { return nbt; }
 

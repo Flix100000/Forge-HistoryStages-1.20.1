@@ -90,7 +90,7 @@ public final class EntityTabsState {
         interactionItems.clear();
         for (EntityInteractionLockEntry entry : locks.getInteractionlock()) {
             interactionlock.add(entry.getId());
-            if (entry.getLockActions() != null && !entry.getLockActions().isEmpty()) {
+            if (entry.getLockActions() != null) {
                 interactionActions.put(entry.getId(), new ArrayList<>(entry.getLockActions()));
             }
             if (entry.getLockItems() != null && !entry.getLockItems().isEmpty()) {

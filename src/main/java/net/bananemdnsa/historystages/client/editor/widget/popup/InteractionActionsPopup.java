@@ -10,7 +10,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -19,8 +18,9 @@ import java.util.function.BiConsumer;
  * mount, trade, leash, shear, milk, name, equip, other). Toggles show the <em>blocked</em>
  * actions; all blocked is the default.
  *
- * <p>On confirm it reports the entity id and the blocked actions. An empty list means "all
- * blocked" — the default, stored as no filter.
+ * <p>On confirm it reports the entity id and the blocked actions, or {@code null} for "all
+ * blocked" — the default, stored as no filter. An <em>empty</em> list is a real answer and means
+ * the entry blocks nothing; the two used to share the empty list and were indistinguishable.
  */
 public class InteractionActionsPopup {
 
@@ -52,7 +52,7 @@ public class InteractionActionsPopup {
 
     public void show(String entityId, List<String> currentBlocked) {
         this.entityId = entityId;
-        if (currentBlocked != null && !currentBlocked.isEmpty()) {
+        if (currentBlocked != null) {
             this.current = new ArrayList<>(currentBlocked);
         } else {
             // Default = all actions blocked (matches "no filter" behaviour)
@@ -252,7 +252,7 @@ public class InteractionActionsPopup {
 
     private void confirm() {
         boolean allBlocked = current.size() == ACTION_KEYS.length;
-        onConfirm.accept(entityId, allBlocked ? Collections.emptyList() : new ArrayList<>(current));
+        onConfirm.accept(entityId, allBlocked ? null : new ArrayList<>(current));
         visible = false;
     }
 

@@ -138,8 +138,9 @@ public class RichEntryCategoryTab<T> extends AbstractCategoryTab {
     private static <V> void put(Map<Integer, V> target, int index, @Nullable V value) {
         if (value == null) return;
         if (value instanceof JsonObject json && json.size() == 0) return;
-        if (value instanceof List<?> list && list.isEmpty()) return;
         if (value instanceof String text && text.isEmpty()) return;
+        // An empty list is not dropped: for the action map it is the entry the maintainer
+        // narrowed down to nothing, and dropping it would reload as "locks everything".
         target.put(index, value);
     }
 

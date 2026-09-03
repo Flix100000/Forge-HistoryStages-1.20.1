@@ -21,10 +21,16 @@ class FluidEntryTest {
         assertFalse(entry.hasLockActions());
     }
 
+    /**
+     * The opposite of what this used to assert. Folding the empty list into {@code null} made an
+     * entry the maintainer cleared every tick from read back as one locking everything — see
+     * {@code EmptyActionListTest} and Issue #117.
+     */
     @Test
-    void anEmptyActionListMeansTheSameAsNone() {
+    void anEmptyActionListIsItsOwnAnswerAndLocksNothing() {
         FluidEntry entry = new FluidEntry("minecraft:water", List.of(), null, null);
-        assertNull(entry.getLockActions());
+        assertEquals(List.of(), entry.getLockActions());
+        assertTrue(entry.hasLockActions(), "narrowed — to nothing");
     }
 
     @Test

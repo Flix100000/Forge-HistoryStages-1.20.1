@@ -105,12 +105,18 @@ public class EntityItemLockHandler {
         return false;
     }
 
+    /**
+     * Both paths this guards end with the player holding the displayed item, so the question is
+     * the pickup one. Asking whether the item is gated at all would ignore an entry narrowed to
+     * something else entirely (Issue #117).
+     */
     private static boolean isItemLockedForContext(ItemStack item, Player player, boolean isClient) {
         if (isClient) {
-            return StageLockHelper.isItemLockedForClient(item);
-        } else {
-            return StageLockHelper.isItemLockedForPlayer(item, player.getUUID());
+            return StageLockHelper.isActionLockedForClient(item, "pickup")
+                    || StageLockHelper.isActionLockedByIndividualStageClient(item, "pickup");
         }
+        return StageLockHelper.isActionLockedForPlayer(item, player.getUUID(), "pickup")
+                || StageLockHelper.isActionLockedByIndividualStage(item, player.getUUID(), "pickup");
     }
 
     private static void showMessage(Player player) {

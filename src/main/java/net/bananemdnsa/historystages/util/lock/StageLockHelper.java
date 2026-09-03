@@ -226,6 +226,44 @@ public class StageLockHelper {
                 ClientStageStates.individual());
     }
 
+    /**
+     * Whether one action is blocked for this item across both scopes, resolved strictly.
+     *
+     * <p>The action-keyed counterpart to {@link #isItemLockedForClient}, for the surfaces that
+     * belong to a single action rather than to the item as a whole — recipe-viewer hiding is
+     * {@code recipe}, which is what its editor description says it is.
+     */
+    public static boolean isItemActionLockedForClient(ItemStack stack, String action) {
+        ResourceLocation res = itemKey(stack);
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        return LockResolution.isLocked(
+                StageLocks.engine().gatingStagesForItemAction(itemId, modId, stack, action,
+                        StageScope.GLOBAL),
+                ClientStageStates.global(),
+                StageLocks.engine().gatingStagesForItemAction(itemId, modId, stack, action,
+                        StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
+    }
+
+    /** {@link #isItemActionLockedForClient} under the lenient multi-stage policy. */
+    public static boolean isItemActionLockedForClientLenient(ItemStack stack, String action) {
+        ResourceLocation res = itemKey(stack);
+        if (res == null) return false;
+        String itemId = res.toString();
+        String modId = res.getNamespace();
+
+        return LockResolution.isLockedLenient(
+                StageLocks.engine().gatingStagesForItemAction(itemId, modId, stack, action,
+                        StageScope.GLOBAL),
+                ClientStageStates.global(),
+                StageLocks.engine().gatingStagesForItemAction(itemId, modId, stack, action,
+                        StageScope.INDIVIDUAL),
+                ClientStageStates.individual());
+    }
+
     public static boolean isItemLockedByIndividualStageClient(ItemStack stack) {
         ResourceLocation res = itemKey(stack);
         if (res == null) return false;
@@ -324,7 +362,9 @@ public class StageLockHelper {
 
             if (!isItemInStage(itemId, modId, stack, entry)) continue;
 
-            if (isItemLockedByIndividualStage(stack, player.getUUID())) {
+            // Same action as taking it out of a container: the player may not keep what they
+            // may not acquire. An entry narrowed away from pickup leaves the stack alone.
+            if (isActionLockedByIndividualStage(stack, player.getUUID(), "pickup")) {
                 player.drop(stack.copy(), false);
                 inv.setItem(i, ItemStack.EMPTY);
                 dropped = true;

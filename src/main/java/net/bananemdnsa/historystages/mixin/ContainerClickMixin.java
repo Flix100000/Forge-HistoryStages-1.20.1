@@ -26,6 +26,11 @@ public class ContainerClickMixin {
 
     private static final String FEEDBACK_CATEGORY = "container";
 
+    /**
+     * Taking an item out of a container is the same acquisition the ground-pickup handler gates,
+     * so it asks the same action rather than "is this item mentioned anywhere" — otherwise an
+     * entry narrowed to {@code recipe} still froze every slot holding it (Issue #117).
+     */
     @Inject(method = "clicked", at = @At("HEAD"), cancellable = true, remap = true)
     private void onClicked(int slotId, int button, ClickType clickType, Player player, CallbackInfo ci) {
         if (player.level().isClientSide()) return;
@@ -41,7 +46,7 @@ public class ContainerClickMixin {
         ItemStack stack = slot.getItem();
         if (stack.isEmpty()) return;
 
-        if (StageLockHelper.isItemLockedByIndividualStage(stack, serverPlayer.getUUID())) {
+        if (StageLockHelper.isActionLockedByIndividualStage(stack, serverPlayer.getUUID(), "pickup")) {
             ci.cancel();
 
             ResourceLocation itemRL = BuiltInRegistries.ITEM.getKey(stack.getItem());

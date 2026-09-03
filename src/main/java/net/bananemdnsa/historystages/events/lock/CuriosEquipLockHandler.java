@@ -48,16 +48,16 @@ public class CuriosEquipLockHandler {
     private static boolean isItemLocked(ItemStack item, Player player, boolean isClient) {
         if (Config.GAMEPLAY.lockItemUsage.get()) {
             if (isClient) {
-                if (StageLockHelper.isItemLockedForClient(item)) return true;
+                if (StageLockHelper.isActionLockedForClient(item, "equip")) return true;
             } else {
-                if (StageLockHelper.isItemLockedForPlayer(item, player.getUUID())) return true;
+                if (StageLockHelper.isActionLockedForPlayer(item, player.getUUID(), "equip")) return true;
             }
         }
         if (Config.GAMEPLAY.individualLockItemUsage.get()) {
             if (isClient) {
-                if (StageLockHelper.isItemLockedByIndividualStageClient(item)) return true;
+                if (StageLockHelper.isActionLockedByIndividualStageClient(item, "equip")) return true;
             } else {
-                if (StageLockHelper.isItemLockedByIndividualStage(item, player.getUUID())) return true;
+                if (StageLockHelper.isActionLockedByIndividualStage(item, player.getUUID(), "equip")) return true;
             }
         }
         return false;
