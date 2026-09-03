@@ -48,7 +48,9 @@ public abstract class RecipeLayoutMixin {
         if (recipe instanceof RecipeHolder<?> holder) {
             ResourceLocation recipeId = holder.id();
             if (recipeId != null
-                    && StageLockHelper.isRecipeLockedForClient(recipeId.toString())) {
+                    && (StageLockHelper.isRecipeLockedForClient(recipeId.toString())
+                        || net.bananemdnsa.historystages.events.RecipeHandler
+                                .isFluidGatedForViewer(recipeId.toString()))) {
                 return true;
             }
         }

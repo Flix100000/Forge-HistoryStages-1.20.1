@@ -421,6 +421,15 @@ public class HistoryStages {
 
         net.bananemdnsa.historystages.events.AutoTriggerEventBridge.pollPlayers(event.getServer(), tickCounter);
 
+        // Deliberately here and not in RecipeManager.apply: KubeJS and CraftTweaker rewrite
+        // recipes after that call, so an index built there would miss a script pack entirely.
+        // A tick has, by definition, waited for all of them. Costs one boolean read when clean.
+        if (event.getServer() != null) {
+            net.bananemdnsa.historystages.data.lock.FluidRecipeIndex.rebuildIfDirty(
+                    event.getServer().getRecipeManager().getRecipes(),
+                    event.getServer().registryAccess());
+        }
+
         // Advance temporary-mode re-lock timers / cooldowns.
         var server = event.getServer();
         if (server != null && server.overworld() != null && tickCounter % 20 == 0) {

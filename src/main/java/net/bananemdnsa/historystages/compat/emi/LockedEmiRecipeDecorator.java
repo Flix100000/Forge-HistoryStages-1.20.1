@@ -54,7 +54,9 @@ public class LockedEmiRecipeDecorator implements EmiRecipeDecorator {
         // 1. Check by recipe ID
         ResourceLocation recipeId = recipe.getId();
         if (recipeId != null
-                && StageLockHelper.isRecipeLockedForClient(recipeId.toString())) {
+                && (StageLockHelper.isRecipeLockedForClient(recipeId.toString())
+                    || net.bananemdnsa.historystages.events.RecipeHandler
+                            .isFluidGatedForViewer(recipeId.toString()))) {
             return true;
         }
 

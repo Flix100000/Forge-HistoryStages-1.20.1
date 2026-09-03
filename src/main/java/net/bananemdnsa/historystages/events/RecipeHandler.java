@@ -1,6 +1,11 @@
 package net.bananemdnsa.historystages.events;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+
+import net.bananemdnsa.historystages.data.lock.FluidRecipeIndex;
+import net.bananemdnsa.historystages.data.lock.FluidRecipeScanner;
 
 import net.bananemdnsa.historystages.Config;
 import net.bananemdnsa.historystages.util.lock.RecipeCraftContext;
@@ -53,6 +58,65 @@ public class RecipeHandler {
                         && StageLockHelper.isActionLockedByIndividualStage(result, crafter, "recipe"));
     }
 
+    /**
+     * Whether a fluid this recipe touches is gated for the action that side implies.
+     *
+     * <p>{@code recipe} covers the fluids a recipe produces and {@code ingredient} the ones it
+     * consumes, because those are different intents: "you cannot make molten copper yet" is not
+     * "everything needing lava is out of reach". Where the recipe's own spelling did not settle
+     * which side a fluid sits on, either action gates it — a recipe too many is a nuisance, a
+     * recipe too few is a hole.
+     */
+    public static boolean isFluidGatedForViewer(String recipeId) {
+        // A recipe viewer has no resolution in progress and therefore no crafter, but the person
+        // looking at the screen is the player — so their individual stages count here, exactly as
+        // they do for the recipe-id lock the viewers already consult.
+        return isFluidGated(recipeId, true, true, null);
+    }
+
+    private static boolean isFluidGated(String recipeId, boolean isClientSide,
+                                        boolean includeIndividual, UUID crafter) {
+        if (FluidRecipeIndex.isEmpty()) return false;
+
+        Map<String, Set<FluidRecipeScanner.Position>> touched = FluidRecipeIndex.fluidsIn(recipeId);
+        if (touched.isEmpty()) return false;
+
+        for (Map.Entry<String, Set<FluidRecipeScanner.Position>> entry : touched.entrySet()) {
+            String fluidId = entry.getKey();
+            for (FluidRecipeScanner.Position position : entry.getValue()) {
+                boolean gated = switch (position) {
+                    case OUTPUT -> fluidActionGated(fluidId, "recipe", isClientSide,
+                            includeIndividual, crafter);
+                    case INPUT -> fluidActionGated(fluidId, "ingredient", isClientSide,
+                            includeIndividual, crafter);
+                    case UNKNOWN -> fluidActionGated(fluidId, "recipe", isClientSide,
+                                    includeIndividual, crafter)
+                            || fluidActionGated(fluidId, "ingredient", isClientSide,
+                                    includeIndividual, crafter);
+                };
+                if (gated) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The global half always counts; {@code includeIndividual} decides whether the per-player half
+     * does. Client-side the individual set is the local player's, so no uuid is needed there —
+     * server-side there is nobody to resolve it against without one.
+     */
+    private static boolean fluidActionGated(String fluidId, String action, boolean isClientSide,
+                                            boolean includeIndividual, UUID crafter) {
+        if (isClientSide) {
+            return StageLockHelper.isFluidActionLockedForClient(fluidId, action)
+                    || (includeIndividual
+                            && StageLockHelper.isFluidActionLockedByIndividualStageClient(fluidId, action));
+        }
+        return StageLockHelper.isFluidActionLockedForServer(fluidId, action)
+                || (includeIndividual && crafter != null
+                        && StageLockHelper.isFluidActionLockedByIndividualStage(fluidId, crafter, action));
+    }
+
     /** Overload without side info — defaults to server-side check. */
     public static boolean isOutputLocked(RecipeHolder<?> holder) {
         return isOutputLocked(holder, false);
@@ -63,6 +127,10 @@ public class RecipeHandler {
 
         String id = recipeId.toString();
         UUID crafter = crafter();
+
+        // A recipe can be gated by a fluid it touches without anyone having listed the recipe.
+        // Checked first because it is a map lookup that misses for almost every recipe.
+        if (isFluidGated(id, isClientSide, crafter != null, crafter)) return true;
 
         if (isClientSide) {
             // The client's crafter is always the local player, so the individual set to consult is

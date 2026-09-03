@@ -44,6 +44,7 @@ public class RecipeManagerMixin {
         }
 
         AllRecipesCache.set(new ArrayList<>(this.byName.values()));
+        net.bananemdnsa.historystages.data.lock.FluidRecipeIndex.markDirty();
         auditRecipeLocks();
     }
 
