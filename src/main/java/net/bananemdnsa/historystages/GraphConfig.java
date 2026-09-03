@@ -136,7 +136,7 @@ public class GraphConfig {
                             "Off by default: the graph reveals how the pack is structured, so a pack",
                             "author should switch it on deliberately rather than find it already there.",
                             "Turning it off only removes the player button — admins can always reach the",
-                            "graph through the in-game editor. [Default: false]")
+                            "graph through the in-game editor or with '/history graph'. [Default: false]")
                     .define("enabled", false);
             title = builder
                     .comment("Screen title. Either literal text or a translation key.",

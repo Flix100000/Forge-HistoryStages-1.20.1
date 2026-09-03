@@ -135,7 +135,7 @@ public class Config {
 
             showEditorButton = builder
                     .comment("Show the Stage Editor button in the pause menu (operators only)?",
-                            "Turning it off does not lock the editor away: '/history debug editor'",
+                            "Turning it off does not lock the editor away: '/history editor'",
                             "still opens it for anyone who could see the button. [Default: true]")
                     .define("showEditorButton", true);
 
