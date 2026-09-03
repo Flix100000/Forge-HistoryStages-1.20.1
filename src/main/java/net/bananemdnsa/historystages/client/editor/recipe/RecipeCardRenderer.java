@@ -119,6 +119,11 @@ public final class RecipeCardRenderer {
             // A recipe whose only output is a fluid. Without this its result slot sits empty and
             // the card looks like it makes nothing.
             FluidIcon.draw(g, fluidResult, resultLeft + 3, midY - 8, 16);
+        } else {
+            // Nothing here is known to be the output. An empty slot would read as a fault in the
+            // recipe; this says the honest thing, which is that we could not tell.
+            g.drawString(font, "?", resultLeft + RecipeCardLayout.RESULT_SIZE / 2 - 2, midY - 4,
+                    UNKNOWN_SIDE, false);
         }
 
         String typeName = meta.nameLangKey().isEmpty()

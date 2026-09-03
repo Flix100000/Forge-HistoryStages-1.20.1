@@ -173,6 +173,7 @@
   "editor.historystages.recipes.individual_only": "Only recipes from stations that know who is crafting",
   "editor.historystages.recipes.pick_an_item": "Pick an item to see its recipes",
   "editor.historystages.recipes.hidden_by_filter": "%s more hidden by the filter",
+  "editor.historystages.recipes.fluid_maybe_output": "No recipe here is known to produce this — they only mention it",
   "editor.historystages.recipes.fluid_side_unknown": "Side unknown — the lock treats this as both ingredient and result",
   "editor.historystages.recipe_type.crafting": "Crafting",
   "editor.historystages.recipe_type.smelting": "Smelting",

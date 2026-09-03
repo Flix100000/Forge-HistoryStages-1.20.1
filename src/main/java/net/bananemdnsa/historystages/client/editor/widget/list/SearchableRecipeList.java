@@ -73,6 +73,9 @@ public class SearchableRecipeList implements PickerOverlay {
     private static final int NOTE_H = 10;
     private static final int DETAIL_SCROLLBAR_W = 4;
 
+    /** Marks a fluid nothing is known to produce. Matches the card's own unplaced-fluid edge. */
+    private static final int GUESS_MARK = 0xFF9A6ACC;
+
     private static final int TAB_RECIPES = 0;
     private static final int TAB_SELECTED = 1;
 
@@ -122,6 +125,8 @@ public class SearchableRecipeList implements PickerOverlay {
 
     // Recipe data: maps output item ID -> list of recipes producing it
     private final Map<String, List<RecipeInfo>> recipesByOutput = new LinkedHashMap<>();
+    /** Fluids some recipe was read as definitely producing, as opposed to merely mentioning. */
+    private final Set<String> certainFluids = new HashSet<>();
     // On an individual stage only recipes from stations that know the player can be gated, so the
     // picker shows only those. Read by buildRecipeIndex(), which the constructor runs.
     private final boolean individualScope;
@@ -179,11 +184,12 @@ public class SearchableRecipeList implements PickerOverlay {
                 Map<String, Set<FluidRecipeScanner.Position>> sides =
                         FluidRecipeIndex.fluidsIn(recipeId.toString());
                 List<String> fluidOutputs = RecipeFluids.definiteOutputs(sides);
+                List<String> possibleFluids = RecipeFluids.possibleOutputs(sides);
                 List<RecipeFluids.Ref> fluidInputs = RecipeFluids.ingredientRow(sides);
+                certainFluids.addAll(fluidOutputs);
 
-                // A recipe with neither an item nor a certain fluid result can be filed nowhere,
-                // and stays out exactly as it did before.
-                if (result.isEmpty() && fluidOutputs.isEmpty())
+                // A recipe that could not be producing anything we can name is filed nowhere.
+                if (result.isEmpty() && possibleFluids.isEmpty())
                     continue;
 
                 ResourceLocation typeKey = BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType());
@@ -200,9 +206,11 @@ public class SearchableRecipeList implements PickerOverlay {
                                 .add(info);
                     }
                 }
-                // Filed under every fluid it certainly produces, so a machine making two of them
-                // is reachable from either.
-                for (String fluidId : fluidOutputs) {
+                // Filed under every fluid it might be producing, the guesses included. A recipe
+                // left out here is reachable nowhere else in the editor and cannot be gated at
+                // all, while a wrong guess says so on its own row and is one glance at the recipe
+                // viewer away.
+                for (String fluidId : possibleFluids) {
                     recipesByOutput.computeIfAbsent(fluidId, k -> new ArrayList<>()).add(info);
                 }
             } catch (Exception ignored) {
@@ -222,13 +230,16 @@ public class SearchableRecipeList implements PickerOverlay {
             if (!seen.add(entry.getKey())) continue;
             ResourceLocation key = ResourceLocation.tryParse(entry.getKey());
             if (key != null && !BuiltInRegistries.ITEM.containsKey(key)) {
+                // Certain when some recipe was read as definitely producing it. An entry resting
+                // entirely on guesses says so on the row rather than in a log line.
                 allRecipeItems.add(new ItemEntry(entry.getKey(), ItemStack.EMPTY,
                         entry.getValue().size(),
-                        FluidIcon.nameOf(entry.getKey()).toLowerCase(), true));
+                        FluidIcon.nameOf(entry.getKey()).toLowerCase(), true,
+                        certainFluids.contains(entry.getKey())));
             } else {
                 ItemStack stack = entry.getValue().get(0).result();
                 allRecipeItems.add(new ItemEntry(entry.getKey(), stack, entry.getValue().size(),
-                        stack.getHoverName().getString().toLowerCase(), false));
+                        stack.getHoverName().getString().toLowerCase(), false, true));
             }
         }
         // Fluids land after the items without being told to: the order below is the item
@@ -557,6 +568,14 @@ public class SearchableRecipeList implements PickerOverlay {
                         ItemEntry entry = filteredItems.get(index);
                         if (entry.isFluid()) {
                             FluidIcon.draw(gg, entry.id(), sx + 1, sy + 1, 16);
+                            if (!entry.certain()) {
+                                // The same mark the card puts on a fluid it could not place, so
+                                // the two read as one statement rather than two stray colours.
+                                gg.fill(sx, sy, sx + ItemSlotGrid.SLOT_SIZE, sy + 1, GUESS_MARK);
+                                gg.fill(sx, sy + ItemSlotGrid.SLOT_SIZE - 1,
+                                        sx + ItemSlotGrid.SLOT_SIZE, sy + ItemSlotGrid.SLOT_SIZE,
+                                        GUESS_MARK);
+                            }
                         } else {
                             gg.renderItem(entry.stack(), sx + 1, sy + 1);
                         }
@@ -783,8 +802,13 @@ public class SearchableRecipeList implements PickerOverlay {
         String name = entry.isFluid()
                 ? FluidIcon.nameOf(entry.id())
                 : entry.stack().getHoverName().getString();
-        drawTooltip(g, font, name + " §7(" + entry.recipeCount() + ")\n§8" + entry.id(),
-                mouseX, mouseY);
+        StringBuilder text = new StringBuilder(name)
+                .append(" §7(").append(entry.recipeCount()).append(")\n§8").append(entry.id());
+        if (!entry.certain()) {
+            text.append("\n§7").append(Component.translatable(
+                    "editor.historystages.recipes.fluid_maybe_output").getString());
+        }
+        drawTooltip(g, font, text.toString(), mouseX, mouseY);
     }
 
     /**
@@ -1081,7 +1105,7 @@ public class SearchableRecipeList implements PickerOverlay {
      * different thing, often one that does not exist.
      */
     private record ItemEntry(String id, ItemStack stack, int recipeCount, String searchName,
-                             boolean isFluid) {
+                             boolean isFluid, boolean certain) {
     }
 
     /**

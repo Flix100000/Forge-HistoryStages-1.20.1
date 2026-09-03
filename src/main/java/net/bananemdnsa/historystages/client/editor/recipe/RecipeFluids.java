@@ -37,6 +37,28 @@ public final class RecipeFluids {
     }
 
     /**
+     * Every fluid this recipe could be producing: the certain ones, plus the ones whose side
+     * could not be read at all. A fluid read as a definite input is excluded — there the answer
+     * is known, and listing a consumer among the producers would be the one lie worth avoiding.
+     *
+     * <p>The picker files a recipe under these. Being stricter and taking only the certain ones
+     * reads as the safer choice and is not: a recipe with no item result appears nowhere else in
+     * the editor, and there is no way to type a recipe id by hand, so leaving it out does not
+     * mean "shown later, once we are sure" — it means unreachable. A guess that is marked as a
+     * guess costs a glance at the recipe viewer; an absent entry costs the whole feature.
+     */
+    public static List<String> possibleOutputs(Map<String, Set<Position>> sides) {
+        List<String> possible = new ArrayList<>();
+        for (Map.Entry<String, Set<Position>> entry : sides.entrySet()) {
+            Set<Position> found = entry.getValue();
+            if (found.contains(Position.OUTPUT) || found.contains(Position.UNKNOWN)) {
+                possible.add(entry.getKey());
+            }
+        }
+        return possible;
+    }
+
+    /**
      * What belongs on the card's ingredient row: everything read as an input, plus everything we
      * could not place — the lock gates on those too, so leaving them off would hide the reason a
      * recipe disappeared.

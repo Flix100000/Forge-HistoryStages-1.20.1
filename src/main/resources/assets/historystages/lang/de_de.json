@@ -173,6 +173,7 @@
   "editor.historystages.recipes.individual_only": "Nur Rezepte von Stationen, die den Spieler kennen",
   "editor.historystages.recipes.pick_an_item": "Wähle ein Item, um seine Rezepte zu sehen",
   "editor.historystages.recipes.hidden_by_filter": "%s weitere vom Filter ausgeblendet",
+  "editor.historystages.recipes.fluid_maybe_output": "Kein Rezept hier stellt das nachweislich her — sie erwähnen es nur",
   "editor.historystages.recipes.fluid_side_unknown": "Seite unbekannt — die Sperre behandelt das als Zutat und als Ergebnis",
   "editor.historystages.recipe_type.crafting": "Werkbank",
   "editor.historystages.recipe_type.smelting": "Ofen",

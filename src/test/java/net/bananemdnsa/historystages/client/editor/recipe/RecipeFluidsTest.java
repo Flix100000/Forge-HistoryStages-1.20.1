@@ -70,6 +70,30 @@ class RecipeFluidsTest {
     }
 
     @Test
+    void aPossibleOutputCoversTheCertainAndTheUnreadable() {
+        // Both go in the master grid. A recipe left out of it is reachable nowhere else in the
+        // editor at all, so a marked guess beats an absent entry.
+        assertEquals(List.of("create:molten_iron", "mystery:goo"),
+                RecipeFluids.possibleOutputs(sides()
+                        .and("create:molten_iron", Position.OUTPUT)
+                        .and("mystery:goo", Position.UNKNOWN).build()));
+    }
+
+    @Test
+    void aDefiniteInputIsNeverAPossibleOutput() {
+        // The one case where the answer is actually known. Listing a consumer among the
+        // producers is the lie this whole split exists to avoid.
+        assertTrue(RecipeFluids.possibleOutputs(
+                sides().and("minecraft:lava", Position.INPUT).build()).isEmpty());
+    }
+
+    @Test
+    void aFluidOnBothSidesIsStillAPossibleOutput() {
+        assertEquals(List.of("minecraft:water"), RecipeFluids.possibleOutputs(
+                sides().and("minecraft:water", Position.INPUT, Position.OUTPUT).build()));
+    }
+
+    @Test
     void theIngredientRowCarriesInputsAndUnclassifiedOnes() {
         List<RecipeFluids.Ref> row = RecipeFluids.ingredientRow(sides()
                 .and("minecraft:lava", Position.INPUT)
