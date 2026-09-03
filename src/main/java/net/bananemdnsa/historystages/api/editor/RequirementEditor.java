@@ -23,8 +23,8 @@ import org.jetbrains.annotations.Nullable;
  *
  * <p><strong>The free tier has a fixed entry shape.</strong> {@link #ofIdList} and
  * {@link #ofIdCount} read and write {@link IdCountEntry}, so a requirement using either must
- * register with {@code RequirementStorage.gson(IdCountEntry.class)}. That covers seven of the
- * eight built-in shapes — everything except scoreboard, with its comparison operator.
+ * register with {@code RequirementStorage.gson(IdCountEntry.class)}. That covers every built-in
+ * shape except scoreboard, with its comparison operator.
  *
  * <p><strong>Anything else implements {@link #createTab} directly</strong> and returns its own
  * {@link DependencyTab}, built on {@code AbstractDependencyTab} the way the built-ins are. A tab

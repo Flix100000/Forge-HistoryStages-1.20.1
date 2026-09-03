@@ -44,7 +44,7 @@ class BuiltInRequirementMetadataTest {
 
     @Test
     void theWorldWideKindsSupportBothScopes() {
-        for (String id : List.of("item", "stage", "individual_stage", "scoreboard")) {
+        for (String id : List.of("item", "item_tag", "stage", "individual_stage", "scoreboard")) {
             assertEquals(EnumSet.allOf(StageScope.class), byId(id).supportedScopes(), id);
         }
     }

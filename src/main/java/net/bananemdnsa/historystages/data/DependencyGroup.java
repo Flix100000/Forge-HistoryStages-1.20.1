@@ -42,6 +42,22 @@ public class DependencyGroup {
     private String logic; // "AND" or "OR"
 
     private List<DependencyItem> items;
+
+    /**
+     * Item tags the player has to hand in, as {@code "#c:ingots"} — the same {@link DependencyItem}
+     * shape as {@link #items}, count and NBT criterion included.
+     *
+     * <p>A list of its own rather than {@code #} entries mixed into {@link #items}, because the
+     * two are separate tabs in the editor and separate requirement kinds in the registry, and a
+     * tab that writes a whole list back would drop everything the other tab owns.
+     *
+     * <p>What makes a tag entry more than shorthand is that it settles: the first matching item
+     * thrown in is recorded on the scroll, and the rest of the count has to be that same item.
+     * See {@code DependencyProgress.itemTagChoiceSuffix}.
+     */
+    @SerializedName("item_tags")
+    private List<DependencyItem> itemTags;
+
     private List<String> stages;
 
     @SerializedName("individual_stages")
@@ -73,6 +89,7 @@ public class DependencyGroup {
     public DependencyGroup() {
         this.logic = "AND";
         this.items = new ArrayList<>();
+        this.itemTags = new ArrayList<>();
         this.stages = new ArrayList<>();
         this.individualStages = new ArrayList<>();
         this.advancements = new ArrayList<>();
@@ -109,6 +126,7 @@ public class DependencyGroup {
     public boolean isOr() { return "OR".equalsIgnoreCase(logic); }
 
     public List<DependencyItem> getItems() { if (items == null) items = new ArrayList<>(); return items; }
+    public List<DependencyItem> getItemTags() { if (itemTags == null) itemTags = new ArrayList<>(); return itemTags; }
     public List<String> getStages() { if (stages == null) stages = new ArrayList<>(); return stages; }
     public List<IndividualStageDep> getIndividualStages() { if (individualStages == null) individualStages = new ArrayList<>(); return individualStages; }
     public List<String> getAdvancements() { if (advancements == null) advancements = new ArrayList<>(); return advancements; }
@@ -145,6 +163,7 @@ public class DependencyGroup {
     public void setId(String id) { this.id = id; }
     public void setLogic(String logic) { this.logic = logic; }
     public void setItems(List<DependencyItem> items) { this.items = items != null ? items : new ArrayList<>(); }
+    public void setItemTags(List<DependencyItem> itemTags) { this.itemTags = itemTags != null ? itemTags : new ArrayList<>(); }
     public void setStages(List<String> stages) { this.stages = stages != null ? stages : new ArrayList<>(); }
     public void setIndividualStages(List<IndividualStageDep> individualStages) { this.individualStages = individualStages != null ? individualStages : new ArrayList<>(); }
     public void setAdvancements(List<String> advancements) { this.advancements = advancements != null ? advancements : new ArrayList<>(); }
@@ -158,6 +177,7 @@ public class DependencyGroup {
      */
     public boolean isEmpty() {
         return getItems().isEmpty()
+                && getItemTags().isEmpty()
                 && getStages().isEmpty()
                 && getIndividualStages().isEmpty()
                 && getAdvancements().isEmpty()
@@ -179,6 +199,7 @@ public class DependencyGroup {
      */
     public boolean hasNonStageRequirements() {
         return !getItems().isEmpty()
+                || !getItemTags().isEmpty()
                 || !getAdvancements().isEmpty()
                 || xpLevel != null
                 || !getEntityKills().isEmpty()
@@ -208,6 +229,7 @@ public class DependencyGroup {
         copy.setId(id);
         copy.setLogic(getLogic());
         copy.setItems(getItems().stream().map(DependencyItem::copy).collect(Collectors.toList()));
+        copy.setItemTags(getItemTags().stream().map(DependencyItem::copy).collect(Collectors.toList()));
         copy.setStages(new ArrayList<>(getStages()));
         copy.setIndividualStages(getIndividualStages().stream().map(IndividualStageDep::copy).collect(Collectors.toList()));
         copy.setAdvancements(new ArrayList<>(getAdvancements()));

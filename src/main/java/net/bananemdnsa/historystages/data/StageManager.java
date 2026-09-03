@@ -713,6 +713,27 @@ public class StageManager {
                     return false;
                 });
 
+                // Validate item_tags. Format only — whether the tag exists is deliberately not
+                // asked, the same way interaction item filters and structure tags are left alone:
+                // stages load before tags are bound, so "unknown" here would mean "not yet", and
+                // a tag from another mod would be dropped with a warning that reads like a typo.
+                group.getItemTags().removeIf(depTag -> {
+                    String id = depTag.getId();
+                    if (id == null || !id.startsWith("#") || !isValidResourceLocation(id.substring(1))) {
+                        String msg = "Dependency item tag '" + id + "' invalid format (" + groupLabel + "). Expected '#namespace:path'. Removed.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        return true;
+                    }
+                    if (depTag.getCount() < 1) {
+                        String msg = "Dependency item tag '" + id + "' has invalid count " + depTag.getCount() + " (" + groupLabel + "). Corrected to 1.";
+                        addMessage(MessageLevel.WARN, msg);
+                        DebugLogger.warn("Invalid Dependencies", msg);
+                        depTag.setCount(1);
+                    }
+                    return false;
+                });
+
                 // Validate individual_stages
                 group.getIndividualStages().removeIf(dep -> {
                     if (dep.getStageId() == null || dep.getStageId().isBlank()) {

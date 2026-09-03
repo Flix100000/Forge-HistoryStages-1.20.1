@@ -6,11 +6,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 import com.google.gson.JsonObject;
 
 import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -26,15 +28,34 @@ import org.jetbrains.annotations.Nullable;
  * <p>The NBT used to live in a side table on the screen, keyed by row index, which every reorder
  * and removal had to shift by hand in three separate places. It lives on the entries here, so a
  * moved row takes its NBT with it and there is nothing left to keep in step.
+ *
+ * <p><strong>This class is two tabs.</strong> Items and item tags are the same row in every way
+ * the editor cares about — an id, a count, an icon, an optional NBT criterion — and differ only
+ * in which list of the group they belong to and which picker fills them. So the group access is a
+ * constructor argument, the way {@code StringListTab} takes {@code DependencyGroup::getStages},
+ * and the screen builds two instances. A copy of this file would have been a second place to fix
+ * every future bug in it.
  */
 public final class ItemRequirementTab extends AbstractDependencyTab {
 
     private final List<DependencyItem> items = new ArrayList<>();
+    private final Function<DependencyGroup, List<DependencyItem>> reader;
+    private final BiConsumer<DependencyGroup, List<DependencyItem>> writer;
     private BiConsumer<Integer, String> onEditNbt = (index, itemId) -> { };
     private java.util.function.Consumer<String> onCountNeeded = id -> { };
 
+    /** The plain-item tab: reads and writes the group's {@code items}. */
     public ItemRequirementTab(Requirement requirement, PickerFactory pickerFactory, Runnable onChanged) {
+        this(requirement, pickerFactory, onChanged,
+                DependencyGroup::getItems, DependencyGroup::setItems);
+    }
+
+    public ItemRequirementTab(Requirement requirement, PickerFactory pickerFactory, Runnable onChanged,
+                              Function<DependencyGroup, List<DependencyItem>> reader,
+                              BiConsumer<DependencyGroup, List<DependencyItem>> writer) {
         super(requirement, pickerFactory, onChanged);
+        this.reader = reader;
+        this.writer = writer;
     }
 
     /**
@@ -135,13 +156,13 @@ public final class ItemRequirementTab extends AbstractDependencyTab {
         items.clear();
         // Copies, not the group own objects: the tab edits these freely and store() writes the
         // whole list back, so sharing instances would make an unstored edit visible anyway.
-        for (DependencyItem item : group.getItems()) items.add(item.copy());
+        for (DependencyItem item : reader.apply(group)) items.add(item.copy());
         refreshRows();
     }
 
     @Override
     public void store(DependencyGroup group) {
-        group.setItems(new ArrayList<>(items));
+        writer.accept(group, new ArrayList<>(items));
     }
 
     private void refreshRows() {
@@ -151,7 +172,14 @@ public final class ItemRequirementTab extends AbstractDependencyTab {
         }
     }
 
+    /**
+     * The row label. A tag has no name of its own, so it borrows one from whichever member the
+     * cycle is on — the same member the icon beside it is showing, because both read the clock.
+     */
     private static String displayName(String itemId) {
+        if (ItemTagResolution.isTag(itemId)) {
+            return ItemTagResolution.displayName(itemId, null, System.currentTimeMillis());
+        }
         ResourceLocation rl = ResourceLocation.tryParse(itemId);
         if (rl == null) return itemId;
         Item item = BuiltInRegistries.ITEM.get(rl);

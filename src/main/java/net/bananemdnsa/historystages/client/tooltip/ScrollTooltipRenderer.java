@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.DependencyItem;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.data.dependency.IndividualStageDep;
 import net.bananemdnsa.historystages.data.dependency.XpLevelDep;
@@ -266,6 +267,14 @@ public final class ScrollTooltipRenderer {
                 if (hideFulfilled && er != null && er.isFulfilled()) continue;
                 lines.addAll(itemComponent(itemLine, item, er, icons, colors));
             }
+            // Tags share the item line rather than getting one of their own. The template is
+            // "%icon% %name% (%current%/%required%)" either way, and a second configurable line
+            // would only be a second place to keep the same wording in step.
+            for (DependencyItem tag : group.getItemTags()) {
+                RequirementResult.EntryResult er = findResult(result, "item_tag", tag.getId());
+                if (hideFulfilled && er != null && er.isFulfilled()) continue;
+                lines.addAll(itemComponent(itemLine, tag, er, icons, colors));
+            }
         }
         if (stageLine != null && stageLine.enabled()) {
             for (String sid : group.getStages()) {
@@ -297,9 +306,15 @@ public final class ScrollTooltipRenderer {
 
     private static List<Component> itemComponent(ScrollTooltipLine line, DependencyItem item, RequirementResult.EntryResult er,
                                             Icons icons, Colors colors) {
-        ResourceLocation rl = ResourceLocation.tryParse(item.getId());
-        Item mcItem = rl != null ? BuiltInRegistries.ITEM.get(rl) : null;
-        String name = mcItem != null ? mcItem.getDescription().getString() : item.getId();
+        String name;
+        if (ItemTagResolution.isTag(item.getId())) {
+            name = ItemTagResolution.displayName(item.getId(),
+                    er != null ? er.getSettledId() : null, System.currentTimeMillis());
+        } else {
+            ResourceLocation rl = ResourceLocation.tryParse(item.getId());
+            Item mcItem = rl != null ? BuiltInRegistries.ITEM.get(rl) : null;
+            name = mcItem != null ? mcItem.getDescription().getString() : item.getId();
+        }
 
         boolean fulfilled = er != null && er.isFulfilled();
         String icon = er != null ? (fulfilled ? icons.fulfilled() : icons.open()) : icons.unknown();

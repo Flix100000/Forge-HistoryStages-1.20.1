@@ -5,6 +5,7 @@ import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.HistoryStages;
 import net.bananemdnsa.historystages.block.TieredPedestal;
 import net.bananemdnsa.historystages.data.StageManager;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
@@ -254,7 +255,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
      * icon already says which item it is and the number is what the player is watching.
      */
     private Component requirementValue(RequirementResult.EntryResult entry) {
-        if ("item".equals(entry.getType())) {
+        if (isItemLike(entry)) {
             MutableComponent count = Component.literal(entry.getCurrent() + "/" + entry.getRequired());
             // A booster under the pedestal cuts the cost; show what it would have been.
             if (entry.getOriginalRequired() > 0 && entry.getOriginalRequired() != entry.getRequired()) {
@@ -273,7 +274,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
      */
     private Component requirementTooltip(RequirementResult.EntryResult entry) {
         MutableComponent value;
-        if ("item".equals(entry.getType())) {
+        if (isItemLike(entry)) {
             ItemStack icon = requirementIcon(entry);
             Component name = icon.isEmpty() ? Component.literal(entry.getId()) : icon.getHoverName();
             value = name.copy().append(Component.literal(" "))
@@ -286,8 +287,44 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 .append(value.withStyle(ChatFormatting.WHITE));
     }
 
+    /**
+     * Whether this card carries an item icon and shows a count instead of a description.
+     *
+     * <p>True for both item kinds. A tag card is an item card in every way the player can see —
+     * the only difference is that its icon is still making up its mind.
+     */
+    private static boolean isItemLike(RequirementResult.EntryResult entry) {
+        return "item".equals(entry.getType()) || "item_tag".equals(entry.getType());
+    }
+
+    /**
+     * Whether the stack in the deposit slot is one this entry is waiting for.
+     *
+     * <p>Comparing ids is enough for a plain item and wrong for a tag: an unsettled tag has no
+     * item id to compare against, and a settled one is identified by the item it chose, not by
+     * the tag it still calls itself. Without this the little progress bar under the slot simply
+     * never appeared for a tag, while the deposit went through — which reads as nothing
+     * happening.
+     */
+    private static boolean wantsDeposit(RequirementResult.EntryResult entry, String depositId,
+                                        ItemStack depositStack) {
+        if ("item".equals(entry.getType())) return depositId.equals(entry.getId());
+        if (!"item_tag".equals(entry.getType())) return false;
+
+        String settled = entry.getSettledId();
+        return (settled == null || settled.isEmpty())
+                ? ItemTagResolution.matches(entry.getId(), depositStack)
+                : settled.equals(depositId);
+    }
+
     /** The icon for a card, or an empty stack when the kind has none. */
     private ItemStack requirementIcon(RequirementResult.EntryResult entry) {
+        if ("item_tag".equals(entry.getType())) {
+            // Unsettled, this walks the tag one member per second — so the card says "any of
+            // these" without any text having to.
+            return ItemTagResolution.displayStack(entry.getId(), entry.getSettledId(),
+                    System.currentTimeMillis());
+        }
         if ("item".equals(entry.getType())) {
             ResourceLocation rl = ResourceLocation.tryParse(entry.getId());
             if (rl != null) {
@@ -651,7 +688,7 @@ public class ResearchPedestalScreen extends AbstractContainerScreen<ResearchPede
                 String dId = dRl != null ? dRl.toString() : "";
                 boolean isNeeded = result.getGroups().stream()
                         .flatMap(g -> g.getEntries().stream())
-                        .anyMatch(e -> "item".equals(e.getType()) && dId.equals(e.getId()) && !e.isFulfilled());
+                        .anyMatch(e -> !e.isFulfilled() && wantsDeposit(e, dId, depositStack));
                 if (isNeeded) {
                     int barWidth = 16;
                     int filledWidth = (int) ((double) dDelay / 20.0 * barWidth);

@@ -360,6 +360,8 @@ public class DebugLogger {
                     pw.println("      individual_stage: " + dep.getStageId() + " (mode=" + dep.getMode() + ")");
                 for (DependencyItem item : group.getItems())
                     pw.println("      item: " + item.getId() + " x" + item.getCount());
+                for (DependencyItem tag : group.getItemTags())
+                    pw.println("      item_tag: " + tag.getId() + " x" + tag.getCount());
                 if (group.getXpLevel() != null)
                     pw.println("      xp_level: " + group.getXpLevel().getLevel() + (group.getXpLevel().isConsume() ? " (consume)" : ""));
                 for (EntityKillDep kill : group.getEntityKills())

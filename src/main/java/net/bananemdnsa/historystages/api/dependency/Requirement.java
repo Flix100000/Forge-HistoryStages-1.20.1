@@ -18,7 +18,7 @@ import net.bananemdnsa.historystages.api.stage.StageScope;
  * entries still live in the same typed fields they always have, and the on-disk format is
  * unchanged; the requirement just makes them reachable without naming the field. That is the same
  * relationship {@link net.bananemdnsa.historystages.api.lock.LockCategory} has to a
- * stage, and it is what lets the checker stop knowing eight kinds by hand.
+ * stage, and it is what lets the checker stop knowing every kind by hand.
  *
  * <p>A requirement from another mod has no typed field to be a view over, so it stores through
  * the group's raw {@code addons} block instead — see {@link AddonRequirement}. That is the one

@@ -47,8 +47,8 @@ class RequirementTypesTest {
     }
 
     @Test
-    void theEightBuiltInsAreThereFromTheStart() {
-        assertEquals(List.of("item", "stage", "individual_stage", "advancement",
+    void theNineBuiltInsAreThereFromTheStart() {
+        assertEquals(List.of("item", "item_tag", "stage", "individual_stage", "advancement",
                         "xp_level", "entity_kill", "stat", "scoreboard"),
                 RequirementTypes.ids());
     }
@@ -65,8 +65,8 @@ class RequirementTypesTest {
     void addonsAreAppendedAfterTheBuiltInsRatherThanInterleaved() {
         RequirementTypes.register(stub("mymod:relic"));
 
-        assertEquals("scoreboard", RequirementTypes.ids().get(7));
-        assertEquals("mymod:relic", RequirementTypes.ids().get(8));
+        assertEquals("scoreboard", RequirementTypes.ids().get(8));
+        assertEquals("mymod:relic", RequirementTypes.ids().get(9));
     }
 
     @Test
@@ -88,8 +88,8 @@ class RequirementTypesTest {
     void builtInsAreReportedApartFromAddons() {
         RequirementTypes.register(stub("mymod:relic"));
 
-        assertEquals(8, RequirementTypes.builtIns().size());
-        assertEquals(9, RequirementTypes.all().size());
+        assertEquals(9, RequirementTypes.builtIns().size());
+        assertEquals(10, RequirementTypes.all().size());
     }
 
     @Test
@@ -102,8 +102,8 @@ class RequirementTypesTest {
         List<String> global = RequirementTypes.forScope(StageScope.GLOBAL).stream()
                 .map(Requirement::id).toList();
 
-        assertEquals(List.of("item", "stage", "individual_stage", "scoreboard"), global);
-        assertEquals(8, RequirementTypes.forScope(StageScope.INDIVIDUAL).size());
+        assertEquals(List.of("item", "item_tag", "stage", "individual_stage", "scoreboard"), global);
+        assertEquals(9, RequirementTypes.forScope(StageScope.INDIVIDUAL).size());
     }
 
     @Test
@@ -123,7 +123,7 @@ class RequirementTypesTest {
 
         RequirementTypes.resetForTesting();
 
-        assertEquals(8, RequirementTypes.all().size());
+        assertEquals(9, RequirementTypes.all().size());
         assertTrue(RequirementTypes.addonIds().isEmpty());
         RequirementTypes.register(stub("mymod:relic"));
     }

@@ -10,10 +10,11 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 /**
  * Where a player's progress towards one dependency group is filed on the research scroll.
  *
- * <p>Two kinds of requirement remember something between checks: items thrown into the pedestal,
- * and a consumed XP level. Both live in the scroll's {@code DepositedDependencies} tag under a
- * key built here, and nowhere else — five places used to build that string by hand, which is how
- * the identity question below stayed invisible for so long.
+ * <p>Three kinds of requirement remember something between checks: items thrown into the
+ * pedestal, a consumed XP level, and — for a tag entry — both a count and the item that entry
+ * settled on. All of it lives in the scroll's {@code DepositedDependencies} tag under a key built
+ * here, and nowhere else — five places used to build that string by hand, which is how the
+ * identity question below stayed invisible for so long.
  *
  * <p><strong>The key names the group, not its position.</strong> A group carries an id from the
  * moment a stage is loaded; deleting, reordering or duplicating groups in the editor leaves those
@@ -35,7 +36,8 @@ public final class DependencyProgress {
      * The NBT key one requirement's progress inside one group is stored under.
      *
      * <p>{@code suffix} identifies the requirement within the group: {@code "Item_<item id>"} for
-     * a deposited item, {@code "XP"} for a consumed level. An addon requirement picks its own and
+     * a deposited item, {@code "XP"} for a consumed level, {@code "ItemTag_<#tag>"} and
+     * {@code "ItemTagChoice_<#tag>"} for a tag entry. An addon requirement picks its own and
      * should include something of its own id, since the group is the only thing keeping two
      * requirements' keys apart otherwise.
      */
@@ -43,9 +45,32 @@ public final class DependencyProgress {
         return "Group_" + groupKey + "_" + suffix;
     }
 
-    /** The suffix a deposited item is filed under. */
+    /**
+     * The suffix a deposited item is filed under.
+     *
+     * <p>An item id can never contain a {@code #}, which is the whole reason this stays apart
+     * from {@link #itemTagSuffix}: both build a key out of the same shape of argument, and a tag
+     * entry sharing a counter with an item entry would be silent.
+     */
     public static String itemSuffix(String itemId) {
         return "Item_" + itemId;
+    }
+
+    /** The suffix a tag entry's deposited count is filed under. {@code tagId} carries its "#". */
+    public static String itemTagSuffix(String tagId) {
+        return "ItemTag_" + tagId;
+    }
+
+    /**
+     * The suffix the item a tag entry settled on is filed under.
+     *
+     * <p>Written the moment the first matching item is actually booked, in the same write as the
+     * counter beside it, and never before — a tag entry whose counter is zero is still open.
+     * Nothing clears it either: there is no reset path for a scroll, so the choice lives and dies
+     * with the scroll, exactly like the count.
+     */
+    public static String itemTagChoiceSuffix(String tagId) {
+        return "ItemTagChoice_" + tagId;
     }
 
     /** The suffix a consumed XP level is filed under. */

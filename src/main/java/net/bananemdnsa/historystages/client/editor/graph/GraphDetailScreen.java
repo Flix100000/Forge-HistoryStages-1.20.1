@@ -12,6 +12,7 @@ import net.bananemdnsa.historystages.data.auto.CombineMode;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerLabels;
 import net.bananemdnsa.historystages.api.trigger.TriggerCondition;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.api.dependency.RequirementDisplay;
 import net.bananemdnsa.historystages.api.dependency.Requirement;
 import net.bananemdnsa.historystages.data.dependency.RequirementTypes;
@@ -460,6 +461,12 @@ public final class GraphDetailScreen extends AbstractModalScreen {
      * an unknown id, so the emptiness check is the real guard here.
      */
     private static ItemStack iconFor(RequirementResult.EntryResult e) {
+        if ("item_tag".equals(e.getType())) {
+            // The graph is looked at away from any pedestal, so there is no scroll here and
+            // usually no choice yet — the icon cycles through the tag instead of picking one.
+            return ItemTagResolution.displayStack(e.getId(), e.getSettledId(),
+                    System.currentTimeMillis());
+        }
         if (!"item".equals(e.getType())) return ItemStack.EMPTY;
         ResourceLocation id = ResourceLocation.tryParse(e.getId());
         if (id == null) return ItemStack.EMPTY;

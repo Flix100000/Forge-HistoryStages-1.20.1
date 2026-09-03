@@ -37,7 +37,7 @@ import net.bananemdnsa.historystages.api.stage.StageScope;
  */
 public final class AddonRequirement<T> implements Requirement {
 
-    /** No addon may register under this namespace; it is reserved for the eight built-ins. */
+    /** No addon may register under this namespace; it is reserved for the built-ins. */
     private static final String RESERVED_NAMESPACE = "historystages";
 
     /**

@@ -34,7 +34,8 @@ public class RequirementResult {
             List<EntryResult> strippedEntries = new ArrayList<>(group.getEntries().size());
             for (EntryResult e : group.getEntries()) {
                 strippedEntries.add(new EntryResult(e.getType(), e.getId(), e.getDescription(),
-                        e.isFulfilled(), e.getCurrent(), e.getRequired(), e.getOriginalRequired(), false));
+                        e.isFulfilled(), e.getCurrent(), e.getRequired(), e.getOriginalRequired(),
+                        false, e.getSettledId()));
             }
             strippedGroups.add(new GroupResult(group.getLogic(), group.isFulfilled(), strippedEntries));
         }
@@ -58,7 +59,7 @@ public class RequirementResult {
     }
 
     public static class EntryResult {
-        private final String type;        // "item", "stage", "individual_stage", "advancement", "xp_level", "entity_kill", "stat"
+        private final String type;        // "item", "item_tag", "stage", "individual_stage", "advancement", "xp_level", "entity_kill", "stat"
         private final String id;          // Machine ID (item ID, stage ID, "xp", etc.)
         private final String description; // Human-readable, e.g. "3x Iron Ingot"
         private final boolean fulfilled;
@@ -66,9 +67,26 @@ public class RequirementResult {
         private final int required;       // Required amount (after booster reduction, if any)
         private final int originalRequired; // Required amount before booster reduction; 0 means "same as required"
         private final boolean canDeposit; // If true, show a deposit button (e.g. for consume-XP)
+        /**
+         * For an item-tag entry that has already been handed its first item: the item it settled
+         * on. Null or empty everywhere else, including for a tag entry still open.
+         *
+         * <p>The id stays the tag whatever happens here, because that is what every screen looks
+         * an entry up by. This is the other half: what to draw and what to name it. It is decided
+         * once, on the server, where the scroll is — the alternative was three screens each
+         * digging the choice out of the scroll NBT for themselves, and disagreeing about it.
+         */
+        private final String settledId;
 
         public EntryResult(String type, String id, String description, boolean fulfilled,
                 int current, int required, int originalRequired, boolean canDeposit) {
+            this(type, id, description, fulfilled, current, required, originalRequired,
+                    canDeposit, null);
+        }
+
+        public EntryResult(String type, String id, String description, boolean fulfilled,
+                int current, int required, int originalRequired, boolean canDeposit,
+                String settledId) {
             this.type = type;
             this.id = id;
             this.description = description;
@@ -77,6 +95,7 @@ public class RequirementResult {
             this.required = required;
             this.originalRequired = originalRequired;
             this.canDeposit = canDeposit;
+            this.settledId = settledId;
         }
 
         public EntryResult(String type, String id, String description, boolean fulfilled,
@@ -102,5 +121,7 @@ public class RequirementResult {
         /** @return the original required amount if a booster reduced it, otherwise 0 (= same as required). */
         public int getOriginalRequired() { return originalRequired; }
         public boolean canDeposit() { return canDeposit; }
+        /** The item an item-tag entry settled on, or null when it has not settled or is not one. */
+        public String getSettledId() { return settledId; }
     }
 }

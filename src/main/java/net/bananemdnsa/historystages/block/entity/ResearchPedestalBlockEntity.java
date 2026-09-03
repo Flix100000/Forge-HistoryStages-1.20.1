@@ -10,6 +10,7 @@ import net.bananemdnsa.historystages.data.StageMode;
 import net.bananemdnsa.historystages.data.NbtMatcher;
 import net.bananemdnsa.historystages.data.dependency.DependencyChecker;
 import net.bananemdnsa.historystages.data.dependency.DependencyProgress;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.api.dependency.RequirementResult;
 import net.bananemdnsa.historystages.block.MultiBlockResearchPedestalBlock;
 import net.bananemdnsa.historystages.block.TieredPedestal;
@@ -308,6 +309,36 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
     }
 
     /**
+     * Offers a stack to the scroll in this pedestal and books whatever the requirements take.
+     *
+     * <p>The deposit slot in one call. {@link #tick} keeps the two halves apart because it counts
+     * out {@link #MAX_DEPOSIT_DELAY} between deciding and doing; nothing else needs that delay,
+     * and driving the whole tick to reach the deposit would also run the research clock.
+     *
+     * @return whether any requirement wanted the stack — not whether anything was booked, since a
+     *         requirement can want an item it is already full of by the time it is offered
+     */
+    public boolean offerDeposit(ItemStack depositStack) {
+        if (depositStack.isEmpty() || !isItemNeeded(depositStack)) return false;
+        tryProcessDeposit(depositStack);
+        return true;
+    }
+
+    /**
+     * The order a deposited stack is offered to the requirements that could take it.
+     *
+     * <p>A group may want {@code 5x iron_ingot} and {@code 3x #c:ingots} at once, and both want
+     * the ingot in the slot. An entry naming the item outright can only ever be satisfied by that
+     * item; a tag that has not settled yet could still be satisfied by copper, gold or anything
+     * else in it. So the open tag is offered the stack last — it gives up its freedom only once
+     * nobody else needs what is there.
+     *
+     * <p>The middle pass exists because a settled tag is no longer a tag: it demands one specific
+     * item, exactly like the first pass, and has no freedom left to protect.
+     */
+    private enum DepositPass { ITEMS, SETTLED_TAGS, OPEN_TAGS }
+
+    /**
      * Try to consume items from the deposit slot (slot 1) into the scroll's
      * DepositedDependencies NBT.
      */
@@ -339,24 +370,59 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
                 : getActiveBooster().costReduction();
 
         outer:
-        for (int i = 0; i < entry.getDependencies().size(); i++) {
-            var group = entry.getDependencies().get(i);
-            for (var reqItem : group.getItems()) {
-                ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
-                if (reqRl != null && reqRl.equals(depositRl)
-                        && (!reqItem.hasNbt() || NbtMatcher.matches(depositStack, reqItem.getNbt()))) {
-                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
-                            DependencyProgress.itemSuffix(reqRl.toString()));
-                    int current = deposited.getInt(key);
+        for (DepositPass pass : DepositPass.values()) {
+            for (int i = 0; i < entry.getDependencies().size(); i++) {
+                var group = entry.getDependencies().get(i);
+                String groupKey = DependencyProgress.groupKey(group, i);
+                var candidates = pass == DepositPass.ITEMS ? group.getItems() : group.getItemTags();
+
+                for (var reqItem : candidates) {
+                    if (reqItem.hasNbt() && !NbtMatcher.matches(depositStack, reqItem.getNbt())) continue;
+
+                    String countKey;
+                    String choiceToWrite = null;
+
+                    if (pass == DepositPass.ITEMS) {
+                        ResourceLocation reqRl = ResourceLocation.tryParse(reqItem.getId());
+                        if (reqRl == null || !reqRl.equals(depositRl)) continue;
+                        countKey = DependencyProgress.key(groupKey,
+                                DependencyProgress.itemSuffix(reqRl.toString()));
+                    } else {
+                        String choiceKey = DependencyProgress.key(groupKey,
+                                DependencyProgress.itemTagChoiceSuffix(reqItem.getId()));
+                        String settled = deposited.getString(choiceKey);
+                        boolean isSettled = !settled.isEmpty();
+                        // Each pass takes only its own half of the tag entries, so every settled
+                        // one is offered the stack a whole round before any open one is.
+                        if (isSettled != (pass == DepositPass.SETTLED_TAGS)) continue;
+
+                        if (isSettled) {
+                            if (!settled.equals(depositRl.toString())) continue;
+                        } else {
+                            if (!ItemTagResolution.matches(reqItem.getId(), depositStack)) continue;
+                            choiceToWrite = depositRl.toString();
+                        }
+                        countKey = DependencyProgress.key(groupKey,
+                                DependencyProgress.itemTagSuffix(reqItem.getId()));
+                    }
+
+                    int current = deposited.getInt(countKey);
                     int effectiveRequired = BoosterUtil.effectiveCount(reqItem.getCount(), costReduction);
                     int needed = effectiveRequired - current;
-                    if (needed > 0) {
-                        int toTake = Math.min(needed, depositStack.getCount());
-                        depositStack.shrink(toTake);
-                        deposited.putInt(key, current + toTake);
-                        changed = true;
-                        if (depositStack.isEmpty()) break outer;
+                    if (needed <= 0) continue;
+
+                    int toTake = Math.min(needed, depositStack.getCount());
+                    depositStack.shrink(toTake);
+                    deposited.putInt(countKey, current + toTake);
+                    // Only here, with something actually booked, does an open tag settle. Writing
+                    // the choice any earlier would pin the entry to an item the player never
+                    // managed to hand in.
+                    if (choiceToWrite != null) {
+                        deposited.putString(DependencyProgress.key(groupKey,
+                                DependencyProgress.itemTagChoiceSuffix(reqItem.getId())), choiceToWrite);
                     }
+                    changed = true;
+                    if (depositStack.isEmpty()) break outer;
                 }
             }
         }
@@ -426,14 +492,30 @@ public class ResearchPedestalBlockEntity extends BlockEntity implements MenuProv
 
         for (int i = 0; i < entry.getDependencies().size(); i++) {
             var group = entry.getDependencies().get(i);
+            String groupKey = DependencyProgress.groupKey(group, i);
             for (var item : group.getItems()) {
                 if (item.getId().equals(depositRl.toString())) {
-                    String key = DependencyProgress.key(DependencyProgress.groupKey(group, i),
+                    String key = DependencyProgress.key(groupKey,
                             DependencyProgress.itemSuffix(item.getId()));
                     int count = depositedData.getInt(key);
                     int effectiveRequired = BoosterUtil.effectiveCount(item.getCount(), costReduction);
                     if (count < effectiveRequired) return true;
                 }
+            }
+            // Without this half, a group asking for nothing but a tag never gets past the gate:
+            // the delay counter stays at zero, tryProcessDeposit is never called, and the slot
+            // just sits there holding the ingot.
+            for (var tag : group.getItemTags()) {
+                String settled = depositedData.getString(DependencyProgress.key(groupKey,
+                        DependencyProgress.itemTagChoiceSuffix(tag.getId())));
+                boolean fits = settled.isEmpty()
+                        ? ItemTagResolution.matches(tag.getId(), depositStack)
+                        : settled.equals(depositRl.toString());
+                if (!fits) continue;
+
+                int count = depositedData.getInt(DependencyProgress.key(groupKey,
+                        DependencyProgress.itemTagSuffix(tag.getId())));
+                if (count < BoosterUtil.effectiveCount(tag.getCount(), costReduction)) return true;
             }
         }
         return false;

@@ -77,7 +77,7 @@ public final class RequirementTypes {
     }
 
     /**
-     * Just the eight built-ins — {@link #all()} without whatever addons have registered. Exists
+     * Just the built-ins — {@link #all()} without whatever addons have registered. Exists
      * for the checks that only hold for the built-ins once addons can register their own.
      */
     public static List<Requirement> builtIns() {
@@ -157,7 +157,7 @@ public final class RequirementTypes {
     }
 
     /**
-     * Restores the registry to its pre-registration state: only the eight built-ins, unfrozen.
+     * Restores the registry to its pre-registration state: only the built-ins, unfrozen.
      *
      * <p>For tests only. A frozen static registry is otherwise untestable, and without a reset,
      * state registered by one test would leak into the next, making failures depend on execution

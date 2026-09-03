@@ -20,6 +20,7 @@ import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownChrom
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.DropdownOverlay;
 import net.bananemdnsa.historystages.client.editor.widget.dropdown.EnumDropdown;
 import net.bananemdnsa.historystages.client.editor.dep.ItemRequirementTab;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
 import net.bananemdnsa.historystages.api.editor.RequirementEditor;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
 import net.bananemdnsa.historystages.client.editor.dep.ScoreboardTab;
@@ -35,6 +36,7 @@ import net.bananemdnsa.historystages.client.editor.widget.list.*;
 import net.bananemdnsa.historystages.api.editor.widget.EditorRowList;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.data.DependencyGroup;
+import net.bananemdnsa.historystages.data.dependency.ItemTagResolution;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.data.StageManager;
 import net.bananemdnsa.historystages.data.dependency.*;
@@ -1131,7 +1133,28 @@ public class DependencyEditorScreen extends Screen {
                         return picker;
                     },
                     () -> hasChanges = true);
-            tab.setOnEditNbt(this::openNbtEditScreen);
+            tab.setOnEditNbt((index, itemId) -> openNbtEditScreen(tab, index, itemId));
+            tab.setOnCountNeeded(id -> openItemCountDialog(tab, id, -1));
+            return tab;
+        });
+
+        // The same tab class on the group other list. What differs is the picker — tags rather
+        // than items — and that a pick has to carry its "#" in and leave it behind on the way
+        // back out, because SearchableTagList deals in bare tag ids.
+        buildBuiltInTab("item_tag", requirement -> {
+            ItemRequirementTab tab = new ItemRequirementTab(requirement,
+                    (onSelect, alreadyAdded) -> {
+                        SearchableTagList picker = new SearchableTagList(
+                                tagId -> onSelect.accept("#" + tagId),
+                                () -> alreadyAdded.get().stream()
+                                        .map(id -> id.startsWith("#") ? id.substring(1) : id)
+                                        .toList());
+                        picker.setMultiSelect(false); // every pick opens the count dialog
+                        return picker;
+                    },
+                    () -> hasChanges = true,
+                    DependencyGroup::getItemTags, DependencyGroup::setItemTags);
+            tab.setOnEditNbt((index, tagId) -> openNbtEditScreen(tab, index, tagId));
             tab.setOnCountNeeded(id -> openItemCountDialog(tab, id, -1));
             return tab;
         });
@@ -1278,10 +1301,17 @@ public class DependencyEditorScreen extends Screen {
         rowList(tab).render(ctx, rows.size(), (row, i) -> {
             String iconId = tab.iconItemId(i);
             if (iconId != null) {
-                ResourceLocation rl = ResourceLocation.tryParse(iconId);
-                Item icon = rl == null ? null : BuiltInRegistries.ITEM.get(rl);
-                if (icon != null) {
-                    ItemStack stack = new ItemStack(icon);
+                // A tab may name a tag here, not just an item. Resolving it centrally means any
+                // addon tab that returns one gets the cycling icon without asking for it.
+                ItemStack stack;
+                if (ItemTagResolution.isTag(iconId)) {
+                    stack = ItemTagResolution.displayStack(iconId, null, System.currentTimeMillis());
+                } else {
+                    ResourceLocation rl = ResourceLocation.tryParse(iconId);
+                    Item icon = rl == null ? null : BuiltInRegistries.ITEM.get(rl);
+                    stack = icon == null ? ItemStack.EMPTY : new ItemStack(icon);
+                }
+                if (!stack.isEmpty()) {
                     row.leading(16, (g, x, y, w, h) -> {
                         g.pose().pushPose();
                         g.pose().translate(x, y, 0);
@@ -1576,10 +1606,18 @@ public class DependencyEditorScreen extends Screen {
 
     // --- Context menus ---
 
-    private void openNbtEditScreen(int entryIdx, String itemId) {
-        ItemRequirementTab tab = (ItemRequirementTab) addonTabs.get("item");
+    /**
+     * Opens the NBT criterion editor for one row of {@code tab}.
+     *
+     * <p>The tab is passed in rather than looked up under {@code "item"}. Two tabs are built from
+     * {@link ItemRequirementTab} now, and a fixed key would have quietly edited the item tab
+     * NBT while the tag tab was on screen — the row index means nothing outside its own list.
+     */
+    private void openNbtEditScreen(ItemRequirementTab tab, int entryIdx, String entryId) {
         if (tab == null) return;
-        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId, tab.nbtAt(entryIdx), nbt -> {
+        boolean tagMode = entryId.startsWith("#");
+        String subject = tagMode ? entryId.substring(1) : entryId;
+        this.minecraft.setScreen(new NbtItemEditScreen(this, subject, tagMode, tab.nbtAt(entryIdx), nbt -> {
             tab.setNbtAt(entryIdx, nbt == null ? null : nbt.deepCopy());
             // Routes through this screen own save, so the whole stage is persisted.
             save();
@@ -1679,7 +1717,7 @@ public class DependencyEditorScreen extends Screen {
     }
 
     private int countGroupEntries(DependencyGroup group) {
-        int count = group.getItems().size() + group.getStages().size()
+        int count = group.getItems().size() + group.getItemTags().size() + group.getStages().size()
                 + group.getIndividualStages().size() + group.getAdvancements().size()
                 + group.getEntityKills().size() + group.getStats().size()
                 + group.getScoreboard().size();

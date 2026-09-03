@@ -8,6 +8,7 @@ import net.bananemdnsa.historystages.data.dependency.requirements.AdvancementReq
 import net.bananemdnsa.historystages.data.dependency.requirements.EntityKillRequirement;
 import net.bananemdnsa.historystages.data.dependency.requirements.IndividualStageRequirement;
 import net.bananemdnsa.historystages.data.dependency.requirements.ItemRequirement;
+import net.bananemdnsa.historystages.data.dependency.requirements.ItemTagRequirement;
 import net.bananemdnsa.historystages.data.dependency.requirements.ScoreboardRequirement;
 import net.bananemdnsa.historystages.data.dependency.requirements.StageRequirement;
 import net.bananemdnsa.historystages.data.dependency.requirements.StatRequirement;
@@ -25,6 +26,7 @@ final class BuiltInRequirements {
 
     static final List<Requirement> ALL = List.of(
             new ItemRequirement(),
+            new ItemTagRequirement(),
             new StageRequirement(),
             new IndividualStageRequirement(),
             new AdvancementRequirement(),
