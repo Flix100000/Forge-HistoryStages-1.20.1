@@ -18,11 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The parent design wanted loader-free callbacks throughout. Phase 9 deliberately kept
  * NeoForge events instead, because "everything is a registry" is the familiar shape on this
  * loader and the registered types — {@code LockCategory}, {@code Requirement},
- * {@code StageSettingsGroup} — name no loader at all. A Fabric port rewrites the ten classes
+ * {@code StageSettingsGroup} — name no loader at all. A Fabric port rewrites the thirteen classes
  * listed here and inherits the rest.
  *
  * <p>That argument only holds while the leak stays where it was put. This test is what keeps it
- * there: nine registration events, plus {@code StageStates}, which posts {@link
+ * there: eleven registration events, plus {@code StageStates}, which posts {@link
  * net.bananemdnsa.historystages.api.stage.StageEvent} onto the bus and is therefore the bridge
  * itself. See the Phase 9 design §5.
  */
@@ -33,7 +33,8 @@ class ApiLoaderLeakGuardTest {
             "RegisterTriggerTypesEvent", "RegisterStageSettingsGroupsEvent",
             "RegisterConfigSectionsEvent", "RegisterCategoryEditorsEvent",
             "RegisterRequirementEditorsEvent", "RegisterTriggerEditorsEvent",
-            "RegisterCustomFieldScreensEvent",
+            "RegisterCustomFieldScreensEvent", "RegisterRecipeTypeMetaEvent",
+            "RegisterIndividualRecipeSupportEvent",
             "StageEvent", "StageStates");
 
     @Test

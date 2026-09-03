@@ -60,8 +60,17 @@ public final class EditorTooltip {
         draw(g, font, text, mouseX, mouseY, screenW, screenH);
     }
 
-    private static void draw(GuiGraphics g, Font font, String text,
-                             int mouseX, int mouseY, int screenW, int screenH) {
+    /**
+     * Paints the tooltip immediately, in the editor's look.
+     *
+     * <p>Public for callers that already track their own hover timing, or that deliberately have
+     * none — a tooltip inside a modal popup is being read on purpose, not brushed past.
+     *
+     * <p>{@code text} may contain {@code \n} to force a line break, and the usual section-sign
+     * colour codes.
+     */
+    public static void draw(GuiGraphics g, Font font, String text,
+                            int mouseX, int mouseY, int screenW, int screenH) {
         g.pose().pushPose();
         g.pose().translate(0, 0, TOOLTIP_Z);
 
@@ -91,20 +100,28 @@ public final class EditorTooltip {
         g.pose().popPose();
     }
 
-    /** Greedy word wrap at {@link #MAX_WIDTH}. */
+    /**
+     * Greedy word wrap at {@link #MAX_WIDTH}, honouring explicit {@code \n} breaks first.
+     *
+     * <p>Without the explicit break a caller with genuinely separate lines — a name, then its id,
+     * then a note — got them reflowed into one paragraph, which is exactly the shape a tooltip
+     * should not have.
+     */
     private static List<String> wrap(Font font, String text) {
         List<String> lines = new ArrayList<>();
-        StringBuilder line = new StringBuilder();
-        for (String word : text.split(" ")) {
-            if (line.length() > 0 && font.width(line + " " + word) > MAX_WIDTH) {
-                lines.add(line.toString());
-                line = new StringBuilder(word);
-            } else {
-                if (line.length() > 0) line.append(" ");
-                line.append(word);
+        for (String paragraph : text.split("\n", -1)) {
+            StringBuilder line = new StringBuilder();
+            for (String word : paragraph.split(" ")) {
+                if (line.length() > 0 && font.width(line + " " + word) > MAX_WIDTH) {
+                    lines.add(line.toString());
+                    line = new StringBuilder(word);
+                } else {
+                    if (line.length() > 0) line.append(" ");
+                    line.append(word);
+                }
             }
+            lines.add(line.toString());
         }
-        if (line.length() > 0) lines.add(line.toString());
         return lines;
     }
 }

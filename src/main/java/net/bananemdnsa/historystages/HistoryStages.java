@@ -127,6 +127,9 @@ public class HistoryStages {
                     // packets, which now go to AddonConfigSections directly rather than through a
                     // registry the values had to be copied into first.
                     net.bananemdnsa.historystages.data.config.AddonConfigSections.freeze();
+                    net.neoforged.fml.ModLoader.postEvent(
+                            new net.bananemdnsa.historystages.api.lock.RegisterIndividualRecipeSupportEvent());
+                    net.bananemdnsa.historystages.data.lock.IndividualRecipeSupport.freeze();
 
                     // Logged here rather than inside freeze(): LockCategories is unit-tested, and
                     // the test runtime classpath has no Minecraft or NeoForge on it. This line is

@@ -47,7 +47,16 @@ public final class FluidRecipeIndex {
     /** fluid id to how many recipes mention it — what the editor badge shows. */
     private static volatile Map<String, Integer> countByFluid = Map.of();
 
-    private static volatile boolean dirty = true;
+    private static volatile boolean recipesDirty = true;
+    private static volatile boolean relevanceDirty = true;
+
+    /**
+     * Set while the editor is open. The editor needs the index for its recipe picker, where a
+     * fluid-producing recipe is otherwise unreachable at all, and for the recipe count beside
+     * each fluid row — which reads zero for everything until something is gated, i.e. exactly
+     * when the number would inform the decision.
+     */
+    private static volatile boolean editorWantsIt = false;
 
     /**
      * What the last rebuild saw. Read by the log line and by the GameTests, which use them to
@@ -60,15 +69,32 @@ public final class FluidRecipeIndex {
     private FluidRecipeIndex() {}
 
     /**
-     * Marks the index stale. Cheap and safe to call often — the work happens on the next
-     * rebuild, never here.
-     *
-     * <p>Called both when the recipes change and when the stages do. Stages do not affect what a
-     * recipe contains, but they decide whether the index is worth having at all: a pack that adds
-     * its first fluid entry in the editor has to get one built.
+     * The recipe list changed, so what the index would contain changed with it. Cheap and safe to
+     * call often — the work happens on the next rebuild, never here.
      */
     public static void markDirty() {
-        dirty = true;
+        recipesDirty = true;
+    }
+
+    /**
+     * Something changed about whether an index is wanted — a stage was edited, or the editor
+     * opened. Deliberately not {@link #markDirty()}: stages do not change a single recipe, and
+     * treating them as if they did re-encodes the whole pack on every save.
+     */
+    public static void markRelevanceDirty() {
+        relevanceDirty = true;
+    }
+
+    /**
+     * The editor is open and wants an index whether or not any stage gates a fluid.
+     *
+     * <p>Never unset. The scan it keeps alive is worth its memory for the rest of the session,
+     * and dropping it the moment a screen closes would only mean paying for it again.
+     */
+    public static void requestForEditor() {
+        if (editorWantsIt) return;
+        editorWantsIt = true;
+        relevanceDirty = true;
     }
 
     /** The fluids this recipe mentions; empty for almost every recipe, and for an unbuilt index. */
@@ -113,17 +139,31 @@ public final class FluidRecipeIndex {
      */
     public static void rebuildIfDirty(Iterable<RecipeHolder<?>> recipes,
                                       HolderLookup.Provider registries) {
-        if (!dirty) return;
-        dirty = false;
+        boolean hadRecipeChange = recipesDirty;
+        boolean hadRelevanceChange = relevanceDirty;
+        if (!hadRecipeChange && !hadRelevanceChange) return;
 
-        if (!anyStageGatesAFluid()) {
-            byRecipe = Map.of();
-            countByFluid = Map.of();
-            lastScanned = 0;
-            lastUnreadable = 0;
-            return;
+        boolean wanted = editorWantsIt || anyStageGatesAFluid();
+        // "Built" is read as "holds something". A pack whose recipes genuinely mention no fluid
+        // therefore re-scans once per relevance change; that scan finds nothing and costs less
+        // than a third flag saying "scanned, and empty on purpose".
+        FluidIndexStaleness.Action action = FluidIndexStaleness.decide(
+                hadRecipeChange, hadRelevanceChange, !byRecipe.isEmpty(), wanted);
+
+        recipesDirty = false;
+        relevanceDirty = false;
+
+        switch (action) {
+            case REBUILD -> rebuild(recipes, registries);
+            case DROP -> {
+                byRecipe = Map.of();
+                countByFluid = Map.of();
+                lastScanned = 0;
+                lastUnreadable = 0;
+            }
+            case NOTHING -> {
+            }
         }
-        rebuild(recipes, registries);
     }
 
     private static void rebuild(Iterable<RecipeHolder<?>> recipes,
@@ -248,6 +288,8 @@ public final class FluidRecipeIndex {
         countByFluid = Map.of();
         lastScanned = 0;
         lastUnreadable = 0;
-        dirty = true;
+        recipesDirty = true;
+        relevanceDirty = true;
+        editorWantsIt = false;
     }
 }

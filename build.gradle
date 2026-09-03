@@ -239,6 +239,19 @@ dependencies {
     compileOnly "com.blamejared.crafttweaker:CraftTweaker-neoforge-1.21.1:21.0.38"
     localRuntime "com.blamejared.crafttweaker:CraftTweaker-neoforge-1.21.1:21.0.38"
 
+    // Create, for exercising the fluid side of the recipe picker by hand. Nothing in this mod
+    // references Create: the fluid scanner reads a recipe's serialised form and names no mod, so
+    // this is a test subject rather than an integration. localRuntime keeps it out of the
+    // published jar entirely.
+    //
+    // The NeoForge build carries Flywheel, Ponder and Registrate inside its own jar, so they need
+    // no entries of their own. If the dev client ever reports one of them missing, jar-in-jar did
+    // not unpack and these are the coordinates:
+    //   localRuntime "maven.modrinth:flywheel:1.0.6+mc1.21.1-neoforge"
+    //   localRuntime "maven.modrinth:ponder:1.0.82+mc1.21.1-neoforge"
+    //   localRuntime "com.tterrag.registrate:Registrate:MC1.21-1.3.0+67"
+    localRuntime "maven.modrinth:create:6.0.10+mc1.21.1"
+
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
     // The group id is ignored when searching -- in this case, it is "blank"

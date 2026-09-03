@@ -1,6 +1,8 @@
 package net.bananemdnsa.historystages.client.editor.widget.list;
 
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.bananemdnsa.historystages.client.editor.widget.GridGeometry;
+import net.bananemdnsa.historystages.client.editor.widget.ItemSlotGrid;
 import net.bananemdnsa.historystages.client.editor.widget.SearchPanelChrome;
 import net.bananemdnsa.historystages.api.editor.widget.SearchBar;
 
@@ -57,12 +59,17 @@ import java.util.function.Supplier;
  * a different placeholder.
  */
 public class SearchableItemList implements PickerOverlay {
-    private static final int SLOT_SIZE = 18;
+    /**
+     * Borrowed from the painter rather than declared again. Two constants meaning the same pitch —
+     * one the grid paints at, one clicks resolve at — is how a click lands on the wrong row the
+     * moment somebody changes only one of them.
+     */
+    private static final int SLOT_SIZE = ItemSlotGrid.SLOT_SIZE;
     private static final int GRID_COLS = 9;
     private static final int PADDING = 6;
     private static final int TAB_HEIGHT = 14;
     private static final int TAB_PAD = 4;
-    private static final int SCROLLBAR_GAP = 6;
+    private static final int SCROLLBAR_GAP = ItemSlotGrid.SCROLLBAR_GAP;
     private static final int ADD_BTN_W = 100;
     private static final int ADD_BTN_H = 20;
     private static final int SELECTALL_BTN_H = 14;
@@ -74,6 +81,25 @@ public class SearchableItemList implements PickerOverlay {
 
     private final List<ItemEntry> allItems = new ArrayList<>();
     private final List<ItemEntry> filteredItems = new ArrayList<>();
+    /**
+     * The stacks of {@link #filteredItems}, seen as a list without copying one.
+     *
+     * <p>{@link ItemSlotGrid} paints from a {@code List<ItemStack>} so it need not know what an
+     * entry is. Handing it one by copying would allocate the whole filtered registry every frame
+     * to paint the ~45 visible cells; this projects instead. Correct because
+     * {@code filteredItems} is mutated in place and never reassigned.
+     */
+    private final List<ItemStack> filteredStacks = new java.util.AbstractList<>() {
+        @Override
+        public ItemStack get(int index) {
+            return filteredItems.get(index).stack;
+        }
+
+        @Override
+        public int size() {
+            return filteredItems.size();
+        }
+    };
     /**
      * Snapshot of selected items taken when the Selected tab is entered. Stays
      * stable while on the tab — toggling deselect/reselect modifies the
@@ -229,8 +255,7 @@ public class SearchableItemList implements PickerOverlay {
      */
     private int gridRows() {
         int gridBottom = panelY + panelH - PADDING - ADD_BTN_H - PADDING;
-        int rows = (gridBottom - gridTopY()) / SLOT_SIZE;
-        return Math.max(1, rows);
+        return GridGeometry.rowsThatFit(gridBottom - gridTopY(), SLOT_SIZE);
     }
 
     /** Y of the select-all button row (just below the search bar). */
@@ -436,8 +461,7 @@ public class SearchableItemList implements PickerOverlay {
 
     private void updateMaxScroll() {
         int total = isSelectedTab() ? selectedView.size() : filteredItems.size();
-        int totalRows = (total + GRID_COLS - 1) / GRID_COLS;
-        maxScrollRow = Math.max(0, totalRows - gridRows());
+        maxScrollRow = GridGeometry.maxScrollRow(total, GRID_COLS, gridRows());
     }
 
     private List<String> tabLabels() {
@@ -540,35 +564,10 @@ public class SearchableItemList implements PickerOverlay {
 
         boolean filterUiHovered = searchBar.isMouseOverFilterUi(mouseX, mouseY);
         int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < gridRows(); row++) {
-            for (int col = 0; col < GRID_COLS; col++) {
-                int index = startIndex + row * GRID_COLS + col;
-                int slotX = gridX + col * SLOT_SIZE;
-                int slotY = gridY + row * SLOT_SIZE;
 
-                boolean slotHovered = !filterUiHovered && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
-                        && mouseY >= slotY && mouseY < slotY + SLOT_SIZE;
-                guiGraphics.fill(slotX, slotY, slotX + SLOT_SIZE, slotY + SLOT_SIZE,
-                        slotHovered ? 0xFF4A4A4A : 0xFF252525);
-                guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
-                        slotHovered ? 0xFF353535 : 0xFF1A1A1A);
-
-                if (index < filteredItems.size()) {
-                    ItemEntry entry = filteredItems.get(index);
-                    boolean isSelected = selectedRegistryIds.contains(entry.id);
-                    if (isSelected) {
-                        guiGraphics.fill(slotX, slotY, slotX + SLOT_SIZE, slotY + SLOT_SIZE, 0xFFFFCC00);
-                        guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
-                                0xFF2A2510);
-                    }
-                    guiGraphics.renderItem(entry.stack, slotX + 1, slotY + 1);
-                    if (isSelected) {
-                        guiGraphics.fill(slotX + 1, slotY + 1, slotX + SLOT_SIZE - 1, slotY + SLOT_SIZE - 1,
-                                0x40FFCC00);
-                    }
-                }
-            }
-        }
+        ItemSlotGrid.render(guiGraphics, gridX, gridY, GRID_COLS, gridRows(), scrollRow,
+                filteredStacks, i -> selectedRegistryIds.contains(filteredItems.get(i).id),
+                mouseX, mouseY, filterUiHovered);
 
         if (maxScrollRow > 0) {
             renderScrollbar(guiGraphics, gridX, gridY);
@@ -629,14 +628,7 @@ public class SearchableItemList implements PickerOverlay {
     }
 
     private void renderScrollbar(GuiGraphics guiGraphics, int gridX, int gridY) {
-        int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
-        int scrollBarTop = gridY;
-        int scrollBarBottom = gridY + gridRows() * SLOT_SIZE;
-        int scrollBarHeight = scrollBarBottom - scrollBarTop;
-        guiGraphics.fill(scrollBarX, scrollBarTop, scrollBarX + 4, scrollBarBottom, 0xFF252525);
-        int thumbHeight = Math.max(10, (int) ((float) gridRows() / (maxScrollRow + gridRows()) * scrollBarHeight));
-        int thumbY = scrollBarTop + (int) ((float) scrollRow / maxScrollRow * (scrollBarHeight - thumbHeight));
-        guiGraphics.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbHeight, 0xFF888888);
+        ItemSlotGrid.renderScrollbar(guiGraphics, gridX, gridY, GRID_COLS, gridRows(), scrollRow, maxScrollRow);
     }
 
     private void renderSelectAllRow(GuiGraphics g, Font font, int mouseX, int mouseY) {
@@ -992,23 +984,9 @@ public class SearchableItemList implements PickerOverlay {
     }
 
     private void renderTooltip(GuiGraphics guiGraphics, Font font, int mouseX, int mouseY, String text) {
-        int tooltipW = font.width(text) + 8;
-        int tooltipH = 16;
-        int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
-        int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
-        int tooltipX = mouseX + 12;
-        int tooltipY = mouseY - 12;
-        if (tooltipX + tooltipW + 2 > screenW - 4)
-            tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > screenH - 4)
-            tooltipY = screenH - tooltipH - 6;
-        if (tooltipX < 4)
-            tooltipX = 4;
-        if (tooltipY < 4)
-            tooltipY = 4;
-        guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH, 0xFF1A1A1A);
-        guiGraphics.fill(tooltipX - 1, tooltipY - 1, tooltipX + tooltipW + 1, tooltipY + tooltipH - 1, 0xFF0D0D1A);
-        guiGraphics.drawString(font, text, tooltipX + 2, tooltipY + 2, 0xFFFFFF, false);
+        ItemSlotGrid.renderTooltip(guiGraphics, font, mouseX, mouseY, text,
+                Minecraft.getInstance().getWindow().getGuiScaledWidth(),
+                Minecraft.getInstance().getWindow().getGuiScaledHeight());
     }
 
     // --- Hit detection ---
@@ -1380,30 +1358,20 @@ public class SearchableItemList implements PickerOverlay {
         int gridY = gridTopY();
 
         if (maxScrollRow > 0) {
-            int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
-            if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
-                    && mouseY >= gridY && mouseY < gridY + gridRows() * SLOT_SIZE) {
+            if (ItemSlotGrid.isOverScrollbar(gridX, gridY, GRID_COLS, gridRows(), mouseX, mouseY)) {
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, gridY);
                 return true;
             }
         }
 
-        int startIndex = scrollRow * GRID_COLS;
-        for (int row = 0; row < gridRows(); row++) {
-            for (int col = 0; col < GRID_COLS; col++) {
-                int index = startIndex + row * GRID_COLS + col;
-                int slotX = gridX + col * SLOT_SIZE;
-                int slotY = gridY + row * SLOT_SIZE;
-
-                if (index < filteredItems.size() && mouseX >= slotX && mouseX < slotX + SLOT_SIZE
-                        && mouseY >= slotY && mouseY < slotY + SLOT_SIZE) {
-                    Minecraft.getInstance().getSoundManager()
-                            .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    toggleRegistrySelection(filteredItems.get(index).id);
-                    return true;
-                }
-            }
+        int index = GridGeometry.indexAt(gridX, gridY, SLOT_SIZE, GRID_COLS, gridRows(),
+                scrollRow, mouseX, mouseY);
+        if (index >= 0 && index < filteredItems.size()) {
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+            toggleRegistrySelection(filteredItems.get(index).id);
+            return true;
         }
 
         searchBar.setFocused(true);
@@ -1447,9 +1415,7 @@ public class SearchableItemList implements PickerOverlay {
         int gridY = gridTopY();
 
         if (maxScrollRow > 0) {
-            int scrollBarX = gridX + GRID_COLS * SLOT_SIZE + 2;
-            if (mouseX >= scrollBarX - 2 && mouseX <= scrollBarX + 6
-                    && mouseY >= gridY && mouseY < gridY + gridRows() * SLOT_SIZE) {
+            if (ItemSlotGrid.isOverScrollbar(gridX, gridY, GRID_COLS, gridRows(), mouseX, mouseY)) {
                 draggingScrollbar = true;
                 updateScrollFromMouse(mouseY, gridY);
                 return true;
@@ -1579,10 +1545,16 @@ public class SearchableItemList implements PickerOverlay {
         return false;
     }
 
+    /**
+     * Snaps the thumb's <em>centre</em> to the cursor, which is this widget's long-standing feel.
+     * Deliberately not {@link GridGeometry#scrollFromThumbDrag}, which preserves the point you
+     * grabbed instead — that is the better behaviour and the new recipe picker uses it, but
+     * swapping it in here would change how an existing panel drags. The thumb height comes from
+     * the shared maths either way, so the drag cannot disagree with what is painted.
+     */
     private void updateScrollFromMouse(double mouseY, int gridY) {
         int gridH = gridRows() * SLOT_SIZE;
-        int totalRows = maxScrollRow + gridRows();
-        int thumbHeight = Math.max(10, (int) ((float) gridRows() / totalRows * gridH));
+        int thumbHeight = GridGeometry.thumbHeight(gridH, gridRows(), maxScrollRow);
         float usableH = gridH - thumbHeight;
         if (usableH > 0) {
             float ratio = (float) (mouseY - gridY - thumbHeight / 2.0) / usableH;

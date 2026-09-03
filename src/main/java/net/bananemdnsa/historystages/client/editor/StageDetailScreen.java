@@ -2,6 +2,7 @@ package net.bananemdnsa.historystages.client.editor;
 import net.bananemdnsa.historystages.client.editor.toast.EditorToastHandler;
 
 import net.bananemdnsa.historystages.client.editor.widget.ConfirmDialog;
+import net.bananemdnsa.historystages.client.editor.widget.EditorTooltip;
 import net.bananemdnsa.historystages.client.editor.widget.ContextMenu;
 import net.bananemdnsa.historystages.client.editor.widget.MarqueeText;
 import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntitySelectionPopup;
@@ -26,6 +27,15 @@ import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.api.editor.CategoryEditor;
+import net.bananemdnsa.historystages.api.editor.RecipeTypeMeta;
+import net.bananemdnsa.historystages.client.editor.recipe.RecipeCardRenderer;
+import net.bananemdnsa.historystages.client.editor.recipe.RecipeFluids;
+import net.bananemdnsa.historystages.client.editor.recipe.RecipeShape;
+import net.bananemdnsa.historystages.client.editor.widget.FluidIcon;
+import net.bananemdnsa.historystages.client.ClientFluidRecipeIndex;
+import net.bananemdnsa.historystages.data.lock.FluidRecipeIndex;
+import net.bananemdnsa.historystages.data.lock.FluidRecipeScanner;
+import net.bananemdnsa.historystages.client.editor.recipe.RecipeTypeMetas;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryEditors;
 import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
@@ -58,6 +68,7 @@ import com.mojang.math.Axis;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Timing;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
@@ -76,10 +87,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.bananemdnsa.historystages.util.AllRecipesCache;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.core.registries.BuiltInRegistries;
 import org.joml.Quaternionf;
 
@@ -90,6 +98,7 @@ import java.util.Map;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 public class StageDetailScreen extends Screen {
@@ -279,9 +288,6 @@ public class StageDetailScreen extends Screen {
     // Recipe detail popup state
     private boolean recipePopupVisible = false;
     private String recipePopupId = null;
-    private int recipePopupIngredientScroll = 0;
-    private boolean recipePopupAddMode = false;
-    private Runnable recipePopupAddAction = null;
     // Popup layout cache for click detection
     private int cachedPopupX, cachedPopupY, cachedPopupW, cachedPopupH;
     // Popup recipe ID marquee state
@@ -447,11 +453,7 @@ public class StageDetailScreen extends Screen {
         // Both scopes: the recipes tab is offered on individual stages too, and its picker then
         // filters to the recipe types a per-player gate can actually reach.
         CategoryTab recipeTab = new StringListCategoryTab(recipeCategory,
-                (onSelect, alreadyAdded) -> {
-                    SearchableRecipeList list = new SearchableRecipeList(onSelect, alreadyAdded, isIndividual);
-                    list.setKeepVisibleOnSelect(true);
-                    return list;
-                },
+                (onSelect, alreadyAdded) -> new SearchableRecipeList(onSelect, alreadyAdded, isIndividual),
                 () -> { hasChanges = true; updateMaxScroll(); });
         recipeTab.load(e);
         this.categoryTabs.put(5, recipeTab);
@@ -592,6 +594,12 @@ public class StageDetailScreen extends Screen {
 
     @Override
     protected void init() {
+        // The recipe picker cannot reach a fluid-producing recipe without this, and the recipe
+        // count beside each fluid row reads zero for everything until an index exists — which is
+        // precisely when that number would inform the decision.
+        FluidRecipeIndex.requestForEditor();
+        ClientFluidRecipeIndex.refresh();
+
         tabY = 44;
         tabX = new int[tabCount()];
         tabW = new int[tabCount()];
@@ -1776,46 +1784,13 @@ public class StageDetailScreen extends Screen {
 
     }
 
+    /**
+     * The editor's tooltip look. The wrapping and the box were a second copy of
+     * {@code EditorTooltip}, down to the same three colours; the delay above is what this screen
+     * still owns.
+     */
     private void renderTooltip(GuiGraphics guiGraphics, String text, int mouseX, int mouseY) {
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 400);
-
-        List<String> lines = new ArrayList<>();
-        int maxWidth = 200;
-        String[] words = text.split(" ");
-        StringBuilder line = new StringBuilder();
-        for (String word : words) {
-            if (line.length() > 0 && this.font.width(line + " " + word) > maxWidth) {
-                lines.add(line.toString());
-                line = new StringBuilder(word);
-            } else {
-                if (line.length() > 0) line.append(" ");
-                line.append(word);
-            }
-        }
-        if (line.length() > 0) lines.add(line.toString());
-
-        int tooltipW = 0;
-        for (String l : lines) tooltipW = Math.max(tooltipW, this.font.width(l));
-        tooltipW += 8;
-        int tooltipH = lines.size() * 10 + 6;
-
-        int tooltipX = mouseX + 12;
-        int tooltipY = mouseY - 4;
-        if (tooltipX + tooltipW + 2 > this.width - 4) tooltipX = mouseX - tooltipW - 4;
-        if (tooltipY + tooltipH + 2 > this.height - 4) tooltipY = this.height - tooltipH - 6;
-        if (tooltipX < 4) tooltipX = 4;
-        if (tooltipY < 4) tooltipY = 4;
-
-        guiGraphics.fill(tooltipX - 2, tooltipY - 2, tooltipX + tooltipW + 2, tooltipY + tooltipH + 2, 0xFF3D3D3D);
-        guiGraphics.fill(tooltipX, tooltipY, tooltipX + tooltipW, tooltipY + tooltipH, 0xFF0D0D0D);
-
-        int ty = tooltipY + 3;
-        for (String l : lines) {
-            guiGraphics.drawString(this.font, l, tooltipX + 4, ty, 0xCCCCCC, false);
-            ty += 10;
-        }
-        guiGraphics.pose().popPose();
+        EditorTooltip.draw(guiGraphics, this.font, text, mouseX, mouseY, this.width, this.height);
     }
 
     private static ItemStack getItemStack(String itemId) {
@@ -1845,7 +1820,9 @@ public class StageDetailScreen extends Screen {
                         Recipe<?> recipe = holder.value();
                         String id = holder.id().toString();
                         ItemStack result = recipe.getResultItem(mc.level.registryAccess());
-                        ItemStack workstation = getWorkstationForType(recipe.getType());
+                        ItemStack workstation = RecipeCardRenderer.resolveWorkstation(
+                                RecipeTypeMetas.get(String.valueOf(
+                                        BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()))));
                         recipeInfoCache.put(id, new ItemStack[]{workstation, result});
                     } catch (Exception ignored) {}
                 }
@@ -1854,52 +1831,9 @@ public class StageDetailScreen extends Screen {
         return recipeInfoCache.get(recipeId);
     }
 
-    private static ItemStack getWorkstationForType(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return new ItemStack(Blocks.CRAFTING_TABLE);
-        if (type == RecipeType.SMELTING) return new ItemStack(Blocks.FURNACE);
-        if (type == RecipeType.BLASTING) return new ItemStack(Blocks.BLAST_FURNACE);
-        if (type == RecipeType.SMOKING) return new ItemStack(Blocks.SMOKER);
-        if (type == RecipeType.CAMPFIRE_COOKING) return new ItemStack(Blocks.CAMPFIRE);
-        if (type == RecipeType.STONECUTTING) return new ItemStack(Blocks.STONECUTTER);
-        if (type == RecipeType.SMITHING) return new ItemStack(Blocks.SMITHING_TABLE);
-        return ItemStack.EMPTY;
-    }
-
-    private static String getRecipeTypeName(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return "Crafting";
-        if (type == RecipeType.SMELTING) return "Smelting";
-        if (type == RecipeType.BLASTING) return "Blasting";
-        if (type == RecipeType.SMOKING) return "Smoking";
-        if (type == RecipeType.CAMPFIRE_COOKING) return "Campfire";
-        if (type == RecipeType.STONECUTTING) return "Stonecutting";
-        if (type == RecipeType.SMITHING) return "Smithing";
-        return "Recipe";
-    }
-
-    private static int getRecipeTypeAccentColor(RecipeType<?> type) {
-        if (type == RecipeType.CRAFTING) return 0xFFFFCC00;
-        if (type == RecipeType.SMELTING) return 0xFFFF8800;
-        if (type == RecipeType.BLASTING) return 0xFFFF4400;
-        if (type == RecipeType.SMOKING) return 0xFF996633;
-        if (type == RecipeType.CAMPFIRE_COOKING) return 0xFFFF6600;
-        if (type == RecipeType.STONECUTTING) return 0xFF888888;
-        if (type == RecipeType.SMITHING) return 0xFF6688AA;
-        return 0xFF55CC55;
-    }
-
-    private void showRecipePreview(String recipeId, Runnable onAdd) {
-        recipePopupId = recipeId;
-        recipePopupVisible = true;
-        recipePopupAddMode = true;
-        recipePopupIngredientScroll = 0;
-        recipePopupAddAction = onAdd;
-    }
-
     private void closeRecipePopup() {
         recipePopupVisible = false;
         recipePopupId = null;
-        recipePopupAddMode = false;
-        recipePopupAddAction = null;
         popupMarqueeLastId = null;
     }
 
@@ -1919,69 +1853,31 @@ public class StageDetailScreen extends Screen {
         if (recipe == null) { recipePopupVisible = false; return; }
 
         ItemStack result = recipe.getResultItem(mc.level.registryAccess());
-        ItemStack workstation = getWorkstationForType(recipe.getType());
-        String typeName = getRecipeTypeName(recipe.getType());
-        int typeColor = getRecipeTypeAccentColor(recipe.getType());
+        String typeId = String.valueOf(BuiltInRegistries.RECIPE_TYPE.getKey(recipe.getType()));
+        RecipeTypeMeta typeMeta = RecipeTypeMetas.get(typeId);
+        ItemStack workstation = RecipeCardRenderer.resolveWorkstation(typeMeta);
+        int typeColor = typeMeta.accentColor();
+        String typeName = typeMeta.nameLangKey().isEmpty()
+                ? typeMeta.displayFallback()
+                : Component.translatable(typeMeta.nameLangKey()).getString();
 
-        // Check if this is a crafting recipe (shaped or shapeless)
-        boolean isCrafting = recipe.getType() == RecipeType.CRAFTING;
-        boolean isShaped = recipe instanceof ShapedRecipe;
-        int craftW = isShaped ? ((ShapedRecipe) recipe).getWidth() : 0;
-        int craftH = isShaped ? ((ShapedRecipe) recipe).getHeight() : 0;
+        // The popup shows the very card the detail column draws, only wider. It used to draw a
+        // grid of its own, which is how one shaped recipe could come out looking one way here
+        // and another way over there.
+        Map<String, Set<FluidRecipeScanner.Position>> fluidSides =
+                FluidRecipeIndex.fluidsIn(recipePopupId);
+        List<RecipeFluids.Ref> fluids = RecipeFluids.ingredientRow(fluidSides);
+        List<String> fluidOutputs = RecipeFluids.definiteOutputs(fluidSides);
+        String fluidResult = fluidOutputs.isEmpty() ? "" : fluidOutputs.get(0);
 
-        // Get raw ingredient list (preserving positions for shaped recipes)
-        List<net.minecraft.world.item.crafting.Ingredient> rawIngredients = recipe.getIngredients();
-
-        // Collect unique ingredients with counts (for non-crafting recipes)
-        List<ItemStack> ingredients = new ArrayList<>();
-        Map<String, Integer> ingredientCounts = new HashMap<>();
-        if (!isCrafting) {
-            for (net.minecraft.world.item.crafting.Ingredient ing : rawIngredients) {
-                ItemStack[] items = ing.getItems();
-                if (items.length > 0) {
-                    ItemStack stack = items[0];
-                    String key = BuiltInRegistries.ITEM.getKey(stack.getItem()) + ":" + stack.getDamageValue();
-                    int count = ingredientCounts.getOrDefault(key, 0);
-                    if (count == 0) ingredients.add(stack.copy());
-                    ingredientCounts.put(key, count + 1);
-                }
-            }
-        }
+        RecipeShape shape = RecipeShape.of(recipe, fluids.size());
 
         // Layout
         int pad = 14;
-        int slotSize = 24;
-        int resultSlotSize = 32;
-        int rightColW = 84;
-        int arrowGap = 28;
-
-        int gridW, gridH;
-        boolean hasScroll;
-        if (isCrafting) {
-            int gridCols = isShaped ? craftW : 3;
-            int gridRows = isShaped ? craftH : (int) Math.ceil(rawIngredients.size() / 3.0);
-            if (!isShaped) gridRows = Math.max(gridRows, 1);
-            gridW = gridCols * slotSize;
-            gridH = gridRows * slotSize;
-            hasScroll = false;
-        } else {
-            int slotsPerRow = 3;
-            int totalIngredients = ingredients.size();
-            int ingredientRows = Math.max(1, (totalIngredients + slotsPerRow - 1) / slotsPerRow);
-            int visibleRows = Math.min(ingredientRows, 3);
-            int maxIngScroll = Math.max(0, ingredientRows - 3);
-            recipePopupIngredientScroll = Math.min(recipePopupIngredientScroll, maxIngScroll);
-            gridW = slotsPerRow * slotSize;
-            gridH = visibleRows * slotSize;
-            hasScroll = maxIngScroll > 0;
-        }
-
-        int innerW = gridW + (hasScroll ? 10 : 0) + arrowGap + rightColW;
-        int popupW = Math.max(innerW + pad * 2, 240);
+        int popupW = Math.max(RecipeCardRenderer.cardWidth(shape.layout()) + pad * 2, 240);
         int headerH = 40;
-        int contentH = Math.max(gridH, resultSlotSize + 20);
-        int btnAreaH = recipePopupAddMode ? 36 : 0;
-        int popupH = headerH + contentH + btnAreaH + pad + 6;
+        int contentH = shape.layout().cardHeight();
+        int popupH = headerH + contentH + pad + 6;
 
         int popupX = this.width / 2 - popupW / 2;
         int popupY = this.height / 2 - popupH / 2;
@@ -2061,151 +1957,26 @@ public class StageDetailScreen extends Screen {
         int sepY = popupY + headerH - 1;
         guiGraphics.fill(popupX + pad - 2, sepY, popupX + popupW - pad + 2, sepY + 1, 0xFF333333);
 
-        // Content area
-        int contentY = popupY + headerH + 6;
-        int gridX = popupX + pad;
-        int gridY = contentY;
+        // Content: one card, drawn by the shared renderer
+        int cardX = popupX + pad;
+        int cardY = popupY + headerH + 6;
+        int cardW = popupW - pad * 2;
+        RecipeCardRenderer.render(guiGraphics, this.font, shape, result, fluidResult, fluids,
+                typeId, recipePopupId, cardX, cardY, cardW, false, false);
 
-        // Ingredient grid
-        ItemStack hoveredIngredient = ItemStack.EMPTY;
-        if (isCrafting) {
-            // Crafting grid: render all slots in grid pattern
-            int gridCols = isShaped ? craftW : 3;
-            int gridRows = isShaped ? craftH : (int) Math.max(1, Math.ceil(rawIngredients.size() / 3.0));
-            for (int row = 0; row < gridRows; row++) {
-                for (int col = 0; col < gridCols; col++) {
-                    int sx = gridX + col * slotSize;
-                    int sy = gridY + row * slotSize;
-                    int idx = row * gridCols + col;
-                    guiGraphics.fill(sx, sy, sx + slotSize - 1, sy + slotSize - 1, 0xFF2A2A2A);
-                    guiGraphics.fill(sx + 1, sy + 1, sx + slotSize - 2, sy + slotSize - 2, 0xFF1E1E1E);
-                    if (idx < rawIngredients.size()) {
-                        ItemStack[] items = rawIngredients.get(idx).getItems();
-                        if (items.length > 0) {
-                            guiGraphics.renderItem(items[0], sx + 4, sy + 4);
-                            if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy && mouseY < sy + slotSize - 1) {
-                                hoveredIngredient = items[0];
-                            }
-                        }
-                    }
-                }
-            }
+        // The card draws items and no names, so a slot has to answer for itself on hover.
+        ItemStack hoveredSlot = RecipeCardRenderer.stackAt(shape, result, cardX, cardY, cardW,
+                mouseX, mouseY);
+        if (!hoveredSlot.isEmpty()) {
+            renderTooltip(guiGraphics, hoveredSlot.getHoverName().getString() + "\n§8"
+                    + BuiltInRegistries.ITEM.getKey(hoveredSlot.getItem()), mouseX, mouseY);
         } else {
-            // Generic ingredient grid with scroll
-            int slotsPerRow = 3;
-            int totalIngredients = ingredients.size();
-            int ingredientRows = Math.max(1, (totalIngredients + slotsPerRow - 1) / slotsPerRow);
-            int maxIngScroll = Math.max(0, ingredientRows - 3);
-            recipePopupIngredientScroll = Math.min(recipePopupIngredientScroll, maxIngScroll);
-
-            guiGraphics.enableScissor(gridX, gridY, gridX + gridW, gridY + gridH);
-            int startIdx = recipePopupIngredientScroll * slotsPerRow;
-            for (int idx = 0; idx < totalIngredients; idx++) {
-                int displayIdx = idx - startIdx;
-                if (displayIdx < 0) continue;
-                int row = displayIdx / slotsPerRow;
-                int col = displayIdx % slotsPerRow;
-                int sx = gridX + col * slotSize;
-                int sy = gridY + row * slotSize;
-                if (sy >= gridY + gridH) break;
-
-                ItemStack stack = ingredients.get(idx);
-                String key = BuiltInRegistries.ITEM.getKey(stack.getItem()) + ":" + stack.getDamageValue();
-                int count = ingredientCounts.getOrDefault(key, 1);
-
-                guiGraphics.fill(sx, sy, sx + slotSize - 1, sy + slotSize - 1, 0xFF2A2A2A);
-                guiGraphics.fill(sx + 1, sy + 1, sx + slotSize - 2, sy + slotSize - 2, 0xFF1E1E1E);
-                guiGraphics.renderItem(stack, sx + 4, sy + 4);
-                if (mouseX >= sx && mouseX < sx + slotSize - 1 && mouseY >= sy && mouseY < sy + slotSize - 1
-                        && sy >= gridY && sy + slotSize - 1 <= gridY + gridH) {
-                    hoveredIngredient = stack;
-                }
-
-                if (count > 1) {
-                    String cs = count + "x";
-                    guiGraphics.pose().pushPose();
-                    guiGraphics.pose().translate(sx + slotSize - this.font.width(cs) * 0.65f - 1, sy + slotSize - 9, 200);
-                    guiGraphics.pose().scale(0.65f, 0.65f, 1.0f);
-                    guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
-                    guiGraphics.pose().popPose();
-                }
+            String hoveredFluid = RecipeCardRenderer.fluidAt(shape, fluidResult, fluids,
+                    cardX, cardY, cardW, mouseX, mouseY);
+            if (!hoveredFluid.isEmpty()) {
+                renderTooltip(guiGraphics, FluidIcon.nameOf(hoveredFluid) + "\n§8" + hoveredFluid,
+                        mouseX, mouseY);
             }
-            guiGraphics.disableScissor();
-
-            // Scroll bar
-            if (hasScroll) {
-                int sbX = gridX + gridW + 3;
-                int thumbH = Math.max(8, gridH * 3 / ingredientRows);
-                int thumbY = gridY + (int)((float) recipePopupIngredientScroll / maxIngScroll * (gridH - thumbH));
-                guiGraphics.fill(sbX, gridY, sbX + 2, gridY + gridH, 0xFF2A2A2A);
-                guiGraphics.fill(sbX, thumbY, sbX + 2, thumbY + thumbH, 0xFF666666);
-            }
-        }
-
-        // Arrow
-        int arrowX = gridX + gridW + (hasScroll ? 14 : 8);
-        int arrowY = contentY + contentH / 2 - 4;
-        guiGraphics.drawString(this.font, "\u2192", arrowX, arrowY, (typeColor & 0x00FFFFFF) | 0xFF000000, false);
-
-        // Result area
-        int resultAreaX = popupX + popupW - pad - rightColW;
-        int rSlotX = resultAreaX + (rightColW - resultSlotSize) / 2;
-        int rSlotY = contentY + Math.max(0, (contentH - resultSlotSize - 18) / 2);
-
-        // Result slot with gold border
-        guiGraphics.fill(rSlotX - 2, rSlotY - 2, rSlotX + resultSlotSize + 2, rSlotY + resultSlotSize + 2, 0xAAFFCC00);
-        guiGraphics.fill(rSlotX - 1, rSlotY - 1, rSlotX + resultSlotSize + 1, rSlotY + resultSlotSize + 1, 0xFF2A2A1A);
-        guiGraphics.fill(rSlotX, rSlotY, rSlotX + resultSlotSize, rSlotY + resultSlotSize, 0xFF1A1A14);
-
-        if (!result.isEmpty()) {
-            guiGraphics.renderItem(result, rSlotX + 8, rSlotY + 8);
-            if (result.getCount() > 1) {
-                String cs = String.valueOf(result.getCount());
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(rSlotX + resultSlotSize - this.font.width(cs) * 0.7f, rSlotY + resultSlotSize - 9, 200);
-                guiGraphics.pose().scale(0.7f, 0.7f, 1.0f);
-                guiGraphics.drawString(this.font, cs, 0, 0, 0xFFFFFF, true);
-                guiGraphics.pose().popPose();
-            }
-            String rName = result.getHoverName().getString();
-            int nameW = (int)(this.font.width(rName) * SMALL_SCALE);
-            if (nameW > rightColW) {
-                rName = this.font.plainSubstrByWidth(rName, (int)(rightColW / SMALL_SCALE) - 6) + "...";
-                nameW = (int)(this.font.width(rName) * SMALL_SCALE);
-            }
-            drawSmallText(guiGraphics, rName, resultAreaX + (rightColW - nameW) / 2, rSlotY + resultSlotSize + 4, 0xFFCC00);
-        }
-
-        // Workstation below result
-        if (!workstation.isEmpty()) {
-            int stationSlot = 22;
-            int stationX = resultAreaX + (rightColW - stationSlot) / 2;
-            int stationY = rSlotY + resultSlotSize + 18;
-            if (stationY + stationSlot < contentY + contentH + 10) {
-                guiGraphics.fill(stationX, stationY, stationX + stationSlot - 1, stationY + stationSlot - 1, 0xFF2A2A2A);
-                guiGraphics.fill(stationX + 1, stationY + 1, stationX + stationSlot - 2, stationY + stationSlot - 2, 0xFF1E1E1E);
-                guiGraphics.renderItem(workstation, stationX + 3, stationY + 3);
-                drawSmallText(guiGraphics, "Station", stationX - 2, stationY + stationSlot + 2, 0x555555);
-            }
-        }
-
-        // Add button (add mode only)
-        if (recipePopupAddMode) {
-            int btnW = 76;
-            int btnH = 18;
-            int btnY = popupY + popupH - pad - btnH;
-            int addBtnX = popupX + popupW / 2 - btnW / 2;
-
-            boolean aHov = mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH;
-            guiGraphics.fill(addBtnX, btnY, addBtnX + btnW, btnY + btnH, aHov ? 0x50FFCC00 : 0x25FFCC00);
-            guiGraphics.fill(addBtnX, btnY + btnH - 2, addBtnX + btnW, btnY + btnH, aHov ? 0xD0FFCC00 : 0x70FFCC00);
-            String aLabel = Component.translatable("editor.historystages.add").getString();
-            guiGraphics.drawCenteredString(this.font, aLabel, addBtnX + btnW / 2, btnY + 5, aHov ? 0xFFFFFF : 0xDDDDDD);
-        }
-
-        // Ingredient tooltip
-        if (!hoveredIngredient.isEmpty()) {
-            guiGraphics.renderTooltip(this.font, hoveredIngredient, mouseX, mouseY);
         }
     }
 
@@ -2623,18 +2394,6 @@ public class StageDetailScreen extends Screen {
         if (generationLimitPopup.isVisible()) { return generationLimitPopup.mouseClicked(mouseX, mouseY); }
         if (overridePopupVisible) { return handleOverridePopupClick(mouseX, mouseY, button); }
         if (recipePopupVisible) {
-            int btnW = 76, btnH = 18, btnPad = 14;
-            if (recipePopupAddMode) {
-                int btnY = cachedPopupY + cachedPopupH - btnPad - btnH;
-                int addBtnX = cachedPopupX + cachedPopupW / 2 - btnW / 2;
-                if (mouseX >= addBtnX && mouseX < addBtnX + btnW && mouseY >= btnY && mouseY < btnY + btnH) {
-                    Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
-                    if (recipePopupAddAction != null) recipePopupAddAction.run();
-                    closeRecipePopup();
-                    hideCategoryPickers();
-                    return true;
-                }
-            }
             // Click outside popup closes everything
             if (mouseX < cachedPopupX || mouseX > cachedPopupX + cachedPopupW
                     || mouseY < cachedPopupY || mouseY > cachedPopupY + cachedPopupH) {
@@ -2753,9 +2512,6 @@ public class StageDetailScreen extends Screen {
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                     recipePopupId = list.get(i);
                     recipePopupVisible = true;
-                    recipePopupAddMode = false;
-                    recipePopupAddAction = null;
-                    recipePopupIngredientScroll = 0;
                     return true;
                 }
                 if (button == 1) {
@@ -3128,10 +2884,9 @@ public class StageDetailScreen extends Screen {
         if (modEntityPopup.isVisible() && modEntityPopup.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (modStructurePopup.isVisible() && modStructurePopup.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         if (modBiomePopup.isVisible() && modBiomePopup.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
-        if (recipePopupVisible) {
-            recipePopupIngredientScroll = Math.max(0, recipePopupIngredientScroll - (int) delta);
-            return true;
-        }
+        // The card shows the whole recipe at once, so there is nothing left to scroll - but the
+        // popup still swallows the wheel so the list behind it stays put.
+        if (recipePopupVisible) return true;
         if (actionOverlay() != null)
             return actionOverlay().mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (anyCategoryPicker(pk -> pk.mouseScrolled(mouseX, mouseY, scrollX, scrollY))) return true;

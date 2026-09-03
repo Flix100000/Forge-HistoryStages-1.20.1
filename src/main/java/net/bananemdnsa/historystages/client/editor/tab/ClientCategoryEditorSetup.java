@@ -3,9 +3,11 @@ package net.bananemdnsa.historystages.client.editor.tab;
 import net.bananemdnsa.historystages.api.editor.CustomFieldScreens;
 import net.bananemdnsa.historystages.api.editor.RegisterCategoryEditorsEvent;
 import net.bananemdnsa.historystages.api.editor.RegisterCustomFieldScreensEvent;
+import net.bananemdnsa.historystages.api.editor.RegisterRecipeTypeMetaEvent;
 import net.bananemdnsa.historystages.api.editor.RegisterRequirementEditorsEvent;
 import net.bananemdnsa.historystages.api.editor.RegisterTriggerEditorsEvent;
 import net.bananemdnsa.historystages.client.editor.dep.RequirementEditors;
+import net.bananemdnsa.historystages.client.editor.recipe.RecipeTypeMetas;
 import net.bananemdnsa.historystages.client.editor.trigger.TriggerEditors;
 
 import net.bananemdnsa.historystages.HistoryStages;
@@ -48,6 +50,12 @@ public final class ClientCategoryEditorSetup {
             // one in the config screen ask the same question, which screen edits this value.
             ModLoader.postEvent(new RegisterCustomFieldScreensEvent());
             CustomFieldScreens.freeze();
+
+            // Cosmetic only: what block stands for a recipe type, what colour its card gets,
+            // what it is called. Client setup, not common, because nothing off the client has
+            // any use for it.
+            ModLoader.postEvent(new RegisterRecipeTypeMetaEvent());
+            RecipeTypeMetas.freeze();
         });
     }
 }

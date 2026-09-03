@@ -327,9 +327,10 @@ public class StringStageLockEngine implements StageLockEngine {
     @Override
     public void stagesChanged() {
         CategoryLockIndexes.markRelevanceDirty();
-        // Stages do not change what a recipe contains, but they decide whether the fluid recipe
-        // index is worth having: a pack adding its first fluid entry has to get one built.
-        net.bananemdnsa.historystages.data.lock.FluidRecipeIndex.markDirty();
+        // Stages do not change what a recipe contains, only whether the fluid recipe index is
+        // worth having — so this is a relevance signal, not a re-scan. A pack adding its first
+        // fluid entry still gets one built; the editor no longer re-encodes the pack per save.
+        net.bananemdnsa.historystages.data.lock.FluidRecipeIndex.markRelevanceDirty();
     }
 
 
