@@ -46,8 +46,24 @@ public final class StageLocks {
      * not throw: it quietly reports a staged item as irrelevant and unlocks it.
      */
     public static void stagesChanged() {
+        DEFINITIONS_VERSION.incrementAndGet();
         engine.stagesChanged();
     }
+
+    /**
+     * Changes whenever the stage maps do. Never persisted, never sent.
+     *
+     * <p>The engine is told about a change; anything else that derives from the stage maps reads
+     * this instead. Same reasoning as {@code StageData.cacheVersion}: a counter beside the data
+     * cannot be forgotten the way a notification at each of a dozen write sites can, and this one
+     * already has a single write site to sit in.
+     */
+    public static long definitionsVersion() {
+        return DEFINITIONS_VERSION.get();
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong DEFINITIONS_VERSION =
+            new java.util.concurrent.atomic.AtomicLong();
 
     /** The world's global unlocked set, server side. */
     public static StageStateView serverGlobal() {

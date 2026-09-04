@@ -411,7 +411,7 @@ public class StageCommand {
             String displayName = entry != null ? entry.getDisplayName() : s;
             DebugLogger.runtime("Stage Unlock", executor, "Unlocked stage '" + s + "' (" + displayName + ")");
             source.sendSuccess(() -> Component.literal("§7[HistoryStages] Unlocked: " + s), true);
-            source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
+            // No reload here: unlockGlobal already asked for one, and asking twice reloads twice.
             return 1;
         }
     }
@@ -521,7 +521,9 @@ public class StageCommand {
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
         source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), broadcast);
-        source.getServer().reloadResources(source.getServer().getPackRepository().getSelectedIds());
+        // Through PacketHandler so that unlocking every stage at once reloads once rather than
+        // once per stage, and so this path reloads the same way the single-stage one does.
+        PacketHandler.reloadForLockChange(source.getServer());
 
         return 1;
     }

@@ -132,7 +132,7 @@ public record SaveStagePacket(String stageId, String stageJson, boolean individu
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.success(titleKey, messageKey, msg.stageId),
                         player);
-                PacketHandler.reloadRecipesOnly(player.server);
+                PacketHandler.reloadForLockChange(player.server);
             } else {
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.error(

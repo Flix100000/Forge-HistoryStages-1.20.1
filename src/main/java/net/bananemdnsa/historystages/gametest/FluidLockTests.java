@@ -228,7 +228,7 @@ public final class FluidLockTests {
             FluidRecipeIndex.clear();
             FluidRecipeIndex.markDirty();
             FluidRecipeIndex.rebuildIfDirty(
-                    helper.getLevel().getServer().getRecipeManager().getRecipes(),
+                    helper.getLevel().getServer().getRecipeManager().getOrderedRecipes(),
                     helper.getLevel().registryAccess());
 
             int scanned = FluidRecipeIndex.lastScanned();
@@ -258,7 +258,7 @@ public final class FluidLockTests {
             FluidRecipeIndex.clear();
             FluidRecipeIndex.markDirty();
             FluidRecipeIndex.rebuildIfDirty(
-                    helper.getLevel().getServer().getRecipeManager().getRecipes(),
+                    helper.getLevel().getServer().getRecipeManager().getOrderedRecipes(),
                     helper.getLevel().registryAccess());
 
             if (FluidRecipeIndex.lastScanned() != 0) {

@@ -427,9 +427,14 @@ public class HistoryStages {
         // Deliberately here and not in RecipeManager.apply: KubeJS and CraftTweaker rewrite
         // recipes after that call, so an index built there would miss a script pack entirely.
         // A tick has, by definition, waited for all of them. Costs one boolean read when clean.
+        //
+        // getOrderedRecipes rather than getRecipes: the latter is gated on the server now, and a
+        // fluid-gated recipe is exactly one of the recipes it leaves out — building the index from
+        // it would drop that recipe from the index, which would ungate it, which would put it back
+        // in the list. This one has to see every recipe there is.
         if (event.getServer() != null) {
             net.bananemdnsa.historystages.data.lock.FluidRecipeIndex.rebuildIfDirty(
-                    event.getServer().getRecipeManager().getRecipes(),
+                    event.getServer().getRecipeManager().getOrderedRecipes(),
                     event.getServer().registryAccess());
         }
 
@@ -438,6 +443,14 @@ public class HistoryStages {
         if (server != null && server.overworld() != null && tickCounter % 20 == 0) {
             net.bananemdnsa.historystages.data.saveddata.TemporaryStageData.get(server.overworld())
                     .tick(server, tickCounter, HistoryStages::resolveTemporaryConfig);
+        }
+
+        // Last in the tick on purpose: a stage unlocked anywhere above asks for a resend, and in
+        // the case that needs it for a datapack reload, which blocks until it is finished. Running
+        // it here rather than where it was asked for turns a bundle of unlocks into one piece of
+        // work, and keeps it out of the middle of whatever else was ticking.
+        if (server != null) {
+            net.bananemdnsa.historystages.network.PacketHandler.runRequestedLockReload(server);
         }
     }
 

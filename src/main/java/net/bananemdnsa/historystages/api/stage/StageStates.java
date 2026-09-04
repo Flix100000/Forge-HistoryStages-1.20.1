@@ -87,7 +87,13 @@ public final class StageStates {
             //
             // If you are about to remove it again: the symptom is JEI-only, it does not show up in
             // any test, and it needs a client with hideLockedItemsInJei on to see.
-            PacketHandler.reloadRecipesOnly(unlockServer);
+            //
+            // What that turns into is decided over there: a resend on its own in the normal case,
+            // and a full datapack reload only when this change actually altered which recipes are
+            // hidden. A machine that reads the entire recipe list and keeps it — Create's basin,
+            // and most modded machines — is only told to let go of that copy by a datapack reload,
+            // and reloading every datapack is far too expensive to do when nothing needs it.
+            PacketHandler.reloadForLockChange(unlockServer);
         }
 
         return true;
@@ -156,9 +162,9 @@ public final class StageStates {
 
         MinecraftServer server = level.getServer();
         if (server != null) {
-            // The same recipe-only reload as unlocking, and kept for the same reason — see the
-            // note there before removing it.
-            PacketHandler.reloadRecipesOnly(server);
+            // The same as unlocking, and kept for the same reasons — see the note there before
+            // removing it.
+            PacketHandler.reloadForLockChange(server);
         }
         return true;
     }

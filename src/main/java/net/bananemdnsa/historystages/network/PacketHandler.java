@@ -43,7 +43,7 @@ import net.bananemdnsa.historystages.network.clientbound.SyncStagesPacket;
 import net.bananemdnsa.historystages.network.clientbound.OpenLecternScrollPacket;
 
 import net.bananemdnsa.historystages.HistoryStages;
-import net.minecraft.Util;
+import net.bananemdnsa.historystages.util.DebugLogger;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.server.MinecraftServer;
@@ -53,8 +53,6 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
-
-import java.util.concurrent.CompletableFuture;
 
 @EventBusSubscriber(modid = HistoryStages.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public class PacketHandler {
@@ -194,24 +192,56 @@ public class PacketHandler {
     }
 
     /**
-     * Targeted recipe-only reload — re-reads recipe JSONs from datapacks and re-applies them.
-     * Much lighter than server.reloadResources() which reloads ALL datapacks.
-     * Runs async: prepare phase on background thread, apply phase on server thread.
-     * After apply, syncs updated recipes to all clients.
+     * Asks for whatever a change to what is gated needs. Carried out by
+     * {@link #runRequestedLockReload} at the end of the tick.
+     *
+     * <p>Only asks, so that unlocking three stages in the same tick — a quest handing out a
+     * bundle, an auto-trigger catching up — ends in one piece of work rather than three.
      */
-    public static void reloadRecipesOnly(MinecraftServer server) {
-        server.getRecipeManager().reload(
-                CompletableFuture::completedFuture,
-                server.getResourceManager(),
-                net.minecraft.util.profiling.InactiveProfiler.INSTANCE,
-                net.minecraft.util.profiling.InactiveProfiler.INSTANCE,
-                Util.backgroundExecutor(),
-                server
-        ).thenRunAsync(() -> resyncRecipes(server), server)
-         .exceptionally(e -> {
-             System.err.println("[HistoryStages] Recipe reload failed: " + e.getMessage());
-             return null;
-         });
+    public static void reloadForLockChange(MinecraftServer server) {
+        reloadRequested = true;
+    }
+
+    /**
+     * Carries out a requested reload, at most once per tick, and picks the cheapest one that will
+     * do.
+     *
+     * <p><strong>Resending is the normal case.</strong> The gate itself needs nothing: it is
+     * consulted when a recipe is asked for, so it flips the moment the stage does. What the resend
+     * is for is the clients — it is what makes JEI notice, and without it items hidden by a stage
+     * never come back after an unlock. Two GameTests hold both halves of that.
+     *
+     * <p><strong>A full datapack reload only when the set of hidden recipes actually changed.</strong>
+     * A machine that takes the whole recipe list and searches it itself — Create's basin, and most
+     * modded machines — keeps that list until a datapack reload tells it to let go, so without one
+     * it would take a lock correctly and then stay stuck after the unlock. But it only needs to be
+     * told when the list would come out different, and {@code VisibleRecipes.gatedSetChanged}
+     * answers exactly that by working the set out and comparing it. A stage gating blocks, biomes
+     * or mobs costs nothing; so does saving a stage in the editor without changing what it gates.
+     *
+     * <p>The reason for being this careful: reloading every datapack on a large modpack freezes
+     * the server for as long as it takes, and this can be reached from an auto-trigger, which
+     * fires while people are playing. That is why commit {@code ca3988f} took the full reload out
+     * in the first place — it is back only where nothing else will do.
+     */
+    public static void runRequestedLockReload(MinecraftServer server) {
+        if (!reloadRequested) return;
+        reloadRequested = false;
+
+        if (!net.bananemdnsa.historystages.data.lock.VisibleRecipes.gatedSetChanged(
+                server.getRecipeManager().getOrderedRecipes())) {
+            resyncRecipes(server);
+            return;
+        }
+
+        server.reloadResources(server.getPackRepository().getSelectedIds())
+                .exceptionally(e -> {
+                    DebugLogger.warn("Recipe Locks",
+                            "Reloading datapacks after a stage change failed: " + e.getMessage()
+                                    + ". Machines that keep their own copy of the recipe list may "
+                                    + "still be going by the old one until /reload.");
+                    return null;
+                });
     }
 
     /**
@@ -223,11 +253,11 @@ public class PacketHandler {
      * the crafting table goes blank and stays blank, past an F3+T, until the player rejoins.
      *
      * <p>Vanilla pairs the two everywhere it sends them: on join and in
-     * {@code PlayerList.reloadResources}. This path sent only the first half.
+     * {@code PlayerList.reloadResources}, which is also what covers the reload branch above.
      *
-     * <p>{@code getOrderedRecipes} rather than {@code getRecipes} for the same reason — it is
-     * what vanilla puts in this packet. The two hold the same recipes, so this is about not
-     * differing from vanilla without a reason to.
+     * <p>{@code getOrderedRecipes} rather than {@code getRecipes} because that is what vanilla
+     * puts in this packet — and because {@code getRecipes} is gated on the server now, so sending
+     * it would take the locked recipes off every client and out of their recipe book.
      */
     private static void resyncRecipes(MinecraftServer server) {
         ClientboundUpdateRecipesPacket recipePacket = new ClientboundUpdateRecipesPacket(
@@ -237,4 +267,6 @@ public class PacketHandler {
             p.getRecipeBook().sendInitialRecipeBook(p);
         }
     }
+
+    private static volatile boolean reloadRequested;
 }

@@ -13,6 +13,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -35,6 +36,15 @@ public final class RecipeLockTests {
 
     private static final String LOCKED_RECIPE = "minecraft:torch";
     private static final ResourceLocation LOCKED_RECIPE_ID = ResourceLocation.parse(LOCKED_RECIPE);
+
+    /**
+     * A second recipe, for the tests that ask whether a change was worth a reload.
+     *
+     * <p>Not the one above. The suite ticks its tests side by side, so another test's stage gating
+     * {@code minecraft:torch} can already be standing when these run — and adding a second stage
+     * gating the same recipe changes nothing, which is the answer they are trying to tell apart.
+     */
+    private static final String RELOAD_PROBE_RECIPE = "minecraft:stick";
 
     /**
      * Every class the recipe hooks inject into. A {@code @Redirect} whose signature does not match,
@@ -87,32 +97,38 @@ public final class RecipeLockTests {
     }
 
     @GameTest(template = "empty", timeoutTicks = 400)
-    public static void unlockingAStageDoesNotEmptyTheRecipeList(GameTestHelper helper) {
-        // Saving or deleting a stage in the editor runs PacketHandler.reloadRecipesOnly, which
-        // re-reads the recipe jsons and then pushes the whole list back to every client. That list
-        // becomes the client's recipe manager and therefore the vanilla recipe book, so anything
-        // this reload drops disappears from the player's book until they rejoin.
+    public static void aReloadStillSendsClientsEveryRecipe(GameTestHelper helper) {
+        // A datapack reload pushes the whole recipe list back to every client. That list becomes
+        // the client's recipe manager and therefore the vanilla recipe book, so anything the
+        // reload drops disappears from the player's book until they rejoin.
+        //
+        // Reloads here rather than going through reloadForLockChange, which decides for itself
+        // whether a reload is warranted: this test is about what a reload does, and the deciding
+        // is held by the two tests below.
+        //
+        // getOrderedRecipes rather than getRecipes throughout: getOrderedRecipes is the list that
+        // actually goes into the packet, and it is the one the gate leaves alone.
         MinecraftServer server = helper.getLevel().getServer();
-        int before = server.getRecipeManager().getRecipes().size();
+        int before = server.getRecipeManager().getOrderedRecipes().size();
         Object holderBefore = server.getRecipeManager().byKey(LOCKED_RECIPE_ID).orElse(null);
 
-        net.bananemdnsa.historystages.network.PacketHandler.reloadRecipesOnly(server);
+        server.reloadResources(server.getPackRepository().getSelectedIds());
 
         helper.runAfterDelay(100, () -> {
-            int after = server.getRecipeManager().getRecipes().size();
+            int after = server.getRecipeManager().getOrderedRecipes().size();
             Object holderAfter = server.getRecipeManager().byKey(LOCKED_RECIPE_ID).orElse(null);
             // Without this the test would pass by never having reloaded at all: the reload is
             // asynchronous, and an unchanged count proves nothing on its own. A reload rebuilds
             // every holder, so a holder that is still the same object means it did not happen.
             if (holderBefore != null && holderBefore == holderAfter) {
-                helper.fail("the recipe reload had not run after 100 ticks, so this test was "
-                        + "about to report success without having tested anything");
+                helper.fail("the reload had not run after 100 ticks, so this test was about to "
+                        + "report success without having tested anything");
                 return;
             }
             if (after < before) {
-                helper.fail("a recipe-only reload cut the recipe list from " + before + " to "
-                        + after + " — every client is then sent the short list, and their recipe "
-                        + "book loses whatever went missing");
+                helper.fail("the reload cut the recipe list from " + before + " to " + after
+                        + " — every client is then sent the short list, and their recipe book "
+                        + "loses whatever went missing");
                 return;
             }
             helper.succeed();
@@ -120,8 +136,69 @@ public final class RecipeLockTests {
     }
 
     @GameTest(template = "empty")
+    public static void gatingARecipeIsSeenAsAChangeToTheGatedSet(GameTestHelper helper) {
+        // What decides whether a stage change costs a datapack reload. This half says it notices
+        // when it has to.
+        MinecraftServer server = helper.getLevel().getServer();
+        try {
+            settleGatedSet(server);
+
+            GameTestStages.global("gated_set_recipe", stage ->
+                    stage.setRecipes(new ArrayList<>(List.of(RELOAD_PROBE_RECIPE))));
+
+            if (!gatedSetChanged(server)) {
+                helper.fail("a stage that gates " + RELOAD_PROBE_RECIPE + " was judged not to "
+                        + "change which recipes are hidden, so no datapack reload would run — and "
+                        + "a machine holding its own copy of the recipe list would keep making it");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void aStageGatingOnlyABiomeIsNotWorthAReload(GameTestHelper helper) {
+        // The other half, and the one that keeps large modpacks playable. Reloading every datapack
+        // freezes the server for as long as it takes, and this can be reached from an auto-trigger
+        // while people are playing — commit ca3988f took the full reload out for exactly that
+        // reason. A stage gating a biome and nothing else must not pay for one.
+        //
+        // Synchronous from end to end on purpose: the suite ticks its tests side by side, so a
+        // test that waited would have other tests' stages appearing underneath it.
+        MinecraftServer server = helper.getLevel().getServer();
+        try {
+            settleGatedSet(server);
+
+            GameTestStages.global("gated_set_biome", stage ->
+                    stage.setBiomes(new ArrayList<>(List.of("minecraft:plains"))));
+
+            if (gatedSetChanged(server)) {
+                helper.fail("a stage gating only a biome was judged to change which recipes are "
+                        + "hidden, which reloads every datapack. On a large modpack that freezes "
+                        + "the server, and an auto-trigger can set it off mid-game");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    /** Brings the remembered set in line with what is gated right now. */
+    private static void settleGatedSet(MinecraftServer server) {
+        gatedSetChanged(server);
+    }
+
+    private static boolean gatedSetChanged(MinecraftServer server) {
+        return net.bananemdnsa.historystages.data.lock.VisibleRecipes.gatedSetChanged(
+                server.getRecipeManager().getOrderedRecipes());
+    }
+
+    @GameTest(template = "empty")
     public static void aGlobalUnlockTakesEffectWithoutAnyRecipeReload(GameTestHelper helper) {
-        // Global lock and unlock fire PacketHandler.reloadRecipesOnly, on the grounds that the
+        // Global lock and unlock fire PacketHandler.reloadForLockChange, on the grounds that the
         // recipes would otherwise reach nobody until something else reloaded them. For the gate
         // itself that is no longer true — filtering moved from load time to query time — and this
         // test says so: the verdict flips on its own, with no reload in sight.
@@ -153,6 +230,83 @@ public final class RecipeLockTests {
             GameTestStages.removeAll();
             data.removeStage(stageId);
         }
+    }
+
+    @GameTest(template = "empty")
+    public static void aGlobalLockAlsoTakesTheRecipeOutOfTheWholeList(GameTestHelper helper) {
+        // The bug this was written for: a Create basin does not ask which recipe fits its
+        // contents, it takes the entire recipe list and searches it itself. Mixing and compacting
+        // were therefore craftable inside a locked stage while everything that asks was blocked.
+        // Both ways of reading a list are gated now; looking one up by its id deliberately is not.
+        MinecraftServer server = helper.getLevel().getServer();
+        StageData data = StageData.get(helper.getLevel());
+        String stageId = GameTestStages.PREFIX + "global_recipe_listings";
+        try {
+            globalStageGating("global_recipe_listings");
+
+            if (listed(server.getRecipeManager().getRecipes())) {
+                helper.fail(LOCKED_RECIPE + " is gated by a locked global stage but is still in "
+                        + "the full recipe list — a machine that reads the list instead of asking "
+                        + "for one recipe can make it");
+                return;
+            }
+            if (listed(server.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING))) {
+                helper.fail(LOCKED_RECIPE + " is gated but is still in the list of every crafting "
+                        + "recipe — the same hole one recipe type wide");
+                return;
+            }
+            if (server.getRecipeManager().byKey(LOCKED_RECIPE_ID).isEmpty()) {
+                helper.fail("looking " + LOCKED_RECIPE + " up by its id was gated. That is not an "
+                        + "improvement: a player's recipe book is a list of ids resolved this way "
+                        + "on every login, and an id that does not resolve is deleted from the "
+                        + "book and written back short. See the note on RecipeManagerMixin");
+                return;
+            }
+
+            data.addStage(stageId);
+            StageData.refreshCache(data.getUnlockedStages());
+
+            if (!listed(server.getRecipeManager().getRecipes())
+                    || !listed(server.getRecipeManager().getAllRecipesFor(RecipeType.CRAFTING))) {
+                helper.fail("the stage is unlocked and " + LOCKED_RECIPE + " has not come back to "
+                        + "the recipe lists — the gate is answering from a cache it never dropped");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+            data.removeStage(stageId);
+        }
+    }
+
+    @GameTest(template = "empty")
+    public static void theListEveryClientIsSentKeepsTheLockedRecipes(GameTestHelper helper) {
+        // getOrderedRecipes fills the packet sent on join and after every reload. It has to keep
+        // carrying the locked recipes: the client draws them with a lock on them, the editor's
+        // recipe picker lists them, and the fluid index is built from them. Cut them out here and
+        // a recipe could be locked once and then never found again to unlock it.
+        MinecraftServer server = helper.getLevel().getServer();
+        try {
+            globalStageGating("global_recipe_wire");
+
+            if (!listed(server.getRecipeManager().getOrderedRecipes())) {
+                helper.fail(LOCKED_RECIPE + " was cut out of the list that goes to every client. "
+                        + "Locked recipes stop being drawn with a lock, the editor's picker cannot "
+                        + "find them any more, and the recipe book loses them until a rejoin");
+                return;
+            }
+            helper.succeed();
+        } finally {
+            GameTestStages.removeAll();
+        }
+    }
+
+    /** Whether the locked recipe is in this listing. */
+    private static boolean listed(java.util.Collection<? extends RecipeHolder<?>> recipes) {
+        for (RecipeHolder<?> holder : recipes) {
+            if (LOCKED_RECIPE_ID.equals(holder.id())) return true;
+        }
+        return false;
     }
 
     @GameTest(template = "empty")

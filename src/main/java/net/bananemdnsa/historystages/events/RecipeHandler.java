@@ -122,6 +122,31 @@ public class RecipeHandler {
         return isOutputLocked(holder, false);
     }
 
+    /**
+     * Whether this recipe is gated for everyone on the server, by any of the three routes: its own
+     * id on a stage, an item it produces whose lock covers {@code recipe}, or a fluid it touches.
+     *
+     * <p>Deliberately blind to {@link RecipeCraftContext}. This is the answer given to a station
+     * that asked for the whole recipe list rather than for one recipe, and that answer is cached
+     * and handed to every station after it — so a per-player verdict here would let whoever walked
+     * past first decide for everybody. Individual stages keep to the paths where a player is
+     * actually named.
+     */
+    public static boolean isLockedForEveryone(RecipeHolder<?> holder) {
+        if (holder == null) return false;
+
+        ItemStack result;
+        try {
+            result = holder.value().getResultItem(RegistryAccess.EMPTY);
+        } catch (Exception e) {
+            result = ItemStack.EMPTY;
+        }
+        if (!result.isEmpty() && StageLockHelper.isActionLockedForServer(result, "recipe")) return true;
+
+        String id = holder.id().toString();
+        return isFluidGated(id, false, false, null) || StageLockHelper.isRecipeLockedForServer(id);
+    }
+
     public static boolean isRecipeIdLocked(ResourceLocation recipeId, boolean isClientSide) {
         if (recipeId == null) return false;
 
