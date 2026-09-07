@@ -53,7 +53,10 @@ jobs:
             1.20
             1.20.1
           loaders: forge
-          version-type: release
+          # Taken from the release rather than fixed here: a release marked as a prerelease on
+          # GitHub was still landing on the Release channel on both platforms, so a beta reached
+          # everyone who tracks the mod as if it were finished.
+          version-type: ${{ github.event.release.prerelease && 'beta' || 'release' }}
           dependencies: |
             lootr(required)
             jei(optional)
