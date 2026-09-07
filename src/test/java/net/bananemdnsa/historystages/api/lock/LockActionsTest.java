@@ -17,12 +17,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LockActionsTest {
 
+    /**
+     * There were briefly three vocabularies, the third naming the two sides of a merchant offer.
+     * It went when the trade category stopped gating items and started naming whole trades:
+     * either a player may make a given trade or they may not, and there is no half of one to
+     * narrow to. Stated as a test because "why is there no buy/sell any more" is a reasonable
+     * question to ask this file.
+     */
     @Test
-    void theItemVocabularyIsTheTenTheModHasAlwaysShipped() {
+    void thereIsNoSeparateTradeVocabulary() {
+        assertFalse(LockActions.KNOWN.contains("buy"));
+        assertFalse(LockActions.KNOWN.contains("sell"));
+        assertTrue(LockActions.KNOWN.contains("trade"),
+                "the broad rule stayed: an item entry can still say nobody trades with this");
+    }
+
+    @Test
+    void theItemVocabularyIsTheElevenTheModShipsToday() {
         assertEquals(
-                List.of("equip", "attack", "place", "break", "pickup",
+                List.of("equip", "attack", "place", "break", "pickup", "trade",
                         "use", "loot", "recipe", "gui", "icon"),
                 LockActions.ITEM);
+    }
+
+    /**
+     * Not a cosmetic addition. {@code unlock_actions} stores the <em>complement</em> over this
+     * list, so an action that appears in no existing file counts as locked in all of them: an
+     * entry someone narrowed to "use only" gates trading too from the update onwards. That is
+     * the intended effect and must not be migrated away — see the design doc, §4.2.
+     */
+    @Test
+    void tradingSitsWithTheOtherWaysOfAcquiringSomething() {
+        assertTrue(LockActions.ITEM.contains("trade"));
+        assertEquals(LockActions.ITEM.indexOf("pickup") + 1, LockActions.ITEM.indexOf("trade"),
+                "trade belongs next to pickup - the actions popup groups by neighbour");
     }
 
     @Test
@@ -45,12 +73,5 @@ class LockActionsTest {
             assertTrue(LockActions.ITEM.contains(action),
                     action + " is offered for fluids but is not a known action");
         }
-    }
-
-    @Test
-    void theKnownSetIsTheUnionOfBoth() {
-        assertTrue(LockActions.KNOWN.containsAll(LockActions.ITEM));
-        assertTrue(LockActions.KNOWN.containsAll(LockActions.FLUID));
-        assertEquals(11, LockActions.KNOWN.size());
     }
 }

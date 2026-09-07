@@ -13,18 +13,32 @@ import java.util.Set;
  * label. Reordering is harmless, renaming is not, and dropping an entry rewrites every stage
  * file that narrowed itself to it.
  *
- * <p>Two vocabularies rather than one, because a category cannot honour what its subject cannot
- * do: a fluid is never worn, never swung and never mined, so offering it {@code equip} would be
- * a checkbox that does nothing. Which vocabulary applies is declared per category by
+ * <p>Two vocabularies rather than one, because a category cannot honour what its subject
+ * cannot do: a fluid is never worn, never swung and never mined, so offering it {@code equip}
+ * would be a checkbox that does nothing. Which vocabulary applies is declared per category by
  * {@link LockCategory#lockActions()}.
  */
 public final class LockActions {
 
     private LockActions() {}
 
-    /** The ten actions items, tags and mods have always offered, in editor order. */
+    /**
+     * The eleven actions items, tags and mods offer, in editor order.
+     *
+     * <p>{@code trade} sits beside {@code pickup} because both are ways of acquiring something,
+     * and the actions popup groups by neighbour.
+     *
+     * <p><strong>Adding to this list is a behaviour change for files that already exist.</strong>
+     * The complement is what gets stored, so an action no old file mentions counts as locked in
+     * every one of them: an entry someone narrowed to "use only" gates trading as well from the
+     * update onwards. When {@code trade} was added that was the intended effect, and it must not
+     * be migrated away — a format marker that read a missing action as unlocked would be a
+     * permanent special case bought for a one-off transition, and the next action would need it
+     * again. It belongs in the changelog instead.
+     */
     public static final List<String> ITEM = List.of(
-            "equip", "attack", "place", "break", "pickup", "use", "loot", "recipe", "gui", "icon"
+            "equip", "attack", "place", "break", "pickup", "trade",
+            "use", "loot", "recipe", "gui", "icon"
     );
 
     /**

@@ -156,7 +156,16 @@ public class SearchableItemList implements PickerOverlay {
     private Set<String> modFilterSet = null;
 
     /** Optional "is locked by stage" predicate enabled via {@link #setLockedFilter}. */
-    private java.util.function.Predicate<String> lockedFilterFn = null;
+    /**
+     * Extra exclusions offered in the filter menu, keyed by the option they belong to.
+     *
+     * <p>A map rather than a field per filter. There was one — "hide locked", for the auto-trigger
+     * editor — and the trades picker wanted a second on the same terms; a third field would have
+     * been the point at which somebody noticed, and by then there would be three copies of the
+     * same two lines.
+     */
+    private final java.util.Map<String, java.util.function.Predicate<String>> exclusions =
+            new java.util.LinkedHashMap<>();
 
     public SearchableItemList(Consumer<String> onSelect) {
         this(onSelect, null);
@@ -406,8 +415,12 @@ public class SearchableItemList implements PickerOverlay {
 
     private boolean matchesDropdownFilters(String id) {
         if (!SearchPanelChrome.passesDefaultFilters(searchBar, id, alreadyAddedSupplier)) return false;
-        if (lockedFilterFn != null && searchBar.filters().isActive("hide_locked")
-                && id != null && lockedFilterFn.test(id)) return false;
+        if (id == null) return true;
+        for (java.util.Map.Entry<String, java.util.function.Predicate<String>> exclusion
+                : exclusions.entrySet()) {
+            if (searchBar.filters().isActive(exclusion.getKey())
+                    && exclusion.getValue().test(id)) return false;
+        }
         return true;
     }
 
@@ -417,8 +430,23 @@ public class SearchableItemList implements PickerOverlay {
      * the current stage already locks.
      */
     public void setLockedFilter(String label, java.util.function.Predicate<String> isLocked) {
-        this.lockedFilterFn = isLocked;
-        searchBar.filters().addOption("hide_locked", label, null, true);
+        addExclusion("hide_locked", label, true, isLocked);
+    }
+
+    /**
+     * Adds a switch to the filter menu that hides every item {@code exclude} says yes to.
+     *
+     * <p>The escape hatch matters as much as the filter: a picker narrowed to a list somebody else
+     * computed will sooner or later be missing the one item the maintainer wants, and then the
+     * only thing worse than a long list is a short one that cannot be made long again. Which is
+     * why this is a switch in the menu and not a list the caller replaces.
+     *
+     * @param onByDefault whether the switch starts ticked
+     */
+    public void addExclusion(String optionKey, String label, boolean onByDefault,
+                             java.util.function.Predicate<String> exclude) {
+        exclusions.put(optionKey, exclude);
+        searchBar.filters().addOption(optionKey, label, null, onByDefault);
         applyFilter(searchBar.getText() == null ? "" : searchBar.getText());
     }
 

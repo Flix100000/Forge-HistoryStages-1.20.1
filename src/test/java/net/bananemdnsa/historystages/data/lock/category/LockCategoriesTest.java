@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LockCategoriesTest {
 
     @Test
-    void theTwelveBuiltInsAreRegisteredInEditorTabOrder() {
+    void theFifteenBuiltInsAreRegisteredInEditorTabOrder() {
         List<String> ids = LockCategories.all().stream().map(LockCategory::id).toList();
         assertEquals(List.of(
                 "historystages:items",
@@ -29,6 +29,12 @@ class LockCategoriesTest {
                 "historystages:attacklock",
                 "historystages:spawnlock",
                 "historystages:interactionlock",
+                // Three categories sharing one tab. They are asked separately - an item entry
+                // narrows to a side of the offer, a profession or level hides the merchant
+                // whole - so they are three lists rather than one list of a mixed type.
+                "historystages:trades",
+                "historystages:trade_professions",
+                "historystages:trade_levels",
                 "historystages:structures",
                 "historystages:biomes"), ids);
     }

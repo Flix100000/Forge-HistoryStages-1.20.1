@@ -64,6 +64,12 @@ public final class LegacyConfigMap {
             // Fluids were not a lock category before 6.0, so there was nothing to refuse and no
             // message to word.
             "VISUAL|lock_messages.fluidLocked",
+            // Trades were not a lock category before 6.0 either, so a merchant could never come
+            // up empty on our account and there was no message to word.
+            "VISUAL|lock_messages.tradeLocked",
+            // Same reason: no trade locks before 6.0, so no notice to word and nothing to decide
+            // about naming the stages in it.
+            "VISUAL|trade_lock.showStagesInWindow",
             // The vanilla recipe book showed locked recipes before 6.0; there was no switch.
             "VISUAL|recipe_book.hideLockedRecipesInBook",
             // The pause-menu editor button was always there for operators before 6.0.

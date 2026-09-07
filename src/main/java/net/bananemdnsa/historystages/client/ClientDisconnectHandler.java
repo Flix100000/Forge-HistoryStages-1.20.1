@@ -32,6 +32,12 @@ public class ClientDisconnectHandler {
         // them. The renderer's face masks are derived from exactly those boxes and go with them.
         LockBorderClientCache.clear();
         LockBorderRenderer.forgetMasks();
+        // Container ids start over on the next server, so a leftover notice could land on the
+        // first merchant window there — and it would name stages from a world we have left.
+        TradeLockNotice.clear();
+        // Which items merchants deal in is the server's answer, and the next one may differ.
+        // Kept, it would narrow the picker to the last world's goods.
+        ClientTradeGoods.clear();
         // The server pushed its config values into our specs and never wrote our file, so our own
         // settings are only a memory away. Without this they would stay until the game restarts,
         // and the visual ones are visible the moment the next singleplayer world opens.

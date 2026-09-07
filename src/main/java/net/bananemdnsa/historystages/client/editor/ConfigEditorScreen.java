@@ -325,6 +325,12 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.mobShowStagesInChat.get().toString(), true, "true"));
         visualSections.add(mobLock);
 
+        ConfigSection tradeLock = new ConfigSection("editor.historystages.config.trade_lock");
+        tradeLock.add(new ConfigEntry("trade_lock.showStagesInWindow", "tradeShowStagesInWindow",
+                ConfigType.BOOLEAN,
+                Config.VISUAL.tradeShowStagesInWindow.get().toString(), true, "false"));
+        visualSections.add(tradeLock);
+
         ConfigSection structureVisuals = new ConfigSection("editor.historystages.config.structure_visuals");
         structureVisuals.add(new ConfigEntry("structure_overlay.structureBorderEnabled", "structureBorderEnabled", ConfigType.BOOLEAN,
                 Config.VISUAL.structureBorderEnabled.get().toString(), true, "true"));
@@ -406,6 +412,8 @@ public class ConfigEditorScreen extends Screen {
                 Config.VISUAL.msgItemLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.fluidLocked", "msgFluidLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgFluidLocked.get(), true, ""));
+        lockMessages.add(new ConfigEntry("lock_messages.tradeLocked", "msgTradeLocked", ConfigType.RICH_TEXT,
+                Config.VISUAL.msgTradeLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.blockLocked", "msgBlockLocked", ConfigType.RICH_TEXT,
                 Config.VISUAL.msgBlockLocked.get(), true, ""));
         lockMessages.add(new ConfigEntry("lock_messages.entityItemLocked", "msgEntityItemLocked", ConfigType.RICH_TEXT,

@@ -403,6 +403,8 @@ public class HistoryStages {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         serverInitialized = false;
+        // Rolled from the trade hooks this server registered; the next one may register others.
+        net.bananemdnsa.historystages.data.lock.TradeGoodsScanner.clearCache();
         DebugLogger.runtime("Server", "Server stopping — flushing runtime log");
         DebugLogger.flushRuntimeBuffer();
     }

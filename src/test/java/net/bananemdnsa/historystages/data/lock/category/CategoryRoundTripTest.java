@@ -112,6 +112,21 @@ class CategoryRoundTripTest {
                  "historystages:structures", "historystages:biomes",
                  "historystages:attacklock" ->
                     ((LockCategory<String>) category).write(stage, List.of("minecraft:sample"));
+            case "historystages:trade_professions" ->
+                    ((LockCategory<net.bananemdnsa.historystages.data.TradeProfessionEntry>) category)
+                            .write(stage, List.of(
+                                    new net.bananemdnsa.historystages.data.TradeProfessionEntry(
+                                            "minecraft:sample")));
+            // Levels are numbers held as strings, so the sample has to be one or the round trip
+            // would be testing something a real stage never contains.
+            case "historystages:trade_levels" ->
+                    ((LockCategory<String>) category).write(stage, List.of("4"));
+            case "historystages:trades" ->
+                    ((LockCategory<net.bananemdnsa.historystages.data.TradeOfferEntry>) category)
+                            .write(stage, List.of(
+                                    new net.bananemdnsa.historystages.data.TradeOfferEntry(
+                                            "minecraft:librarian", 1, "minecraft:diamond",
+                                            "minecraft:emerald", null)));
             case "historystages:spawnlock" ->
                     ((LockCategory<EntitySpawnLockEntry>) category)
                             .write(stage, List.of(new EntitySpawnLockEntry("minecraft:zombie")));

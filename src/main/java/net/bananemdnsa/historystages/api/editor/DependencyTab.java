@@ -16,12 +16,4 @@ import net.bananemdnsa.historystages.data.DependencyGroup;
 public interface DependencyTab extends EditorTab<DependencyGroup> {
 
     String requirementId();
-
-    /**
-     * False for a tab with nothing to add to. The XP requirement is a single value, and a button
-     * that opens nothing is worse than no button at all.
-     */
-    default boolean hasAddButton() {
-        return true;
-    }
 }

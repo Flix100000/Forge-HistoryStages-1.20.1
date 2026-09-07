@@ -16,7 +16,7 @@ import net.bananemdnsa.historystages.data.lock.EntitySpawnLockEntry;
 import net.bananemdnsa.historystages.data.lock.engine.LockSubjects;
 
 /**
- * The twelve categories the mod ships with, in editor tab order.
+ * The fifteen categories the mod ships with, in editor tab order.
  *
  * <p>Each one is a thin adapter onto the typed accessors {@link StageEntry} already has. The
  * point is not to move data — it is to stop every consumer from naming all twelve fields.
@@ -100,6 +100,15 @@ final class BuiltInLockCategories {
         categories.add(new AttackLock());
         categories.add(new SpawnLock());
         categories.add(new InteractionLock());
+
+        // Three categories, one editor tab. They answer one question between them — which offers
+        // a merchant shows this player — but they are asked separately and hold different things,
+        // and a single list of a mixed type would make every reader ask which kind it is holding.
+        categories.add(new TradeOfferLock());
+        categories.add(new TradeProfessionLock());
+        categories.add(new Simple<>("trade_levels", "trades", "trade level",
+                StageEntry::getTradeLevels, StageEntry::setTradeLevels,
+                StageEntry::getTradeLevels, ID_EQUALS, NO_INDEX));
 
         categories.add(new Simple<>("structures", "structures", "structure",
                 StageEntry::getStructures, StageEntry::setStructures,
@@ -190,6 +199,132 @@ final class BuiltInLockCategories {
         @Override public String lookupKey(Object subject) {
             return subject instanceof LockSubjects.ItemSubject item ? item.fluidId() : null;
         }
+    }
+
+    /**
+     * Gated single offers — one of the three categories behind the "Handel" tab.
+     *
+     * <p>Names one trade: this merchant, at this level, handing this over for that. What it is
+     * <em>not</em> is a way to gate an item wherever it turns up in a trade — that is the item
+     * action {@code trade} on an ordinary item entry, and it lived there first. Two tools for one
+     * job is how a pack author ends up wondering which of them is in force.
+     *
+     * <p>No action vocabulary of its own, so it keeps the default and is never asked to narrow.
+     * There is no half of a single trade to narrow to: either the offer is on the list or it is
+     * not, and a player who may not make it may not make either side of it.
+     *
+     * <p>No {@link #indexKeys}, deliberately. {@code LockRelevanceIndex} narrows
+     * {@code isItemActionLocked}; a trade question never travels that path, it is asked through
+     * {@code CategoryLockResolver} directly. Filing keys here would build an index nothing reads.
+     */
+    private static final class TradeOfferLock
+            implements LockCategory<net.bananemdnsa.historystages.data.TradeOfferEntry> {
+
+        @Override public String id() { return "historystages:trades"; }
+        @Override public String tabLangKey() { return "editor.historystages.tab.trades"; }
+        @Override public String tooltipLangKey() { return "editor.historystages.tooltip.trades"; }
+        @Override public String dualPhaseLabel() { return "trade"; }
+
+        @Override
+        public List<net.bananemdnsa.historystages.data.TradeOfferEntry> read(StageEntry stage) {
+            return stage.getTradeOffers();
+        }
+
+        @Override
+        public void write(StageEntry stage,
+                          List<net.bananemdnsa.historystages.data.TradeOfferEntry> entries) {
+            stage.setTradeOffers(entries);
+        }
+
+        @Override public List<String> globalDualPhaseIds(StageEntry stage) {
+            return stage.getAllTradeItemIds();
+        }
+
+        @Override public List<String> individualDualPhaseIds(StageEntry stage) {
+            return stage.getAllTradeItemIds();
+        }
+
+        /**
+         * Asked about a {@link net.bananemdnsa.historystages.data.lock.TradeOfferSubject} rather
+         * than the {@code ItemSubject} every other item-shaped category uses. That record names
+         * Minecraft types and cannot be built by a unit test, which would have put the whole
+         * decision table out of reach of anything but a running game.
+         *
+         * <p>The criterion is the one part that still needs a live stack, and the call into
+         * {@link BuiltInLockMatching} for it is only reached when an entry carries one — a method
+         * call across the class boundary is resolved lazily, so a test that uses no criterion
+         * never loads Minecraft through this line.
+         */
+        @Override
+        public boolean matches(net.bananemdnsa.historystages.data.TradeOfferEntry entry,
+                               Object subject) {
+            if (!(subject instanceof net.bananemdnsa.historystages.data.lock.TradeOfferSubject offer)) {
+                return false;
+            }
+            if (!entry.gates(offer.merchantKey(), offer.level(), offer.givesId(),
+                    offer.takesAId(), offer.takesBId())) {
+                return false;
+            }
+            if (!entry.hasNbt()) return true;
+            return BuiltInLockMatching.tradeCriterionMatches(entry.nbt(), offer.givesStack());
+        }
+
+        @Override public List<String> indexKeys(StageEntry stage) { return List.of(); }
+        @Override public String lookupKey(Object subject) { return null; }
+    }
+
+    /**
+     * Gated professions — the second of the three categories behind the "Handel" tab.
+     *
+     * <p>A {@link Simple} until an entry could narrow itself to some of the merchant's levels.
+     * That narrowing is what makes it its own class: {@code Simple} compares the subject to an
+     * id, and the question here is about a profession <em>and</em> a level at once. Splitting it
+     * into two questions would push the joining onto every caller, and the two would drift.
+     *
+     * <p>No index. Professions are few and a merchant is asked about once per window opened, so
+     * the reverse index would cost memory to save nothing measurable.
+     */
+    private static final class TradeProfessionLock
+            implements LockCategory<net.bananemdnsa.historystages.data.TradeProfessionEntry> {
+
+        @Override public String id() { return "historystages:trade_professions"; }
+        @Override public String tabLangKey() { return "editor.historystages.tab.trades"; }
+        @Override public String tooltipLangKey() { return "editor.historystages.tooltip.trades"; }
+        @Override public String dualPhaseLabel() { return "trade profession"; }
+
+        @Override
+        public List<net.bananemdnsa.historystages.data.TradeProfessionEntry> read(StageEntry stage) {
+            return stage.getTradeProfessionEntries();
+        }
+
+        @Override
+        public void write(StageEntry stage,
+                          List<net.bananemdnsa.historystages.data.TradeProfessionEntry> entries) {
+            stage.setTradeProfessionEntries(entries);
+        }
+
+        @Override public List<String> globalDualPhaseIds(StageEntry stage) {
+            return stage.getTradeProfessions();
+        }
+
+        @Override public List<String> individualDualPhaseIds(StageEntry stage) {
+            return stage.getTradeProfessions();
+        }
+
+        /**
+         * Asked about a {@link net.bananemdnsa.historystages.data.lock.MerchantSubject}: the
+         * profession decides whether this entry is about this merchant at all, the level decides
+         * whether it is about this merchant <em>now</em>.
+         */
+        @Override
+        public boolean matches(net.bananemdnsa.historystages.data.TradeProfessionEntry entry,
+                               Object subject) {
+            return subject instanceof net.bananemdnsa.historystages.data.lock.MerchantSubject merchant
+                    && entry.gates(merchant.professionId(), merchant.level());
+        }
+
+        @Override public List<String> indexKeys(StageEntry stage) { return List.of(); }
+        @Override public String lookupKey(Object subject) { return null; }
     }
 
     /**

@@ -34,6 +34,7 @@ public class Config {
         public final ModConfigSpec.BooleanValue mobUseActionbar;
         public final ModConfigSpec.BooleanValue mobShowChat;
         public final ModConfigSpec.BooleanValue mobShowStagesInChat;
+        public final ModConfigSpec.BooleanValue tradeShowStagesInWindow;
 
         // Individual Stages
         public final ModConfigSpec.BooleanValue showSilverLockIcons;
@@ -67,6 +68,7 @@ public class Config {
         public final ModConfigSpec.ConfigValue<String> msgMobUnknown;
         public final ModConfigSpec.ConfigValue<String> msgItemLocked;
         public final ModConfigSpec.ConfigValue<String> msgFluidLocked;
+        public final ModConfigSpec.ConfigValue<String> msgTradeLocked;
         public final ModConfigSpec.ConfigValue<String> msgBlockLocked;
         public final ModConfigSpec.ConfigValue<String> msgEntityItemLocked;
         public final ModConfigSpec.ConfigValue<String> msgEnchantmentLocked;
@@ -209,6 +211,18 @@ public class Config {
 
             builder.pop();
 
+            builder.comment("Settings for the trade lock notice shown in an empty merchant window")
+                    .push("trade_lock");
+
+            // Off by default, unlike the dimension and mob switches. Those answer "why can I not
+            // go there", where naming the stage is the whole help; a merchant with nothing to
+            // offer is a puzzle some packs want to keep as one.
+            tradeShowStagesInWindow = builder
+                    .comment("Should the trade lock notice also name the stages holding the offers back? [Default: false]")
+                    .define("showStagesInWindow", false);
+
+            builder.pop();
+
             builder.comment("Individual Stage Visual Settings").push("individual_stages");
 
             showSilverLockIcons = builder
@@ -331,6 +345,10 @@ public class Config {
             msgFluidLocked = builder
                     .comment("Actionbar message when taking a locked fluid out of the world. Lang key: message.historystages.fluid_locked")
                     .define("fluidLocked", "");
+
+            msgTradeLocked = builder
+                    .comment("Notice shown inside the trade window when a merchant has nothing left after the trade locks are applied. Lang key: message.historystages.trade_locked")
+                    .define("tradeLocked", "");
 
             msgBlockLocked = builder
                     .comment("Actionbar message when interacting with a locked block. Lang key: message.historystages.block_locked")

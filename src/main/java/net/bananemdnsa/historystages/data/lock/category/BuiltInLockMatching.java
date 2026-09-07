@@ -53,6 +53,23 @@ public final class BuiltInLockMatching {
         return subject.fluidId() != null && entry.getId().equals(subject.fluidId());
     }
 
+    /**
+     * The criterion half of a trade entry: does this offer's stack satisfy it?
+     *
+     * <p>Only this half lives here. Which item and which side of the offer an entry gates is
+     * decided by {@code TradeOfferEntry.gates}, which names no Minecraft type and is therefore
+     * provable by a unit test. Keeping the split means a test that uses no criterion never
+     * reaches this class at all — and a test that touches this class dies, because eleven test
+     * classes load {@code LockCategories} and the verifier would drag {@code ItemStack} in with
+     * it.
+     *
+     * <p>No stack means the criterion cannot be confirmed, which counts as "does not match" —
+     * the same answer every other stackless path gets.
+     */
+    public static boolean tradeCriterionMatches(com.google.gson.JsonObject criterion, Object stack) {
+        return stack instanceof ItemStack itemStack && NbtMatcher.matches(itemStack, criterion);
+    }
+
     /** The same rule for a tag entry, preceded by the tag-membership test itself. */
     public static boolean tagEntryMatches(NamedLockEntry entry, LockSubjects.ItemSubject subject) {
         return tagEntryMatches(entry, subject.stack(), subject.item());

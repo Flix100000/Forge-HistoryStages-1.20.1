@@ -47,15 +47,28 @@ public interface EditorTab<C> {
     void removeAt(int index);
 
     /**
+     * False for a tab with nothing to add to, so the host leaves its Add button out.
+     *
+     * <p>Lived on {@code DependencyTab} first, for the XP requirement — a single value, where a
+     * button that opens nothing is worse than no button at all. The lock axis then grew the same
+     * shape in the merchant levels, which are five known switches rather than a list. The same
+     * question asked twice under one name belongs on the contract both axes share; asked twice
+     * under two names is how the two start meaning slightly different things.
+     */
+    default boolean hasAddButton() {
+        return true;
+    }
+
+    /**
      * An item id to draw as an icon at the left of this row, or null for none.
      *
      * <p>Deliberately an id and not an {@code ItemStack}: a tab says what to show, the host decides
      * how. Rows keep their fixed height either way, which is what keeps this from disturbing the
      * host's scroll arithmetic.
      *
-     * <p><strong>Honoured by the dependency editor.</strong> The stage editor still draws its
-     * item icons through a special case of its own and ignores this; moving it onto the hook is a
-     * follow-up, and until then a lock-category tab that returns something here sees nothing.
+     * <p>Honoured by both editors. The stage editor keeps special cases of its own for the
+     * categories that predate this hook — items, recipes, the entity tabs — and falls back to
+     * asking the tab for everything else.
      */
     @Nullable
     default String iconItemId(int index) {
@@ -65,11 +78,48 @@ public interface EditorTab<C> {
     /**
      * Short text drawn right-aligned on this row — a badge such as "[NBT]" — or null for none.
      *
-     * <p>Same caveat as {@link #iconItemId}: the dependency editor honours it, the stage editor
-     * does not yet.
+     * <p>Honoured by both editors, after whatever badges the host declared for itself.
      */
     @Nullable
     default String badgeText(int index) {
+        return null;
+    }
+
+    /**
+     * A painted zone at the left of a row: how wide it is, and what goes in it.
+     *
+     * <p>More than {@link #iconItemId} can express, and the reason it exists: a trade row shows
+     * two prices, an arrow and the ware before its name begins, and none of that is one item.
+     * Rows keep their fixed height either way, so this disturbs nothing about the host's scroll
+     * arithmetic.
+     *
+     * @param width how many pixels to reserve at the left; the row's text starts after them
+     */
+    record LeadingArt(int width, EditorRowList.RowPainter painter) {}
+
+    /**
+     * The zone to paint at the left of this row, or null to leave the matter to
+     * {@link #iconItemId}.
+     *
+     * <p>Wins over {@code iconItemId} when both answer: a tab that paints the zone itself has
+     * already put whatever icon it wanted in there, and drawing the host's on top of it would
+     * show the same item twice.
+     */
+    @Nullable
+    default LeadingArt leadingArt(int index) {
+        return null;
+    }
+
+    /**
+     * What this row should read as, or null to show the stored entry unchanged.
+     *
+     * <p>Separate from the stored entry on purpose. The entry is what "copy id" puts on the
+     * clipboard and what somebody would type into a stage file; the display text is for a person
+     * reading a list. For most categories those are the same string, which is why the default is
+     * null and nothing but the trade tab answers.
+     */
+    @Nullable
+    default String displayText(int index, String entry) {
         return null;
     }
 

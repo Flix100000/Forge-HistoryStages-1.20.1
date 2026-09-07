@@ -19,6 +19,7 @@ import net.bananemdnsa.historystages.network.serverbound.MoveFoldersPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestTemporaryCountsPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestIndividualStatesPacket;
 import net.bananemdnsa.historystages.network.serverbound.RequestEditorDataPacket;
+import net.bananemdnsa.historystages.network.serverbound.RequestTradeGoodsPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveGraphPositionsPacket;
 import net.bananemdnsa.historystages.network.serverbound.RearrangeGraphPacket;
 import net.bananemdnsa.historystages.network.serverbound.SaveStageGraphInfoPacket;
@@ -28,6 +29,8 @@ import net.bananemdnsa.historystages.network.serverbound.TakeLecternScrollPacket
 import net.bananemdnsa.historystages.network.clientbound.SyncLockBordersPacket;
 import net.bananemdnsa.historystages.network.clientbound.EditorFeedbackPacket;
 import net.bananemdnsa.historystages.network.clientbound.LockFeedbackPacket;
+import net.bananemdnsa.historystages.network.clientbound.SyncTradeGoodsPacket;
+import net.bananemdnsa.historystages.network.clientbound.TradeLockedPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncStructureRegistryPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncDependencyStatusPacket;
 import net.bananemdnsa.historystages.network.clientbound.SyncTemporaryCountsPacket;
@@ -76,6 +79,7 @@ public class PacketHandler {
 
         // Client → Server
         registrar.playToServer(RequestEditorDataPacket.TYPE, RequestEditorDataPacket.STREAM_CODEC, RequestEditorDataPacket::handle);
+        registrar.playToServer(RequestTradeGoodsPacket.TYPE, RequestTradeGoodsPacket.STREAM_CODEC, RequestTradeGoodsPacket::handle);
         registrar.playToServer(RequestTemporaryCountsPacket.TYPE, RequestTemporaryCountsPacket.STREAM_CODEC, RequestTemporaryCountsPacket::handle);
         registrar.playToServer(RequestIndividualStatesPacket.TYPE, RequestIndividualStatesPacket.STREAM_CODEC, RequestIndividualStatesPacket::handle);
         registrar.playToServer(SaveStagePacket.TYPE, SaveStagePacket.STREAM_CODEC, SaveStagePacket::handle);
@@ -110,6 +114,8 @@ public class PacketHandler {
 
         // Lock feedback (Server → Client) — client reads its own CLIENT config to decide display
         registrar.playToClient(LockFeedbackPacket.TYPE, LockFeedbackPacket.STREAM_CODEC, LockFeedbackPacket::handle);
+        registrar.playToClient(TradeLockedPacket.TYPE, TradeLockedPacket.STREAM_CODEC, TradeLockedPacket::handle);
+        registrar.playToClient(SyncTradeGoodsPacket.TYPE, SyncTradeGoodsPacket.STREAM_CODEC, SyncTradeGoodsPacket::handle);
 
         // Editor feedback (Server → Client) — toast notifications for editor actions
         registrar.playToClient(EditorFeedbackPacket.TYPE, EditorFeedbackPacket.STREAM_CODEC, EditorFeedbackPacket::handle);
@@ -176,6 +182,11 @@ public class PacketHandler {
 
     // Send lock feedback (dimension or mob) to a specific player — client decides display
     public static void sendLockFeedbackToPlayer(LockFeedbackPacket packet, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, packet);
+    }
+
+    /** Why the trade window that just opened is empty. Sent right after the window itself. */
+    public static void sendTradeLockedToPlayer(TradeLockedPacket packet, ServerPlayer player) {
         PacketDistributor.sendToPlayer(player, packet);
     }
 

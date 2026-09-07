@@ -65,6 +65,42 @@ public final class LockIconRenderer {
         return null;
     }
 
+    /**
+     * The three icons, for a surface that has already decided which one it wants.
+     *
+     * <p>{@link #iconFor} answers "is this stack locked, and how" and is the right entry point for
+     * anything drawing over an item. A notice explaining an empty window has no stack to ask
+     * about — it has been told the answer by the server.
+     */
+    public static ResourceLocation globalIcon() {
+        return LOCK_ICON;
+    }
+
+    public static ResourceLocation individualIcon() {
+        return SILVER_LOCK_ICON;
+    }
+
+    public static ResourceLocation dualIcon() {
+        return DUAL_PHASE_LOCK_ICON;
+    }
+
+    /**
+     * Draws a lock icon at a chosen size.
+     *
+     * <p>{@link #draw} stays as it is. It draws 8x8 because it sits in the corner of an item slot,
+     * and every caller of it wants exactly that; a notice in the middle of an empty window has no
+     * slot setting its size.
+     */
+    public static void drawSized(GuiGraphics guiGraphics, ResourceLocation icon,
+                                 int x, int y, int size) {
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(x, y, 250);
+        float scale = size / 32.0f;
+        guiGraphics.pose().scale(scale, scale, 1.0f);
+        guiGraphics.blit(icon, 0, 0, 0, 0, 32, 32, 32, 32);
+        guiGraphics.pose().popPose();
+    }
+
     /** Draws the given lock icon as an 8x8 overlay at the slot's top-left corner. */
     public static void draw(GuiGraphics guiGraphics, ResourceLocation icon, int x, int y) {
         guiGraphics.pose().pushPose();

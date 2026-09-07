@@ -88,7 +88,8 @@ public class StageManager {
 
     private static final Set<String> KNOWN_KEYS = Set.of(
             "display_name", "research_time", "items", "fluids", "tags", "mods",
-            "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "dependencies", "icon",
+            "mod_exceptions", "recipes", "dimensions", "structures", "biomes", "entities", "trades",
+            "dependencies", "icon",
             "min_pedestal_tier", "pedestal_tier_mode",
             "mode", "auto_trigger", "temporary", "hidden_display", "lose_on_death",
             "scroll_completion", "addons", "addon_settings"
@@ -97,6 +98,9 @@ public class StageManager {
 
     private static final Set<String> KNOWN_ENTITY_KEYS = Set.of(
             "spawnlock", "attacklock", "interactionlock", "modLinked"
+    );
+    private static final Set<String> KNOWN_TRADE_KEYS = Set.of(
+            "offers", "professions", "levels"
     );
     private static final Set<String> KNOWN_HIDDEN_DISPLAY_KEYS = Set.of(
             "name_mode", "name_text", "tooltip_mode", "tooltip_text", "show_lock_hints"
@@ -449,6 +453,15 @@ public class StageManager {
                     if (!KNOWN_ENTITY_KEYS.contains(key)) {
                         addMessage(MessageLevel.WARN, "Unknown entity key '" + key + "' in stage '" + stageId + "'. Typo?");
                         DebugLogger.warn("Unknown Keys", "Unknown key 'entities." + key + "' in stage '" + stageId + "'. Known entity keys: " + KNOWN_ENTITY_KEYS + ".");
+                    }
+                }
+            }
+            if (json.has("trades") && json.get("trades").isJsonObject()) {
+                JsonObject trades = json.getAsJsonObject("trades");
+                for (String key : trades.keySet()) {
+                    if (!KNOWN_TRADE_KEYS.contains(key)) {
+                        addMessage(MessageLevel.WARN, "Unknown trade key '" + key + "' in stage '" + stageId + "'. Typo?");
+                        DebugLogger.warn("Unknown Keys", "Unknown key 'trades." + key + "' in stage '" + stageId + "'. Known trade keys: " + KNOWN_TRADE_KEYS + ".");
                     }
                 }
             }

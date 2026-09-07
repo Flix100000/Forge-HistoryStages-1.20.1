@@ -10,12 +10,15 @@ import net.bananemdnsa.historystages.client.editor.widget.popup.ModEntrySelectio
 import net.bananemdnsa.historystages.client.editor.widget.popup.DimensionFilterPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.GenerationLimitPopup;
 import net.bananemdnsa.historystages.client.editor.widget.popup.SpawnSourcesPopup;
+import net.bananemdnsa.historystages.client.editor.widget.popup.TradeLevelsPopup;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableEntityList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableItemList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableDimensionList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableBiomeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableFluidList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableModList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableProfessionList;
+import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTradeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableRecipeList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableStructureList;
 import net.bananemdnsa.historystages.client.editor.widget.list.SearchableTagList;
@@ -34,17 +37,26 @@ import net.bananemdnsa.historystages.client.editor.recipe.RecipeShape;
 import net.bananemdnsa.historystages.client.editor.widget.FluidIcon;
 import net.bananemdnsa.historystages.client.ClientFluidRecipeIndex;
 import net.bananemdnsa.historystages.data.lock.FluidRecipeIndex;
+import net.bananemdnsa.historystages.client.ClientTradeGoods;
+import net.bananemdnsa.historystages.network.PacketHandler;
+import net.bananemdnsa.historystages.network.serverbound.RequestTradeGoodsPacket;
 import net.bananemdnsa.historystages.data.lock.FluidRecipeScanner;
 import net.bananemdnsa.historystages.client.editor.recipe.RecipeTypeMetas;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryEditors;
+import net.bananemdnsa.historystages.client.editor.tab.CompositeCategoryTab;
 import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
+import net.bananemdnsa.historystages.api.editor.EditorTab;
 import net.bananemdnsa.historystages.api.editor.EntryAction;
 import net.bananemdnsa.historystages.api.editor.EntryActionContext;
 import net.bananemdnsa.historystages.client.editor.tab.EntityTabsState;
+import net.bananemdnsa.historystages.client.editor.tab.LockActionGroups;
 import net.bananemdnsa.historystages.client.editor.tab.ModLinkedCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.RichEntryCategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.StructureCategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.TradeOfferCategoryTab;
+import net.bananemdnsa.historystages.client.editor.tab.TradeLevelTab;
+import net.bananemdnsa.historystages.client.editor.tab.TradeProfessionCategoryTab;
 import net.bananemdnsa.historystages.api.editor.StringListCategoryTab;
 import net.bananemdnsa.historystages.api.editor.TabInputContext;
 import net.bananemdnsa.historystages.api.editor.TabRenderContext;
@@ -71,6 +83,8 @@ import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.bananemdnsa.historystages.client.editor.widget.SegmentBar;
+import org.jetbrains.annotations.Nullable;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -151,6 +165,18 @@ public class StageDetailScreen extends Screen {
      */
     private RichEntryCategoryTab<net.bananemdnsa.historystages.data.ItemEntry> itemTab;
     /**
+     * Typed handle on the offer section of the trades tab; its picker writes into it and its
+     * criteria are edited from the context menu. Not final, for the same reason {@link #itemTab}
+     * is not.
+     */
+    private TradeOfferCategoryTab tradeOfferTab;
+    /**
+     * Typed handle on the profession section of the trades tab; its per-profession level
+     * narrowing is edited from the context menu. Not final, for the same reason
+     * {@link #itemTab} is not.
+     */
+    private TradeProfessionCategoryTab tradeProfessionTab;
+    /**
      * Attack, spawn and interaction locks share one EntityLocks object, so they share one
      * state holder. The fields below are names for its lists rather than lists of their own.
      */
@@ -190,6 +216,7 @@ public class StageDetailScreen extends Screen {
     private DimensionFilterPopup dimFilterPopup;
     private GenerationLimitPopup generationLimitPopup;
     private SpawnSourcesPopup spawnSourcesPopup;
+    private TradeLevelsPopup tradeLevelsPopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionActionsPopup interactionActionsPopup;
     private net.bananemdnsa.historystages.client.editor.widget.popup.InteractionItemsPopup interactionItemsPopup;
     private SearchableItemList filterItemSearch;
@@ -276,15 +303,6 @@ public class StageDetailScreen extends Screen {
     // Spawn sources popup state (per-entity source filter for spawnlock entries)
     private static final String[] SPAWN_SOURCE_KEYS = {"natural", "spawner", "structure", "breeding", "summon", "spawn_egg"};
 
-    // Grouped layout for the popup. First element is the group key (resolved via lang).
-    private static final String[][] LOCK_ACTION_GROUPS = {
-            {"item",   "use",   "attack", "equip", "pickup"},
-            {"block",  "place", "break",  "gui"},
-            // "ingredient" exists only in the fluid vocabulary; lockActionGroupsForPopup drops
-            // it again for every tab that does not offer it.
-            {"output", "loot",  "recipe", "ingredient", "icon"}
-    };
-
     // Recipe detail popup state
     private boolean recipePopupVisible = false;
     private String recipePopupId = null;
@@ -333,6 +351,8 @@ public class StageDetailScreen extends Screen {
     private static final int CARD_HEIGHT = 22;
     private static final int CARD_GAP = 3;
     private static final int TAB_HEIGHT = 16;
+    /** The section bar plus the air above and below it, when the open tab has one. */
+    private static final int SECTION_BAR_HEIGHT = SegmentBar.height() + 7;
     private static final int TAB_PAD = 8;
     private static final float SMALL_SCALE = 0.85f;
     private static final int FIELD_HEIGHT = 18;
@@ -483,7 +503,7 @@ public class StageDetailScreen extends Screen {
                 () -> { hasChanges = true; updateMaxScroll(); });
         structureTabLocal.load(e);
         this.structureTab = structureTabLocal;
-        this.categoryTabs.put(10, structureTabLocal);
+        this.categoryTabs.put(11, structureTabLocal);
         // Safe cast: the built-in biomes category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> biomeCategory =
@@ -498,11 +518,78 @@ public class StageDetailScreen extends Screen {
                 StageEntry::getBiomeModLinked, StageEntry::setBiomeModLinked);
         biomeTabLocal.load(e);
         this.biomeTab = biomeTabLocal;
-        this.categoryTabs.put(11, biomeTabLocal);
-        // Index 11, after the built-ins rather than beside items. The tab index is not private
-        // bookkeeping — it keys categoryTabs, the dual-phase lookup and the popup state — so
-        // inserting at 1 would renumber eight tabs for a cosmetic gain. Addon tabs still land
-        // after this one, because their first index is categoryTabs.size().
+        this.categoryTabs.put(12, biomeTabLocal);
+        // Three categories, one tab, sitting where the decision belongs: after the entity locks
+        // that gate the merchant itself and before world generation. Structures and biomes moved
+        // up a place for it — the index is a position in the strip and nothing reads it as an
+        // identity, which is what makes inserting in the middle a rename rather than a rewrite.
+        // Safe cast: the built-in trades category stores TradeOfferEntry.
+        @SuppressWarnings("unchecked")
+        LockCategory<net.bananemdnsa.historystages.data.TradeOfferEntry> tradeOfferCategory =
+                (LockCategory<net.bananemdnsa.historystages.data.TradeOfferEntry>)
+                        LockCategories.byId("historystages:trades");
+        TradeOfferCategoryTab tradeOfferTabLocal = new TradeOfferCategoryTab(tradeOfferCategory,
+                (onSelect, alreadyAdded) -> {
+                    // Worked out here rather than when the screen opened, because it costs a
+                    // moment and almost nobody reaches this tab.
+                    ClientTradeGoods.scanLocally(this.minecraft == null ? null : this.minecraft.level);
+                    // A picker of trades rather than of items: the lock is written as an item plus
+                    // a side, and which half of a trade you point at is what answers both at once.
+                    // Its second tab is the full registry, for anything the scan did not find.
+                    SearchableTradeList list = new SearchableTradeList(picked -> {
+                        net.bananemdnsa.historystages.data.TradeOfferEntry offer =
+                                net.bananemdnsa.historystages.data.TradeOfferEntry.decode(picked);
+                        if (offer == null) return;
+                        tradeOfferTab.addOffer(offer);
+                        hasChanges = true;
+                        updateMaxScroll();
+                    }, () -> tradeOfferTab.addedIdentities());
+                    list.setMultiSelect(true);
+                    return list;
+                },
+                () -> { hasChanges = true; updateMaxScroll(); });
+        // The server's answer arrives after this screen is already up, so the picker cannot be
+        // built once and kept: built at init it would be missing the modded trades for the whole
+        // session.
+        tradeOfferTabLocal.setRebuildPickerOnOpen(true);
+        this.tradeOfferTab = tradeOfferTabLocal;
+        // Safe cast: the built-in trade-professions category stores TradeProfessionEntry.
+        @SuppressWarnings("unchecked")
+        LockCategory<net.bananemdnsa.historystages.data.TradeProfessionEntry> tradeProfessionCategory =
+                (LockCategory<net.bananemdnsa.historystages.data.TradeProfessionEntry>)
+                        LockCategories.byId("historystages:trade_professions");
+        TradeProfessionCategoryTab tradeProfessionTabLocal =
+                new TradeProfessionCategoryTab(tradeProfessionCategory,
+                        (onSelect, alreadyAdded) -> {
+                            SearchableProfessionList list =
+                                    new SearchableProfessionList(onSelect, alreadyAdded);
+                            list.setMultiSelect(true);
+                            return list;
+                        },
+                        () -> { hasChanges = true; updateMaxScroll(); });
+        this.tradeProfessionTab = tradeProfessionTabLocal;
+        // Safe cast: the built-in trade-levels category stores bare ids.
+        @SuppressWarnings("unchecked")
+        LockCategory<String> tradeLevelCategory =
+                (LockCategory<String>) LockCategories.byId("historystages:trade_levels");
+        CategoryTab tradeLevelTab = new TradeLevelTab(tradeLevelCategory,
+                () -> { hasChanges = true; updateMaxScroll(); });
+        CompositeCategoryTab tradesTabLocal = new CompositeCategoryTab(
+                tradeOfferCategory.id(), tradeOfferCategory.tabLangKey(),
+                tradeOfferCategory.tooltipLangKey(),
+                List.of(new CompositeCategoryTab.Section(tradeOfferTabLocal,
+                                "editor.historystages.trades.section.offers"),
+                        new CompositeCategoryTab.Section(tradeProfessionTabLocal,
+                                "editor.historystages.trades.section.professions"),
+                        new CompositeCategoryTab.Section(tradeLevelTab,
+                                "editor.historystages.trades.section.levels")));
+        tradesTabLocal.load(e);
+        this.categoryTabs.put(10, tradesTabLocal);
+        // Fluids sit at index 1, beside items, because that is where someone looks for them.
+        // The tab index is a position in the strip and nothing treats it as an identity — every
+        // behavioural question goes through isTab against the category id — so putting a tab in
+        // the middle renumbers its neighbours and costs nothing else. Addon tabs keep landing
+        // after all of these, because their first index is categoryTabs.size().
         @SuppressWarnings("unchecked")
         LockCategory<net.bananemdnsa.historystages.data.FluidEntry> fluidCategory =
                 (LockCategory<net.bananemdnsa.historystages.data.FluidEntry>)
@@ -598,6 +685,12 @@ public class StageDetailScreen extends Screen {
         // count beside each fluid row reads zero for everything until an index exists — which is
         // precisely when that number would inform the decision.
         FluidRecipeIndex.requestForEditor();
+        // Which items merchants deal in has to be worked out on the server — a merchant refuses
+        // to produce its offers on a client. Asked here so the answer is usually already back by
+        // the time somebody reaches the trades tab and opens its picker.
+        if (ClientTradeGoods.isEmpty()) {
+            PacketHandler.sendToServer(new RequestTradeGoodsPacket());
+        }
         ClientFluidRecipeIndex.refresh();
 
         tabY = 44;
@@ -651,10 +744,11 @@ public class StageDetailScreen extends Screen {
                 btn -> saveStage(), this.width - 60, this.height - 25, 50, 18));
 
         int addBtnW = 120;
-        this.addRenderableWidget(StyledButton.of(
+        this.addButton = this.addRenderableWidget(StyledButton.of(
                 Component.literal("+ ").append(Component.translatable("editor.historystages.add")),
                 btn -> openAddDialog(),
                 (this.width - addBtnW) / 2, this.height - 25, addBtnW, 18));
+        updateAddButton();
 
         // Top-left button row (y=22): Settings | Dependencies | Icon
         String settingsLabel = Component.translatable("editor.historystages.stage_settings.button").getString();
@@ -817,6 +911,11 @@ public class StageDetailScreen extends Screen {
 
         generationLimitPopup = new GenerationLimitPopup(this::applyGenerationRule);
 
+        tradeLevelsPopup = new TradeLevelsPopup((professionId, gatedLevels) -> {
+            tradeProfessionTab.setLevelsFor(professionId, gatedLevels);
+            hasChanges = true;
+            updateMaxScroll();
+        });
         spawnSourcesPopup = new SpawnSourcesPopup((entityId, blocked) -> {
             if (blocked.isEmpty()) {
                 editSpawnlockSources.remove(entityId);
@@ -937,7 +1036,8 @@ public class StageDetailScreen extends Screen {
     private boolean isAnyOverlayVisible() {
         return (iconSearch != null && iconSearch.isVisible())
                 || anyCategoryPickerVisible()
-                || lockActionsPopupVisible || spawnSourcesPopup.isVisible() || interactionActionsPopup.isVisible()
+                || lockActionsPopupVisible || spawnSourcesPopup.isVisible()
+                || tradeLevelsPopup.isVisible() || interactionActionsPopup.isVisible()
                 || interactionItemsPopup.isVisible() || filterItemSearch.isVisible() || filterTagSearch.isVisible()
                 || dimFilterPopup.isVisible() || generationLimitPopup.isVisible()
                 || contextMenu.isVisible() || recipePopupVisible
@@ -1051,6 +1151,7 @@ public class StageDetailScreen extends Screen {
             rowList(tab).resetSlideIn();
             CategoryTab switched = categoryTabs.get(tab);
             if (switched != null) switched.onShown();
+            updateAddButton();
             updateMaxScroll();
             // Reset category search when switching tabs
             categorySearchFilter = "";
@@ -1089,7 +1190,7 @@ public class StageDetailScreen extends Screen {
      * deliberate and predates the category registry.
      */
     private Map<String, Set<String>> dualPhaseMapForTab(int tab) {
-        CategoryTab categoryTab = categoryTabs.get(tab);
+        CategoryTab categoryTab = sectionAt(tab);
         if (categoryTab == null) return null;
         // Looking at an individual stage the map holds entry to global stage ids, and the other
         // way round for a global stage — that inversion is deliberate and predates the registry.
@@ -1161,7 +1262,7 @@ public class StageDetailScreen extends Screen {
      * stay where a maintainer expects them and an addon adds to the menu rather than replacing it.
      */
     private void addDeclaredEntryActions(int tabIdx, int entryIdx) {
-        CategoryTab tab = categoryTabs.get(tabIdx);
+        CategoryTab tab = sectionAt(tabIdx);
         if (tab == null) return;
         CategoryEditor editor = CategoryEditors.byCategory(tab.categoryId());
         if (editor == null) return;
@@ -1193,10 +1294,31 @@ public class StageDetailScreen extends Screen {
     private static final String CAT_INTERACT   = "historystages:interactionlock";
     private static final String CAT_STRUCTURES = "historystages:structures";
     private static final String CAT_BIOMES     = "historystages:biomes";
+    /**
+     * The item section of the trades tab. Its two sibling sections report ids of their own, which
+     * is what lets {@link #isTab} tell an item row from a profession row inside one tab.
+     */
+    private static final String CAT_TRADES     = "historystages:trades";
+    /** The profession section of the trades tab. */
+    private static final String CAT_TRADE_PROFESSIONS = "historystages:trade_professions";
 
-    /** Whether the tab at this index belongs to that category. */
-    private boolean isTab(int tab, String categoryId) {
+    /**
+     * The tab at this index, or — when it has sections — the section that is showing.
+     *
+     * <p>Everything below that asks what a <em>row</em> is goes through this. A tab with sections
+     * reports one category id for its label and its tooltip, which is right for a strip that shows
+     * one name; it is not enough for a right-click menu, which has to tell an item row from a
+     * profession row and would otherwise offer the NBT editor on both.
+     */
+    private CategoryTab sectionAt(int tab) {
         CategoryTab categoryTab = categoryTabs.get(tab);
+        return categoryTab instanceof CompositeCategoryTab composite
+                ? composite.activeSection() : categoryTab;
+    }
+
+    /** Whether the tab at this index — or its visible section — belongs to that category. */
+    private boolean isTab(int tab, String categoryId) {
+        CategoryTab categoryTab = sectionAt(tab);
         return categoryTab != null && categoryId.equals(categoryTab.categoryId());
     }
 
@@ -1213,8 +1335,24 @@ public class StageDetailScreen extends Screen {
         return tab != null ? tab.entries() : new ArrayList<>();
     }
 
+    /**
+     * Top of the scrolling list.
+     *
+     * <p>Every other measurement in this screen is taken from here — the render and input
+     * contexts, the scissor, the scrollbar and the click gate all read it — which is what lets a
+     * tab with a section bar above its list reserve the space in one place. Reserving it in three
+     * would put the rows, the hit test and the scroll extent one strip apart, and clicks would
+     * land on the row above the one under the cursor.
+     */
     private int listTop() {
-        return HEADER_HEIGHT;
+        return HEADER_HEIGHT + (sectionBar() == null ? 0 : SECTION_BAR_HEIGHT);
+    }
+
+    /** The tab's section bar, or null when the open tab has no sections. */
+    @Nullable
+    private CompositeCategoryTab sectionBar() {
+        return categoryTabs.get(activeTab) instanceof CompositeCategoryTab composite
+                ? composite : null;
     }
 
     private int listBottom() {
@@ -1263,7 +1401,7 @@ public class StageDetailScreen extends Screen {
     /**
      * What one row of the active tab shows.
      *
-     * <p>The eleven built-in categories still decide this here, by tab index, the way they always
+     * <p>The built-in categories still decide this here, by tab index, the way they always
      * have; migrating them onto the tabs is internal and invisible to addons. What is new is the
      * tail: a tab's own {@code iconItemId} and {@code badgeText} are honoured after them, which
      * closes the gap Phase 3 left where only the dependency editor read those two.
@@ -1305,10 +1443,18 @@ public class StageDetailScreen extends Screen {
                 });
             }
         } else {
-            String iconId = activeTabObject() == null ? null : activeTabObject().iconItemId(index);
-            if (iconId != null) {
-                ItemStack stack = getItemStack(iconId);
-                if (!stack.isEmpty()) row.leading(14, (g, x, y, w, h) -> renderStackIcon(g, stack, x, y));
+            // A tab that paints the zone itself has already accounted for its own icon, so the
+            // single-item hook is only asked when nothing claimed the zone.
+            EditorTab.LeadingArt art =
+                    activeTabObject() == null ? null : activeTabObject().leadingArt(index);
+            if (art != null) {
+                row.leading(art.width(), art.painter());
+            } else {
+                String iconId = activeTabObject() == null ? null : activeTabObject().iconItemId(index);
+                if (iconId != null) {
+                    ItemStack stack = getItemStack(iconId);
+                    if (!stack.isEmpty()) row.leading(14, (g, x, y, w, h) -> renderStackIcon(g, stack, x, y));
+                }
             }
         }
 
@@ -1427,11 +1573,90 @@ public class StageDetailScreen extends Screen {
             currentTooltipText = Component.translatable("editor.historystages.recipes.missing").getString();
         }
 
-        row.text((missingRecipe ? "§c" : "") + entry + (dual ? " [Dual]" : ""));
+        // What is drawn and what is stored part company here. The entry stays what "copy id"
+        // copies; a tab may say the row should read as something friendlier.
+        String shown = activeTabObject() == null ? null : activeTabObject().displayText(index, entry);
+        if (shown == null) shown = entry;
+        row.text((missingRecipe ? "§c" : "") + shown + (dual ? " [Dual]" : ""));
     }
 
     private CategoryTab activeTabObject() {
         return categoryTabs.get(activeTab);
+    }
+
+    /**
+     * Whether the open tab drew its own content this frame.
+     *
+     * <p>Recorded rather than asked again: {@code renderContent} is what answers it, and only by
+     * running. A tab that drew itself is also the only thing that knows where its rows ended up,
+     * so this is what decides whether a right-click asks the tab or walks the host's rows.
+     */
+    private boolean activeTabDrewItself;
+
+    /** Animations for the section bar. One bar is ever on screen, so one state is enough. */
+    private final SegmentBar.State sectionBarState = new SegmentBar.State();
+
+    /**
+     * The Add button, kept so it can be hidden.
+     *
+     * <p>Rebuilt by {@code init()} on every resize, so it is not final and every reader has to
+     * cope with it being null before the first one.
+     */
+    @Nullable
+    private StyledButton addButton;
+
+    /** Hides the Add button for a tab with nothing to add to — the merchant levels are five switches. */
+    private void updateAddButton() {
+        CategoryTab tab = categoryTabs.get(activeTab);
+        if (addButton != null) addButton.visible = tab == null || tab.hasAddButton();
+    }
+
+    /**
+     * Draws the section bar above the list, for a tab that has sections.
+     *
+     * <p>Above the scrolling area rather than at the top of it. A switcher that scrolls out of
+     * sight once a section fills the screen is a switcher nobody can find their way back to, and
+     * putting it in the content would also make every row hit test depend on getting the same
+     * offset right in three separate places.
+     */
+    private void renderSectionBar(GuiGraphics g, int mouseX, int mouseY) {
+        CompositeCategoryTab composite = sectionBar();
+        if (composite == null) return;
+        List<String> labels = composite.sectionLabels();
+        int x = contentLeft();
+        int y = HEADER_HEIGHT + 3;
+        int hovered = isAnyOverlayVisible() ? -1
+                : SegmentBar.segmentAt(this.font, x, y, mouseX, mouseY, labels);
+        sectionBarState.update(composite.activeIndex(), hovered, labels.size());
+        SegmentBar.draw(g, this.font, x, y, labels, composite.activeIndex(), sectionBarState);
+    }
+
+    /**
+     * Handles a click on the section bar.
+     *
+     * @return true when the click was in the bar's strip, whether or not it hit a segment — the
+     *         strip is the tab's, and letting a near miss fall through to the list below would
+     *         mean the row nearest the bar reacts to clicks aimed at the bar
+     */
+    private boolean sectionBarClicked(double mouseX, double mouseY) {
+        CompositeCategoryTab composite = sectionBar();
+        if (composite == null) return false;
+        if (mouseY < HEADER_HEIGHT || mouseY >= HEADER_HEIGHT + SECTION_BAR_HEIGHT) return false;
+        int picked = SegmentBar.indexAt(this.font, contentLeft(), mouseX, composite.sectionLabels());
+        if (picked >= 0 && composite.setActiveIndex(picked)) {
+            scrollOffset = 0;
+            smoothScrollOffset.set(0.0f);
+            rowList(activeTab).resetSlideIn();
+            updateAddButton();
+            updateMaxScroll();
+            categorySearchFilter = "";
+            categoryDropdownVisible = false;
+            categoryDropdownSuggestions = new ArrayList<>();
+            if (categorySearchBox != null) categorySearchBox.setValue("");
+            Minecraft.getInstance().getSoundManager()
+                    .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        }
+        return true;
     }
 
     private void renderStackIcon(GuiGraphics g, ItemStack stack, int x, int y) {
@@ -1449,7 +1674,10 @@ public class StageDetailScreen extends Screen {
         int contentHeight = (tab != null
                 ? tab.contentHeight(contentRight() - contentLeft())
                 : EditorRowList.heightFor(getActiveList().size())) + CARD_GAP;
-        int visibleHeight = this.height - HEADER_HEIGHT - 50;
+        // Measured from listTop(), so a tab with a section bar loses exactly the strip the bar
+        // took. The 50 is the old slack below the last row and stays as it was — this task moved
+        // the top of the list, not the bottom of it.
+        int visibleHeight = this.height - listTop() - 50;
         maxScroll = Math.max(0, contentHeight - visibleHeight);
         scrollOffset = Math.min(scrollOffset, maxScroll);
     }
@@ -1592,6 +1820,8 @@ public class StageDetailScreen extends Screen {
 
         guiGraphics.fill(10, HEADER_HEIGHT - 2, this.width - 10, HEADER_HEIGHT - 1, 0xFF555555);
 
+        renderSectionBar(guiGraphics, mouseX, mouseY);
+
         int listTop = listTop();
         int listBottom = listBottom();
         int contentLeft = contentLeft();
@@ -1608,12 +1838,15 @@ public class StageDetailScreen extends Screen {
         CategoryTab activeTabObject = categoryTabs.get(activeTab);
         TabRenderContext tabCtx = renderContext(guiGraphics, mouseX, mouseY,
                 overlayOpen || overDropdown);
-        if (activeTabObject == null || !activeTabObject.renderContent(tabCtx)) {
+        activeTabDrewItself = activeTabObject != null && activeTabObject.renderContent(tabCtx);
+        if (!activeTabDrewItself) {
             rowList(activeTab).render(tabCtx, list.size(), (row, i) -> decorateRow(row, i, list.get(i)));
         }
 
-        // Empty state: show a centered hint when the active category has no entries
-        if (list.isEmpty()) {
+        // Empty state: show a centered hint when the active category has no entries. Not for a tab
+        // that drew its own content — its list is not what is on screen, and the levels section
+        // would get "empty" printed across five switches.
+        if (list.isEmpty() && !activeTabDrewItself) {
             String emptyText = Component.translatable("editor.historystages.empty").getString();
             int centerX = (contentLeft + contentRight) / 2;
             int centerY = (listTop + listBottom) / 2;
@@ -1756,6 +1989,7 @@ public class StageDetailScreen extends Screen {
         if (recipePopupVisible) renderRecipePopup(guiGraphics, mouseX, mouseY);
         if (lockActionsPopupVisible) renderLockActionsPopup(guiGraphics, mouseX, mouseY);
         spawnSourcesPopup.render(guiGraphics, this.font, mouseX, mouseY);
+        tradeLevelsPopup.render(guiGraphics, this.font, mouseX, mouseY);
         interactionActionsPopup.render(guiGraphics, this.font, mouseX, mouseY);
         // Skip the popup while one of its pickers is up: text is batched and flushed after the
         // picker's panel fills, so drawing it underneath makes it bleed through the picker.
@@ -1994,7 +2228,7 @@ public class StageDetailScreen extends Screen {
      * narrow.
      */
     private Map<Integer, List<String>> getLockActionsMapForTab(int tab) {
-        CategoryTab categoryTab = categoryTabs.get(tab);
+        CategoryTab categoryTab = sectionAt(tab);
         if (!(categoryTab instanceof RichEntryCategoryTab<?> rich)) return null;
         if ("historystages:mod_exceptions".equals(categoryTab.categoryId())) return null;
         return rich.lockActionsByIndex();
@@ -2005,7 +2239,7 @@ public class StageDetailScreen extends Screen {
      * fluids, whatever an addon declared for its own.
      */
     private List<String> lockActionsForTab(int tab) {
-        CategoryTab categoryTab = categoryTabs.get(tab);
+        CategoryTab categoryTab = sectionAt(tab);
         if (categoryTab != null) {
             LockCategory<?> category = LockCategories.byId(categoryTab.categoryId());
             if (category != null) return category.lockActions();
@@ -2019,17 +2253,7 @@ public class StageDetailScreen extends Screen {
      * table per vocabulary.
      */
     private List<String[]> lockActionGroupsForPopup() {
-        List<String> vocabulary = lockActionsForTab(lockActionsPopupTab);
-        List<String[]> groups = new ArrayList<>();
-        for (String[] group : LOCK_ACTION_GROUPS) {
-            List<String> kept = new ArrayList<>();
-            kept.add(group[0]);
-            for (int i = 1; i < group.length; i++) {
-                if (vocabulary.contains(group[i])) kept.add(group[i]);
-            }
-            if (kept.size() > 1) groups.add(kept.toArray(new String[0]));
-        }
-        return groups;
+        return LockActionGroups.forVocabulary(lockActionsForTab(lockActionsPopupTab));
     }
 
     private void openLockActionsPopup(int tab, int idx) {
@@ -2379,6 +2603,7 @@ public class StageDetailScreen extends Screen {
         if (modBiomePopup.isVisible()) { return modBiomePopup.mouseClicked(mouseX, mouseY); }
         if (lockActionsPopupVisible) { return handleLockActionsPopupClick(mouseX, mouseY, button); }
         if (spawnSourcesPopup.isVisible()) { return spawnSourcesPopup.mouseClicked(mouseX, mouseY); }
+        if (tradeLevelsPopup.isVisible()) { return tradeLevelsPopup.mouseClicked(mouseX, mouseY); }
         if (interactionActionsPopup.isVisible()) { return interactionActionsPopup.mouseClicked(mouseX, mouseY); }
         if (filterItemSearch.isVisible()) { if (filterItemSearch.mouseClicked(mouseX, mouseY)) return true; }
         if (filterTagSearch.isVisible()) { if (filterTagSearch.mouseClicked(mouseX, mouseY)) return true; }
@@ -2416,6 +2641,9 @@ public class StageDetailScreen extends Screen {
         CategoryTab inputTab = categoryTabs.get(activeTab);
         if (inputTab != null && inputTab.mouseClicked(inputContext(mouseX, mouseY), button))
             return true;
+        // The section bar sits above the list, so it is checked before anything that measures
+        // from listTop() — which already has the bar's strip subtracted out of it.
+        if (button == 0 && sectionBarClicked(mouseX, mouseY)) return true;
         if (iconSearch.isVisible()) { if (iconSearch.mouseClicked(mouseX, mouseY)) return true; }
 
         // Unfocus/clear category search when clicking outside the box + dropdown
@@ -2503,10 +2731,18 @@ public class StageDetailScreen extends Screen {
             return false;
 
         List<String> list = getActiveList();
-        int y = listTop - Math.round(smoothScrollOffset.value()) + CARD_GAP;
+        // Which row was hit, asked once instead of walked. A tab that drew its own content is the
+        // only thing that knows where its rows ended up — the host's arithmetic describes the rows
+        // the host drew, and on the merchant levels there are none to describe.
+        TabInputContext hitCtx = inputContext(mouseX, mouseY);
+        CategoryTab hitTab = categoryTabs.get(activeTab);
+        int hitRow = activeTabDrewItself
+                ? (hitTab == null ? -1 : hitTab.rowAt(hitCtx))
+                : rowList(activeTab).rowAt(hitCtx, list.size());
 
-        for (int i = 0; i < list.size(); i++) {
-            if (mouseY >= y && mouseY < y + CARD_HEIGHT && mouseY >= listTop && mouseY <= listBottom) {
+        {
+            int i = hitRow;
+            if (i >= 0 && i < list.size()) {
                 if (button == 0 && isTab(activeTab, CAT_RECIPES)) {
                     // Left-click on recipe card: show recipe detail popup (view-only)
                     Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
@@ -2586,6 +2822,21 @@ public class StageDetailScreen extends Screen {
                         contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
                                 () -> openModExceptionNbtEditScreen(entryIdx, entryValue));
                     }
+                    // Only the offer section: a profession is an id and a level is a switch, and
+                    // neither has a stack to match a criterion against. The criterion is what
+                    // tells one enchanted book from another inside a single trade.
+                    if (isTab(tabIdx, CAT_TRADES)) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.edit_nbt").getString(),
+                                () -> openTradeNbtEditScreen(entryIdx));
+                    }
+                    // A profession gates every level unless it says otherwise, and saying
+                    // otherwise is the only way to reach one profession's experts without
+                    // reaching every other profession's along with them.
+                    if (isTab(tabIdx, CAT_TRADE_PROFESSIONS)) {
+                        contextMenu.addEntry(Component.translatable("editor.historystages.context.trade_levels").getString(),
+                                () -> tradeLevelsPopup.show(entryValue,
+                                        tradeProfessionTab.levelsFor(entryValue)));
+                    }
                     addDeclaredEntryActions(tabIdx, entryIdx);
                     contextMenu.addEntry(Component.translatable("editor.historystages.copy_id").getString(), () -> { Minecraft.getInstance().keyboardHandler.setClipboard(entryValue); EditorToastHandler.copiedToClipboard(entryValue); });
                     contextMenu.addEntry(Component.translatable("editor.historystages.remove").getString(), () -> {
@@ -2632,7 +2883,6 @@ public class StageDetailScreen extends Screen {
                     return true;
                 }
             }
-            y += CARD_HEIGHT + CARD_GAP;
         }
 
         return false;
@@ -2746,6 +2996,25 @@ public class StageDetailScreen extends Screen {
         }));
     }
 
+    /**
+     * The criterion on one gated offer.
+     *
+     * <p>Reads the offer's result stack when the lock is checked, which is why a criterion is
+     * worth having here at all: "the offer selling an enchanted book with <em>this</em>
+     * enchantment" is a trade a pack author can name, and the stack to compare against is right
+     * there when the question is asked.
+     */
+    private void openTradeNbtEditScreen(int entryIdx) {
+        String itemId = tradeOfferTab.iconItemId(entryIdx);
+        if (itemId == null) return;
+        this.minecraft.setScreen(new NbtItemEditScreen(this, itemId,
+                tradeOfferTab.nbtAt(entryIdx), nbt -> {
+                    tradeOfferTab.setNbtAt(entryIdx, nbt);
+                    hasChanges = true;
+                    saveStage();
+                }));
+    }
+
     private void openTagNbtEditScreen(int entryIdx, String tagId) {
         com.google.gson.JsonObject currentNbt = tagTab.nbtByIndex().get(entryIdx);
         this.minecraft.setScreen(new NbtItemEditScreen(this, tagId, true, currentNbt, nbt -> {
@@ -2810,7 +3079,7 @@ public class StageDetailScreen extends Screen {
         if (modStructurePopup.isVisible() && modStructurePopup.mouseDragged(mouseX, mouseY))
             return true;
         if (scrollBarDragging) {
-            updateScrollFromMouse(mouseY, HEADER_HEIGHT, this.height - 40);
+            updateScrollFromMouse(mouseY, listTop(), listBottom());
             return true;
         }
         return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
@@ -2923,6 +3192,7 @@ public class StageDetailScreen extends Screen {
         if (dimFilterPopup.isVisible() && dimFilterPopup.keyPressed(keyCode)) return true;
         if (generationLimitPopup.isVisible() && generationLimitPopup.keyPressed(keyCode)) return true;
         if (spawnSourcesPopup.isVisible() && spawnSourcesPopup.keyPressed(keyCode)) return true;
+        if (tradeLevelsPopup.isVisible() && tradeLevelsPopup.keyPressed(keyCode)) return true;
         if (interactionActionsPopup.isVisible() && interactionActionsPopup.keyPressed(keyCode)) return true;
         if (filterItemSearch.isVisible() && filterItemSearch.keyPressed(keyCode)) return true;
         if (filterTagSearch.isVisible() && filterTagSearch.keyPressed(keyCode)) return true;
@@ -3031,14 +3301,14 @@ public class StageDetailScreen extends Screen {
      * future tab loses its own edits visibly rather than corrupting a neighbour's.
      */
     private Map<Integer, String> overrideNameMap(int tab) {
-        CategoryTab categoryTab = categoryTabs.get(tab);
+        CategoryTab categoryTab = sectionAt(tab);
         return categoryTab instanceof RichEntryCategoryTab<?> rich
                 ? rich.nameTextByIndex() : new HashMap<>();
     }
 
     /** The tooltip counterpart of {@link #overrideNameMap}. */
     private Map<Integer, String> overrideTooltipMap(int tab) {
-        CategoryTab categoryTab = categoryTabs.get(tab);
+        CategoryTab categoryTab = sectionAt(tab);
         return categoryTab instanceof RichEntryCategoryTab<?> rich
                 ? rich.tooltipTextByIndex() : new HashMap<>();
     }

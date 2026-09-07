@@ -40,9 +40,24 @@ class StageJsonLimitsTest {
         return entry;
     }
 
+    /**
+     * A canary, not a round number. 544 is the largest such stage that still fits, so this test
+     * fails the moment anything makes a narrowed entry longer on disk.
+     *
+     * <p>It has already caught one: {@code unlock_actions} stores the <em>complement</em>, so
+     * every action added to {@link net.bananemdnsa.historystages.api.lock.LockActions#ITEM} adds
+     * one more word to every narrowed entry in every stage. Adding {@code trade} as the eleventh
+     * took the ceiling from 581 entries down to 544 — about six percent of the headroom, paid by
+     * packs that narrow actions on hundreds of items in one stage.
+     *
+     * <p>If this fails after another action is added, that is the test doing its job. Lower the
+     * number and say in the changelog that stages got bigger; do not quietly widen the limit.
+     */
     @Test
     void aRealisticLargeStageStillFits() {
-        assertTrue(StageJsonLimits.fitsSavePacket(stageWith(581).toCompactJson()));
+        assertTrue(StageJsonLimits.fitsSavePacket(stageWith(544).toCompactJson()));
+        assertFalse(StageJsonLimits.fitsSavePacket(stageWith(545).toCompactJson()),
+                "544 is meant to be the ceiling - if 545 fits too, the measurement is stale");
     }
 
     @Test

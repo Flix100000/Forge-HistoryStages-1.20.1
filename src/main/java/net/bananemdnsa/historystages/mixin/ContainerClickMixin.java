@@ -13,6 +13,7 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -38,6 +39,14 @@ public class ContainerClickMixin {
         if (!Config.GAMEPLAY.lockContainerInteraction.get()) return;
 
         AbstractContainerMenu menu = (AbstractContainerMenu)(Object) this;
+
+        // The trade window is a container too, and until the eleventh action existed this line
+        // was the only thing standing between a player and a gated item on a merchant's counter.
+        // It asked "pickup", which is the wrong question now: an entry narrowed to pickup would
+        // still block trading it never meant to, and one narrowed to trade would not block the
+        // trade it does mean. Trading is guarded before the result is ever produced - see
+        // MerchantContainerMixin - so this one steps aside entirely.
+        if (menu instanceof MerchantMenu) return;
 
         // Validate slot index
         if (slotId < 0 || slotId >= menu.slots.size()) return;

@@ -42,6 +42,17 @@ public final class LockMessages {
         return resolve(Config.VISUAL.msgFluidLocked, "message.historystages.fluid_locked");
     }
 
+    /**
+     * Shown only when a merchant's whole list was filtered away.
+     *
+     * <p>A merchant showing two offers instead of three says nothing, on purpose — not noticing
+     * is the point of the category. A merchant showing <em>nothing</em> looks broken, and that is
+     * the one case worth explaining.
+     */
+    public static MutableComponent tradeLocked() {
+        return resolve(Config.VISUAL.msgTradeLocked, "message.historystages.trade_locked");
+    }
+
     public static MutableComponent blockLocked() {
         return resolve(Config.VISUAL.msgBlockLocked, "message.historystages.block_locked");
     }

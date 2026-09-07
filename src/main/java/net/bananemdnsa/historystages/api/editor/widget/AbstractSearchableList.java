@@ -224,6 +224,59 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         return false;
     }
 
+    /**
+     * A subclass's own dropdown filters, on top of the shared ones.
+     *
+     * <p>Asked alongside "hide already added" and the namespace pair rather than inside
+     * {@link #matchesQuery}, because a filter applies whether or not anything was typed.
+     */
+    protected boolean matchesExtraFilters(T entry) {
+        return true;
+    }
+
+    /**
+     * Last word on the filtered list, once the query and the dropdown filters have run.
+     *
+     * <p>Where caption rows get inserted. Which captions are needed depends on what survived the
+     * filter, so they cannot simply be part of the source list.
+     */
+    protected void afterFilter(List<T> filtered) {
+    }
+
+    /**
+     * Whether the row at this index is a caption rather than something to pick.
+     *
+     * <p>A caption is measured, drawn and scrolled past like any other row — it just cannot be
+     * hovered, clicked or selected. Keeping it the same height is what leaves this class's row
+     * arithmetic alone, and that arithmetic is shared by every picker in the editor.
+     */
+    protected boolean isHeaderRow(int index) {
+        return false;
+    }
+
+    /** Draws a caption row. Only called for indices {@link #isHeaderRow} claims. */
+    protected void renderHeaderRow(GuiGraphics g, Font font, T entry,
+                                   int x, int y, int w, int h) {
+    }
+
+    /**
+     * Height of a strip between the search bar and the list, or 0 for none.
+     *
+     * <p>For a caption that has to stay put while the rows scroll under it. Deliberately outside
+     * the row grid: inside it, it would be one more thing the scroll arithmetic has to know about.
+     */
+    protected int stickyCaptionH() {
+        return 0;
+    }
+
+    /**
+     * Draws that strip. {@code firstVisibleIndex} is the topmost row currently drawn, which is
+     * what decides which caption belongs up there.
+     */
+    protected void renderStickyCaption(GuiGraphics g, Font font, int x, int y, int w,
+                                       int firstVisibleIndex) {
+    }
+
     /** Hook called after the list is rendered, while the panel is still on screen. */
     protected void afterRender(GuiGraphics g, Font font, int mouseX, int mouseY) {
     }
@@ -280,6 +333,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         panelW = getPanelWidth();
         panelH = getTabBarHeight() + SearchBar.HEIGHT + PADDING * 2 + visibleRows() * ROW_HEIGHT + PADDING + 4
                 + selectAllRowH()
+                + stickyCaptionH()
                 + (multiSelect ? ADD_BTN_H + PADDING : 0);
         panelX = centerX - panelW / 2;
         panelY = centerY - panelH / 2;
@@ -342,6 +396,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
                 filteredEntries.add(entry);
             }
         }
+        afterFilter(filteredEntries);
         if (isSelectedTabActive()) applySelectedFilter();
         updateMaxScroll();
     }
@@ -361,6 +416,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
     }
 
     private boolean matchesDropdownFilters(T entry) {
+        if (!matchesExtraFilters(entry)) return false;
         if (searchBar.filters().isActive("hide_added") && alreadyAddedSupplier != null) {
             String checkId = getIdForAddedCheck(entry);
             if (checkId != null) {
@@ -504,7 +560,10 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         if (isSelectedTabActive()) {
             for (Sel<T> ref : selectedView) if (!selected.containsKey(ref.value())) n++;
         } else {
-            for (T entry : filteredEntries) if (!selected.containsKey(selectionValueOf(entry))) n++;
+            for (int i = 0; i < filteredEntries.size(); i++) {
+                if (isHeaderRow(i)) continue;
+                if (!selected.containsKey(selectionValueOf(filteredEntries.get(i)))) n++;
+            }
         }
         return n;
     }
@@ -519,7 +578,10 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         if (isSelectedTabActive()) {
             for (Sel<T> ref : selectedView) if (selected.containsKey(ref.value())) n++;
         } else {
-            for (T entry : filteredEntries) if (selected.containsKey(selectionValueOf(entry))) n++;
+            for (int i = 0; i < filteredEntries.size(); i++) {
+                if (isHeaderRow(i)) continue;
+                if (selected.containsKey(selectionValueOf(filteredEntries.get(i)))) n++;
+            }
         }
         return n;
     }
@@ -528,7 +590,13 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         if (isSelectedTabActive()) {
             for (Sel<T> ref : selectedView) selected.put(ref.value(), ref.entry());
         } else {
-            for (T entry : filteredEntries) selected.put(selectionValueOf(entry), entry);
+            // Caption rows are skipped throughout: they have nothing to select, and asking one
+            // for a value throws rather than quietly handing back an empty string.
+            for (int i = 0; i < filteredEntries.size(); i++) {
+                if (isHeaderRow(i)) continue;
+                T entry = filteredEntries.get(i);
+                selected.put(selectionValueOf(entry), entry);
+            }
         }
         refreshSelectedPlaceholder();
     }
@@ -537,7 +605,10 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         if (isSelectedTabActive()) {
             for (Sel<T> ref : selectedView) selected.remove(ref.value());
         } else {
-            for (T entry : filteredEntries) selected.remove(selectionValueOf(entry));
+            for (int i = 0; i < filteredEntries.size(); i++) {
+                if (isHeaderRow(i)) continue;
+                selected.remove(selectionValueOf(filteredEntries.get(i)));
+            }
         }
         refreshSelectedPlaceholder();
     }
@@ -647,7 +718,7 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
 
     /** Y of the first list row. */
     protected final int listTopY() {
-        return searchTopY() + SearchBar.HEIGHT + PADDING + selectAllRowH();
+        return searchTopY() + SearchBar.HEIGHT + PADDING + selectAllRowH() + stickyCaptionH();
     }
 
     private int listLeftX() {
@@ -844,6 +915,11 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
         int pixelOffset = drawnPixelOffset();
         int listH = visibleRows() * ROW_HEIGHT;
 
+        // Above the list, not in it: the caption that says whose rows are currently going past.
+        if (stickyCaptionH() > 0) {
+            renderStickyCaption(g, font, listX, listY - stickyCaptionH(), listW, firstRow);
+        }
+
         // One extra row is drawn so the partly-scrolled row at the bottom edge has content;
         // the scissor is what stops both edge rows from spilling out of the panel.
         g.enableScissor(listX, listY, listX + listW, listY + listH);
@@ -851,9 +927,13 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
             int index = firstRow + i;
             int rowY = listY + i * ROW_HEIGHT - pixelOffset;
 
-            boolean rowHovered = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
+            // A caption is not something to point at, so it never lights up under the cursor.
+            boolean overRow = !filterUiHovered && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT
                     && mouseY >= listY && mouseY < listY + listH;
+            boolean rowHovered = overRow
+                    && !(index >= 0 && index < visibleCount()
+                         && !isSelectedTabActive() && isHeaderRow(index));
 
             if (index < 0 || index >= visibleCount()) {
                 // Empty slots don't react to hover — there's nothing there to point at.
@@ -873,6 +953,11 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
                         listX, rowY, listW, ROW_HEIGHT, rowHovered, index);
             } else {
                 T entry = filteredEntries.get(index);
+                if (isHeaderRow(index)) {
+                    // No row card behind it: a caption is a label on the list, not an item in it.
+                    renderHeaderRow(g, font, entry, listX, rowY, listW, ROW_HEIGHT);
+                    continue;
+                }
                 boolean isSelected = multiSelect && selected.containsKey(selectionValueOf(entry));
                 drawRowBackground(g, listX, rowY, listW, hp,
                         isSelected ? RowState.SELECTED : RowState.NORMAL);
@@ -1025,6 +1110,9 @@ public abstract class AbstractSearchableList<T> implements PickerOverlay {
             if (index >= 0 && index < visibleCount() && mouseX >= listX && mouseX < listX + listW
                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT
                     && mouseY >= listY && mouseY < listY + listH) {
+                // A caption swallows the click without a sound: clicking it does nothing, and a
+                // click noise would promise that it had.
+                if (!isSelectedTabActive() && isHeaderRow(index)) return true;
                 Minecraft.getInstance().getSoundManager()
                         .play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
                 if (isSelectedTabActive()) {

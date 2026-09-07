@@ -12,29 +12,28 @@ package net.bananemdnsa.historystages.api.editor.widget;
  * honest: it is computed from <em>both</em> labels, so the box is the same size whichever value
  * it currently shows. The older toggles sized themselves from the current word and visibly
  * changed width on every click.
+ *
+ * <p>The arithmetic itself lives in {@code SegmentBarGeometry} now, which does the same thing for
+ * any number of segments. What is left here is the naming: two segments that mean a value, called
+ * on and off. A control that switches which section you are looking at is a different gesture and
+ * gets its own front door, but there is no reason for it to lay itself out differently.
  */
 public final class ToggleGeometry {
 
     /** Height of the control, matching the toggle rows that already exist in the editor. */
-    public static final int HEIGHT = 14;
-
-    /** Horizontal breathing room around a label inside its half. */
-    private static final int SEGMENT_PADDING = 10;
-
-    /** Left frame, centre divider and right frame — the three pixels that are not a segment. */
-    private static final int CHROME = 3;
+    public static final int HEIGHT = SegmentBarGeometry.HEIGHT;
 
     private ToggleGeometry() {
     }
 
     /** Width of one half, sized so both labels fit in either of them. */
     public static int segmentWidth(int onLabelWidth, int offLabelWidth) {
-        return Math.max(onLabelWidth, offLabelWidth) + SEGMENT_PADDING;
+        return SegmentBarGeometry.segmentWidth(onLabelWidth, offLabelWidth);
     }
 
     /** Total width of the control. */
     public static int width(int onLabelWidth, int offLabelWidth) {
-        return 2 * segmentWidth(onLabelWidth, offLabelWidth) + CHROME;
+        return SegmentBarGeometry.width(onLabelWidth, offLabelWidth);
     }
 
     /** X where the on half's interior starts, just inside the left frame. */
@@ -44,7 +43,7 @@ public final class ToggleGeometry {
 
     /** X where the off half's interior starts, just past the divider. */
     public static int offSegmentX(int x, int onLabelWidth, int offLabelWidth) {
-        return x + 2 + segmentWidth(onLabelWidth, offLabelWidth);
+        return SegmentBarGeometry.segmentX(x, 1, onLabelWidth, offLabelWidth);
     }
 
     /**
@@ -62,8 +61,8 @@ public final class ToggleGeometry {
      */
     public static Boolean segmentAt(int x, int y, int onLabelWidth, int offLabelWidth,
                                     double mouseX, double mouseY) {
-        if (mouseY < y || mouseY >= y + HEIGHT) return null;
-        return valueAt(x, onLabelWidth, offLabelWidth, mouseX);
+        return asValue(SegmentBarGeometry.segmentAt(x, y, mouseX, mouseY,
+                onLabelWidth, offLabelWidth));
     }
 
     /**
@@ -72,7 +71,12 @@ public final class ToggleGeometry {
      * inside it — a 14px tall target inside a 24px row would only be fiddly.
      */
     public static Boolean valueAt(int x, int onLabelWidth, int offLabelWidth, double mouseX) {
-        if (mouseX < x || mouseX >= x + width(onLabelWidth, offLabelWidth)) return null;
-        return mouseX < splitX(x, onLabelWidth, offLabelWidth) ? Boolean.TRUE : Boolean.FALSE;
+        return asValue(SegmentBarGeometry.indexAt(x, mouseX, onLabelWidth, offLabelWidth));
+    }
+
+    /** Segment 0 is on, segment 1 is off, and no segment at all is no answer. */
+    private static Boolean asValue(int index) {
+        if (index < 0) return null;
+        return index == 0 ? Boolean.TRUE : Boolean.FALSE;
     }
 }
