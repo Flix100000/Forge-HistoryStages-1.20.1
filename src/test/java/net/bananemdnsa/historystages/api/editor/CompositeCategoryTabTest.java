@@ -1,9 +1,8 @@
-package net.bananemdnsa.historystages.client.editor.tab;
+package net.bananemdnsa.historystages.api.editor;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;

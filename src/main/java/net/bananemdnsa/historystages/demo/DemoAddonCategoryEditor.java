@@ -10,6 +10,7 @@ import net.bananemdnsa.historystages.api.editor.widget.ChoiceScreen;
 import net.bananemdnsa.historystages.api.editor.widget.CountInputScreen;
 import net.bananemdnsa.historystages.api.editor.CategoryEditor;
 import net.bananemdnsa.historystages.api.editor.CategoryTab;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.api.editor.GenericIdPicker;
 import net.bananemdnsa.historystages.api.editor.RegisterCategoryEditorsEvent;
 import net.bananemdnsa.historystages.api.editor.RegisterTriggerEditorsEvent;
@@ -48,7 +49,7 @@ public final class DemoAddonCategoryEditor {
             }
 
             @Override
-            public CategoryTab createTab(Runnable onChanged) {
+            public CategoryTab createTab(Runnable onChanged, StageScope scope) {
                 return new DemoCategoryTab(DemoAddonCategory.category(),
                         (onSelect, alreadyAdded) -> {
                             GenericIdPicker picker = new GenericIdPicker(

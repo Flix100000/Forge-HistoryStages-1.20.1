@@ -1,9 +1,8 @@
-package net.bananemdnsa.historystages.client.editor.widget;
+package net.bananemdnsa.historystages.api.editor.widget;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import net.bananemdnsa.historystages.api.editor.widget.SegmentBarGeometry;
 import net.bananemdnsa.historystages.client.editor.anim.Anim;
 import net.bananemdnsa.historystages.client.editor.anim.Ease;
 import net.bananemdnsa.historystages.client.editor.anim.Fade;
@@ -20,11 +19,16 @@ import net.minecraft.client.gui.GuiGraphics;
  * is what it means: the switch <em>sets a value</em>, this one <em>changes what you are looking
  * at</em>. That is why it lives here rather than as another face of the switch.
  *
- * <p>The arithmetic is public and the painting is not, which is deliberate rather than an
- * oversight: {@code SegmentBarGeometry} had to be public for the switch to be defined in terms of
- * it, and a promise about where a segment starts costs nothing to keep. A promise about how one
- * looks is a promise not to restyle the editor. Nothing outside this mod has asked for sections
- * yet; when something does, this can move too.
+ * <p>For a long time only the arithmetic was public and the painting was not, on the grounds that
+ * a promise about where a segment starts costs nothing while a promise about how one looks is a
+ * promise not to restyle the editor. The painting is part of the promise now, because the
+ * alternative was worse: an addon wanting a segmented control inside its own tab had to paint one
+ * by hand, and a hand-painted one drifts from these the first time the editor's colours move.
+ * Restyling the editor now means restyling this, for everybody at once.
+ *
+ * <p>Note that a tab built with {@link net.bananemdnsa.historystages.api.editor.CompositeCategoryTab}
+ * needs none of this: that bar is drawn by the host screen, above the list rather than inside it.
+ * This is for a control an addon draws in its own {@code renderContent}.
  *
  * <p>Not a widget with state of its own beyond the animations: whoever draws it owns the chosen
  * index, exactly as the switch's caller owns its boolean.

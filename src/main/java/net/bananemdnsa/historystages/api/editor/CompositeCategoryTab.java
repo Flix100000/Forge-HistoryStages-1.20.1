@@ -1,11 +1,8 @@
-package net.bananemdnsa.historystages.client.editor.tab;
+package net.bananemdnsa.historystages.api.editor;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import net.bananemdnsa.historystages.api.editor.CategoryTab;
-import net.bananemdnsa.historystages.api.editor.TabInputContext;
-import net.bananemdnsa.historystages.api.editor.TabRenderContext;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
 import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;
@@ -15,10 +12,15 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Several categories shown as one tab, with a bar of sections to switch between them.
  *
- * <p>Merchant offers are gated by item, by profession and by merchant level. Those are three
- * separate questions holding three different kinds of thing, so they are three lock categories —
- * but they are one decision a pack author makes in one sitting, and three entries in a strip that
- * already holds a dozen would bury the other nine. One tab, three sections.
+ * <p>Reach for this when several categories are one decision a pack author makes in one sitting.
+ * Merchant offers are gated by item, by profession and by merchant level; entities by attack, by
+ * spawn and by interaction. Each of those is a separate question holding a different kind of
+ * thing, so each is its own lock category — but three entries in a strip that already holds a
+ * dozen would bury the other nine. One tab, three sections.
+ *
+ * <p>An addon returns one of these from {@link CategoryEditor#createTab} and gets the section bar
+ * drawn for it: the host recognises the type and reserves the strip above the list. Nothing else
+ * is needed, and nothing else may be assumed — the bar is the host's, not the tab's.
  *
  * <p><strong>Loading and storing go to every section, not just the visible one.</strong> The
  * sections are only a way of looking at the stage; all three are always live. Storing only what

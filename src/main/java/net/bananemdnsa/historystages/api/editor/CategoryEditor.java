@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 
 import net.bananemdnsa.historystages.data.lock.category.LockCategories;
 import net.bananemdnsa.historystages.api.lock.LockCategory;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 
 /**
  * How an addon category gets a tab in the stage editor.
@@ -33,10 +34,16 @@ public interface CategoryEditor {
     /**
      * Builds the tab.
      *
+     * <p>The scope is handed over because a tab cannot work it out and some tabs need it. A
+     * {@link CompositeCategoryTab} greys the sections whose category does not serve the stage
+     * being edited, and it can only do that if it is told which stage that is. A tab with nothing
+     * scope-dependent about it may ignore the argument.
+     *
      * @param onChanged what the tab must call after changing anything, so the editor knows the
      *                  stage is dirty and can recompute its scroll extent
+     * @param scope     which of the two stage maps this editing session is writing to
      */
-    CategoryTab createTab(Runnable onChanged);
+    CategoryTab createTab(Runnable onChanged, StageScope scope);
 
     /**
      * Extra entries this category offers in a row right-click menu. Empty by default.
@@ -70,7 +77,7 @@ public interface CategoryEditor {
             }
 
             @Override
-            public CategoryTab createTab(Runnable onChanged) {
+            public CategoryTab createTab(Runnable onChanged, StageScope scope) {
                 LockCategory<?> registered = LockCategories.byId(categoryId);
                 if (registered == null) {
                     throw new IllegalStateException("No lock category registered under '" + categoryId

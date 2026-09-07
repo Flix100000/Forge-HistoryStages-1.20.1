@@ -30,7 +30,8 @@ class CategoryEditorRegistryTest {
             }
 
             @Override
-            public CategoryTab createTab(Runnable onChanged) {
+            public CategoryTab createTab(Runnable onChanged,
+                    net.bananemdnsa.historystages.api.stage.StageScope scope) {
                 throw new UnsupportedOperationException("not needed for this test");
             }
         };

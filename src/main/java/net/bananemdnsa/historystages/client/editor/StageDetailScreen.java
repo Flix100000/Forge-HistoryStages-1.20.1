@@ -43,7 +43,7 @@ import net.bananemdnsa.historystages.network.serverbound.RequestTradeGoodsPacket
 import net.bananemdnsa.historystages.data.lock.FluidRecipeScanner;
 import net.bananemdnsa.historystages.client.editor.recipe.RecipeTypeMetas;
 import net.bananemdnsa.historystages.client.editor.tab.CategoryEditors;
-import net.bananemdnsa.historystages.client.editor.tab.CompositeCategoryTab;
+import net.bananemdnsa.historystages.api.editor.CompositeCategoryTab;
 import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.client.editor.tab.EntityCategoryTab;
 import net.bananemdnsa.historystages.api.editor.EditorTab;
@@ -83,7 +83,7 @@ import net.bananemdnsa.historystages.client.editor.anim.Timing;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.bananemdnsa.historystages.client.editor.widget.SegmentBar;
+import net.bananemdnsa.historystages.api.editor.widget.SegmentBar;
 import org.jetbrains.annotations.Nullable;
 import net.bananemdnsa.historystages.client.editor.widget.StyledButton;
 import net.minecraft.client.gui.components.EditBox;
@@ -689,7 +689,7 @@ public class StageDetailScreen extends Screen {
         for (String addonCategoryId : LockCategories.addonIds()) {
             CategoryEditor editor = CategoryEditors.byCategory(addonCategoryId);
             if (editor == null) continue;
-            CategoryTab addonTab = editor.createTab(() -> { hasChanges = true; updateMaxScroll(); });
+            CategoryTab addonTab = editor.createTab(() -> { hasChanges = true; updateMaxScroll(); }, loadScope);
             addonTab.load(e);
             this.categoryTabs.put(nextTabIndex++, addonTab);
         }
