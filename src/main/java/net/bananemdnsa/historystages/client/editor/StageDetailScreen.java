@@ -364,7 +364,9 @@ public class StageDetailScreen extends Screen {
      */
     private final String targetFolder;
 
-    // Tabs that are disabled for individual stages (Spawnlock=7)
+    // A tab the current stage cannot use. Greyed in the strip rather than hidden, so nobody hunts
+    // for a tab they know from global stages. A tab with sections is only greyed whole when none
+    // of its sections fits — the others grey one segment instead.
     private boolean isTabDisabled(int tab) {
         CategoryTab categoryTab = categoryTabs.get(tab);
         return categoryTab != null && isIndividual && !categoryTab.availableForIndividualStages();
@@ -503,7 +505,7 @@ public class StageDetailScreen extends Screen {
                 () -> { hasChanges = true; updateMaxScroll(); });
         structureTabLocal.load(e);
         this.structureTab = structureTabLocal;
-        this.categoryTabs.put(11, structureTabLocal);
+        this.categoryTabs.put(9, structureTabLocal);
         // Safe cast: the built-in biomes category stores bare ids.
         @SuppressWarnings("unchecked")
         LockCategory<String> biomeCategory =
@@ -518,7 +520,10 @@ public class StageDetailScreen extends Screen {
                 StageEntry::getBiomeModLinked, StageEntry::setBiomeModLinked);
         biomeTabLocal.load(e);
         this.biomeTab = biomeTabLocal;
-        this.categoryTabs.put(12, biomeTabLocal);
+        this.categoryTabs.put(10, biomeTabLocal);
+        // Which of the two stage maps this screen is editing. Read by every tab that has sections,
+        // because a section whose category does not serve this scope is greyed rather than shown.
+        StageScope loadScope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
         // Three categories, one tab, sitting where the decision belongs: after the entity locks
         // that gate the merchant itself and before world generation. Structures and biomes moved
         // up a place for it — the index is a position in the strip and nothing reads it as an
@@ -582,9 +587,10 @@ public class StageDetailScreen extends Screen {
                         new CompositeCategoryTab.Section(tradeProfessionTabLocal,
                                 "editor.historystages.trades.section.professions"),
                         new CompositeCategoryTab.Section(tradeLevelTab,
-                                "editor.historystages.trades.section.levels")));
+                                "editor.historystages.trades.section.levels")),
+                loadScope);
         tradesTabLocal.load(e);
-        this.categoryTabs.put(10, tradesTabLocal);
+        this.categoryTabs.put(8, tradesTabLocal);
         // Fluids sit at index 1, beside items, because that is where someone looks for them.
         // The tab index is a position in the strip and nothing treats it as an identity — every
         // behavioural question goes through isTab against the category id — so putting a tab in
@@ -612,20 +618,37 @@ public class StageDetailScreen extends Screen {
         @SuppressWarnings("unchecked")
         LockCategory<String> attackCategory =
                 (LockCategory<String>) LockCategories.byId("historystages:attacklock");
-        this.categoryTabs.put(7, new EntityCategoryTab(attackCategory,
+        CategoryTab attackTab = new EntityCategoryTab(attackCategory,
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
-                entityState, entityState.attacklock()));
-        this.categoryTabs.put(8, new EntityCategoryTab(
+                entityState, entityState.attacklock());
+        CategoryTab spawnTab = new EntityCategoryTab(
                 LockCategories.byId("historystages:spawnlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
-                entityState, entityState.spawnlock()));
-        this.categoryTabs.put(9, new EntityCategoryTab(
+                entityState, entityState.spawnlock());
+        CategoryTab interactionTab = new EntityCategoryTab(
                 LockCategories.byId("historystages:interactionlock"),
                 (onSelect, alreadyAdded) -> createEntityPicker(onSelect, alreadyAdded),
                 () -> { hasChanges = true; updateMaxScroll(); },
-                entityState, entityState.interactionlock()));
+                entityState, entityState.interactionlock());
+        // One tab, three sections — the same shape as trades, and for the same reason: three
+        // questions a pack author answers in one sitting, which three entries in the strip would
+        // only spread out. The tab reports the attack category's id; every question about what a
+        // row means goes through the visible section, which isTab already resolves.
+        //
+        // No load(e) here: entityState.load(e) above already filled all three lists, and that is
+        // the only thing an entity tab's load does.
+        this.categoryTabs.put(7, new CompositeCategoryTab(
+                attackCategory.id(), "editor.historystages.tab.entities",
+                "editor.historystages.tooltip.entities",
+                List.of(new CompositeCategoryTab.Section(attackTab,
+                                "editor.historystages.entities.section.attack"),
+                        new CompositeCategoryTab.Section(spawnTab,
+                                "editor.historystages.entities.section.spawn"),
+                        new CompositeCategoryTab.Section(interactionTab,
+                                "editor.historystages.entities.section.interaction")),
+                loadScope));
         // Built after the entity lists, because adding a mod starts the mod-lock chain and
         // that chain reads them.
         // Safe cast: the built-in mods category stores NamedLockEntry.
@@ -670,7 +693,6 @@ public class StageDetailScreen extends Screen {
             addonTab.load(e);
             this.categoryTabs.put(nextTabIndex++, addonTab);
         }
-        StageScope loadScope = isIndividual ? StageScope.INDIVIDUAL : StageScope.GLOBAL;
         for (StageSettingsGroup group : StageSettingsGroups.all()) {
             this.editAddonSettings.put(group.id(), group.load(e, loadScope));
         }
@@ -705,7 +727,7 @@ public class StageDetailScreen extends Screen {
         int totalNaturalW = 0;
         for (int i = 0; i < tabCount(); i++) {
             String label = Component.translatable(tabKey(i)).getString();
-            int count = getListForSection(i).size();
+            int count = stripEntryCount(i);
             String tabText = label + " (" + count + ")";
             naturalW[i] = (int)(this.font.width(tabText) * SMALL_SCALE) + TAB_PAD * 2;
             totalNaturalW += naturalW[i];
@@ -1336,6 +1358,19 @@ public class StageDetailScreen extends Screen {
     }
 
     /**
+     * How many entries the strip puts in brackets after a tab's name.
+     *
+     * <p>Not {@link #getListForSection}: that one answers about the section on screen, because a
+     * row index means nothing else. A tab with sections holding twenty offers must not claim (0)
+     * because someone left it on the levels section.
+     */
+    private int stripEntryCount(int index) {
+        CategoryTab tab = categoryTabs.get(index);
+        if (tab instanceof CompositeCategoryTab composite) return composite.totalEntryCount();
+        return tab != null ? tab.entries().size() : 0;
+    }
+
+    /**
      * Top of the scrolling list.
      *
      * <p>Every other measurement in this screen is taken from here — the render and input
@@ -1623,12 +1658,22 @@ public class StageDetailScreen extends Screen {
         CompositeCategoryTab composite = sectionBar();
         if (composite == null) return;
         List<String> labels = composite.sectionLabels();
+        boolean[] disabled = new boolean[labels.size()];
+        for (int i = 0; i < labels.size(); i++) disabled[i] = !composite.sectionEnabled(i);
         int x = contentLeft();
         int y = HEADER_HEIGHT + 3;
-        int hovered = isAnyOverlayVisible() ? -1
+        int over = isAnyOverlayVisible() ? -1
                 : SegmentBar.segmentAt(this.font, x, y, mouseX, mouseY, labels);
+        // A segment nobody can open does not warm up under the cursor — it says why instead.
+        int hovered = over >= 0 && disabled[over] ? -1 : over;
+        if (over >= 0 && disabled[over]) {
+            currentTooltipKey = "section.disabled." + over;
+            currentTooltipText = Component
+                    .translatable("editor.historystages.section.disabled.global_only").getString();
+        }
         sectionBarState.update(composite.activeIndex(), hovered, labels.size());
-        SegmentBar.draw(g, this.font, x, y, labels, composite.activeIndex(), sectionBarState);
+        SegmentBar.draw(g, this.font, x, y, labels, composite.activeIndex(), sectionBarState,
+                disabled);
     }
 
     /**
@@ -1783,7 +1828,7 @@ public class StageDetailScreen extends Screen {
             guiGraphics.fill(scrolledTabX, tabY, scrolledTabX + tabW[i], tabY + TAB_HEIGHT, bg);
 
             String label = Component.translatable(tabKey(i)).getString();
-            int entryCount = getListForSection(i).size();
+            int entryCount = stripEntryCount(i);
             String tabText = label + " (" + entryCount + ")";
             int textColor;
             if (disabled) {
@@ -1800,7 +1845,8 @@ public class StageDetailScreen extends Screen {
                     && mouseX < Math.min(scrolledTabX + tabW[i], tabClipRight)
                     && mouseY >= tabY && mouseY < tabY + TAB_HEIGHT) {
                 currentTooltipKey = "tab.disabled." + i;
-                currentTooltipText = "Not available for individual stages";
+                currentTooltipText = Component.translatable("editor.historystages.tab.disabled")
+                        .getString();
             }
         }
 

@@ -7,6 +7,7 @@ import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.api.editor.TabInputContext;
 import net.bananemdnsa.historystages.api.editor.TabRenderContext;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;
 import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.Nullable;
@@ -39,11 +40,12 @@ public final class CompositeCategoryTab implements CategoryTab {
     private final String tabLangKey;
     private final String tooltipLangKey;
     private final List<Section> sections;
+    private final StageScope scope;
 
     private int active;
 
     public CompositeCategoryTab(String categoryId, String tabLangKey, String tooltipLangKey,
-                                List<Section> sections) {
+                                List<Section> sections, StageScope scope) {
         if (sections.isEmpty()) {
             throw new IllegalArgumentException("a composite tab with no sections has nothing to show");
         }
@@ -51,6 +53,8 @@ public final class CompositeCategoryTab implements CategoryTab {
         this.tabLangKey = tabLangKey;
         this.tooltipLangKey = tooltipLangKey;
         this.sections = List.copyOf(sections);
+        this.scope = scope;
+        this.active = firstEnabledSection();
     }
 
     /**
@@ -63,6 +67,32 @@ public final class CompositeCategoryTab implements CategoryTab {
      */
     public CategoryTab activeSection() {
         return sections.get(active).tab();
+    }
+
+    /**
+     * Whether this section can be edited in the scope the tab was built for.
+     *
+     * <p>Read from the section itself rather than passed in. A category already states which
+     * scopes it serves, and copying that statement into the editor is how the two drift apart
+     * the next time a category changes its mind.
+     */
+    public boolean sectionEnabled(int index) {
+        if (index < 0 || index >= sections.size()) return false;
+        if (scope != StageScope.INDIVIDUAL) return true;
+        return sections.get(index).tab().availableForIndividualStages();
+    }
+
+    /**
+     * The section the tab opens on: the first that can be edited here.
+     *
+     * <p>Falls back to zero when none can, which only happens for a tab that is not offered at
+     * all — {@link #availableForIndividualStages} is false in exactly that case.
+     */
+    private int firstEnabledSection() {
+        for (int i = 0; i < sections.size(); i++) {
+            if (sectionEnabled(i)) return i;
+        }
+        return 0;
     }
 
     /** The section names, in bar order. */
@@ -81,6 +111,7 @@ public final class CompositeCategoryTab implements CategoryTab {
     /** @return true if the section actually changed, so the host can reset its row animation */
     public boolean setActiveIndex(int index) {
         if (index < 0 || index >= sections.size() || index == active) return false;
+        if (!sectionEnabled(index)) return false;
         active = index;
         activeSection().onShown();
         return true;
@@ -107,18 +138,35 @@ public final class CompositeCategoryTab implements CategoryTab {
         return tooltipLangKey;
     }
 
-    /** Offered per player only if every section is — a tab with a dead section is worse than none. */
+    /**
+     * Offered per player as soon as one section works there.
+     *
+     * <p>The sections that do not are greyed on the bar rather than taken down with it. Refusing
+     * the tab outright would cost the ones that work — and there is no other way to reach them.
+     */
     @Override
     public boolean availableForIndividualStages() {
         for (Section section : sections) {
-            if (!section.tab().availableForIndividualStages()) return false;
+            if (section.tab().availableForIndividualStages()) return true;
         }
-        return true;
+        return false;
     }
 
     @Override
     public List<String> entries() {
         return activeSection().entries();
+    }
+
+    /**
+     * Every section's rows counted together — what the strip puts in brackets after the name.
+     *
+     * <p>{@link #entries} answers about the section on screen, because that is what the list
+     * draws and what a row index means. The number beside the tab name is about the tab.
+     */
+    public int totalEntryCount() {
+        int total = 0;
+        for (Section section : sections) total += section.tab().entries().size();
+        return total;
     }
 
     @Override

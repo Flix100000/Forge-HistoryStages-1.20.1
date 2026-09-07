@@ -5,6 +5,7 @@ import java.util.List;
 
 import net.bananemdnsa.historystages.api.editor.CategoryTab;
 import net.bananemdnsa.historystages.api.editor.widget.PickerOverlay;
+import net.bananemdnsa.historystages.api.stage.StageScope;
 import net.bananemdnsa.historystages.data.StageEntry;
 import org.junit.jupiter.api.Test;
 
@@ -25,17 +26,23 @@ class CompositeCategoryTabTest {
     private static final class Recording implements CategoryTab {
 
         private final String id;
+        private final boolean individualOk;
         private final List<String> rows = new ArrayList<>();
         private int loads;
         private int stores;
         private int shown;
 
         Recording(String id) {
+            this(id, true);
+        }
+
+        Recording(String id, boolean individualOk) {
             this.id = id;
+            this.individualOk = individualOk;
         }
 
         @Override public String categoryId() { return id; }
-        @Override public boolean availableForIndividualStages() { return true; }
+        @Override public boolean availableForIndividualStages() { return individualOk; }
         @Override public String tabLangKey() { return "tab." + id; }
         @Override public String tooltipLangKey() { return "tooltip." + id; }
         @Override public List<String> entries() { return rows; }
@@ -49,12 +56,16 @@ class CompositeCategoryTabTest {
     }
 
     private static CompositeCategoryTab tabOf(Recording... sections) {
+        return tabOf(StageScope.GLOBAL, sections);
+    }
+
+    private static CompositeCategoryTab tabOf(StageScope scope, Recording... sections) {
         List<CompositeCategoryTab.Section> list = new ArrayList<>();
         for (Recording section : sections) {
             list.add(new CompositeCategoryTab.Section(section, "label." + section.categoryId()));
         }
         return new CompositeCategoryTab("historystages:composite", "tab.composite",
-                "tooltip.composite", list);
+                "tooltip.composite", list, scope);
     }
 
     @Test
@@ -132,5 +143,71 @@ class CompositeCategoryTabTest {
         assertEquals(0, items.shown,
                 "replaying the entrance animation for a section that never left would make the"
                         + " rows jump every time the bar is clicked");
+    }
+
+    @Test
+    void aTabIsOfferedPerPlayerAsLongAsOneSectionWorksThere() {
+        CompositeCategoryTab mixed = tabOf(StageScope.INDIVIDUAL,
+                new Recording("mod:attack", true), new Recording("mod:spawn", false));
+
+        assertTrue(mixed.availableForIndividualStages(),
+                "refusing the whole tab because one section is global-only would take the two"
+                        + " that do work per player down with it");
+
+        CompositeCategoryTab noneFit = tabOf(StageScope.INDIVIDUAL,
+                new Recording("mod:spawn", false), new Recording("mod:weather", false));
+
+        assertFalse(noneFit.availableForIndividualStages(),
+                "a tab whose every section is dead is worse than no tab");
+    }
+
+    @Test
+    void aSectionThatCannotBeEditedHereIsNotEnabled() {
+        CompositeCategoryTab individual = tabOf(StageScope.INDIVIDUAL,
+                new Recording("mod:attack", true), new Recording("mod:spawn", false));
+
+        assertTrue(individual.sectionEnabled(0));
+        assertFalse(individual.sectionEnabled(1));
+
+        CompositeCategoryTab global = tabOf(StageScope.GLOBAL,
+                new Recording("mod:attack", true), new Recording("mod:spawn", false));
+
+        assertTrue(global.sectionEnabled(1),
+                "global-only is a statement about individual stages, not about this one");
+    }
+
+    @Test
+    void clickingADisabledSectionChangesNothing() {
+        Recording spawn = new Recording("mod:spawn", false);
+        CompositeCategoryTab tab = tabOf(StageScope.INDIVIDUAL,
+                new Recording("mod:attack", true), spawn);
+
+        assertFalse(tab.setActiveIndex(1), "the segment is greyed; a click on it is not a switch");
+        assertEquals("mod:attack", tab.activeSection().categoryId());
+        assertEquals(0, spawn.shown,
+                "showing a section nobody can edit would put its rows on screen anyway");
+    }
+
+    @Test
+    void theTabOpensOnASectionThatCanBeEdited() {
+        CompositeCategoryTab tab = tabOf(StageScope.INDIVIDUAL,
+                new Recording("mod:spawn", false), new Recording("mod:attack", true));
+
+        assertEquals("mod:attack", tab.activeSection().categoryId(),
+                "opening on a greyed section would show an empty list nobody can add to");
+    }
+
+    @Test
+    void theCountOnTheStripIsEverySectionTogether() {
+        Recording offers = new Recording("mod:offers");
+        Recording levels = new Recording("mod:levels");
+        offers.rows.add("minecraft:diamond");
+        offers.rows.add("minecraft:emerald");
+        levels.rows.add("2");
+        CompositeCategoryTab tab = tabOf(offers, levels);
+
+        assertEquals(3, tab.totalEntryCount(),
+                "counting only the section on screen makes a tab holding twenty offers claim (0)"
+                        + " as soon as someone switches to levels");
     }
 }

@@ -37,6 +37,8 @@ public final class SegmentBar {
     private static final int FILL = 0xFFFFCC00;
     private static final int TEXT_ON_FILL = 0xFF2C2C2A;
     private static final int TEXT_IDLE = 0xFF5F5E5A;
+    /** Dimmer than idle, and the same grey the strip above uses for a tab this stage cannot use. */
+    private static final int TEXT_DISABLED = 0xFF3A3A38;
     private static final int TEXT_HOVER = 0xFFCCCCCC;
     private static final int HOVER_WASH = 0xFF3D3520;
 
@@ -103,9 +105,15 @@ public final class SegmentBar {
         return SegmentBarGeometry.indexAt(x, mouseX, measure(font, labels));
     }
 
-    /** Draws the bar with {@code selected} filled. */
+    /**
+     * Draws the bar with {@code selected} filled.
+     *
+     * @param disabled one flag per label; a disabled segment is drawn dim and cannot be chosen.
+     *                 Hover is the caller's business — it passes {@code -1} for a segment nobody
+     *                 can open, which is also what keeps the hover ramp from warming it up.
+     */
     public static void draw(GuiGraphics g, Font font, int x, int y, List<String> labels,
-                            int selected, State state) {
+                            int selected, State state, boolean[] disabled) {
         int[] widths = measure(font, labels);
         int segW = SegmentBarGeometry.segmentWidth(widths);
         int total = SegmentBarGeometry.width(widths);
@@ -139,10 +147,13 @@ public final class SegmentBar {
         for (int i = 0; i < labels.size(); i++) {
             int segX = SegmentBarGeometry.segmentX(x, i, widths);
             // How much of the travelling fill is under this label. The label crossfades with it,
-            // so no word is left dark on a lit segment while the fill is still on its way.
+            // so no word is left dark on a lit segment while the fill is still on its way — and
+            // that holds for a disabled label the fill merely passes over on its way elsewhere.
             float covered = Ease.clamp01(1.0f - Math.abs(slide - i));
-            int colour = Fade.mix(Fade.mix(TEXT_IDLE, TEXT_HOVER, state.hoverAt(i)),
-                    TEXT_ON_FILL, covered);
+            int idle = i < disabled.length && disabled[i]
+                    ? TEXT_DISABLED
+                    : Fade.mix(TEXT_IDLE, TEXT_HOVER, state.hoverAt(i));
+            int colour = Fade.mix(idle, TEXT_ON_FILL, covered);
             g.drawString(font, labels.get(i), segX + (segW - widths[i]) / 2, textY, colour, false);
         }
     }
