@@ -62,6 +62,7 @@ public class DeleteStagePacket {
                         EditorFeedbackPacket.success(titleKey,
                                 "editor.historystages.toast.stage_deleted.message", msg.stageId),
                         player);
+                PacketHandler.reloadForLockChange(player.server);
             } else {
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.error(

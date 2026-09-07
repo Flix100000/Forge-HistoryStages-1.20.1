@@ -55,6 +55,17 @@ public final class StageUnlockHelper {
         // Config-gated chat/actionbar/sound broadcast + toast
         broadcastGlobalUnlock(level.getServer(), stageId, displayName, entry);
 
+        MinecraftServer unlockServer = level.getServer();
+        if (unlockServer != null) {
+            // Recipes gate globally only, so this belongs on the global paths and nowhere else.
+            // What it turns into is decided over there: a resend on its own in the normal case,
+            // and a full datapack reload only when this change actually altered which recipes are
+            // hidden. A machine that reads the entire recipe list and keeps it — Create's basin,
+            // and most modded machines — is only told to let go of that copy by a datapack reload,
+            // and reloading every datapack is far too expensive to do when nothing needs it.
+            PacketHandler.reloadForLockChange(unlockServer);
+        }
+
         return true;
     }
 
@@ -115,7 +126,10 @@ public final class StageUnlockHelper {
 
         MinecraftServer server = level.getServer();
         if (server != null) {
-            server.reloadResources(server.getPackRepository().getSelectedIds());
+            // The same as unlocking, and kept for the same reasons — see the note there. This used
+            // to reload every datapack unconditionally; now it only does so when the set of hidden
+            // recipes really changed.
+            PacketHandler.reloadForLockChange(server);
         }
         return true;
     }

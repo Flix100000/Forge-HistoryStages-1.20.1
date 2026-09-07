@@ -120,6 +120,7 @@ public class SaveStagePacket {
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.success(titleKey, messageKey, msg.stageId),
                         player);
+                PacketHandler.reloadForLockChange(player.server);
             } else {
                 PacketHandler.sendEditorFeedback(
                         EditorFeedbackPacket.error(

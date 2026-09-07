@@ -1,7 +1,12 @@
 package net.bananemdnsa.historystages.network;
 
 import net.bananemdnsa.historystages.HistoryStages;
+import net.bananemdnsa.historystages.data.lock.UngatedRecipes;
+import net.bananemdnsa.historystages.data.lock.VisibleRecipes;
+import net.bananemdnsa.historystages.util.DebugLogger;
+import net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
@@ -212,4 +217,80 @@ public class PacketHandler {
         public static void sendToServer(Object packet) {
                 INSTANCE.sendToServer(packet);
         }
+
+        /**
+         * Asks for whatever a change to what is gated needs. Carried out by
+         * {@link #runRequestedLockReload} at the end of the tick.
+         *
+         * <p>Only asks, so that unlocking three stages in the same tick — a quest handing out a
+         * bundle, an auto-trigger catching up — ends in one piece of work rather than three.
+         */
+        public static void reloadForLockChange(MinecraftServer server) {
+                reloadRequested = true;
+        }
+
+        /**
+         * Carries out a requested reload, at most once per tick, and picks the cheapest one that
+         * will do.
+         *
+         * <p><strong>Resending is the normal case.</strong> The gate itself needs nothing: it is
+         * consulted when a recipe is asked for, so it flips the moment the stage does. What the
+         * resend is for is the clients — it is what makes JEI notice, and without it items hidden
+         * by a stage never come back after an unlock.
+         *
+         * <p><strong>A full datapack reload only when the set of hidden recipes actually
+         * changed.</strong> A machine that takes the whole recipe list and searches it itself —
+         * Create's basin, and most modded machines — keeps that list until a datapack reload tells
+         * it to let go, so without one it would take a lock correctly and then stay stuck after
+         * the unlock. But it only needs to be told when the list would come out different, and
+         * {@code VisibleRecipes.gatedSetChanged} answers exactly that by working the set out and
+         * comparing it. A stage gating blocks, biomes or mobs costs nothing; so does saving a
+         * stage in the editor without changing what it gates.
+         *
+         * <p>The reason for being this careful: reloading every datapack on a large modpack
+         * freezes the server for as long as it takes, and this can be reached from an
+         * auto-trigger, which fires while people are playing.
+         */
+        public static void runRequestedLockReload(MinecraftServer server) {
+                if (!reloadRequested) return;
+                reloadRequested = false;
+
+                if (!VisibleRecipes.gatedSetChanged(
+                                UngatedRecipes.of(server.getRecipeManager()))) {
+                        resyncRecipes(server);
+                        return;
+                }
+
+                server.reloadResources(server.getPackRepository().getSelectedIds())
+                                .exceptionally(e -> {
+                                        DebugLogger.warn("Recipe Locks",
+                                                        "Reloading datapacks after a stage change failed: " + e.getMessage()
+                                                                        + ". Machines that keep their own copy of the recipe list may "
+                                                                        + "still be going by the old one until /reload.");
+                                        return null;
+                                });
+        }
+
+        /**
+         * Pushes the recipes back to every client, and the recipe book along with them.
+         *
+         * <p>The book has to go with the packet. Replacing the client's recipe manager leaves the
+         * book pointing at recipes that are no longer the same objects, and the crafting table
+         * goes blank and stays blank, past an F3+T, until the player rejoins. Vanilla pairs the
+         * two everywhere it sends them: on join and in {@code PlayerList.reloadResources}, which
+         * is also what covers the reload branch above.
+         *
+         * <p>The ungated list, because {@code getRecipes} is gated on the server now and sending
+         * it would take the locked recipes off every client and out of their recipe book.
+         */
+        private static void resyncRecipes(MinecraftServer server) {
+                ClientboundUpdateRecipesPacket recipePacket = new ClientboundUpdateRecipesPacket(
+                                UngatedRecipes.of(server.getRecipeManager()));
+                for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                        p.connection.send(recipePacket);
+                        p.getRecipeBook().sendInitialRecipeBook(p);
+                }
+        }
+
+        private static volatile boolean reloadRequested;
 }

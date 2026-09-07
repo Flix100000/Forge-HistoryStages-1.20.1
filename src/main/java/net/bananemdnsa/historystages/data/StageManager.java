@@ -1445,7 +1445,23 @@ public class StageManager {
     /** Call after every write to STAGES or INDIVIDUAL_STAGES. */
     private static void markLockIndexDirty() {
         LOCK_INDEX_DIRTY = true;
+        DEFINITIONS_VERSION.incrementAndGet();
     }
+
+    /**
+     * Changes whenever the stage maps do. Never persisted, never sent.
+     *
+     * <p>The lock index is told about a change through the flag above; anything else that derives
+     * from the stage maps reads this instead. Same reasoning as {@code StageData.cacheVersion}: a
+     * counter beside the data cannot be forgotten the way a notification at each of a dozen write
+     * sites can, and this one already has a single write site to sit in.
+     */
+    public static long definitionsVersion() {
+        return DEFINITIONS_VERSION.get();
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong DEFINITIONS_VERSION =
+            new java.util.concurrent.atomic.AtomicLong();
 
     private static void rebuildLockIndexIfDirty() {
         if (!LOCK_INDEX_DIRTY) return;

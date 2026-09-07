@@ -59,6 +59,9 @@ public class ToggleStageLockPacket {
             net.bananemdnsa.historystages.events.lock.BiomeLockHandler.invalidateAll();
             net.bananemdnsa.historystages.util.lock.StructureGenerationGate.rebuild();
             PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
+            // The editor's own lock toggle changes a global stage like any other path, so the
+            // recipe lists have to be told the same way.
+            PacketHandler.reloadForLockChange(player.server);
 
             String titleKey = msg.unlock
                     ? "editor.historystages.toast.stage_unlocked_editor.title"

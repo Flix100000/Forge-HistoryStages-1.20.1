@@ -507,6 +507,9 @@ public class StageCommand {
         PacketHandler.sendToAll(new SyncStagesPacket(new ArrayList<>(data.getUnlockedStages())));
 
         source.sendSuccess(() -> Component.literal("§7[HistoryStages] " + msg), broadcast);
+        // Through PacketHandler so that unlocking every stage at once reloads once rather than
+        // once per stage, and so this path reloads the same way the single-stage one does.
+        PacketHandler.reloadForLockChange(source.getServer());
 
         return 1;
     }

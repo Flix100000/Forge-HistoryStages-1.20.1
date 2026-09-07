@@ -353,6 +353,14 @@ public class HistoryStages {
                 dropPickupLockedInventoryItems(player);
             }
         }
+
+        // Last in the tick on purpose: a stage unlocked anywhere above asks for a resend, and in
+        // the case that needs it for a datapack reload, which blocks until it is finished. Running
+        // it here rather than where it was asked for turns a bundle of unlocks into one piece of
+        // work, and keeps it out of the middle of whatever else was ticking.
+        if (event.getServer() != null) {
+            net.bananemdnsa.historystages.network.PacketHandler.runRequestedLockReload(event.getServer());
+        }
     }
 
     /** Resolves a stage id to its temporary config, checking global then individual stages. */
